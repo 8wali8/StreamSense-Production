@@ -1,0 +1,7 @@
+version: "3.9"
+
+services:
+  eureka-server:
+    build: ./eureka-server
+    ports:
+    - "8761:8761" #default port for eureka server

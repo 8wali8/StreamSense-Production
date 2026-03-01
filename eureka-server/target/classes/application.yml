@@ -1,0 +1,20 @@
+server: # spring boot runs embedded server (Tomcat) by default
+  port: 8761 # conventional port for Eureka
+
+spring:
+  application:
+  name: eureka-server # sets the service name used by spring, if it was client would set the name it would register under
+
+eureka:
+  client:
+    register-with-eureka: false # don't register as client because it is the main registry
+    fetch-registry: false # don't pull, this server is the source of truth (single-node setup)
+  server:
+    wait-time-in-ms-when-sync-empty: 0 # makes local startup smoother bc nothing to sync to
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info # expose only health and info over the web so nothing sensitive is available
+        # to be expanded once prometheus / grafana monitoring is added
