@@ -1,0 +1,22 @@
+# config-server/src/main/resources/application.yml
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+
+  profiles:
+    active: native
+
+  cloud:
+    config:
+      server:
+        native:
+          search-locations: file:/Users/ujjawalprasad/Desktop/StreamSense-Production/config-server/config-repo
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
