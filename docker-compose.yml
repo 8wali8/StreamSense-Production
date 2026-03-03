@@ -5,3 +5,32 @@ services:
     build: ./eureka-server
     ports:
     - "8761:8761" #default port for eureka server
+
+    #debugging since api-gateway is not showing up on eureka, may be because of diff startup timing
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8761/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  config-server:
+    build: ./config-server
+    ports:
+      - "8888:8888" # port for config server
+    volumes:
+      - ./config-server/config-repo:/config-repo
+    environment:
+      - SPRING_PROFILES_ACTIVE=native
+      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:/config-repo
+    depends_on:
+      - eureka-server
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080" # port for api-gateway
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_started
