@@ -1,7 +1,7 @@
-# config-server/config-repo/chat-service.yml
+# config-server/config-repo/sentiment-service.yml
 
 server:
-  port: 8081
+  port: 8083
 
 eureka:
   client:

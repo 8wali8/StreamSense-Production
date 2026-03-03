@@ -1,0 +1,6 @@
+#bootstrap to pull config files from config server
+spring:
+  application:
+    name: video-service
+  config:
+    import: optional:configserver:http://config-server:8888 #config server hosted on docker at port 8888

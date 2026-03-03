@@ -34,3 +34,43 @@ services:
         condition: service_healthy
       config-server:
         condition: service_started
+  
+  chat-service:
+    build: ./chat-service
+    ports: 
+    - "8081:8081" # port for chat-service following pattern
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+  
+  recommendation-service:
+    build: ./recommendation-service
+    ports:
+    - "8082:8082" # following port pattern
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+  
+  sentiment-service:
+    build: ./sentiment-service
+    ports:
+    - "8083:8083"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+
+  video-service:
+    build: ./video-service
+    ports:
+    - "8084-8084"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_started
