@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus scrapes itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # Future: Spring Boot services (add micrometer/prometheus later)
+  # When ready, uncomment and update targets.
+  - job_name: "streamsense-services"
+    metrics_path: /actuator/prometheus
+    static_configs:
+       - targets:
+         - "api-gateway:8080"
+         - "chat-service:8081"
+         - "recommendation-service:8082"
+         - "sentiment-service:8083"
+         - "video-service:8084"
+
+  # Future: Zipkin metrics endpoint (optional; Zipkin isn't typically scraped for app metrics)
+  # - job_name: "zipkin"
+  #   static_configs:
+  #     - targets: ["zipkin:9411"]
