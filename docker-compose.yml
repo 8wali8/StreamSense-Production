@@ -99,3 +99,71 @@ services:
     image: openzipkin/zipkin:latest
     ports:
       - "9411:9411"
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+  
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - zookeeper
+    ports:
+      # Host access (recommended)
+      - "29092:29092"
+      # Optional: also expose internal port (not required)
+      # - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      # Two listeners:
+      # - INTERNAL for other containers: kafka:9092
+      # - EXTERNAL for your host machine: localhost:29092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # Single-node convenience
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # (Optional but helps with dev)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    ports:
+      - "8088:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+  
+  kafka-topics-init:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - kafka
+    restart: "no"
+    command: >
+      bash -lc "
+        set -e;
+        echo 'Waiting for Kafka...';
+        for i in {1..60}; do
+          kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1 && break;
+          sleep 2;
+        done;
+        echo 'Creating topics...';
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages --partitions 3 --replication-factor 1;
+        echo 'Topics now:';
+        kafka-topics --bootstrap-server kafka:9092 --list;
+        echo 'Done.';
+      "
