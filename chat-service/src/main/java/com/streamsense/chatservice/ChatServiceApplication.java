@@ -1,4 +1,4 @@
-package main.java.com.streamsense.chatservice;
+package com.streamsense.chatservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

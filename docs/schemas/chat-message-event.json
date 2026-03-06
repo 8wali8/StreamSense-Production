@@ -1,0 +1,43 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://streamsense.local/schemas/chat-message-event.json",
+    "title": "ChatMessageEvent",
+    "type": "object",
+    "description": "Contract for chat messages ingested from Twitch (or test clients) and published to Kafka topic stream.chat.messages. timestamp is epoch millis.",
+    "additionalProperties": false,
+    "required": [
+        "eventId",
+        "streamer",
+        "user",
+        "message",
+        "timestamp"
+    ],
+    "properties": {
+        "eventId": {
+            "type": "string",
+            "description": "UUID for idempotency/debugging",
+            "minLength": 1
+        },
+        "streamer": {
+            "type": "string",
+            "description": "Streamer/channel identifier (used as Kafka key)",
+            "minLength": 1
+        },
+        "user": {
+            "type": "string",
+            "description": "Chat username",
+            "minLength": 1
+        },
+        "message": {
+            "type": "string",
+            "description": "Raw chat message content",
+            "minLength": 1,
+            "maxLength": 500
+        },
+        "timestamp": {
+            "type": "integer",
+            "description": "Epoch milliseconds (UTC)",
+            "minimum": 0
+        }
+    }
+}
