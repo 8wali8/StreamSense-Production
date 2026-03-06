@@ -1,4 +1,4 @@
-package main.java.com.streamsense.recommendationservice;
+package com.streamsense.recommendationservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

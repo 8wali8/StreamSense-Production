@@ -1,4 +1,4 @@
-package main.java.com.streamsense.videoservice;
+package com.streamsense.videoservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

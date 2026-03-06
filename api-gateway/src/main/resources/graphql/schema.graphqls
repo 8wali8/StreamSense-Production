@@ -1,0 +1,15 @@
+type Query {
+  health: String!
+}
+
+type Subscription {
+  onChatMessage(streamer: String!): ChatMessageEvent!
+}
+
+type ChatMessageEvent {
+  eventId: String!
+  streamer: String!
+  user: String!
+  message: String!
+  timestamp: Float!  # GraphQL Float handles JS number; we'll treat it as epoch millis
+}

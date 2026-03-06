@@ -11,7 +11,24 @@ eureka:
 streamsense:
   topics:
     chatMessages: stream.chat.messages
-    
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: api-gateway-subscriptions
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.streamsense.apigateway.events
+        spring.json.value.default.type: com.streamsense.apigateway.events.ChatMessageEvent
+        spring.json.use.type.headers: false
+        
+  graphql:
+    graphiql:
+      enabled: true
+
 management:
   endpoints:
     web:
