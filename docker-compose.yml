@@ -167,3 +167,12 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --list;
         echo 'Done.';
       "
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - default
