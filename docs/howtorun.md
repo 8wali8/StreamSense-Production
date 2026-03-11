@@ -1,131 +1,279 @@
 # Local Runbook
+---
 
-This runbook describes how to run StreamSense-Production locally (Docker Compose first), and how to debug common issues.
+# Prerequisites
 
-## Prereqs
+Install:
+
 - Java 21
 - Maven
 - Docker + Docker Compose
-- Node (for frontend later)
+- Node.js (frontend)
 
-## Quickstart: Docker Compose (recommended)
+Optional debugging tools:
 
-### Build jars (required: Dockerfiles copy target/*.jar)
+```
+npm install -g wscat
+```
+
+---
+
+# Quickstart (Docker Compose)
+
+## 1. Build service JARs
+
+Each Dockerfile copies `target/*.jar`, so build services first:
+
+```
+cd <service>
+mvn clean package -DskipTests
+```
+
+Services:
+
+- eureka-server
+- config-server
+- api-gateway
+- chat-service
+- sentiment-service
+- video-service
+- recommendation-service
+
+---
+
+## 2. Start the stack
+
 From repo root:
 
-- Build all services:
-  - eureka-server
-  - config-server
-  - api-gateway
-  - chat-service
-  - sentiment-service
-  - video-service
-  - recommendation-service
+```
+docker compose up -d --build
+```
 
-(Use either a Makefile target or run `mvn -DskipTests package` in each service directory.)
+---
 
-### Start the stack
-From repo root:
-- `docker compose up -d --build`
+## 3. Verify infrastructure
 
-### Verify
-- Eureka UI: http://localhost:8761
-- Config server: http://localhost:8888/<service>/default
-- Health checks (ports depend on config-repo):
-  - api-gateway: http://localhost:8080/actuator/health
-  - chat-service: http://localhost:8081/actuator/health
-  - sentiment-service: http://localhost:8082/actuator/health
-  - recommendation-service: http://localhost:8083/actuator/health
-  - video-service: http://localhost:8084/actuator/health
+| Service | URL |
+|------|------|
+| Eureka | http://localhost:8761 |
+| Config Server | http://localhost:8888 |
+| Kafka UI | http://localhost:8082 |
+| Prometheus | http://localhost:9090 |
+| Zipkin | http://localhost:9411 |
 
-## Local run: Maven (fast iteration)
+Health checks:
 
-### Start order (local JVM)
-1) eureka-server
-2) config-server
-3) api-gateway
-4) other services
+```
+http://localhost:8080/actuator/health  (api-gateway)
+http://localhost:8081/actuator/health  (chat-service)
+```
+
+---
+
+# Functional Verification
+
+## Test ingest endpoint
+
+```
+curl -X POST http://localhost:8081/api/chat/ingest   -H "Content-Type: application/json"   -d '{"streamer":"test","user":"u1","message":"hello","timestamp":1710000000000}'
+```
+
+Response:
+
+```
+{ "eventId": "..." }
+```
+
+---
+
+## Test GraphQL query
+
+```
+curl -X POST http://localhost:8080/graphql   -H "Content-Type: application/json"   -d '{"query":"query { health }"}'
+```
+
+Expected:
+
+```
+{ "data": { "health": "ok" } }
+```
+
+---
+
+## Test GraphQL subscription
+
+Connect:
+
+```
+npx wscat -c ws://localhost:8080/graphql -s graphql-transport-ws
+```
+
+Init:
+
+```
+{"type":"connection_init"}
+```
+
+Subscribe:
+
+```
+{
+"id":"1",
+"type":"subscribe",
+"payload":{
+"query":"subscription($streamer:String!){ onChatMessage(streamer:$streamer){ eventId streamer user message timestamp } }",
+"variables":{"streamer":"test"}
+}
+}
+```
+
+Send another ingest request → event should appear.
+
+---
+
+# Observability
+
+## Metrics
+
+Prometheus query:
+
+```
+streamsense_chat_ingest_total
+```
+
+Send ingest requests and confirm the value increases.
+
+---
+
+## Tracing
+
+Open Zipkin:
+
+```
+http://localhost:9411
+```
+
+Search for traces from:
+
+```
+chat-service
+```
+
+Look for span:
+
+```
+POST /api/chat/ingest
+```
+
+---
+
+# Running Services Without Docker
+
+Start in this order:
+
+```
+1. eureka-server
+2. config-server
+3. api-gateway
+4. other services
+```
 
 Example:
-- `cd eureka-server && mvn spring-boot:run`
-- `cd config-server && mvn spring-boot:run`
-- `cd api-gateway && mvn spring-boot:run`
 
-## Common failure modes
+```
+cd eureka-server
+mvn spring-boot:run
+```
 
-### 1) Service registers late / not immediately visible in Eureka
-Symptoms:
-- service health endpoint works
-- Eureka UI doesn’t show the service immediately
-- logs show temporary registration errors
+---
 
-Cause:
-- Eureka not fully ready when the client starts
-- Compose `depends_on` does not guarantee readiness (unless healthcheck gating is used)
+# Tests
 
-Fix:
-- Wait 30–60 seconds (Eureka client retries automatically)
-- Prefer healthcheck-gated depends_on for deterministic startup
-- Check logs: `docker compose logs <service>`
+Backend tests are CI-friendly (no Docker required).
 
-### 2) “Cannot execute request on any known server” (Eureka client)
-Symptoms:
-- logs in a service show:
-  - `Cannot execute request on any known server`
+```
+cd chat-service
+mvn test
+```
 
-Cause:
-- service is trying to reach Eureka at a bad URL or Eureka is not ready
+```
+cd api-gateway
+mvn test
+```
 
-Fix:
-- Ensure config-repo uses Docker hostnames:
-  - `http://eureka-server:8761/eureka` (inside containers)
-- Verify served config:
-  - `curl http://localhost:8888/<service>/default`
-- Verify connectivity from container:
-  - `docker compose exec <service> sh -lc "wget -qO- http://eureka-server:8761 | head"`
+Tests cover:
 
-### 3) Config Server works locally, fails in Docker
-Symptoms:
-- config-server returns 404/empty or doesn’t see configs in Docker
+- controller validation
+- Kafka produce
+- GraphQL health query
+- GraphQL subscription flow
 
-Cause:
-- using absolute host filesystem path in `search-locations` (works locally, not in container)
+---
 
-Fix:
-- mount repo configs: `./config-server/config-repo:/config-repo`
-- set env var in compose:
-  - `SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:/config-repo`
+# Useful Commands
 
-### 4) Service fails to fetch config in Docker
-Symptoms:
-- service starts with defaults or fails early
-- config import points to localhost
+List containers:
 
-Cause:
-- inside container, `localhost` refers to the container itself
+```
+docker compose ps
+```
 
-Fix:
-- set service bootstrap config import to:
-  - `optional:configserver:http://config-server:8888`
+View logs:
 
-### 5) Random host ports (e.g. 0.0.0.0:57062->8084)
-Cause:
-- compose ports configured as `"8084"` rather than `"8084:8084"`
+```
+docker compose logs -f <service>
+```
 
-Fix:
-- always map explicitly:
-  - `"HOST:CONTAINER"` e.g. `"8084:8084"`
+Restart service:
 
-## Useful commands
+```
+docker compose restart <service>
+```
 
-- See running containers:
-  - `docker compose ps`
+Rebuild service:
 
-- Tail logs:
-  - `docker compose logs -f <service>`
+```
+docker compose up -d --build <service>
+```
 
-- Restart one service:
-  - `docker compose restart <service>`
+---
 
-- Rebuild one service:
-  - `docker compose up -d --build <service>`
+# Common Issues
+
+### Service missing in Eureka
+
+Wait ~30 seconds — Eureka clients retry registration automatically.
+
+---
+
+### Config Server works locally but not in Docker
+
+Inside containers use:
+
+```
+http://config-server:8888
+```
+
+not `localhost`.
+
+---
+
+### Kafka connection errors
+
+Ensure services use:
+
+```
+kafka:9092
+```
+
+inside Docker.
+
+---
+
+### Subscription receives no events
+
+Check:
+
+- topic name `stream.chat.messages`
+- WebSocket protocol `graphql-transport-ws`
+- streamer filter matches subscription variable

@@ -47,7 +47,7 @@ flowchart LR
   VIDEO -->|produce| TSPON
 
   %% ---- ML ----
-  VIDEO -->|HTTP (circuit breaker)| ML[ml-engine<br/>Python inference]
+  VIDEO -->|"HTTP (circuit breaker)"| ML[ml-engine<br/>Python inference]
 
   %% ---- Observability ----
   subgraph OBS[monitoring]
