@@ -8,18 +8,22 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import com.streamsense.chatservice.events.ChatMessageEvent;
+import com.streamsense.chatservice.metrics.ChatMetrics;
 
 @Component
 public class ChatKafkaProducer {
 
     private final KafkaTemplate<String, ChatMessageEvent> kafkaTemplate;
     private final String chatTopic;
+    private final ChatMetrics chatMetrics;
 
     public ChatKafkaProducer(
             KafkaTemplate<String, ChatMessageEvent> kafkaTemplate,
-            @Value("${streamsense.topics.chatMessages}") String chatTopic) {
+            @Value("${streamsense.topics.chatMessages}") String chatTopic,
+            ChatMetrics chatMetrics) {
         this.kafkaTemplate = kafkaTemplate;
         this.chatTopic = chatTopic;
+        this.chatMetrics = chatMetrics;
     }
 
     public void publish(ChatMessageEvent event, String correlationId, String traceparent) {
@@ -28,10 +32,11 @@ public class ChatKafkaProducer {
         if (correlationId != null && !correlationId.isBlank()) {
             record.headers().add("correlationId", correlationId.getBytes(StandardCharsets.UTF_8));
         }
+
         if (traceparent != null && !traceparent.isBlank()) {
             record.headers().add("traceparent", traceparent.getBytes(StandardCharsets.UTF_8));
         }
 
-        kafkaTemplate.send(record);
+        chatMetrics.recordKafkaProduce(() -> kafkaTemplate.send(record));
     }
 }

@@ -7,7 +7,7 @@ type Subscription {
 }
 
 type ChatMessageEvent {
-  eventId: String!
+  eventId: ID!
   streamer: String!
   user: String!
   message: String!

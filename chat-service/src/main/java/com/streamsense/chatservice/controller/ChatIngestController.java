@@ -11,15 +11,18 @@ import com.streamsense.chatservice.api.ChatIngestRequest;
 import com.streamsense.chatservice.api.ChatIngestResponse;
 import com.streamsense.chatservice.events.ChatMessageEvent;
 import com.streamsense.chatservice.kafka.ChatKafkaProducer;
+import com.streamsense.chatservice.metrics.ChatMetrics;
 
 @RestController
 @RequestMapping("/api/chat")
 public class ChatIngestController {
 
     private final ChatKafkaProducer producer;
+    private final ChatMetrics chatMetrics;
 
-    public ChatIngestController(ChatKafkaProducer producer) {
+    public ChatIngestController(ChatKafkaProducer producer, ChatMetrics chatMetrics) {
         this.producer = producer;
+        this.chatMetrics = chatMetrics;
     }
 
     @PostMapping("/ingest")
@@ -27,6 +30,7 @@ public class ChatIngestController {
             @Valid @RequestBody ChatIngestRequest req,
             @RequestHeader(value = "correlationId", required = false) String correlationId,
             @RequestHeader(value = "traceparent", required = false) String traceparent) {
+
         String eventId = UUID.randomUUID().toString();
 
         ChatMessageEvent event = new ChatMessageEvent(
@@ -37,6 +41,7 @@ public class ChatIngestController {
                 req.getTimestamp());
 
         producer.publish(event, correlationId, traceparent);
+        chatMetrics.incrementChatIngest();
 
         return ResponseEntity.ok(new ChatIngestResponse(eventId));
     }

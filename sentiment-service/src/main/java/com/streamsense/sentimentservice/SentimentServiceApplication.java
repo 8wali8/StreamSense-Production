@@ -1,4 +1,4 @@
-package main.java.com.streamsense.sentimentservice;
+package com.streamsense.sentimentservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
