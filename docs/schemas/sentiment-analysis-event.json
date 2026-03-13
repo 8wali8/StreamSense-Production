@@ -1,0 +1,60 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "SentimentAnalysisEvent",
+    "type": "object",
+    "required": [
+        "sentimentEventId",
+        "sourceEventId",
+        "streamer",
+        "user",
+        "message",
+        "timestamp",
+        "processedAt",
+        "label",
+        "score",
+        "modelVersion"
+    ],
+    "properties": {
+        "sentimentEventId": {
+            "type": "string",
+            "description": "Unique identifier for this sentiment event"
+        },
+        "sourceEventId": {
+            "type": "string",
+            "description": "Original ChatMessageEvent.eventId"
+        },
+        "streamer": {
+            "type": "string"
+        },
+        "user": {
+            "type": "string"
+        },
+        "message": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "integer",
+            "description": "Original chat message timestamp (epoch millis)"
+        },
+        "processedAt": {
+            "type": "integer",
+            "description": "Time sentiment was generated (epoch millis)"
+        },
+        "label": {
+            "type": "string",
+            "enum": [
+                "POSITIVE",
+                "NEUTRAL",
+                "NEGATIVE"
+            ]
+        },
+        "score": {
+            "type": "number",
+            "description": "Sentiment polarity score in range [-1.0, 1.0]"
+        },
+        "modelVersion": {
+            "type": "string",
+            "description": "Version of ML model used for inference"
+        }
+    }
+}

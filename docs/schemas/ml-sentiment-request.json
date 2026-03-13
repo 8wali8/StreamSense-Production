@@ -1,0 +1,31 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MlSentimentRequest",
+    "type": "object",
+    "required": [
+        "eventId",
+        "streamer",
+        "user",
+        "message",
+        "timestamp"
+    ],
+    "properties": {
+        "eventId": {
+            "type": "string",
+            "description": "Original chat event ID"
+        },
+        "streamer": {
+            "type": "string"
+        },
+        "user": {
+            "type": "string"
+        },
+        "message": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "integer",
+            "description": "Chat message timestamp (epoch millis)"
+        }
+    }
+}
