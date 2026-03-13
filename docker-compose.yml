@@ -170,6 +170,7 @@ services:
         done;
         echo 'Creating topics...';
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sentiment.events --partitions 3 --replication-factor 1;
         echo 'Topics now:';
         kafka-topics --bootstrap-server kafka:9092 --list;
         echo 'Done.';
@@ -184,3 +185,19 @@ services:
         condition: service_healthy
     networks:
       - default
+    
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: streamsense
+      POSTGRES_USER: streamsense
+      POSTGRES_PASSWORD: streamsense
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

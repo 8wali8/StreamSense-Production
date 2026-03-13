@@ -11,6 +11,9 @@ eureka:
 streamsense:
   topics:
     chatMessages: stream.chat.messages
+    sentimentEvents: stream.sentiment.events
+  ml:
+    base-url: http://ml-engine:8000
 
 spring:
   kafka:

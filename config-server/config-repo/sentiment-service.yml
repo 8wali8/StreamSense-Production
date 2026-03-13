@@ -1,21 +1,52 @@
-# config-server/config-repo/sentiment-service.yml
-
 server:
   port: 8083
 
 eureka:
   client:
     service-url:
-      defaultZone: http://eureka-server:8761/eureka # url through docker
+      defaultZone: http://eureka-server:8761/eureka
+
+streamsense:
+  topics:
+    sentimentEvents: stream.sentiment.events
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: sentiment-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.use.type.headers: false
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/streamsense
+    username: streamsense
+    password: streamsense
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 management:
   endpoints:
     web:
       exposure:
         include: health, info, prometheus
-      endpoint:
-        prometheus:
-          enabled: true
+  endpoint:
+    prometheus:
+      enabled: true
   tracing:
     sampling:
       probability: 1.0

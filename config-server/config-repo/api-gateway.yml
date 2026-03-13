@@ -11,6 +11,10 @@ eureka:
 streamsense:
   topics:
     chatMessages: stream.chat.messages
+    sentimentEvents: stream.sentiment.events
+  services:
+    sentiment-service:
+      base-url: http://sentiment-service:8083
 
 spring:
   kafka:
@@ -36,9 +40,9 @@ management:
     web:
       exposure:
         include: health, info, prometheus
-      endpoint:
-        prometheus:
-          enabled: true
+  endpoint:
+    prometheus:
+      enabled: true
   tracing:
     sampling:
       probability: 1.0
