@@ -20,51 +20,51 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ChatIngestController.class)
 class ChatIngestControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @MockBean
-    private ChatKafkaProducer producer;
+        @MockBean
+        private ChatKafkaProducer producer;
 
-    @MockBean
-    private ChatMetrics chatMetrics;
+        @MockBean
+        private ChatMetrics chatMetrics;
 
-    @Test
-    void ingest_missingMessage_returns4xx() throws Exception {
-        String body = """
-                {
-                  "streamer": "test",
-                  "user": "u1",
-                  "timestamp": 1710000000000
-                }
-                """;
+        @Test
+        void ingest_missingMessage_returns4xx() throws Exception {
+                String body = """
+                                {
+                                  "streamer": "test",
+                                  "user": "u1",
+                                  "timestamp": 1710000000000
+                                }
+                                """;
 
-        mockMvc.perform(post("/api/chat/ingest")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-                .andExpect(status().is4xxClientError());
+                mockMvc.perform(post("/api/chat/ingest")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                                .andExpect(status().is4xxClientError());
 
-        verify(producer, never()).publish(any(), anyString(), anyString());
-    }
+                verify(producer, never()).publish(any(), any(), any());
+        }
 
-    @Test
-    void ingest_validPayload_returns2xxAndEventId() throws Exception {
-        String body = """
-                {
-                  "streamer": "test",
-                  "user": "u1",
-                  "message": "hello",
-                  "timestamp": 1710000000000
-                }
-                """;
+        @Test
+        void ingest_validPayload_returns2xxAndEventId() throws Exception {
+                String body = """
+                                {
+                                  "streamer": "test",
+                                  "user": "u1",
+                                  "message": "hello",
+                                  "timestamp": 1710000000000
+                                }
+                                """;
 
-        mockMvc.perform(post("/api/chat/ingest")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.eventId", notNullValue()));
+                mockMvc.perform(post("/api/chat/ingest")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.eventId", notNullValue()));
 
-        verify(producer).publish(any(), anyString(), anyString());
-        verify(chatMetrics).incrementChatIngest();
-    }
+                verify(producer).publish(any(), any(), any());
+                verify(chatMetrics).incrementChatIngest();
+        }
 }

@@ -29,68 +29,70 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @EmbeddedKafka(partitions = 1, topics = { "stream.chat.messages" })
 @TestPropertySource(properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-        "streamsense.topics.chatMessages=stream.chat.messages"
+                "spring.cloud.config.enabled=false",
+                "eureka.client.enabled=false",
+                "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+                "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
+                "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
+                "streamsense.topics.chatMessages=stream.chat.messages"
 })
 class ChatKafkaProducerIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @Autowired
-    private org.springframework.kafka.test.EmbeddedKafkaBroker embeddedKafkaBroker;
+        @Autowired
+        private org.springframework.kafka.test.EmbeddedKafkaBroker embeddedKafkaBroker;
 
-    private Consumer<String, ChatMessageEvent> consumer;
+        private Consumer<String, ChatMessageEvent> consumer;
 
-    @AfterEach
-    void tearDown() {
-        if (consumer != null) {
-            consumer.close();
-        }
-    }
-
-    @Test
-    void validIngest_producesRecordToKafka() throws Exception {
-        Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("chat-service-test-group", "true",
-                embeddedKafkaBroker);
-
-        consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ChatMessageEvent.class.getName());
-        consumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
-
-        consumer = new DefaultKafkaConsumerFactory<>(
-                consumerProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(ChatMessageEvent.class, false)).createConsumer();
-
-        consumer.subscribe(Collections.singletonList("stream.chat.messages"));
-
-        String body = """
-                {
-                  "streamer": "test",
-                  "user": "u1",
-                  "message": "hello from test",
-                  "timestamp": 1710000000000
+        @AfterEach
+        void tearDown() {
+                if (consumer != null) {
+                        consumer.close();
                 }
-                """;
+        }
 
-        mockMvc.perform(post("/api/chat/ingest")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-                .andExpect(status().isOk());
+        @Test
+        void validIngest_producesRecordToKafka() throws Exception {
+                Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("chat-service-test-group", "true",
+                                embeddedKafkaBroker);
 
-        ConsumerRecord<String, ChatMessageEvent> record = KafkaTestUtils.getSingleRecord(consumer,
-                "stream.chat.messages", Duration.ofSeconds(10));
+                consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+                consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ChatMessageEvent.class.getName());
+                consumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
-        assertThat(record).isNotNull();
-        assertThat(record.key()).isEqualTo("test");
-        assertThat(record.value()).isNotNull();
-        assertThat(record.value().getStreamer()).isEqualTo("test");
-        assertThat(record.value().getUser()).isEqualTo("u1");
-        assertThat(record.value().getMessage()).isEqualTo("hello from test");
-        assertThat(record.value().getTimestamp()).isEqualTo(1710000000000L);
-        assertThat(record.value().getEventId()).isNotBlank();
-    }
+                consumer = new DefaultKafkaConsumerFactory<>(
+                                consumerProps,
+                                new StringDeserializer(),
+                                new JsonDeserializer<>(ChatMessageEvent.class, false)).createConsumer();
+
+                consumer.subscribe(Collections.singletonList("stream.chat.messages"));
+
+                String body = """
+                                {
+                                  "streamer": "test",
+                                  "user": "u1",
+                                  "message": "hello from test",
+                                  "timestamp": 1710000000000
+                                }
+                                """;
+
+                mockMvc.perform(post("/api/chat/ingest")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                                .andExpect(status().isOk());
+
+                ConsumerRecord<String, ChatMessageEvent> record = KafkaTestUtils.getSingleRecord(consumer,
+                                "stream.chat.messages", Duration.ofSeconds(10));
+
+                assertThat(record).isNotNull();
+                assertThat(record.key()).isEqualTo("test");
+                assertThat(record.value()).isNotNull();
+                assertThat(record.value().getStreamer()).isEqualTo("test");
+                assertThat(record.value().getUser()).isEqualTo("u1");
+                assertThat(record.value().getMessage()).isEqualTo("hello from test");
+                assertThat(record.value().getTimestamp()).isEqualTo(1710000000000L);
+                assertThat(record.value().getEventId()).isNotBlank();
+        }
 }
