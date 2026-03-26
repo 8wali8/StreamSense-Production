@@ -34,7 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
                 "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
                 "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
-                "streamsense.topics.chatMessages=stream.chat.messages"
+                "streamsense.topics.chatMessages=stream.chat.messages",
+                "streamsense.topics.sentimentEvents=stream.sentiment.events"
 })
 class ChatKafkaProducerIntegrationTest {
 
