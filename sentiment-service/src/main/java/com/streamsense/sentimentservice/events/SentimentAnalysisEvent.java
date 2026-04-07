@@ -1,4 +1,4 @@
-package com.streamsense.chatservice.events;
+package com.streamsense.sentimentservice.events;
 
 public class SentimentAnalysisEvent {
 
@@ -7,37 +7,11 @@ public class SentimentAnalysisEvent {
     private String streamer;
     private String user;
     private String message;
-    private long timestamp;
+    private long chatTimestamp;
     private long processedAt;
     private String label;
     private double score;
     private String modelVersion;
-
-    public SentimentAnalysisEvent() {
-    }
-
-    public SentimentAnalysisEvent(
-            String sentimentEventId,
-            String sourceEventId,
-            String streamer,
-            String user,
-            String message,
-            long timestamp,
-            long processedAt,
-            String label,
-            double score,
-            String modelVersion) {
-        this.sentimentEventId = sentimentEventId;
-        this.sourceEventId = sourceEventId;
-        this.streamer = streamer;
-        this.user = user;
-        this.message = message;
-        this.timestamp = timestamp;
-        this.processedAt = processedAt;
-        this.label = label;
-        this.score = score;
-        this.modelVersion = modelVersion;
-    }
 
     public String getSentimentEventId() {
         return sentimentEventId;
@@ -79,12 +53,12 @@ public class SentimentAnalysisEvent {
         this.message = message;
     }
 
-    public long getTimestamp() {
-        return timestamp;
+    public long getChatTimestamp() {
+        return chatTimestamp;
     }
 
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
+    public void setChatTimestamp(long chatTimestamp) {
+        this.chatTimestamp = chatTimestamp;
     }
 
     public long getProcessedAt() {
@@ -117,21 +91,5 @@ public class SentimentAnalysisEvent {
 
     public void setModelVersion(String modelVersion) {
         this.modelVersion = modelVersion;
-    }
-
-    @Override
-    public String toString() {
-        return "SentimentAnalysisEvent{" +
-                "sentimentEventId='" + sentimentEventId + '\'' +
-                ", sourceEventId='" + sourceEventId + '\'' +
-                ", streamer='" + streamer + '\'' +
-                ", user='" + user + '\'' +
-                ", message='" + message + '\'' +
-                ", timestamp=" + timestamp +
-                ", processedAt=" + processedAt +
-                ", label='" + label + '\'' +
-                ", score=" + score +
-                ", modelVersion='" + modelVersion + '\'' +
-                '}';
     }
 }

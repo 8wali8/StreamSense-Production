@@ -1,4 +1,4 @@
-package com.streamsense.chatservice.config;
+package com.streamsense.sentimentservice.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,5 +19,7 @@ public class ConfigDebugRunner implements CommandLineRunner {
     @Override
     public void run(String... args) {
         log.info("streamsense.topics.chatMessages={}", properties.getTopics().getChatMessages());
+        log.info("streamsense.topics.sentimentEvents={}", properties.getTopics().getSentimentEvents());
+        log.info("streamsense.ml.baseUrl={}", properties.getMl().getBaseUrl());
     }
 }

@@ -1,23 +1,12 @@
-package com.streamsense.chatservice.dto;
+package com.streamsense.sentimentservice.events;
 
-public class MlSentimentRequest {
+public class ChatMessageEvent {
 
     private String eventId;
     private String streamer;
     private String user;
     private String message;
     private long timestamp;
-
-    public MlSentimentRequest() {
-    }
-
-    public MlSentimentRequest(String eventId, String streamer, String user, String message, long timestamp) {
-        this.eventId = eventId;
-        this.streamer = streamer;
-        this.user = user;
-        this.message = message;
-        this.timestamp = timestamp;
-    }
 
     public String getEventId() {
         return eventId;

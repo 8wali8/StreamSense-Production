@@ -8,9 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "eureka.client.enabled=false",
         "spring.kafka.listener.auto-startup=false",
         "spring.kafka.bootstrap-servers=localhost:9092",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.ml.base-url=http://localhost:8000"
+        "streamsense.topics.chatMessages=stream.chat.messages"
 })
 class ChatServiceApplicationTests {
 

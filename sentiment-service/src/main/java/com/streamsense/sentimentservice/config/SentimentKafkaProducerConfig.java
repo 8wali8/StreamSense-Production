@@ -1,4 +1,4 @@
-package com.streamsense.chatservice.config;
+package com.streamsense.sentimentservice.config;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,16 +13,14 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
-import com.streamsense.chatservice.events.SentimentAnalysisEvent;
+import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 
 @Configuration
 public class SentimentKafkaProducerConfig {
 
-    @Value("${spring.kafka.bootstrap-servers}")
-    private String bootstrapServers;
-
     @Bean
-    public ProducerFactory<String, SentimentAnalysisEvent> sentimentProducerFactory() {
+    public ProducerFactory<String, SentimentAnalysisEvent> sentimentProducerFactory(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
         Map<String, Object> configProps = new HashMap<>();
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -31,7 +29,8 @@ public class SentimentKafkaProducerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, SentimentAnalysisEvent> sentimentKafkaTemplate() {
-        return new KafkaTemplate<>(sentimentProducerFactory());
+    public KafkaTemplate<String, SentimentAnalysisEvent> sentimentKafkaTemplate(
+            ProducerFactory<String, SentimentAnalysisEvent> sentimentProducerFactory) {
+        return new KafkaTemplate<>(sentimentProducerFactory);
     }
 }

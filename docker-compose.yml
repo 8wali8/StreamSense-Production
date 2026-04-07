@@ -43,6 +43,8 @@ services:
         condition: service_healthy
       kafka-topics-init:
         condition: service_completed_successfully
+      sentiment-service:
+        condition: service_healthy
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
@@ -84,6 +86,20 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      ml-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
   video-service:
     build: ./video-service
@@ -218,11 +234,23 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streamsense -d streamsense"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     
   ml-engine:
     build: ./ml-engine
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ml/health').read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
 volumes:
   postgres-data:
