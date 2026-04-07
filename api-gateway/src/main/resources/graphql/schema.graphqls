@@ -1,9 +1,11 @@
 type Query {
   health: String!
+  recentSentiment(streamer: String!, limit: Int!): [SentimentAnalysisEvent!]!
 }
 
 type Subscription {
   onChatMessage(streamer: String!): ChatMessageEvent!
+  onSentiment(streamer: String!): SentimentAnalysisEvent!
 }
 
 type ChatMessageEvent {
@@ -12,4 +14,17 @@ type ChatMessageEvent {
   user: String!
   message: String!
   timestamp: Float!  # GraphQL Float handles JS number; we'll treat it as epoch millis
+}
+
+type SentimentAnalysisEvent {
+  sentimentEventId: ID!
+  sourceEventId: ID!
+  streamer: String!
+  user: String!
+  message: String!
+  chatTimestamp: Float!
+  processedAt: Float!
+  label: String!
+  score: Float!
+  modelVersion: String!
 }

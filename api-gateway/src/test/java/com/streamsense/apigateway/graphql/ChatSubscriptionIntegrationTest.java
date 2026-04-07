@@ -41,6 +41,8 @@ import reactor.test.StepVerifier;
                 "spring.kafka.consumer.properties.spring.json.use.type.headers=false",
                 "spring.kafka.consumer.properties.spring.json.value.default.type=com.streamsense.apigateway.events.ChatMessageEvent",
                 "streamsense.topics.chatMessages=stream.chat.messages",
+                "streamsense.topics.sentimentEvents=stream.sentiment.events",
+                "streamsense.services.sentiment-service.base-url=http://localhost:8083",
                 "spring.graphql.websocket.path=/graphql"
 })
 class ChatSubscriptionIntegrationTest {
