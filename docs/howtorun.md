@@ -54,6 +54,16 @@ From repo root, start the full stack:
 docker compose up -d --build
 ```
 
+## Week 2 quickstart
+
+Week 2 is complete when the live chat slice works end to end:
+
+- Kafka topic exists
+- ingest works
+- GraphQL health returns `ok`
+- subscription receives chat events
+- frontend updates at `http://localhost:3000`
+
 ---
 
 ## 3. Verify infrastructure
@@ -66,6 +76,7 @@ docker compose up -d --build
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3001 |
 | Zipkin | http://localhost:9411 |
+| Frontend | http://localhost:3000 |
 
 Health checks:
 
@@ -79,6 +90,18 @@ Verify Config Server returns in-repo config:
 
 ```
 http://localhost:8888/chat-service/default
+```
+
+Verify the Week 2 topic exists:
+
+```
+docker compose exec kafka kafka-topics --bootstrap-server kafka:9092 --list
+```
+
+Look for:
+
+```
+stream.chat.messages
 ```
 
 ---
@@ -142,6 +165,12 @@ Subscribe:
 
 Send another ingest request → event should appear.
 
+Open the frontend and verify live chat updates appear:
+
+```
+http://localhost:3000
+```
+
 ---
 
 # Observability
@@ -177,6 +206,15 @@ Look for span:
 ```
 POST /api/chat/ingest
 ```
+
+## Week 2 verification checklist
+
+- `stream.chat.messages` exists
+- `POST /api/chat/ingest` returns an event id
+- `query { health }` returns `ok`
+- `onChatMessage(streamer)` receives events
+- frontend live chat updates at `http://localhost:3000`
+- `streamsense_chat_ingest_total` increases after ingest requests
 
 ---
 

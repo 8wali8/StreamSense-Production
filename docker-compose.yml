@@ -39,6 +39,10 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
@@ -56,6 +60,10 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
   
   recommendation-service:
     build: ./recommendation-service
@@ -148,6 +156,12 @@ services:
 
       # (Optional but helps with dev)
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -163,7 +177,8 @@ services:
   kafka-topics-init:
     image: confluentinc/cp-kafka:7.6.1
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     restart: "no"
     command: >
       bash -lc "
