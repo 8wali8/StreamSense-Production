@@ -1,6 +1,23 @@
-# target folders auto-built by maven dont want it committed to github
-**/target/ 
+# Java / Maven
+**/target/
 target/
+
+# Python
+**/__pycache__/
+**/.pytest_cache/
+.venv/
+
+# Node / frontend
+**/node_modules/
+**/dist/
+coverage/
+
+# IDE
 .classpath
 .project
 .settings/
+.idea/
+.vscode/
+
+# OS
+.DS_Store

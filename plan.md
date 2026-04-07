@@ -1,531 +1,1550 @@
-# StreamSense Repository Improvement Plan
+# StreamSense Final Production Roadmap
 
-## Goal
+## Purpose
 
-Stabilize the current repository around one complete, reliable vertical slice:
+This document is the comprehensive production plan for taking the repository from its current partial implementation state to a final demoable, production-shaped platform.
 
-`chat ingest -> Kafka -> sentiment processing -> persistence -> GraphQL -> frontend`
+The intent is not to optimize for the smallest next fix. The intent is to fully cover the architecture, platform, services, observability, testing, deployment, and demo packaging work required to make the repository defensible as a complete system.
 
-Do that before expanding `video-service` and `recommendation-service`.
+This plan intentionally includes a large number of items. Nothing here is simplified for brevity.
 
-## Recommended Architecture Decision
+## North Star
 
-Use this as the target architecture for the next round of work:
+End-of-week-12 target demo:
 
-- `chat-service` owns chat ingestion only
-- `sentiment-service` owns consuming chat events, calling `ml-engine`, persisting sentiment, and optionally publishing sentiment events
-- `api-gateway` owns GraphQL query/subscription access
-- `frontend` consumes the GraphQL API
-- `ml-engine` remains an internal inference service
+- One command brings up Docker Compose with:
+  - Eurek
+  - Config Server
+  - Kafka
+  - all Spring services
+  - `ml-engine`
+  - Postgres
+  - Redis
+  - optional Cassandra profile
+  - Prometheus
+  - Grafana
+  - Zipkin
+  - React UI
+- Demo shows the full data path:
+  - chat ingestion
+  - Kafka transport
+  - ML sentiment and sponsor analysis
+  - persistence and cache reads
+  - GraphQL gateway queries and subscriptions
+  - React real-time dashboards and charts
+- The repository includes:
+  - dashboards
+  - traces
+  - automated tests
+  - CI
+  - load test tooling
+  - an honest performance report
+  - runbooks for local and Kubernetes deployment
 
-This is the cleanest path because it aligns service ownership with the repo docs and removes the current overlap between `chat-service` and `sentiment-service`.
+## Production Architecture Target
+
+Use this as the target architecture for the final state:
+
+- `eureka-server` provides service discovery for Spring services.
+- `config-server` provides centralized configuration using native mode backed by an in-repo config repository unless an external repo is introduced later.
+- `api-gateway` is the single entry point and owns:
+  - service routing
+  - GraphQL query and subscription access
+  - auth hooks
+  - rate limiting
+  - cross-cutting gateway concerns
+- `chat-service` owns chat ingestion only and publishes chat events.
+- `sentiment-service` owns:
+  - consuming chat events
+  - calling `ml-engine` for sentiment inference
+  - persisting sentiment results
+  - exposing historical sentiment APIs
+  - optionally publishing live sentiment events for subscriptions
+- `video-service` owns:
+  - frame ingest
+  - calling `ml-engine` for sponsor detection
+  - persisting sponsor detection results
+  - exposing historical sponsor APIs
+  - publishing live sponsor detection events
+- `recommendation-service` owns recommendation generation based on recent platform signals and experiment configuration.
+- `ml-engine` remains an internal Python inference service with deterministic stubs early and hardened interfaces later.
+- Kafka remains the event backbone for asynchronous processing and real-time fanout.
+- Postgres is the source of truth for persisted domain data.
+- Redis is the cache layer for hot reads and gateway-facing history queries.
+- optional Cassandra remains a future or profile-gated backend for time-series style storage, not a blocker for the core platform.
+- `frontend` consumes the GraphQL API and renders live and historical analytics.
+- Prometheus, Grafana, and Zipkin provide baseline production-style observability.
+- Kubernetes manifests target local `kind` or `minikube` first, while keeping a clear adaptation path to EKS or GKE.
+
+## Required Modern Substitutions
+
+These substitutions are required and are part of the production plan.
+
+### Zuul -> Spring Cloud Gateway
+
+Use Spring Cloud Gateway rather than Zuul.
+
+Why:
+
+- Zuul is effectively deprecated in modern Spring Cloud usage.
+- Spring Cloud Gateway is the correct modern replacement for routing and cross-cutting gateway behavior.
+- This keeps the API gateway concept intact without preserving a legacy runtime choice.
+
+Constraints:
+
+- Keep the service folder and service identity as `api-gateway`.
+- Preserve the architectural role of an API gateway.
+- Preserve future hooks for auth, routing, rate limiting, and centralized policies.
+
+### Hystrix -> Resilience4j
+
+Use Resilience4j rather than Hystrix.
+
+Why:
+
+- Hystrix is end-of-life.
+- Resilience4j supports circuit breakers, retries, bulkheads, rate limiting, and time limiting in a modern Spring stack.
+
+Constraints:
+
+- Preserve the intent of Hystrix-style resilience behavior.
+- Provide a thin compatibility approach so existing `hystrix.*`-shaped config can still look familiar in Config Server even if services translate that into Resilience4j settings internally.
+- Document the mapping clearly so the repository remains understandable to someone reading the original architecture assumptions.
+
+### Config Repository Mode
+
+If no external `streamsense-config` repository exists, run Config Server in native mode using an in-repo config directory.
+
+Target behavior:
+
+- Config Server serves per-service configuration from `/config-repo/` or `config-server/config-repo/`.
+- Docker and Kubernetes both mount or expose this configuration predictably.
+- The repository keeps centralized configuration semantics without inventing missing external dependencies.
+
+## Non-Negotiable Must-Haves
+
+The final repository must include all of the following:
+
+- All listed services present and runnable in Docker Compose.
+- Kafka topics and event flow for:
+  - chat -> sentiment
+  - video -> sponsor
+- `ml-engine` containerized with real HTTP endpoints, deterministic stubs acceptable early but not as the final explanation of the system.
+- GraphQL gateway with working subscriptions that feed the React UI.
+- Prometheus, Grafana, and Zipkin running with meaningful dashboards and trace coverage.
+- Kubernetes manifests that deploy the stack to `kind` or `minikube` with a documented local workflow.
+- CI with unit tests, integration tests, and a smoke path.
+- Load testing tools and a written performance report with measured results.
+
+## Nice-to-Have Only If Ahead Of Schedule
+
+- True GraphQL federation with separate service subgraphs instead of a single gateway-owned graph.
+- Cassandra as an active storage backend rather than a documented optional path.
+- Spring Cloud Bus for live config refresh.
+- Full auth, user accounts, RBAC, and persisted sessions.
+
+## Guardrails
+
+- Do not expand scope beyond the services already in the repository description.
+- Do not let optional Cassandra work block the core path.
+- Do not claim performance numbers that are not measured.
+- Do not leave observability as a last-minute concern.
+- Do not defer docs until the end; update docs every week and finish polish in week 12.
+- Do not let gateway architecture drift into an ad hoc collection of endpoint hacks; keep a clear gateway role.
+- Do not let GraphQL subscription protocol choices drift; lock them early and keep them consistent.
+- Do not let silent event loss remain in any pipeline.
+- Do not let load test claims outrun local hardware reality; publish honest numbers and tuning notes.
 
 ## Current State Summary
 
-What works now:
-- `chat-service` accepts `POST /api/chat/ingest`
-- `chat-service` publishes `stream.chat.messages`
-- `api-gateway` consumes chat messages and exposes `onChatMessage(streamer)`
-- `frontend` subscribes to live chat messages
-- `ml-engine` exposes a working deterministic sentiment stub
-- basic tests exist for chat ingest, chat Kafka publish, gateway subscription, and ML endpoints
+The repository already contains significant platform surface area, but large parts are incomplete, inconsistent, or only partially connected.
 
-What is incomplete or broken:
-- `sentiment-service` is mostly empty
-- `chat-service` currently contains sentiment-processing logic that belongs in `sentiment-service`
-- GraphQL schema exposes `health`, but no resolver exists
-- frontend health widget likely errors immediately
-- there is no end-to-end sentiment persistence/query flow
-- there are no Flyway migrations for the configured Postgres-backed sentiment service
-- Docker/dev workflow is brittle and docs/config are partially out of sync
+What exists in some form:
 
-## Prioritization Method
+- service directories for the expected Spring applications
+- Docker Compose
+- Config Server config repository inside the monorepo
+- monitoring folder with Prometheus and Grafana provisioning skeletons
+- `k8s/` folder placeholder
+- Kafka and topic initialization in Compose
+- a frontend
+- a Python `ml-engine`
+- docs describing architecture and local run steps
 
-Order below is based on:
-- production value
-- architectural importance
-- risk reduction
-- ease and speed of implementation
+What remains materially incomplete for final production readiness:
 
-Priority labels:
-- `P0`: do next
-- `P1`: do immediately after P0
-- `P2`: do after the core flow is stable
-- `P3`: defer until the platform is coherent
+- one coherent end-to-end sentiment vertical slice still needs to be made fully correct and production-shaped
+- video and sponsor flow are not yet realized at the same level as the chat flow target
+- recommendation flow is not yet implemented at the level implied by the architecture
+- gateway maturity is incomplete around routing, auth, rate limiting, and operational behavior
+- Redis cache strategy is missing
+- Kubernetes deployment work is effectively not started
+- performance measurement and reporting are missing
+- observability exists as scaffolding but not yet as a finished production story
+- docs and runbooks still need to be made trustworthy and complete
 
-Ease labels:
-- `Easy`
-- `Medium`
-- `Hard`
+## Cross-Cutting Workstreams
 
-## Priority Order
+These workstreams apply across multiple weeks and should be treated as always-active concerns.
 
-| Rank | Priority | Ease | Task |
-| --- | --- | --- | --- |
-| 1 | P0 | Easy | Fix GraphQL `health` mismatch |
-| 2 | P0 | Medium | Lock service ownership for sentiment flow |
-| 3 | P0 | Medium | Build the minimum real `sentiment-service` |
-| 4 | P0 | Medium | Prevent silent message loss in sentiment processing |
-| 5 | P0 | Easy | Add missing DB migrations and persistence baseline |
-| 6 | P1 | Medium | Implement sentiment GraphQL API in `api-gateway` |
-| 7 | P1 | Medium | Add frontend sentiment UI |
-| 8 | P1 | Medium | Fix Docker startup/readiness and config drift |
-| 9 | P1 | Medium | Expand automated tests around the real flow |
-| 10 | P2 | Easy | Clean docs, ports, Makefile, and repo metadata |
-| 11 | P2 | Medium | Harden `ml-engine` for non-demo use |
-| 12 | P3 | Hard | Resume `video-service` and `recommendation-service` work |
+### Architecture And Ownership
 
----
+- keep service boundaries clear
+- avoid duplicated ML and event-processing logic in multiple services unless there is a deliberate reason
+- keep gateway concerns in `api-gateway`, not smeared across services
+- keep history queries service-owned, not Kafka-backed
+- use Kafka for event transport and live fanout, not as a substitute for query models
 
-## 1. Fix GraphQL `health` Mismatch
+### Contracts And Schemas
 
-Priority: `P0`  
-Ease: `Easy`
+- define and freeze JSON schemas for major event contracts under `docs/schemas/`
+- keep `ChatMessageEvent`, `SentimentAnalysisEvent`, `FrameData`, `SponsorDetectionEvent`, and recommendation response contracts documented
+- add schema validation tests where reasonable
+- protect GraphQL schema evolution with tests or snapshots
 
-Problem:
-- GraphQL schema defines `health`
-- frontend queries `health`
-- no resolver exists
-- current gateway test expects failure instead of success
+### Observability
 
-Why this comes first:
-- very small change
-- immediately removes a broken frontend behavior
-- brings docs, schema, and app behavior back into sync
+- every service should expose actuator health and Prometheus metrics where applicable
+- traces should exist for core request and event paths
+- correlation identifiers should survive HTTP and Kafka hops
+- dashboards should be provisioned rather than manually created whenever practical
 
-Exact next steps:
-1. Add a `@QueryMapping` resolver in `api-gateway` that returns `"ok"` for `health`.
-2. Update the existing GraphQL health test to assert success instead of GraphQL error.
-3. Verify frontend `Health` component renders a healthy state instead of an error.
+### Testing
 
-Touches:
-- `api-gateway/src/main/resources/graphql/schema.graphqls`
-- `api-gateway/src/main/java/com/streamsense/apigateway/graphql/*`
-- `api-gateway/src/test/java/com/streamsense/apigateway/graphql/GraphqlHealthQueryTest.java`
-- `frontend/src/components/Health.tsx`
+- every service should have at least a context or boot test early
+- critical flows need integration coverage with Kafka, Postgres, and Redis where applicable
+- frontend should have linting and component-level test coverage
+- the repository should include a smoke path that validates the system at a stack level
 
-Done when:
-- `query { health }` returns `"ok"`
-- frontend health widget shows `Health: ok`
+### Documentation
+
+- architecture docs must match implementation
+- local and Kubernetes runbooks must be executable by a new contributor
+- troubleshooting docs must exist for common failure modes
+- performance reporting must be explicit about environment and limits
+
+## Delivery Phases
+
+The work is organized into twelve weeks. Each week contains detailed objectives, build deliverables, checklists, testing requirements, observability requirements, a demo script target, definition of done, and risks.
 
 ---
 
-## 2. Lock Service Ownership for Sentiment Flow
+## Week 1 - Repo Bootstrap And Platform Skeleton
 
-Priority: `P0`  
-Ease: `Medium`
+### Objectives
 
-Problem:
-- `chat-service` currently ingests chat and also performs sentiment processing
-- `sentiment-service` exists in docs/config but does not own the flow
-- ownership is unclear and future work will be messy until this is fixed
+- Establish the monorepo structure exactly as the repository describes it.
+- Make the base platform compile and test cleanly.
+- Stand up Eureka and Config Server locally.
+- Establish CI and shared observability conventions.
 
-Recommendation:
-- make `chat-service` ingest-only
-- move sentiment consumer/ML/publish responsibilities into `sentiment-service`
+### Build Deliverables
 
-Why this comes now:
-- this is the most important architecture correction in the repo
-- it prevents duplicated logic and unclear boundaries later
+- Folder tree exists and is coherent for:
+  - `eureka-server/`
+  - `config-server/`
+  - `api-gateway/`
+  - `chat-service/`
+  - `video-service/`
+  - `ml-engine/`
+  - `sentiment-service/`
+  - `recommendation-service/`
+  - `frontend/`
+  - `monitoring/`
+  - `kafka-cluster/`
+  - `k8s/`
+  - `docs/`
+- Docker Compose boots at least:
+  - `eureka-server`
+  - `config-server`
+  - `zipkin`
+  - `prometheus`
+  - `grafana`
+  - stubs are acceptable for some services at this stage if the platform shape is correct
+- GitHub Actions baseline exists for:
+  - Java build and test
+  - Python lint and test
+  - frontend lint and test
+- Shared Spring conventions are established for:
+  - correlation id propagation
+  - logging pattern
+  - Micrometer configuration
+  - Zipkin exporter wiring
 
-Exact next steps:
-1. Decide that `sentiment-service` is the only service responsible for sentiment processing.
-2. Keep `chat-service` responsible only for validating requests and publishing `stream.chat.messages`.
-3. Move or re-implement the current `ChatMessageLogConsumer`, ML client, and sentiment-event creation inside `sentiment-service`.
-4. Remove the sentiment-processing consumer from `chat-service` after `sentiment-service` passes tests.
+### Detailed Checklist
 
-Touches:
-- `chat-service/src/main/java/com/streamsense/chatservice/consumer/ChatMessageLogConsumer.java`
-- `chat-service/src/main/java/com/streamsense/chatservice/client/MlEngineClient.java`
-- `chat-service/src/main/java/com/streamsense/chatservice/kafka/SentimentKafkaProducer.java`
-- `sentiment-service/src/main/java/com/streamsense/sentimentservice/**`
+#### Repository Standards
 
-Done when:
-- `chat-service` publishes chat events only
-- `sentiment-service` consumes chat events and owns downstream sentiment work
+- add or fix root `.editorconfig`
+- add or fix root `.gitignore`
+- add or fix root `Makefile` or `justfile` with at least:
+  - `build`
+  - `test`
+  - `up`
+  - `down`
+  - `logs`
+- normalize root repo metadata so the documented services match the actual directories
+- ensure service naming is internally consistent across docs, config, Compose, and Maven metadata
 
----
+#### Eureka
 
-## 3. Build the Minimum Real `sentiment-service`
+- ensure `eureka-server` is a valid Spring Boot app
+- ensure Eureka runs on port `8761`
+- disable self-registration and self-fetch behavior as appropriate for a standalone registry
+- ensure all Spring services can point to Eureka predictably in local Docker
 
-Priority: `P0`  
-Ease: `Medium`
+#### Config Server
 
-Problem:
-- the service is configured for Kafka, Postgres, JPA, and Flyway
-- the code currently contains only the application bootstrap class
+- ensure `config-server` is a valid Spring Boot app
+- run Config Server in native mode initially
+- create or normalize `/config-repo/` inside the monorepo
+- provide per-service YAML files for each service
+- ensure local and Docker search locations are stable and documented
 
-Why this comes now:
-- the repo cannot reach the planned end-to-end sentiment flow without it
+#### Shared Observability Baseline
 
-Exact next steps:
-1. Add missing dependencies to `sentiment-service`:
-   - `spring-kafka`
-   - `spring-boot-starter-data-jpa`
-   - `flyway-core`
-   - PostgreSQL driver
-2. Add a `ChatMessageEvent` consumer for `stream.chat.messages`.
-3. Add an ML client that calls `POST /ml/sentiment`.
-4. Add a persistence model for `sentiment_events`.
-5. Add a repository and service layer for writing sentiment rows.
-6. Optionally publish `stream.sentiment.events` after persistence if live downstream fanout is needed.
+- establish a common log pattern that includes:
+  - trace id
+  - span id
+  - correlation id
+- add a request filter or equivalent that ensures correlation ids exist for HTTP requests
+- add Kafka header propagation helpers for correlation and tracing metadata
+- ensure Micrometer and tracing setup are not service-by-service accidents
 
-Minimum data to persist:
-- `sentimentEventId`
-- `sourceEventId`
-- `streamer`
-- `user`
-- `message`
-- `chatTimestamp`
-- `processedAt`
-- `label`
-- `score`
-- `modelVersion`
+#### Docker Compose Baseline
 
-Touches:
-- `sentiment-service/pom.xml`
-- `sentiment-service/src/main/java/com/streamsense/sentimentservice/**`
-- `sentiment-service/src/main/resources/**`
-- `config-server/config-repo/sentiment-service.yml`
+- ensure `docker-compose.yml` includes at least:
+  - `eureka-server`
+  - `config-server`
+  - `zipkin`
+  - `prometheus`
+  - `grafana`
+- ensure volume mounts for config work in Docker
+- ensure healthchecks exist where they prevent startup races
 
-Done when:
-- sending a chat event causes one sentiment row to appear in Postgres
+#### CI
 
----
+- create or harden `.github/workflows/ci.yml`
+- build and test all Java services with Maven
+- lint and test Python code for `ml-engine`
+- lint and test the frontend
+- add a smoke validation for `docker compose config`
 
-## 4. Prevent Silent Message Loss
+### Learning Needed
 
-Priority: `P0`  
-Ease: `Medium`
+- Spring Cloud Config native backend behavior
+- Eureka registration settings
+- Micrometer and Zipkin baseline wiring
 
-Problem:
-- current sentiment processing catches all exceptions and logs them
-- failures can be treated as handled
-- this risks silently losing sentiment work
+### Testing
 
-Why this comes now:
-- correctness is more important than new features
-- silent loss is the highest-risk runtime bug in the current event pipeline
+- add `context loads` or equivalent boot tests per service
+- validate Compose configuration in CI
+- ensure CI is green on the main branch before moving on
 
-Exact next steps:
-1. Remove broad swallow-and-log-only behavior from sentiment processing.
-2. Configure Kafka listener error handling with retry behavior.
-3. Add a dead-letter strategy for messages that fail repeatedly.
-4. Add request timeouts and explicit failure handling for `ml-engine` calls.
-5. Make failure states observable through logs and metrics.
+### Observability
 
-Touches:
-- current implementation reference:
-  - `chat-service/src/main/java/com/streamsense/chatservice/consumer/ChatMessageLogConsumer.java`
-- future target:
-  - `sentiment-service/src/main/java/com/streamsense/sentimentservice/**`
+- Zipkin reachable on `:9411`
+- Prometheus configuration file exists, even if some targets are placeholders initially
+- standard logs include correlation and tracing context
 
-Done when:
-- ML failures and publish failures are retried or dead-lettered
-- failures are visible and not silently dropped
+### Demo Script
 
----
+- start `eureka-server`, `config-server`, `zipkin`, `prometheus`, and `grafana`
+- show Eureka UI loads
+- show Config Server returns config for at least one service
 
-## 5. Add DB Migrations and Persistence Baseline
+### Definition Of Done
 
-Priority: `P0`  
-Ease: `Easy`
+- CI is green on `main`
+- Eureka and Config Server run locally
+- Config is fetched from the in-repo config repository successfully
 
-Problem:
-- `sentiment-service` config enables Flyway
-- JPA is expected to validate schema
-- no migration files currently exist
+### Risks And Pitfalls
 
-Why this comes now:
-- fresh database startup will remain unreliable without this
-
-Exact next steps:
-1. Add `V1__create_sentiment_events.sql`.
-2. Create the `sentiment_events` table with the contract-defined fields.
-3. Add the recommended index on `(streamer, chat_timestamp DESC)`.
-4. Keep `ddl-auto=validate` so startup fails if schema drifts.
-
-Touches:
-- `sentiment-service/src/main/resources/db/migration/*.sql`
-- `config-server/config-repo/sentiment-service.yml`
-- `docs/contracts/sentiment-pipeline.md`
-
-Done when:
-- a clean Postgres instance starts successfully with `sentiment-service`
-- Flyway applies the schema on boot
+- Docker config path issues
+- dependency version drift across Spring services
+- stale service metadata causing confusion before feature work even starts
 
 ---
 
-## 6. Implement Sentiment GraphQL API in `api-gateway`
+## Week 2 - Thin Vertical Slice v0
 
-Priority: `P1`  
-Ease: `Medium`
+### Objectives
 
-Problem:
-- docs define sentiment query/subscription capabilities
-- gateway currently exposes only chat subscriptions
+- Bring up Kafka locally.
+- Implement minimal chat ingestion into Kafka.
+- Stand up GraphQL gateway with one query and one subscription.
+- Render real-time chat updates in the frontend.
 
-Add these GraphQL capabilities:
-- `recentSentiment(streamer: String!, limit: Int!)`
-- `onSentiment(streamer: String!)`
+### Build Deliverables
 
-Why this comes after the service work:
-- gateway should sit on top of a real sentiment source, not a stubbed contract only
+- local Kafka and Zookeeper integrated into root Compose
+- optional Kafka UI
+- Kafka topic `stream.chat.messages`
+- `chat-service` provides `POST /api/chat/ingest`
+- `chat-service` produces `ChatMessageEvent` to Kafka
+- `chat-service` consumer logs events for validation
+- `api-gateway` GraphQL provides:
+  - `Query { health: String }`
+  - `Subscription { onChatMessage(streamer: String!): ChatMessageEvent }`
+- GraphQL WebSocket subscriptions are operational
+- frontend subscribes to live chat and renders it
 
-Exact next steps:
-1. Extend GraphQL schema with `SentimentAnalysisEvent` and the sentiment query/subscription fields.
-2. Add a client in `api-gateway` to fetch recent sentiment from `sentiment-service`.
-3. Add a Kafka consumer or internal bus for live sentiment subscription updates if `stream.sentiment.events` is retained.
-4. Add GraphQL tests for:
-   - health query
-   - recent sentiment query
-   - live sentiment subscription
+### Detailed Checklist
 
-Touches:
-- `api-gateway/src/main/resources/graphql/schema.graphqls`
-- `api-gateway/src/main/java/com/streamsense/apigateway/**`
-- `config-server/config-repo/api-gateway.yml`
-- `api-gateway/src/test/java/com/streamsense/apigateway/graphql/**`
+#### Kafka Cluster
 
-Done when:
-- frontend can query historical sentiment and subscribe to live sentiment updates
+- add Kafka services to Compose
+- add topic initialization container or startup logic
+- create topic `stream.chat.messages`
+- make Kafka hostnames and ports work both from containers and from the host machine
 
----
+#### Chat Service
 
-## 7. Add Frontend Sentiment UI
+- add Spring Kafka dependencies
+- define `ChatMessageEvent` contract
+- implement request validation for ingest payloads
+- publish to `stream.chat.messages`
+- include correlation and tracing headers in Kafka records
+- add a consumer that logs chat events to validate the flow
 
-Priority: `P1`  
-Ease: `Medium`
+#### API Gateway GraphQL
 
-Problem:
-- frontend currently shows only health and live chat
-- repo docs describe a broader analytics dashboard
+- lock the GraphQL subscription protocol to `graphql-ws` / `graphql-transport-ws`
+- add a working `health` query that returns success, not an error
+- make the gateway consume chat events through its own subscription-oriented Kafka consumer group
+- bridge Kafka messages into a GraphQL subscription sink
 
-Exact next steps:
-1. Add a sentiment history panel using `recentSentiment`.
-2. Add a live sentiment stream panel using `onSentiment`.
-3. Show loading, empty, and error states clearly.
-4. Keep the live chat panel, but make sentiment the primary analytics surface.
-5. Add env-based API config or Vite proxy support for local dev.
+#### Frontend
 
-Touches:
-- `frontend/src/App.tsx`
-- `frontend/src/pages/**`
-- `frontend/src/graphql/**`
-- `frontend/src/apollo/client.ts`
-- `frontend/vite.config.ts`
+- use React and Apollo Client
+- configure both HTTP and WebSocket links
+- add a `Live Chat` surface filtered by streamer
+- make connection, loading, error, and empty states visible
 
-Done when:
-- the frontend can display recent sentiment for a streamer
-- the frontend updates live as new sentiment arrives
+#### Documentation
 
----
+- write a local quickstart for the week 2 stack
+- document how to test the health query and the chat subscription manually
 
-## 8. Fix Docker Startup, Readiness, and Config Drift
+### Learning Needed
 
-Priority: `P1`  
-Ease: `Medium`
+- Spring Kafka producer and consumer basics
+- GraphQL subscriptions in the selected stack
+- Apollo client WebSocket setup
 
-Problem:
-- startup depends on prebuilt jars
-- Compose readiness is partial
-- local and Docker configs disagree
-- some docs are inaccurate
+### Testing
 
-Exact next steps:
-1. Add healthchecks for:
-   - `config-server`
-   - `postgres`
-   - `kafka`
-   - `ml-engine`
-2. Update `depends_on` to reflect actual readiness, not just container startup.
-3. Replace Dockerfiles that require prebuilt jars with multi-stage builds, or standardize one root build command.
-4. Remove machine-specific config assumptions from local config-server setup.
-5. Make hostnames and ports env-driven where possible.
-6. Fix the Kafka UI port mismatch in docs.
+- `chat-service` controller validation tests
+- Kafka producer test with Embedded Kafka or Testcontainers
+- gateway subscription integration test proving Kafka event -> GraphQL subscription event
+- frontend component test for rendering incoming events
+- positive GraphQL health test that asserts success, not GraphQL failure
 
-Touches:
-- `docker-compose.yml`
-- `config-server/src/main/resources/application.yml`
-- `config-server/config-repo/*.yml`
-- all Java service `Dockerfile`s
-- `docs/howtorun.md`
+### Observability
 
-Done when:
-- `docker compose up --build` is predictable
-- services do not race each other on startup
-- docs match the actual runtime
+- add metrics such as:
+  - `streamsense_chat_ingest_total`
+  - chat produce latency timer
+- expose Prometheus metrics from `chat-service`
+- ensure traces exist at least for `POST /api/chat/ingest` and Kafka produce
+
+### Demo Script
+
+- start the stack with Kafka and frontend
+- `curl` the ingest endpoint multiple times
+- show frontend updates in real time via GraphQL subscription
+
+### Definition Of Done
+
+- one-command local run yields live chat subscription updates in the UI
+- `query { health }` returns `ok`
+
+### Risks And Pitfalls
+
+- GraphQL subscription library mismatch between backend and frontend
+- Kafka initialization races during startup
 
 ---
 
-## 9. Expand Automated Tests Around the Real Flow
+## Week 3 - ML Engine Stub And Sentiment Pipeline v1
 
-Priority: `P1`  
-Ease: `Medium`
+### Objectives
 
-Problem:
-- current tests cover only part of the system
-- the highest-risk path has little or no coverage
+- Introduce `ml-engine` with deterministic sentiment inference.
+- Build the first real sentiment pipeline.
+- Persist sentiment results in Postgres.
+- Expose historical and live sentiment via GraphQL.
 
-Exact next steps:
-1. Add `sentiment-service` integration tests for:
-   - consume chat event
-   - call ML service
-   - persist sentiment
-   - optionally publish sentiment event
-2. Add error-path tests for ML timeout/failure.
-3. Add contract validation tests for event DTOs against the schema docs.
-4. Add positive GraphQL tests for `health`, `recentSentiment`, and `onSentiment`.
-5. Add frontend component tests for health and sentiment rendering.
+### Build Deliverables
 
-Touches:
-- `sentiment-service/src/test/java/**`
-- `api-gateway/src/test/java/**`
-- `chat-service/src/test/java/**`
-- `frontend/src/**/*.test.*`
-- `docs/schemas/*.json`
+- `ml-engine` provides:
+  - `POST /ml/sentiment`
+  - `GET /ml/health`
+- Kafka topic `stream.sentiment.events`
+- `sentiment-service` consumes or otherwise owns the sentiment pipeline responsibilities
+- Postgres schema for `sentiment_events`
+- REST endpoint for recent sentiment history
+- gateway GraphQL provides:
+  - `recentSentiment(streamer, limit)`
+  - `onSentiment(streamer)`
+- frontend renders a real-time sentiment chart and recent history list
 
-Done when:
-- the full core flow is testable without manual clicking
+### Detailed Checklist
 
----
+#### Postgres
 
-## 10. Clean Docs, Repo Metadata, and Developer Workflow
+- add Postgres to Compose if not already stable
+- configure a clean schema creation path with Flyway
+- create the `sentiment_events` table and indexes
+- keep schema validation strict enough to catch drift
 
-Priority: `P2`  
-Ease: `Easy`
+#### ML Engine
 
-Problem:
-- docs and code drift makes the repo harder to trust
-- some metadata is stale
-- root workflow could be simpler
+- containerize the Python service cleanly
+- implement deterministic sentiment inference based on message content hashing or equivalent stable logic
+- define request and response contracts clearly
+- add endpoint tests
 
-Exact next steps:
-1. Update README and docs so they describe the actual implemented state.
-2. Fix stale service metadata such as `video-service/pom.xml` naming.
-3. Add a root `Makefile` or equivalent standard commands for:
-   - build
-   - test
-   - up
-   - down
-   - logs
-4. Remove or rewrite sections that claim non-Docker startup if not actually supported yet.
-5. Keep one canonical architecture document and point other docs to it.
+#### Chat And Sentiment Ownership
 
-Touches:
-- `README.md`
-- `docs/*.md`
-- `video-service/pom.xml`
-- root `makefile`
+- lock the architecture so `chat-service` is ingest-only
+- move any sentiment-specific consumer, ML client, and sentiment event publishing logic out of `chat-service`
+- implement that logic in `sentiment-service`
+- if temporary overlap exists during migration, remove it before the week is considered done
 
-Done when:
-- a new contributor can understand and run the repo without reverse-engineering it
+#### Sentiment Service
 
----
+- consume `stream.chat.messages`
+- call `ml-engine /ml/sentiment`
+- persist sentiment rows to Postgres
+- optionally publish `stream.sentiment.events` after persistence for live subscribers
+- expose recent sentiment history through a service-owned API
 
-## 11. Harden `ml-engine`
+#### API Gateway
 
-Priority: `P2`  
-Ease: `Medium`
+- consume live sentiment events for GraphQL subscriptions if sentiment fanout is event-based
+- add a query resolver that fetches recent sentiment from `sentiment-service`
 
-Problem:
-- it works as a stub but is not production-shaped yet
+#### Frontend
 
-Exact next steps:
-1. Move `modelVersion` to config or environment.
-2. Pin Python dependencies.
-3. Add tests for invalid payloads and edge cases.
-4. Add clearer request/response validation behavior.
-5. Decide whether sponsor detection is truly in scope now or should be removed from docs until implemented.
+- add a sentiment dashboard area
+- show recent sentiment history and live updates
+- render a basic chart, not just raw JSON
 
-Touches:
-- `ml-engine/src/main/python/app/main.py`
-- `ml-engine/src/main/python/app/models.py`
-- `ml-engine/requirements.txt`
-- `ml-engine/src/test/python/**`
-- `docs/architecture.md`
-- `README.md`
+### Learning Needed
 
-Done when:
-- ML responses are predictable, validated, and configurable
+- FastAPI containerization
+- Flyway and JPA or jOOQ basics for event persistence
+- trace propagation across HTTP and Kafka boundaries
 
----
+### Testing
 
-## 12. Defer `video-service` and `recommendation-service` Until the Core Is Stable
+- `ml-engine` tests for deterministic outputs
+- `sentiment-service` integration test using Postgres and Kafka
+- contract test for the ML response shape
+- GraphQL query and subscription tests for sentiment data
+- frontend test for the sentiment display surface
 
-Priority: `P3`  
-Ease: `Hard`
+### Observability
 
-Problem:
-- both services are still skeletal
-- starting them before the sentiment path is coherent will spread effort too thin
+- add metrics such as:
+  - `streamsense_sentiment_events_total{label=...}`
+  - `streamsense_ml_sentiment_latency_ms`
+- add Grafana dashboard panels for:
+  - ingest rate
+  - ML latency
+  - sentiment label distribution
+  - consumer lag where possible
+- ensure trace propagation from ingest -> sentiment inference -> persistence
 
-Exact next steps:
-1. Leave them as scaffolds for now.
-2. Fix POM metadata and basic startup consistency only.
-3. Return to them after the sentiment vertical slice is working end to end.
+### Demo Script
 
-Touches:
-- `video-service/**`
-- `recommendation-service/**`
+- ingest chat messages
+- show sentiment events arriving in the UI in real time
+- show `recentSentiment` query returning persisted data
+- open Zipkin and show a representative trace spanning the path
 
-Done when:
-- the core platform is stable enough to support a second feature track
+### Definition Of Done
+
+- end-to-end sentiment pipeline works with persistence and real-time UI
+- service ownership for sentiment processing is corrected
+
+### Risks And Pitfalls
+
+- trace context loss across Kafka boundaries
+- schema drift between code and docs
+- partial migration where sentiment logic still lives in two services
 
 ---
 
-## Recommended Execution Sequence
+## Week 4 - Resilience And Failure Isolation
 
-### Phase 1: Fast Corrections
-1. Fix GraphQL `health`
-2. Add Flyway migration
-3. align docs with ports and current startup reality
+### Objectives
 
-### Phase 2: Core Ownership and Persistence
-1. move sentiment ownership into `sentiment-service`
-2. implement the minimum `sentiment-service`
-3. add retry/error handling
+- Add production-style resilience around ML calls.
+- Preserve Hystrix intent using Resilience4j.
+- Make failures visible and demoable without breaking ingest.
 
-### Phase 3: Product Surface
-1. add gateway sentiment GraphQL API
-2. add frontend sentiment views
+### Build Deliverables
 
-### Phase 4: Reliability and DX
-1. improve Docker builds/readiness
-2. add missing tests
-3. clean docs and repo workflow
+- `chat-service` and `video-service` use Resilience4j wrappers around ML interactions where applicable
+- fallback behavior exists for sentiment and sponsor paths
+- Config Server contains compatibility-friendly resilience configuration
+- repeated failures do not silently drop work
 
-### Phase 5: Broader Platform Work
-1. harden `ml-engine`
-2. resume `video-service`
-3. resume `recommendation-service`
+### Detailed Checklist
+
+#### Resilience4j Adoption
+
+- add Resilience4j dependencies where needed
+- add circuit breaker behavior for ML calls
+- add retries where appropriate
+- add bulkhead isolation
+- add explicit timeouts or time limiters
+
+#### Config Compatibility
+
+- preserve familiar `hystrix.*`-style config sections if desired for continuity
+- add service-level translation from Hystrix-like config shapes into actual Resilience4j configuration
+- document the mapping clearly in a compatibility document
+
+#### Fallback Behavior
+
+- sentiment fallback returns:
+  - `label = NEUTRAL`
+  - `score = 0.0`
+  - `modelVersion = fallback`
+- sponsor fallback returns:
+  - `sponsor = null`
+  - `confidence = 0.0`
+- fallback paths remain observable in logs and metrics
+
+#### Silent Message Loss Prevention
+
+- remove broad catch-all swallow-and-log-only behavior in event processing
+- make listener failures retry or dead-letter rather than appear successful
+- add dead-letter handling strategy for repeatedly failing messages
+- make failure states visible through metrics and logs
+
+#### Chaos Toggles
+
+- add a practical way to simulate ML failure
+- document the simplest demo mechanism, such as stopping the container or using an env flag
+
+### Learning Needed
+
+- Resilience4j circuit breaker, retry, bulkhead, and time limiter behavior
+- Kafka dead-letter and retry patterns in Spring
+
+### Testing
+
+- unit tests for fallback methods
+- integration tests with failing ML dependencies
+- tests ensuring ingest survives when ML is down
+- tests ensuring failures are retried or dead-lettered, not silently dropped
+
+### Observability
+
+- add Resilience4j metrics such as:
+  - circuit breaker state
+  - fallback count
+  - protected call totals
+- add Grafana panels for:
+  - open and half-open breaker counts
+  - fallback rate
+  - ML error rate
+
+### Demo Script
+
+- show normal sentiment behavior
+- stop `ml-engine` or trigger failure mode
+- ingest more data
+- show fallback behavior continues and the UI still updates
+- show Grafana and Zipkin reflecting the degraded path
+
+### Definition Of Done
+
+- ML failure does not break ingest
+- circuit breaker opens and recovers
+- failures are visible and not silently lost
+
+### Risks And Pitfalls
+
+- over-aggressive timeouts causing unnecessary fallback
+- thread pool or bulkhead misconfiguration causing secondary failures
 
 ---
 
-## Success Criteria
+## Week 5 - Video Pipeline v0 And Sponsor Detection Flow
 
-The repository is in a much better state when all of the following are true:
+### Objectives
 
+- Implement the `video-service` flow.
+- Extend `ml-engine` with sponsor detection.
+- Expose sponsor detections live and historically in the UI.
+
+### Build Deliverables
+
+- Kafka topics:
+  - `stream.video.frames`
+  - `stream.sponsor.detections`
+- `video-service` provides frame ingest
+- `ml-engine` provides `POST /ml/sponsor`
+- `video-service` emits `SponsorDetectionEvent`
+- gateway exposes live and historical sponsor data
+- frontend renders sponsor detections in real time
+
+### Detailed Checklist
+
+#### Contracts
+
+- define `FrameData`
+- define `SponsorDetectionEvent`
+- document schemas in `docs/schemas/`
+
+#### ML Engine Sponsor Stub
+
+- implement deterministic sponsor inference logic
+- return sponsor name, confidence, and bounding box or equivalent basic result shape
+- keep the behavior stable and testable
+
+#### Video Service
+
+- implement `POST /api/video/upload-frame`
+- keep payload handling simple and safe initially
+- place size limits on payloads or move toward frame references if needed
+- call the ML sponsor endpoint with resilience wrappers
+- publish detection events to Kafka
+- prepare for persistence if not fully completed in the same week
+
+#### API Gateway
+
+- add `onSponsorDetection(streamer)` subscription
+- add `sponsorDetections(streamer, limit)` query
+- bridge sponsor events from Kafka to GraphQL subscriptions
+
+#### Frontend
+
+- add sponsor dashboard surface
+- show recent detections table
+- show confidence trend or similar chart
+- handle loading, empty, reconnect, and error states
+
+### Learning Needed
+
+- handling large payloads safely in HTTP APIs
+- sponsor result schema design that is useful without overengineering
+
+### Testing
+
+- `video-service` controller validation tests
+- ML sponsor endpoint tests
+- event production tests
+- GraphQL subscription tests for sponsor detections
+- frontend rendering test for sponsor subscription updates
+
+### Observability
+
+- add metrics such as:
+  - `streamsense_frames_ingested_total`
+  - `streamsense_sponsor_detections_total{sponsor=...}`
+  - sponsor inference latency
+- add dashboard panels for sponsor rates, confidence, and fallback rate
+
+### Demo Script
+
+- upload a few frames for a streamer
+- show sponsor detections appearing in the UI in real time
+- stop `ml-engine` and show sponsor fallback behavior still emits events
+
+### Definition Of Done
+
+- video sponsor path works end to end with real-time UI and resilience behavior
+
+### Risks And Pitfalls
+
+- payload bloat from large frame uploads
+- overcomplicating image handling before the event flow is stable
+
+---
+
+## Week 6 - Data Layer Hardening And Redis Cache
+
+### Objectives
+
+- Add Redis caching for hot reads.
+- Harden persistence, migrations, and indexing.
+- Make GraphQL history queries fast and service-owned.
+
+### Build Deliverables
+
+- Redis container integrated into Compose
+- recent sentiment queries are cached in Redis with TTL
+- recent sponsor detection queries are cached similarly
+- video detections are persisted if not already done
+- GraphQL history queries call service APIs, not Kafka
+
+### Detailed Checklist
+
+#### Redis
+
+- add Redis to Compose
+- choose serialization strategy for cache payloads
+- define key naming and TTL policy
+
+#### Sentiment Service Caching
+
+- implement read-through cache for recent sentiment
+- check Redis first
+- fall back to Postgres
+- populate cache after DB read
+
+#### Video Service Caching
+
+- implement the same pattern for sponsor history
+- ensure cache invalidation or expiry strategy is documented and predictable
+
+#### Persistence Hardening
+
+- add or refine DB migrations for video detections
+- validate all key indexes exist
+- define retention or cleanup approach, even if the first version is simple
+
+#### API Gateway Query Discipline
+
+- ensure GraphQL historical queries call service APIs
+- keep Kafka reserved for event streaming and live subscription fanout
+
+### Learning Needed
+
+- Spring Data Redis basics
+- cache serialization tradeoffs
+- simple retention strategy design
+
+### Testing
+
+- integration tests with Redis, Postgres, and service APIs
+- cache hit and miss behavior tests
+- contract tests for service JSON responses
+
+### Observability
+
+- add cache metrics such as:
+  - `streamsense_cache_hits_total{cache=...}`
+  - `streamsense_cache_misses_total{cache=...}`
+- add latency comparison panels before and after cache hits
+
+### Demo Script
+
+- query recent sentiment twice
+- show second query is faster and cache hit metrics increase
+
+### Definition Of Done
+
+- Redis is actively used for at least two endpoints
+- metrics prove cache behavior
+
+### Risks And Pitfalls
+
+- cache stampede
+- stale reads without a documented invalidation or TTL strategy
+
+---
+
+## Week 7 - API Gateway Maturity
+
+### Objectives
+
+- Make `api-gateway` behave like a real gateway.
+- Add auth hooks and rate limiting.
+- organize GraphQL in a production-shaped way.
+- improve subscription reliability.
+
+### Build Deliverables
+
+- Spring Cloud Gateway routing is active and coherent
+- auth structure exists with a development bypass mode
+- rate limiting exists on ingest-facing routes
+- GraphQL schema is modularized by domain area
+- subscription reconnect and consumer group behavior are hardened
+
+### Detailed Checklist
+
+#### Routing
+
+- define gateway routes centrally in configuration
+- ensure service routing under consistent `/api/**` mappings
+- keep route configuration understandable and not scattered
+
+#### Auth Hook
+
+- add JWT validation filter or hook
+- support a development mode that allows bypass for local work
+- document auth expectations and configuration
+
+#### Rate Limiting
+
+- add Redis-backed rate limiting if feasible
+- otherwise add a clear rate limiter with observable behavior
+- apply it to ingest endpoints and other abuse-prone surfaces
+
+#### GraphQL Organization
+
+- modularize GraphQL schema by chat, sentiment, video, and recommendation concerns
+- keep the graph single if needed, but shape it so future federation would be clean
+- document federation as a future enhancement rather than force it prematurely
+
+#### Subscription Reliability
+
+- ensure gateway consumer groups are stable
+- understand and handle Kafka rebalance behavior
+- make frontend WebSocket reconnect and retry behavior robust
+- document subscription expectations under restart conditions
+
+### Learning Needed
+
+- Spring Cloud Gateway filters
+- Redis rate limiting in the gateway stack
+- GraphQL schema modularization patterns
+
+### Testing
+
+- gateway filter tests for auth and rate limiting
+- GraphQL schema snapshot or compatibility tests
+- subscription restart and reconnect smoke testing
+
+### Observability
+
+- add gateway metrics such as:
+  - request totals by route
+  - 4xx and 5xx counts
+  - rate-limit rejections
+- ensure gateway traces include route identifiers
+
+### Demo Script
+
+- show rate limiting by flooding an ingest endpoint
+- show auth toggle behavior
+- restart the gateway and show subscription clients recover
+
+### Definition Of Done
+
+- `api-gateway` has real routing, auth hooks, rate limiting, and reliable subscription behavior
+
+### Risks And Pitfalls
+
+- overcomplicating federation before the graph is stable
+- auth work sprawling beyond a gateway hook into a full identity system too early
+
+---
+
+## Week 8 - Recommendation Service v1 And Experiment Wiring
+
+### Objectives
+
+- Implement `recommendation-service` with simple, explainable behavior.
+- Wire experiments configuration through Config Server.
+- Surface recommendations in the UI.
+
+### Build Deliverables
+
+- `recommendation-service` API exists
+- recommendation output is deterministic enough to test and demo
+- experiments config is served centrally
+- gateway exposes recommendations through GraphQL
+- frontend renders recommendations and reason fields
+
+### Detailed Checklist
+
+#### Recommendation Service
+
+- add or finish the Spring Boot app
+- define inputs such as:
+  - streamer
+  - recent sentiment distribution
+  - recent sponsor detections
+- define outputs as recommendation objects with reason fields
+- keep the logic simple and explainable, not opaque
+
+#### Experiment Configuration
+
+- add `experiments.json` or equivalent YAML in the config repository
+- serve it from Config Server
+- let services read and cache it
+- allow restart or manual refresh if full dynamic refresh is too much initially
+- document clearly whether refresh is automatic or manual
+
+#### API Gateway And Frontend
+
+- add GraphQL query for recommendations
+- add a frontend recommendation panel
+- show how experiment changes can affect outputs
+
+### Learning Needed
+
+- Spring Cloud Config refresh patterns
+- deterministic recommendation logic design for demos
+
+### Testing
+
+- unit tests for recommendation output determinism
+- integration tests for recommendation inputs from recent signals
+- tests for experiment-variant-driven behavior where practical
+
+### Observability
+
+- add metrics such as:
+  - `streamsense_recommendations_served_total`
+  - experiment variant counters
+- add dashboard panels for recommendation latency and served rate
+
+### Demo Script
+
+- change experiment config
+- restart or refresh the relevant service
+- show recommendation behavior changes in the UI
+
+### Definition Of Done
+
+- recommendations appear in the UI and can change based on centralized config
+
+### Risks And Pitfalls
+
+- overengineering recommendation logic before the data path is stable
+- promising live config refresh without fully implementing it
+
+---
+
+## Week 9 - Kubernetes v1 On Kind Or Minikube
+
+### Objectives
+
+- Produce Kubernetes manifests for local cluster deployment.
+- Make local Kubernetes deployment real and documented.
+- Keep the path to cloud-managed Kubernetes understandable.
+
+### Build Deliverables
+
+- `k8s/namespace.yaml` and service manifests for the core platform
+- Deployments and Services for:
+  - `eureka-server`
+  - `config-server`
+  - `api-gateway`
+  - `chat-service`
+  - `video-service`
+  - `sentiment-service`
+  - `recommendation-service`
+  - `ml-engine`
+  - `postgres`
+  - `redis`
+  - `prometheus`
+  - `grafana`
+  - `zipkin`
+- Ingress for at least gateway, Grafana, and Zipkin
+- local Kubernetes runbook
+
+### Detailed Checklist
+
+#### Cluster Target
+
+- choose `kind` by default unless `minikube` proves significantly simpler
+- document the choice and the reasons
+
+#### Image Workflow
+
+- create local image build workflow
+- make image loading into `kind` repeatable
+- document exact commands for local deployment
+
+#### Config And Secrets
+
+- convert the config repository into ConfigMaps or mounted files for Config Server native mode
+- document which values are ConfigMaps and which should be Secrets later
+
+#### Service Discovery
+
+- ensure service discovery works under Kubernetes DNS assumptions
+- document whether Eureka remains required in-cluster or whether the k8s networking story reduces its value
+- keep the architecture consistent for the purposes of the repo even if production cloud choices would differ later
+
+#### Monitoring In Cluster
+
+- expose Prometheus scrape config for services in Kubernetes
+- make Grafana provisioning work in-cluster
+- ensure Zipkin receives spans in Kubernetes too
+
+### Learning Needed
+
+- `kind` networking and ingress basics
+- Kubernetes ConfigMap and Secret patterns
+
+### Testing
+
+- `kubectl apply --dry-run=client -f k8s/`
+- basic smoke validation that pods become ready
+- verify gateway endpoint and one monitoring endpoint are reachable
+
+### Observability
+
+- ensure at least gateway and one backend service emit metrics and traces in-cluster
+
+### Demo Script
+
+- create local cluster
+- apply manifests
+- open gateway and Grafana
+- ingest events and show traffic reflected in dashboards
+
+### Definition Of Done
+
+- full stack runs on `kind` or `minikube` with documented steps and reachable UI surfaces
+
+### Risks And Pitfalls
+
+- Config Server native mode file mounting issues
+- trying to solve Kafka-on-Kubernetes in the same week before the app deployments are stable
+
+---
+
+## Week 10 - Kafka On Kubernetes And Consumer Scaling
+
+### Objectives
+
+- Deploy Kafka to Kubernetes.
+- demonstrate partition-based scaling.
+- make throughput and lag visible.
+
+### Build Deliverables
+
+- `k8s/kafka/` manifests or operator-backed definitions
+- local Kafka cluster in Kubernetes
+- topics with multiple partitions
+- consumer scaling demonstration across replicas
+- consumer lag metrics visible in Prometheus and Grafana
+
+### Detailed Checklist
+
+#### Kafka Approach
+
+- choose Strimzi unless a strong reason exists not to
+- document the choice as the lowest-ops-pain local Kubernetes path
+
+#### Topics And Partitions
+
+- define topics:
+  - `stream.chat.messages`
+  - `stream.sentiment.events`
+  - `stream.sponsor.detections`
+- choose a partition count suitable for local scaling demos
+- key records in a way that preserves ordering where needed, such as by streamer
+
+#### Service Config
+
+- point in-cluster services at the Kubernetes Kafka service
+- validate consumer group behavior under multiple replicas
+
+#### Scaling Story
+
+- scale at least one consuming service to multiple replicas
+- verify partition assignments distribute correctly
+- capture lag and throughput behavior before and after scaling
+
+### Learning Needed
+
+- Kafka consumer group rebalancing and partition ownership
+- Strimzi or chosen Kafka-on-Kubernetes basics
+
+### Testing
+
+- keep local integration tests using Testcontainers Kafka even if Kubernetes Kafka is added
+- add at least one partitioning correctness or ordering test based on key choice
+
+### Observability
+
+- add dashboard panels for:
+  - consumer lag
+  - messages per second per topic
+  - rebalance counts if available
+
+### Demo Script
+
+- generate traffic
+- scale a consumer deployment from one replica to multiple replicas
+- show lag drops and throughput improves
+
+### Definition Of Done
+
+- Kafka runs in Kubernetes and the scaling story is demonstrable with metrics
+
+### Risks And Pitfalls
+
+- operator complexity distracting from the repository goal
+- local cluster resource limits making scaling results noisy
+
+---
+
+## Week 11 - Testing, CI Hardening, And Load Testing Report
+
+### Objectives
+
+- Build a credible automated test suite.
+- add repeatable load-generation tooling.
+- produce an honest performance report.
+
+### Build Deliverables
+
+- GitHub Actions covers:
+  - Java unit and integration tests
+  - Python tests
+  - frontend lint and tests
+  - optional stack smoke test job
+- load-generation tooling exists under `tools/`
+- `docs/performance-report.md` exists and includes measured results
+
+### Detailed Checklist
+
+#### CI Hardening
+
+- separate unit and integration concerns where useful
+- use Testcontainers for Kafka, Postgres, and Redis integration coverage
+- run integration tests on pull requests if runtime is acceptable
+- run heavier smoke or compose tests on a schedule or manual trigger if needed
+
+#### Automated Test Scope
+
+- unit tests for service logic, fallbacks, and schema validation
+- integration tests for:
+  - chat -> sentiment pipeline
+  - video -> sponsor pipeline
+  - cache behavior
+  - gateway GraphQL query and subscription flows
+- contract validation for event schemas and GraphQL schema stability
+- frontend tests for major live and historical views
+
+#### Load Tooling
+
+- add a Kafka or HTTP-based load generator
+- allow configurable message rate and duration
+- record produced rate, consumed rate, and end-to-end latency
+- include event timestamps needed for persistence-latency analysis
+
+#### Performance Report
+
+- document test environment specs
+- document achieved throughput and p95 latency
+- document failure modes
+- include references to dashboards or screenshots
+- explicitly state whether README performance claims are measured, simulated, or aspirational
+
+### Learning Needed
+
+- Kafka producer tuning
+- Testcontainers best practices
+- honest latency measurement across asynchronous systems
+
+### Testing
+
+- build the actual test suite described above
+- ensure CI results are reproducible and not dependent on manual local state
+
+### Observability
+
+- create a performance-focused dashboard with:
+  - end-to-end latency p50 and p95
+  - Kafka produce and consume rates
+  - DB write latency
+  - fallback and error rates under load
+
+### Demo Script
+
+- run load generation at multiple rates
+- show dashboards moving
+- show report excerpts with actual measured values
+- stop `ml-engine` under load and show graceful degradation
+
+### Definition Of Done
+
+- reproducible performance run exists and is documented
+- CI covers the repository credibly
+
+### Risks And Pitfalls
+
+- local machines may not reach ambitious throughput targets
+- integration tests may become flaky without strict environment control
+
+---
+
+## Week 12 - Polish And Production-Style Demo Packaging
+
+### Objectives
+
+- Make the full system easy to run and explain.
+- finalize dashboards, traces, runbooks, and troubleshooting material.
+- package the demo so a new machine can reproduce it quickly.
+
+### Build Deliverables
+
+- `docker-compose up -d` runs the stack with one command
+- Kubernetes deployment is documented and repeatable
+- docs are complete enough for a new contributor
+- demo tooling exists for seeding and opening key endpoints
+- optional Cassandra profile is documented without becoming a blocker
+
+### Detailed Checklist
+
+#### Compose Polish
+
+- add healthchecks broadly
+- use `depends_on` readiness conditions where they genuinely help
+- remove assumptions that require prebuilt jars if possible by using better Docker builds or one canonical build step
+- add profiles such as default and `with-cassandra`
+- ensure one command starts the full demo stack
+
+#### Demo Tooling
+
+- add scripts such as:
+  - `tools/demo/seed.sh`
+  - `tools/demo/open.sh`
+- seed sample chats and frames
+- print URLs and endpoints needed for the demo
+
+#### Frontend Packaging
+
+- either run frontend in Docker cleanly or document a separate local dev path clearly
+- prefer a production-shaped frontend container for the final demo if feasible
+
+#### Observability Polish
+
+- provision Grafana dashboards automatically
+- document representative Zipkin traces
+- ensure dashboard names and panels are stable enough for demos
+
+#### Troubleshooting And Runbooks
+
+- complete local runbook
+- complete Kubernetes local runbook
+- add troubleshooting for:
+  - Kafka issues
+  - GraphQL subscription issues
+  - Config Server issues
+  - tracing issues
+  - startup races
+
+#### Optional Cassandra Plan
+
+- do not migrate core flows to Cassandra unless the project is ahead of schedule
+- if included, make it a clearly optional storage backend with:
+  - Docker Compose profile
+  - Kubernetes manifests or notes
+  - documentation of intended data model, such as time-series or wide-row storage by streamer
+- keep it toggled off by default
+
+### Learning Needed
+
+- Grafana dashboard provisioning and export/import
+- final demo packaging discipline
+
+### Testing
+
+- add a final smoke-e2e path that:
+  - starts Compose
+  - seeds data
+  - runs assertions
+  - tears down cleanly
+
+### Observability
+
+- final dashboard set should include:
+  - system overview
+  - Kafka rates and lag
+  - ML latency and circuit breaker state
+  - DB and cache latency and hit rate
+- final tracing checklist should confirm an end-to-end trace exists for at least the chat -> sentiment path
+
+### Demo Script
+
+- run `make up`
+- run the seed script
+- open the UI and show:
+  - live chat
+  - sentiment chart
+  - sponsor chart
+  - recommendations
+- open Grafana and show system overview and resilience panels
+- open Zipkin and show a representative trace
+- optionally run load testing and show the performance report
+
+### Definition Of Done
+
+- a new machine can follow the local runbook and reach the full demo in thirty minutes or less
+- Kubernetes local deployment works from documented steps
+
+### Risks And Pitfalls
+
+- spending week 12 adding new features rather than freezing scope and polishing runnability
+
+---
+
+## Priority Ladder Inside The 12-Week Plan
+
+If sequencing pressure forces prioritization inside this roadmap, use this order:
+
+### P0 - Core Platform Correctness
+
+- fix GraphQL `health` mismatch
+- lock service ownership for sentiment flow
+- implement the minimum real `sentiment-service`
+- add Postgres migrations and persistence baseline
+- prevent silent message loss
+- make Docker startup predictable enough for development
+
+### P1 - Product Surface Completion
+
+- sentiment GraphQL query and subscription
+- frontend sentiment UI
+- `ml-engine` deterministic endpoints
+- video sponsor path
+- gateway maturity basics
+
+### P2 - Reliability And Query Performance
+
+- Resilience4j rollout
+- retries, dead letters, and fallbacks
+- Redis cache
+- dashboard quality improvements
+- recommendation service and experiment wiring
+
+### P3 - Platform Packaging
+
+- Kubernetes manifests
+- Kafka on Kubernetes
+- CI hardening and load testing report
+- demo automation and optional Cassandra profile
+
+## Weekly Time Split Guidance
+
+Suggested weekly allocation:
+
+- Build: `65%`
+- Learn: `15%`
+- Debug and integration: `15%`
+- Docs: `5%`
+
+Exception:
+
+- week 12 should allocate far more time to documentation, runbooks, and demo packaging
+
+## Key Risks And Mitigations
+
+### GraphQL Subscription Complexity
+
+Risk:
+
+- subscription protocol or implementation mismatch can waste a large amount of time
+
+Mitigation:
+
+- lock protocol choice in week 2
+- build the Kafka -> subscription bridge once
+- reuse the same pattern for chat, sentiment, and sponsor subscriptions
+
+### Kafka On Kubernetes Complexity
+
+Risk:
+
+- Kafka operations can dominate the schedule
+
+Mitigation:
+
+- defer Kafka on Kubernetes until week 10
+- use Strimzi or another boring, low-surprise local option
+
+### ML Realism Creep
+
+Risk:
+
+- spending too much time on model sophistication before the platform is stable
+
+Mitigation:
+
+- keep deterministic stubs first
+- harden contracts and runtime behavior before improving model realism
+
+### Observability Drift
+
+Risk:
+
+- metrics and traces get postponed until too late
+
+Mitigation:
+
+- add observability checklists every week
+- provision dashboards instead of relying on manual clicks at the end
+
+### Scope Creep
+
+Risk:
+
+- adding more features than the repository description requires
+
+Mitigation:
+
+- no new major services beyond the existing set
+- keep Cassandra optional
+- preserve focus on one fully explainable platform rather than many partial ones
+
+### Performance Claim Inflation
+
+Risk:
+
+- overstating throughput based on architecture intent rather than measured evidence
+
+Mitigation:
+
+- publish measured numbers only
+- clearly label design targets versus achieved local results
+
+## Final Success Criteria
+
+The repository is in the desired final state when all of the following are true:
+
+- `docker compose up -d` can bring up the full local stack reliably
+- Eureka and Config Server work predictably in local development
+- Kafka topics exist and all core event pipelines function
 - `chat-service` only ingests and publishes chat events
-- `sentiment-service` consumes chat events and persists sentiment
-- Postgres schema is created automatically through Flyway
-- `api-gateway` exposes working `health`, `recentSentiment`, and `onSentiment`
-- frontend shows health, live chat, recent sentiment, and live sentiment
-- startup through Docker is repeatable
-- failures are retried or dead-lettered instead of silently lost
-- tests exist for the full core path
-- docs match the actual architecture
+- `sentiment-service` owns sentiment inference, persistence, and historical query behavior
+- `video-service` owns sponsor inference flow and historical query behavior
+- `recommendation-service` returns explainable recommendation results
+- `ml-engine` exposes stable sentiment and sponsor endpoints with deterministic behavior and hardened validation
+- GraphQL gateway exposes working queries and subscriptions for chat, sentiment, sponsor, and recommendations where planned
+- frontend displays live and historical analytics, not just raw event text
+- Postgres schema is created automatically with migrations
+- Redis is used for hot historical queries and that usage is visible in metrics
+- failures are retried, dead-lettered, or fall back in explicit ways rather than being silently dropped
+- Prometheus, Grafana, and Zipkin provide meaningful operational visibility
+- CI runs useful automated tests across Java, Python, and frontend code
+- load testing can be executed and results are documented honestly
+- `k8s/` manifests deploy the platform to `kind` or `minikube` with documented steps
+- docs, runbooks, and troubleshooting material match the actual implementation
+- a new machine can reproduce the end-of-week-12 demo in reasonable time
 
-## Suggested First Sprint
+## Final Execution Summary
 
-If only one short sprint is available, do these in order:
+If only the shortest possible summary of this entire document is needed, it is this:
 
-1. Fix GraphQL `health`
-2. Add Flyway migration for `sentiment_events`
-3. implement minimum `sentiment-service`
-4. move sentiment processing out of `chat-service`
-5. add retry/error handling
-6. expose `recentSentiment` in `api-gateway`
-7. add a basic frontend sentiment panel
+1. Stabilize the platform skeleton and centralized config.
+2. Make chat -> Kafka -> gateway -> frontend work reliably.
+3. Make chat -> sentiment -> persistence -> GraphQL -> frontend fully real.
+4. Add resilience, retries, dead-letter handling, and fallback behavior.
+5. Build the video -> sponsor path.
+6. Add Redis caching and service-owned history queries.
+7. Mature the gateway with routing, auth hooks, rate limiting, and subscription reliability.
+8. Implement recommendations and experiment config wiring.
+9. Deploy the stack to local Kubernetes.
+10. Put Kafka on Kubernetes and demonstrate scaling.
+11. Harden CI, tests, and load reporting.
+12. Package the repository as a production-style demo with runbooks, dashboards, traces, and optional Cassandra planning.
 
-That gives the repo one coherent, defensible end-to-end feature.
+That is the full scope required for a final production-shaped repository.

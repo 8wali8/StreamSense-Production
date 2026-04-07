@@ -5,9 +5,9 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.streamsense</groupId>
-  <artifactId>sentiment-service</artifactId>
+  <artifactId>video-service</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>sentiment-service</name>
+  <name>video-service</name>
 
   <properties>
     <java.version>21</java.version>

@@ -6,7 +6,7 @@ server:
 eureka:
   client:
     service-url:
-      defaultZone: http://eureka-server:8761/eureka # url through docker
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
 
 streamsense:
   topics:
@@ -34,18 +34,3 @@ spring:
       enabled: true
     websocket:
       path: /graphql
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, prometheus
-  endpoint:
-    prometheus:
-      enabled: true
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://zipkin:9411/api/v2/spans

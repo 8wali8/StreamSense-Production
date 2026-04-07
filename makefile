@@ -12,15 +12,12 @@
 
 SHELL := /bin/bash
 
-# ---- Configure these ----
 COMPOSE ?= docker compose
-# If your compose file isn't auto-detected, uncomment one:
-# COMPOSE_FILE ?= -f docker-compose.yml
-# COMPOSE_FILE ?= -f compose.yml
 
-# List your service directory names here (Option A: each has its own pom.xml)
-SERVICES := api-gateway config-server discovery-server user-service stream-service chat-service \
-            sentiment-service sponsor-detection-service ml-engine-service monitoring-service notification-service
+JAVA_SERVICES := eureka-server config-server api-gateway chat-service sentiment-service video-service recommendation-service
+PYTHON_SERVICES := ml-engine
+FRONTEND_SERVICE := frontend
+SERVICES := $(JAVA_SERVICES) $(PYTHON_SERVICES) $(FRONTEND_SERVICE)
 
 # ---- Helpers ----
 define assert_service
@@ -50,8 +47,8 @@ help:
 	@echo "  make build SERVICE=<name>   Build one docker service image"
 	@echo ""
 	@echo "Test:"
-	@echo "  make test          Run Maven tests for ALL services (local Maven)"
-	@echo "  make test SERVICE=<name>    Run Maven tests for ONE service"
+	@echo "  make test          Run Java, Python, and frontend checks"
+	@echo "  make test SERVICE=<name>    Run checks for one service"
 	@echo ""
 	@echo "Clean:"
 	@echo "  make clean         docker compose down (keeps volumes)"
@@ -101,37 +98,46 @@ nuke:
 	@echo "Stopping system + removing volumes..."
 	@$(COMPOSE) $(COMPOSE_FILE) down -v
 
-# ---- Maven tests (Option A: each service has its own pom.xml) ----
-# Run all service tests (local Maven)
 .PHONY: test
 test:
 	@if [[ -n "$(SERVICE)" ]]; then \
 		$(MAKE) test-one SERVICE=$(SERVICE); \
 	else \
 		set -e; \
-		echo "Running Maven tests for all services..."; \
-		for s in $(SERVICES); do \
+		echo "Running Maven tests for Java services..."; \
+		for s in $(JAVA_SERVICES); do \
 			if [[ -f "$$s/pom.xml" ]]; then \
 				echo ""; \
 				echo "===== TEST $$s ====="; \
 				( cd $$s && mvn -q -DskipTests=false test ); \
-			else \
-				echo "WARN: $$s has no pom.xml, skipping"; \
 			fi; \
 		done; \
 		echo ""; \
-		echo "All tests completed."; \
+		echo "===== TEST ml-engine ====="; \
+		( cd ml-engine && PYTHONPATH=src/main/python pytest src/test/python ); \
+		echo ""; \
+		echo "===== CHECK frontend ====="; \
+		( cd frontend && npm run lint && npm run build ); \
+		echo ""; \
+		echo "All checks completed."; \
 	fi
 
 .PHONY: test-one
 test-one:
 	$(assert_service)
-	@if [[ ! -f "$(SERVICE)/pom.xml" ]]; then \
-		echo "ERROR: $(SERVICE) has no pom.xml"; \
+	@if [[ -f "$(SERVICE)/pom.xml" ]]; then \
+		echo "Running Maven tests for $(SERVICE)..."; \
+		cd $(SERVICE) && mvn -q -DskipTests=false test; \
+	elif [[ "$(SERVICE)" == "ml-engine" ]]; then \
+		echo "Running pytest for ml-engine..."; \
+		cd ml-engine && PYTHONPATH=src/main/python pytest src/test/python; \
+	elif [[ "$(SERVICE)" == "frontend" ]]; then \
+		echo "Running frontend lint/build..."; \
+		cd frontend && npm run lint && npm run build; \
+	else \
+		echo "ERROR: Unsupported SERVICE=$(SERVICE)"; \
 		exit 1; \
 	fi
-	@echo "Running Maven tests for $(SERVICE)..."
-	@cd $(SERVICE) && mvn -q -DskipTests=false test
 
 # ---- Optional: build jars locally (not docker) ----
 .PHONY: package
@@ -141,13 +147,11 @@ package:
 	else \
 		set -e; \
 		echo "Packaging all services (local Maven)..."; \
-		for s in $(SERVICES); do \
+		for s in $(JAVA_SERVICES); do \
 			if [[ -f "$$s/pom.xml" ]]; then \
 				echo ""; \
 				echo "===== PACKAGE $$s ====="; \
 				( cd $$s && mvn -q -DskipTests package ); \
-			else \
-				echo "WARN: $$s has no pom.xml, skipping"; \
 			fi; \
 		done; \
 	fi

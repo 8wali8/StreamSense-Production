@@ -163,7 +163,13 @@ Testing:
 
 # Running the Project
 
-## Refer to /Docs folder
+Use `docs/howtorun.md` for the Docker-first runbook.
+
+Important:
+
+- Java service Dockerfiles use the current prebuilt-JAR workflow.
+- Build the Java service JARs before running `docker compose up --build`.
+- Config Server serves files from `config-server/config-repo/`.
 
 # License
 

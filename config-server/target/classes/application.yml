@@ -13,10 +13,17 @@ spring:
     config:
       server:
         native:
-          search-locations: file:/Users/ujjawalprasad/Desktop/StreamSense-Production/config-server/config-repo
+          search-locations: ${CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS:file:./config-repo}
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}, spanId=%X{spanId:-}, correlationId=%X{correlationId:-}]"
 
 management:
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus
+  endpoint:
+    prometheus:
+      enabled: true

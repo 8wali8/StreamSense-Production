@@ -20,9 +20,14 @@ npm install -g wscat
 
 # Quickstart (Docker Compose)
 
+This repo is Docker-first.
+
+- Spring services talk to `config-server`, `eureka-server`, `kafka`, and the other containers through Docker DNS.
+- Java Dockerfiles currently copy `target/*.jar`, so package those JARs before Compose builds the images.
+
 ## 1. Build service JARs
 
-Each Dockerfile copies `target/*.jar`, so build services first:
+Each Java Dockerfile copies `target/*.jar`, so build the Java services first:
 
 ```
 cd <service>
@@ -43,7 +48,7 @@ Services:
 
 ## 2. Start the stack
 
-From repo root:
+From repo root, start the full stack:
 
 ```
 docker compose up -d --build
@@ -57,15 +62,23 @@ docker compose up -d --build
 |------|------|
 | Eureka | http://localhost:8761 |
 | Config Server | http://localhost:8888 |
-| Kafka UI | http://localhost:8082 |
+| Kafka UI | http://localhost:8088 |
 | Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3001 |
 | Zipkin | http://localhost:9411 |
 
 Health checks:
 
 ```
+http://localhost:8888/actuator/health  (config-server)
 http://localhost:8080/actuator/health  (api-gateway)
 http://localhost:8081/actuator/health  (chat-service)
+```
+
+Verify Config Server returns in-repo config:
+
+```
+http://localhost:8888/chat-service/default
 ```
 
 ---
@@ -167,7 +180,14 @@ POST /api/chat/ingest
 
 ---
 
-# Running Services Without Docker
+# Running Services Without Docker (Optional)
+
+Docker is the primary path. If you need to run services directly on the host, export Docker hostnames as localhost equivalents first:
+
+```
+export CONFIG_SERVER_URL=http://localhost:8888
+export EUREKA_DEFAULT_ZONE=http://localhost:8761/eureka
+```
 
 Start in this order:
 
@@ -255,6 +275,8 @@ http://config-server:8888
 ```
 
 not `localhost`.
+
+The Config Server reads from the repo-mounted `config-server/config-repo` directory inside Docker.
 
 ---
 

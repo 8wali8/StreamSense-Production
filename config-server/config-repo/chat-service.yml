@@ -6,7 +6,7 @@ server:
 eureka:
   client:
     service-url:
-      defaultZone: http://eureka-server:8761/eureka # url through docker
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
 
 streamsense:
   topics:
@@ -29,18 +29,3 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, prometheus
-  endpoint:
-    prometheus:
-      enabled: true
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://zipkin:9411/api/v2/spans

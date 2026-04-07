@@ -3,7 +3,7 @@ server: # spring boot runs embedded server (Tomcat) by default
 
 spring:
   application:
-  name: eureka-server # sets the service name used by spring, if it was client would set the name it would register under
+    name: eureka-server # sets the service name used by spring, if it was client would set the name it would register under
 
 eureka:
   client:
@@ -12,9 +12,15 @@ eureka:
   server:
     wait-time-in-ms-when-sync-empty: 0 # makes local startup smoother bc nothing to sync to
 
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}, spanId=%X{spanId:-}, correlationId=%X{correlationId:-}]"
+
 management:
   endpoints:
     web:
       exposure:
-        include: health, info # expose only health and info over the web so nothing sensitive is available
-        # to be expanded once prometheus / grafana monitoring is added
+        include: health, info, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
