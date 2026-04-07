@@ -1,5 +1,7 @@
 package com.streamsense.apigateway.graphql;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.graphql.data.method.annotation.SubscriptionMapping;
@@ -8,12 +10,6 @@ import org.springframework.stereotype.Controller;
 import com.streamsense.apigateway.events.ChatMessageEvent;
 import com.streamsense.apigateway.subscriptions.ChatSubscriptionBus;
 
-import reactor.core.publisher.Flux;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.graphql.data.method.annotation.Argument;
-import org.springframework.graphql.data.method.annotation.SubscriptionMapping;
-import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
 
 @Controller
@@ -24,6 +20,11 @@ public class ChatGraphqlController {
 
     public ChatGraphqlController(ChatSubscriptionBus bus) {
         this.bus = bus;
+    }
+
+    @QueryMapping
+    public String health() {
+        return "ok";
     }
 
     @SubscriptionMapping("onChatMessage")

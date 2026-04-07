@@ -1,3 +1,6 @@
 # target folders auto-built by maven dont want it committed to github
 **/target/ 
 target/
+.classpath
+.project
+.settings/
