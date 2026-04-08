@@ -12,11 +12,17 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 public class RestClientConfig {
 
+    private final StreamSenseProperties properties;
+
+    public RestClientConfig(StreamSenseProperties properties) {
+        this.properties = properties;
+    }
+
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
         return builder
-                .setConnectTimeout(Duration.ofSeconds(2))
-                .setReadTimeout(Duration.ofSeconds(3))
+                .setConnectTimeout(Duration.ofMillis(properties.getMl().getConnectTimeoutMs()))
+                .setReadTimeout(Duration.ofMillis(properties.getMl().getReadTimeoutMs()))
                 .additionalInterceptors((request, body, execution) -> {
                     String correlationId = MDC.get("correlationId");
                     String traceparent = MDC.get("traceparent");

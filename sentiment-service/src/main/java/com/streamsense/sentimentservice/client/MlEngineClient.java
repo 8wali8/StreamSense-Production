@@ -11,6 +11,10 @@ import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
 
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+
 @Component
 public class MlEngineClient {
 
@@ -24,6 +28,9 @@ public class MlEngineClient {
         this.properties = properties;
     }
 
+    @Bulkhead(name = "mlSentiment", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "mlSentiment")
+    @Retry(name = "mlSentiment")
     public MlSentimentResponse analyzeSentiment(MlSentimentRequest request) {
         String url = properties.getMl().getBaseUrl() + "/ml/sentiment";
 
@@ -36,7 +43,7 @@ public class MlEngineClient {
         } catch (RestClientException e) {
             log.error("ml-engine call failed eventId={} streamer={} error={}",
                     request.getEventId(), request.getStreamer(), e.getMessage(), e);
-            throw e;
+            throw new MlDependencyException("ml-engine call failed for eventId=" + request.getEventId(), e);
         }
 
         validateResponse(request, response);
