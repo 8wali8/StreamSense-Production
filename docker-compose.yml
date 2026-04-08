@@ -206,6 +206,7 @@ services:
         done;
         echo 'Creating topics...';
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages.dlt --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sentiment.events --partitions 3 --replication-factor 1;
         echo 'Topics now:';
         kafka-topics --bootstrap-server kafka:9092 --list;
@@ -245,6 +246,8 @@ services:
     build: ./ml-engine
     ports:
       - "8000:8000"
+    environment:
+      ML_ENGINE_FORCE_FAILURE: ${ML_ENGINE_FORCE_FAILURE:-false}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ml/health').read()"]
       interval: 5s
