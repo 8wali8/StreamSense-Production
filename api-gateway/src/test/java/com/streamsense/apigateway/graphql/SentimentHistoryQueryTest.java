@@ -84,4 +84,44 @@ class SentimentHistoryQueryTest {
                 .entity(String.class)
                 .isEqualTo("sent-1");
     }
+
+    @Test
+    void recentSentimentQuery_returnsFallbackHistoryWithoutErrors() {
+        MOCK_WEB_SERVER.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/json")
+                .setBody("""
+                        [
+                          {
+                            "sentimentEventId": "sent-fallback",
+                            "sourceEventId": "src-fallback",
+                            "streamer": "test",
+                            "user": "u2",
+                            "message": "ml fallback case",
+                            "chatTimestamp": 1710000002000,
+                            "processedAt": 1710000002500,
+                            "label": "NEUTRAL",
+                            "score": 0.0,
+                            "modelVersion": "fallback"
+                          }
+                        ]
+                        """));
+
+        graphQlTester.document("""
+                        query RecentSentiment($streamer: String!, $limit: Int!) {
+                          recentSentiment(streamer: $streamer, limit: $limit) {
+                            sentimentEventId
+                            label
+                            modelVersion
+                          }
+                        }
+                        """)
+                .variable("streamer", "test")
+                .variable("limit", 10)
+                .execute()
+                .errors()
+                .satisfy(errors -> assertThat(errors).isEmpty())
+                .path("recentSentiment[0].label")
+                .entity(String.class)
+                .isEqualTo("NEUTRAL");
+    }
 }

@@ -138,4 +138,34 @@ describe("SentimentPanel", () => {
     expect(screen.getByText("NEGATIVE")).toBeInTheDocument();
     expect(screen.getByText("score=-0.74")).toBeInTheDocument();
   });
+
+  it("renders fallback sentiment as normal analytics data", async () => {
+    useQueryMock.mockReturnValue({
+      loading: false,
+      error: undefined,
+      data: {
+        recentSentiment: [
+          {
+            sentimentEventId: "sent-fallback",
+            sourceEventId: "src-fallback",
+            streamer: "test",
+            user: "u3",
+            message: "ml fallback case",
+            chatTimestamp: 1710000002000,
+            processedAt: 1710000002500,
+            label: "NEUTRAL",
+            score: 0,
+            modelVersion: "fallback",
+          },
+        ],
+      },
+    } as never);
+
+    render(<SentimentPanel />);
+
+    expect(await screen.findByText("ml fallback case")).toBeInTheDocument();
+    expect(screen.getByText("NEUTRAL")).toBeInTheDocument();
+    expect(screen.getByText("score=0.00")).toBeInTheDocument();
+    expect(screen.getByText("model=fallback")).toBeInTheDocument();
+  });
 });

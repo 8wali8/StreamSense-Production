@@ -1,8 +1,10 @@
 package com.streamsense.sentimentservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -37,6 +39,7 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
@@ -46,9 +49,11 @@ import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 import com.streamsense.sentimentservice.persistence.SentimentRecordEntity;
 import com.streamsense.sentimentservice.persistence.SentimentRecordRepository;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+
 @SpringBootTest
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 1, topics = { "stream.chat.messages", "stream.sentiment.events" })
+@EmbeddedKafka(partitions = 1, topics = { "stream.chat.messages", "stream.sentiment.events", "stream.chat.messages.dlt" })
 @TestPropertySource(properties = {
         "spring.cloud.config.enabled=false",
         "eureka.client.enabled=false",
@@ -70,9 +75,20 @@ import com.streamsense.sentimentservice.persistence.SentimentRecordRepository;
         "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
         "streamsense.topics.chatMessages=stream.chat.messages",
         "streamsense.topics.sentimentEvents=stream.sentiment.events",
+        "streamsense.topics.chatMessagesDlt=stream.chat.messages.dlt",
         "streamsense.ml.base-url=http://ml-engine:8000",
         "streamsense.history.default-limit=20",
-        "streamsense.history.max-limit=100"
+        "streamsense.history.max-limit=100",
+        "streamsense.processing.retryBackoffMs=50",
+        "streamsense.processing.maxRetries=2",
+        "resilience4j.retry.instances.mlSentiment.maxAttempts=3",
+        "resilience4j.retry.instances.mlSentiment.waitDuration=10ms",
+        "resilience4j.retry.instances.mlSentiment.ignoreExceptions[0]=java.lang.IllegalStateException",
+        "resilience4j.retry.instances.mlSentiment.ignoreExceptions[1]=java.lang.IllegalArgumentException",
+        "resilience4j.circuitbreaker.instances.mlSentiment.minimumNumberOfCalls=10",
+        "resilience4j.circuitbreaker.instances.mlSentiment.slidingWindowSize=10",
+        "resilience4j.circuitbreaker.instances.mlSentiment.waitDurationInOpenState=1s",
+        "resilience4j.bulkhead.instances.mlSentiment.maxConcurrentCalls=2"
 })
 class SentimentPipelineIntegrationTest {
 
@@ -91,8 +107,12 @@ class SentimentPipelineIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
     private MockRestServiceServer mockServer;
     private Consumer<String, SentimentAnalysisEvent> sentimentConsumer;
+    private Consumer<String, ChatMessageEvent> deadLetterConsumer;
 
     @BeforeEach
     void setUp() {
@@ -101,6 +121,7 @@ class SentimentPipelineIntegrationTest {
         }
 
         repository.deleteAll();
+        circuitBreakerRegistry.circuitBreaker("mlSentiment").reset();
         mockServer = MockRestServiceServer.bindTo(restTemplate).build();
 
         Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("sentiment-events-test-group", "true",
@@ -115,12 +136,28 @@ class SentimentPipelineIntegrationTest {
                 new JsonDeserializer<>(SentimentAnalysisEvent.class, false))
                 .createConsumer();
         sentimentConsumer.subscribe(Collections.singletonList("stream.sentiment.events"));
+
+        Map<String, Object> deadLetterConsumerProps = KafkaTestUtils.consumerProps("sentiment-dlt-test-group", "true",
+                embeddedKafkaBroker);
+        deadLetterConsumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        deadLetterConsumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ChatMessageEvent.class.getName());
+        deadLetterConsumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+
+        deadLetterConsumer = new org.springframework.kafka.core.DefaultKafkaConsumerFactory<>(
+                deadLetterConsumerProps,
+                new StringDeserializer(),
+                new JsonDeserializer<>(ChatMessageEvent.class, false))
+                .createConsumer();
+        deadLetterConsumer.subscribe(Collections.singletonList("stream.chat.messages.dlt"));
     }
 
     @AfterEach
     void tearDown() {
         if (sentimentConsumer != null) {
             sentimentConsumer.close();
+        }
+        if (deadLetterConsumer != null) {
+            deadLetterConsumer.close();
         }
     }
 
@@ -162,6 +199,104 @@ class SentimentPipelineIntegrationTest {
         assertThat(record.value().getStreamer()).isEqualTo("test-streamer");
         assertThat(record.value().getLabel()).isEqualTo("POSITIVE");
         assertThat(record.value().getChatTimestamp()).isEqualTo(1710000000000L);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void mlDependencyFailure_persistsAndPublishesFallbackSentiment() throws Exception {
+        mockServer.expect(ExpectedCount.times(3), requestTo("http://ml-engine:8000/ml/sentiment"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withServerError());
+
+        ChatMessageEvent event = new ChatMessageEvent();
+        event.setEventId("evt-fallback");
+        event.setStreamer("fallback-streamer");
+        event.setUser("u-fallback");
+        event.setMessage("ml is down");
+        event.setTimestamp(1710000002000L);
+
+        testChatKafkaTemplate().send("stream.chat.messages", "fallback-streamer", event).get();
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThat(repository.findAll())
+                        .extracting(SentimentRecordEntity::getSourceEventId, SentimentRecordEntity::getLabel,
+                                SentimentRecordEntity::getModelVersion)
+                        .contains(tuple("evt-fallback", "NEUTRAL", "fallback")));
+
+        ConsumerRecord<String, SentimentAnalysisEvent> record = KafkaTestUtils.getSingleRecord(
+                sentimentConsumer,
+                "stream.sentiment.events",
+                Duration.ofSeconds(10));
+
+        assertThat(record.value().getSourceEventId()).isEqualTo("evt-fallback");
+        assertThat(record.value().getLabel()).isEqualTo("NEUTRAL");
+        assertThat(record.value().getScore()).isEqualTo(0.0d);
+        assertThat(record.value().getModelVersion()).isEqualTo("fallback");
+
+        mockServer.verify();
+    }
+
+    @Test
+    void transientMlFailure_retriesAndEventuallySucceeds() throws Exception {
+        mockServer.expect(ExpectedCount.times(2), requestTo("http://ml-engine:8000/ml/sentiment"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withServerError());
+        mockServer.expect(ExpectedCount.once(), requestTo("http://ml-engine:8000/ml/sentiment"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(
+                        "{\"label\":\"POSITIVE\",\"score\":0.65,\"modelVersion\":\"stub-v1\"}",
+                        MediaType.APPLICATION_JSON));
+
+        ChatMessageEvent event = new ChatMessageEvent();
+        event.setEventId("evt-retry");
+        event.setStreamer("retry-streamer");
+        event.setUser("u-retry");
+        event.setMessage("transient issue");
+        event.setTimestamp(1710000003000L);
+
+        testChatKafkaTemplate().send("stream.chat.messages", "retry-streamer", event).get();
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThat(repository.findAll())
+                        .extracting(SentimentRecordEntity::getSourceEventId, SentimentRecordEntity::getLabel,
+                                SentimentRecordEntity::getModelVersion)
+                        .contains(tuple("evt-retry", "POSITIVE", "stub-v1")));
+
+        mockServer.verify();
+    }
+
+    @Test
+    void invalidMlResponse_isDeadLetteredInsteadOfSilentlyDropped() throws Exception {
+        mockServer.expect(requestTo("http://ml-engine:8000/ml/sentiment"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(
+                        "{\"label\":\"\",\"score\":0.12,\"modelVersion\":\"stub-v1\"}",
+                        MediaType.APPLICATION_JSON));
+
+        ChatMessageEvent event = new ChatMessageEvent();
+        event.setEventId("evt-dlt");
+        event.setStreamer("dlt-streamer");
+        event.setUser("u-dlt");
+        event.setMessage("bad response path");
+        event.setTimestamp(1710000004000L);
+
+        testChatKafkaTemplate().send("stream.chat.messages", "dlt-streamer", event).get();
+
+        ConsumerRecord<String, ChatMessageEvent> dltRecord = KafkaTestUtils.getSingleRecord(
+                deadLetterConsumer,
+                "stream.chat.messages.dlt",
+                Duration.ofSeconds(10));
+
+        assertThat(dltRecord.value().getEventId()).isEqualTo("evt-dlt");
+        assertThat(dltRecord.value().getStreamer()).isEqualTo("dlt-streamer");
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> assertThat(repository.findAll())
+                        .noneMatch(record -> "evt-dlt".equals(record.getSourceEventId())));
 
         mockServer.verify();
     }
