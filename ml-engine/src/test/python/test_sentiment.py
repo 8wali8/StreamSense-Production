@@ -1,4 +1,6 @@
 from fastapi.testclient import TestClient
+
+import app.main as main_module
 from app.main import app
 
 client = TestClient(app)
@@ -86,3 +88,21 @@ def test_invalid_payload_returns_validation_error():
     )
 
     assert response.status_code == 422
+
+
+def test_force_failure_flag_returns_503(monkeypatch):
+    monkeypatch.setattr(main_module, "force_failure_enabled", lambda: True)
+
+    response = client.post(
+        "/ml/sentiment",
+        json={
+            "eventId": "evt-force",
+            "streamer": "xqc",
+            "user": "wali",
+            "message": "this stream is great",
+            "timestamp": 1710000000000,
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "forced ml-engine failure"
