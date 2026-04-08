@@ -10,11 +10,27 @@ streamsense:
   topics:
     chatMessages: stream.chat.messages
     sentimentEvents: stream.sentiment.events
+    chatMessagesDlt: stream.chat.messages.dlt
   ml:
     base-url: http://ml-engine:8000
+    connectTimeoutMs: 2000
+    readTimeoutMs: 3000
   history:
     defaultLimit: 20
     maxLimit: 100
+  processing:
+    retryBackoffMs: 1000
+    maxRetries: 2
+
+hystrix:
+  command:
+    mlSentiment:
+      executionTimeoutMs: 3000
+      requestVolumeThreshold: 10
+      errorThresholdPercentage: 50
+      sleepWindowMs: 15000
+      maxConcurrentCalls: 4
+      maxRetries: 2
 
 spring:
   kafka:
@@ -48,3 +64,39 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      mlSentiment:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - com.streamsense.sentimentservice.client.MlDependencyException
+  retry:
+    instances:
+      mlSentiment:
+        maxAttempts: 3
+        waitDuration: 1s
+        retryExceptions:
+          - com.streamsense.sentimentservice.client.MlDependencyException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+        ignoreExceptions:
+          - java.lang.IllegalStateException
+          - java.lang.IllegalArgumentException
+  bulkhead:
+    instances:
+      mlSentiment:
+        maxConcurrentCalls: 4
+        maxWaitDuration: 0ms
+
+management:
+  health:
+    circuitbreakers:
+      enabled: true
