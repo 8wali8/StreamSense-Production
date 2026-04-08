@@ -47,4 +47,34 @@ public class SentimentMetrics {
                 .register(meterRegistry)
                 .increment();
     }
+
+    public void incrementFallback(String reason) {
+        Counter.builder("streamsense_sentiment_fallback_total")
+                .description("Total number of fallback sentiment results")
+                .tag("reason", reason)
+                .register(meterRegistry)
+                .increment();
+    }
+
+    public void incrementProtectedCall(String outcome) {
+        Counter.builder("streamsense_ml_protected_calls_total")
+                .description("Total protected ML sentiment call outcomes")
+                .tag("outcome", outcome)
+                .register(meterRegistry)
+                .increment();
+    }
+
+    public void incrementDeadLetter() {
+        Counter.builder("streamsense_sentiment_dead_letter_total")
+                .description("Total number of dead-lettered sentiment source events")
+                .register(meterRegistry)
+                .increment();
+    }
+
+    public void incrementRetry() {
+        Counter.builder("streamsense_sentiment_retry_total")
+                .description("Total number of sentiment processing retries")
+                .register(meterRegistry)
+                .increment();
+    }
 }

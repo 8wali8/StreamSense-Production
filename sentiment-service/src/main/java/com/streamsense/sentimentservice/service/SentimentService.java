@@ -61,6 +61,12 @@ public class SentimentService {
 
         SentimentAnalysisEvent sentimentEvent = buildSentimentEvent(event, response);
 
+        if ("fallback".equalsIgnoreCase(sentimentEvent.getModelVersion())) {
+            log.warn("persisting fallback sentiment sourceEventId={} streamer={} label={} score={}",
+                    sentimentEvent.getSourceEventId(), sentimentEvent.getStreamer(), sentimentEvent.getLabel(),
+                    sentimentEvent.getScore());
+        }
+
         try {
             repository.save(SentimentRecordEntity.fromEvent(sentimentEvent));
             sentimentMetrics.incrementPersistence("success");

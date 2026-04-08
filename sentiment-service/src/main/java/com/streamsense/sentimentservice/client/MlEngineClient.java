@@ -10,8 +10,11 @@ import org.springframework.web.client.RestTemplate;
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
+import com.streamsense.sentimentservice.metrics.SentimentMetrics;
 
+import io.github.resilience4j.bulkhead.BulkheadFullException;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 
@@ -22,15 +25,17 @@ public class MlEngineClient {
 
     private final RestTemplate restTemplate;
     private final StreamSenseProperties properties;
+    private final SentimentMetrics sentimentMetrics;
 
-    public MlEngineClient(RestTemplate restTemplate, StreamSenseProperties properties) {
+    public MlEngineClient(RestTemplate restTemplate, StreamSenseProperties properties, SentimentMetrics sentimentMetrics) {
         this.restTemplate = restTemplate;
         this.properties = properties;
+        this.sentimentMetrics = sentimentMetrics;
     }
 
     @Bulkhead(name = "mlSentiment", type = Bulkhead.Type.SEMAPHORE)
     @CircuitBreaker(name = "mlSentiment")
-    @Retry(name = "mlSentiment")
+    @Retry(name = "mlSentiment", fallbackMethod = "fallbackSentiment")
     public MlSentimentResponse analyzeSentiment(MlSentimentRequest request) {
         String url = properties.getMl().getBaseUrl() + "/ml/sentiment";
 
@@ -41,17 +46,49 @@ public class MlEngineClient {
         try {
             response = restTemplate.postForObject(url, request, MlSentimentResponse.class);
         } catch (RestClientException e) {
+            sentimentMetrics.incrementProtectedCall("failure");
             log.error("ml-engine call failed eventId={} streamer={} error={}",
                     request.getEventId(), request.getStreamer(), e.getMessage(), e);
             throw new MlDependencyException("ml-engine call failed for eventId=" + request.getEventId(), e);
+        } catch (RuntimeException e) {
+            sentimentMetrics.incrementProtectedCall("failure");
+            throw e;
         }
 
         validateResponse(request, response);
+        sentimentMetrics.incrementProtectedCall("success");
 
         log.info("ml-engine response received eventId={} label={} score={}",
                 request.getEventId(), response.getLabel(), response.getScore());
 
         return response;
+    }
+
+    public MlSentimentResponse fallbackSentiment(MlSentimentRequest request, Throwable throwable) {
+        if (!isFallbackCandidate(throwable)) {
+            if (throwable instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException("unexpected fallback path for eventId=" + request.getEventId(), throwable);
+        }
+
+        sentimentMetrics.incrementProtectedCall("fallback");
+        sentimentMetrics.incrementFallback(throwable.getClass().getSimpleName());
+
+        log.warn("using fallback sentiment eventId={} streamer={} reason={} message={}",
+                request.getEventId(), request.getStreamer(), throwable.getClass().getSimpleName(), throwable.getMessage());
+
+        MlSentimentResponse fallback = new MlSentimentResponse();
+        fallback.setLabel("NEUTRAL");
+        fallback.setScore(0.0d);
+        fallback.setModelVersion("fallback");
+        return fallback;
+    }
+
+    private boolean isFallbackCandidate(Throwable throwable) {
+        return throwable instanceof MlDependencyException
+                || throwable instanceof CallNotPermittedException
+                || throwable instanceof BulkheadFullException;
     }
 
     private void validateResponse(MlSentimentRequest request, MlSentimentResponse response) {
