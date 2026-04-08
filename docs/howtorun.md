@@ -54,9 +54,9 @@ From repo root, start the full stack:
 docker compose up -d --build
 ```
 
-## Week 2 quickstart
+## Sprint 2 quickstart
 
-Week 2 is complete when the live chat slice works end to end:
+Sprint 2 is complete when the live chat slice works end to end:
 
 - Kafka topic exists
 - ingest works
@@ -92,7 +92,7 @@ Verify Config Server returns in-repo config:
 http://localhost:8888/chat-service/default
 ```
 
-Verify the Week 2 topic exists:
+Verify the Sprint 2 topic exists:
 
 ```
 docker compose exec kafka kafka-topics --bootstrap-server kafka:9092 --list
@@ -207,7 +207,7 @@ Look for span:
 POST /api/chat/ingest
 ```
 
-## Week 2 verification checklist
+## Sprint 2 verification checklist
 
 - `stream.chat.messages` exists
 - `POST /api/chat/ingest` returns an event id
@@ -215,6 +215,114 @@ POST /api/chat/ingest
 - `onChatMessage(streamer)` receives events
 - frontend live chat updates at `http://localhost:3000`
 - `streamsense_chat_ingest_total` increases after ingest requests
+
+## Sprint 3 quickstart
+
+Sprint 3 is complete when the first sentiment analytics slice works end to end:
+
+- `chat-service` ingests and publishes chat events only
+- `sentiment-service` consumes chat events and persists sentiment rows
+- `recentSentiment` returns persisted history
+- `onSentiment` streams live sentiment updates
+- frontend renders recent and live sentiment clearly
+
+### Verify the full sentiment slice
+
+ML health:
+
+```
+curl http://localhost:8000/ml/health
+```
+
+Direct sentiment history API:
+
+```
+curl "http://localhost:8083/api/sentiment/recent?streamer=test&limit=5"
+```
+
+GraphQL recent sentiment query:
+
+```
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query RecentSentiment($streamer:String!, $limit:Int!){ recentSentiment(streamer:$streamer, limit:$limit){ sentimentEventId sourceEventId streamer user message chatTimestamp processedAt label score modelVersion } }","variables":{"streamer":"test","limit":5}}'
+```
+
+Kafka topics:
+
+```
+docker compose exec kafka kafka-topics --bootstrap-server kafka:9092 --list
+```
+
+Look for:
+
+```
+stream.chat.messages
+stream.sentiment.events
+```
+
+Live sentiment subscription:
+
+```
+npx wscat -c ws://localhost:8080/graphql -s graphql-transport-ws
+```
+
+Then send:
+
+```
+{"type":"connection_init"}
+```
+
+Then:
+
+```
+{
+  "id":"2",
+  "type":"subscribe",
+  "payload":{
+    "query":"subscription($streamer:String!){ onSentiment(streamer:$streamer){ sentimentEventId sourceEventId streamer user label score modelVersion } }",
+    "variables":{"streamer":"test"}
+  }
+}
+```
+
+Ingest another chat message and verify the live sentiment event appears.
+
+Frontend sentiment panel:
+
+```
+http://localhost:3000
+```
+
+Look for recent history, label counts, average score, and live updates.
+
+## Sprint 3 verification checklist
+
+- `stream.sentiment.events` exists
+- `curl http://localhost:8000/ml/health` returns `ok`
+- `POST /api/chat/ingest` still returns an event id
+- `GET /api/sentiment/recent` returns persisted data after ingest
+- `recentSentiment(streamer, limit)` returns persisted sentiment through GraphQL
+- `onSentiment(streamer)` receives live sentiment events
+- frontend sentiment panel shows history and live updates
+- `streamsense_sentiment_events_total` and `streamsense_ml_sentiment_latency_ms` are visible in Prometheus
+
+### Sprint 3 observability checks
+
+Prometheus queries:
+
+```
+streamsense_sentiment_events_total
+streamsense_ml_sentiment_latency_ms_count
+```
+
+Zipkin:
+
+Open `http://localhost:9411` and look for a trace spanning:
+
+- `chat-service`
+- `sentiment-service`
+- `ml-engine`
 
 ---
 

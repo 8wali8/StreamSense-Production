@@ -121,25 +121,28 @@ jobs:
           mvn -B -ntp -f config-server/pom.xml -DskipTests package
           mvn -B -ntp -f api-gateway/pom.xml -DskipTests package
           mvn -B -ntp -f chat-service/pom.xml -DskipTests package
+          mvn -B -ntp -f sentiment-service/pom.xml -DskipTests package
 
       - name: Validate docker compose config
         run: docker compose config
 
-      - name: Start Week 2 smoke stack
-        run: docker compose up -d --build zookeeper kafka kafka-topics-init eureka-server config-server ml-engine chat-service api-gateway frontend
+      - name: Start Sprint 3 smoke stack
+        run: docker compose up -d --build zookeeper kafka kafka-topics-init postgres eureka-server config-server ml-engine sentiment-service chat-service api-gateway frontend
 
       - name: Wait for core services
         run: |
           for i in {1..60}; do
-            if curl -fsS http://localhost:8761/actuator/health >/dev/null && curl -fsS http://localhost:8888/actuator/health >/dev/null && curl -fsS http://localhost:8080/actuator/health >/dev/null && curl -fsS http://localhost:8081/actuator/health >/dev/null; then
+            if curl -fsS http://localhost:8761/actuator/health >/dev/null && curl -fsS http://localhost:8888/actuator/health >/dev/null && curl -fsS http://localhost:8080/actuator/health >/dev/null && curl -fsS http://localhost:8081/actuator/health >/dev/null && curl -fsS http://localhost:8083/actuator/health >/dev/null && curl -fsS http://localhost:8000/ml/health >/dev/null; then
               exit 0
             fi
             sleep 5
           done
           exit 1
 
-      - name: Verify Kafka topic exists
-        run: docker compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list | grep -q '^stream.chat.messages$'
+      - name: Verify Kafka topics exist
+        run: |
+          docker compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list | grep -q '^stream.chat.messages$'
+          docker compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list | grep -q '^stream.sentiment.events$'
 
       - name: Verify chat ingest returns event id
         run: |
@@ -147,11 +150,27 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"streamer":"ci-test","user":"u1","message":"hello from ci","timestamp":1710000000000}' | grep -q '"eventId"'
 
+      - name: Wait for recent sentiment history
+        run: |
+          for i in {1..60}; do
+            if curl -fsS "http://localhost:8083/api/sentiment/recent?streamer=ci-test&limit=1" | grep -q '"sentimentEventId"'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+
       - name: Verify GraphQL health query
         run: |
           curl -fsS http://localhost:8080/graphql \
             -H 'Content-Type: application/json' \
             -d '{"query":"query { health }"}' | grep -q '"health":"ok"'
+
+      - name: Verify GraphQL recentSentiment query
+        run: |
+          curl -fsS http://localhost:8080/graphql \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"query RecentSentiment($streamer:String!, $limit:Int!){ recentSentiment(streamer:$streamer, limit:$limit){ sentimentEventId label } }","variables":{"streamer":"ci-test","limit":1}}' | grep -q '"sentimentEventId"'
 
       - name: Verify frontend serves HTML
         run: curl -fsS http://localhost:3000 | grep -qi '<!doctype html>'

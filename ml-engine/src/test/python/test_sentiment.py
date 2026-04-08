@@ -72,3 +72,17 @@ def test_different_messages_can_produce_different_scores():
 
     assert -1.0 <= score1 <= 1.0
     assert -1.0 <= score2 <= 1.0
+
+
+def test_invalid_payload_returns_validation_error():
+    response = client.post(
+        "/ml/sentiment",
+        json={
+            "eventId": "evt-invalid",
+            "streamer": "xqc",
+            "user": "wali",
+            "timestamp": 1710000000000,
+        },
+    )
+
+    assert response.status_code == 422
