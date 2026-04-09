@@ -307,6 +307,113 @@ Look for recent history, label counts, average score, and live updates.
 - frontend sentiment panel shows history and live updates
 - `streamsense_sentiment_events_total` and `streamsense_ml_sentiment_latency_ms` are visible in Prometheus
 
+## Sprint 4 quickstart
+
+Sprint 4 is complete when the sentiment slice remains operational under ML degradation and the failure path is visible instead of silent.
+
+### Normal-path checks
+
+Use the Sprint 3 checks first:
+
+- `POST /api/chat/ingest`
+- `GET /api/sentiment/recent`
+- `recentSentiment(streamer, limit)`
+- `onSentiment(streamer)`
+- frontend sentiment panel at `http://localhost:3000`
+
+### Trigger degraded mode
+
+Recommended demo toggle:
+
+```bash
+ML_ENGINE_FORCE_FAILURE=true docker compose up -d --build ml-engine
+```
+
+Return to normal mode:
+
+```bash
+ML_ENGINE_FORCE_FAILURE=false docker compose up -d --build ml-engine
+```
+
+Simpler alternative:
+
+```bash
+docker compose stop ml-engine
+```
+
+### Verify fallback behavior
+
+Ingest while ML is degraded:
+
+```bash
+curl -X POST http://localhost:8081/api/chat/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"fallback-demo","user":"u1","message":"ml failure should fallback","timestamp":1710000010000}'
+```
+
+Check recent history:
+
+```bash
+curl "http://localhost:8083/api/sentiment/recent?streamer=fallback-demo&limit=5"
+```
+
+Look for:
+
+- `label = NEUTRAL`
+- `score = 0.0`
+- `modelVersion = fallback`
+
+Check GraphQL history:
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query RecentSentiment($streamer:String!, $limit:Int!){ recentSentiment(streamer:$streamer, limit:$limit){ sentimentEventId label score modelVersion } }","variables":{"streamer":"fallback-demo","limit":5}}'
+```
+
+### Verify dead-letter behavior
+
+Inspect the DLT topic:
+
+```bash
+docker compose exec kafka kafka-console-consumer \
+  --bootstrap-server kafka:9092 \
+  --topic stream.chat.messages.dlt \
+  --from-beginning \
+  --timeout-ms 5000 \
+  --max-messages 20
+```
+
+### Sprint 4 observability checks
+
+Prometheus queries:
+
+```text
+streamsense_sentiment_fallback_total
+streamsense_sentiment_dead_letter_total
+streamsense_ml_protected_calls_total
+resilience4j_circuitbreaker_state{name="mlSentiment"}
+```
+
+Grafana:
+
+- open `http://localhost:3001`
+- use the `Sprint 4 Resilience Overview` dashboard
+
+Zipkin:
+
+- open `http://localhost:9411`
+- verify a degraded-path trace still includes `sentiment-service`
+
+### Sprint 4 verification checklist
+
+- ingest still succeeds when ML is degraded
+- fallback sentiment appears through REST, GraphQL, and the frontend
+- `stream.chat.messages.dlt` is available for exhausted failures
+- fallback, retry, and dead-letter metrics are visible
+- breaker state metrics are visible
+- degraded-path behavior is documented and demoable
+
 ### Sprint 3 observability checks
 
 Prometheus queries:
