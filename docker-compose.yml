@@ -45,6 +45,8 @@ services:
         condition: service_completed_successfully
       sentiment-service:
         condition: service_healthy
+      video-service:
+        condition: service_healthy
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
@@ -110,6 +112,20 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      ml-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
   
   prometheus:
     image: prom/prometheus:latest
@@ -208,6 +224,8 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages.dlt --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sentiment.events --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.video.frames --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sponsor.detections --partitions 3 --replication-factor 1;
         echo 'Topics now:';
         kafka-topics --bootstrap-server kafka:9092 --list;
         echo 'Done.';

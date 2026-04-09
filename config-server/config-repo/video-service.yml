@@ -8,6 +8,20 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
 
+streamsense:
+  topics:
+    videoFrames: stream.video.frames
+    sponsorDetections: stream.sponsor.detections
+  ml:
+    base-url: http://ml-engine:8000
+    connectTimeoutMs: 2000
+    readTimeoutMs: 3000
+  history:
+    defaultLimit: 20
+    maxLimit: 100
+  payload:
+    maxFrameRefLength: 512
+
 hystrix:
   command:
     mlSponsor:
@@ -27,13 +41,65 @@ resilience4j:
         minimumNumberOfCalls: 5
         failureRateThreshold: 50
         waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - com.streamsense.videoservice.client.MlDependencyException
   retry:
     instances:
       mlSponsor:
         maxAttempts: 3
         waitDuration: 1s
+        retryExceptions:
+          - com.streamsense.videoservice.client.MlDependencyException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+        ignoreExceptions:
+          - java.lang.IllegalStateException
+          - java.lang.IllegalArgumentException
   bulkhead:
     instances:
       mlSponsor:
         maxConcurrentCalls: 4
         maxWaitDuration: 0ms
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: video-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.streamsense.videoservice.events.FrameData
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/streamsense
+    username: streamsense
+    password: streamsense
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    table: video_service_flyway_history
+    baseline-on-migrate: true
+    baseline-version: 0
+
+management:
+  health:
+    circuitbreakers:
+      enabled: true
