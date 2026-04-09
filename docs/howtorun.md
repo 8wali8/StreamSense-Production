@@ -414,6 +414,94 @@ Zipkin:
 - breaker state metrics are visible
 - degraded-path behavior is documented and demoable
 
+## Sprint 5 quickstart
+
+Sprint 5 is complete when the first sponsor analytics slice works end to end:
+
+- `video-service` accepts frame ingest requests and publishes `stream.video.frames`
+- `video-service` processes sponsor detections and publishes `stream.sponsor.detections`
+- `sponsorDetections` returns persisted sponsor history
+- `onSponsorDetection` streams live sponsor updates
+- frontend renders recent and live sponsor detections clearly
+- stopping or forcing failure in `ml-engine` still produces fallback sponsor events
+
+### Verify the sponsor slice
+
+Video ingest:
+
+```bash
+curl -X POST http://localhost:8084/api/video/upload-frame \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"test","frameRef":"frames/demo-001.png","frameSequence":1,"capturedAt":1710000000000}'
+```
+
+Direct sponsor history API:
+
+```bash
+curl "http://localhost:8084/api/video/detections/recent?streamer=test&limit=5"
+```
+
+GraphQL sponsor history query:
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query SponsorDetections($streamer:String!, $limit:Int!){ sponsorDetections(streamer:$streamer, limit:$limit){ detectionEventId sourceFrameId streamer frameRef frameSequence capturedAt processedAt sponsor confidence modelVersion x y width height } }","variables":{"streamer":"test","limit":5}}'
+```
+
+GraphQL sponsor subscription payload for `wscat`:
+
+```json
+{
+  "id": "2",
+  "type": "subscribe",
+  "payload": {
+    "query": "subscription($streamer:String!){ onSponsorDetection(streamer:$streamer){ detectionEventId sourceFrameId streamer sponsor confidence modelVersion } }",
+    "variables": {
+      "streamer": "test"
+    }
+  }
+}
+```
+
+Kafka topics should now include:
+
+```text
+stream.video.frames
+stream.sponsor.detections
+```
+
+To trigger fallback behavior:
+
+```bash
+ML_ENGINE_FORCE_FAILURE=true docker compose up -d --build ml-engine
+```
+
+Sponsor metrics to check in Prometheus:
+
+```text
+streamsense_frames_ingested_total
+streamsense_sponsor_detections_total
+streamsense_sponsor_fallback_total
+```
+
+Grafana:
+
+- open `http://localhost:3001`
+- use the `Sprint 5 Sponsor Overview` dashboard
+
+### Sprint 5 verification checklist
+
+- `stream.video.frames` exists
+- `stream.sponsor.detections` exists
+- `POST /api/video/upload-frame` returns `202 Accepted`
+- `GET /api/video/detections/recent` returns persisted sponsor detections
+- `sponsorDetections(streamer, limit)` returns sponsor history through GraphQL
+- `onSponsorDetection(streamer)` receives live sponsor detection events
+- frontend sponsor panel shows history and live updates
+- fallback sponsor detections appear when `ml-engine` is forced to fail
+- sponsor metrics are visible in Prometheus and Grafana
+
 ### Sprint 3 observability checks
 
 Prometheus queries:

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streamsense.local/schemas/frame-data.schema.json",
+  "title": "FrameData",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["frameId", "streamer", "frameRef", "frameSequence", "capturedAt"],
+  "properties": {
+    "frameId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "streamer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "frameRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "frameSequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "capturedAt": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}
