@@ -16,3 +16,24 @@ export const RECENT_SENTIMENT_QUERY = gql`
     }
   }
 `;
+
+export const RECENT_SPONSOR_DETECTIONS_QUERY = gql`
+  query SponsorDetections($streamer: String!, $limit: Int!) {
+    sponsorDetections(streamer: $streamer, limit: $limit) {
+      detectionEventId
+      sourceFrameId
+      streamer
+      frameRef
+      frameSequence
+      capturedAt
+      processedAt
+      sponsor
+      confidence
+      modelVersion
+      x
+      y
+      width
+      height
+    }
+  }
+`;

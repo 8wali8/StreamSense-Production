@@ -1,4 +1,5 @@
 import { Health } from "./components/Health";
+import { SponsorPanel } from "./components/SponsorPanel";
 import { SentimentPanel } from "./components/SentimentPanel";
 import { LiveChat } from "./pages/LiveChat";
 
@@ -20,10 +21,11 @@ export default function App() {
           gap: 16,
           gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
         }}
-      >
-        <LiveChat />
-        <SentimentPanel />
+        >
+          <LiveChat />
+          <SentimentPanel />
+          <SponsorPanel />
+        </div>
       </div>
-    </div>
-  );
+    );
 }

@@ -28,3 +28,24 @@ export const ON_SENTIMENT_SUBSCRIPTION = gql`
     }
   }
 `;
+
+export const ON_SPONSOR_DETECTION_SUBSCRIPTION = gql`
+  subscription OnSponsorDetection($streamer: String!) {
+    onSponsorDetection(streamer: $streamer) {
+      detectionEventId
+      sourceFrameId
+      streamer
+      frameRef
+      frameSequence
+      capturedAt
+      processedAt
+      sponsor
+      confidence
+      modelVersion
+      x
+      y
+      width
+      height
+    }
+  }
+`;
