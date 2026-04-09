@@ -3,7 +3,8 @@ import os
 
 from fastapi import FastAPI, HTTPException
 
-from app.models import SentimentRequest, SentimentResponse
+from app.models import SentimentRequest, SentimentResponse, SponsorRequest, SponsorResponse
+from app.sponsor import compute_sponsor_detection
 from app.sentiment import compute_sentiment
 
 logging.basicConfig(
@@ -52,3 +53,39 @@ def sentiment(request: SentimentRequest):
     )
 
     return SentimentResponse(label=label, score=score, modelVersion="stub-v1")
+
+
+@app.post("/ml/sponsor", response_model=SponsorResponse)
+def sponsor(request: SponsorRequest):
+    if force_failure_enabled():
+        logger.warning(
+            "forced sponsor failure frameId=%s streamer=%s frameRef=%s",
+            request.frameId,
+            request.streamer,
+            request.frameRef,
+        )
+        raise HTTPException(status_code=503, detail="forced ml-engine failure")
+
+    sponsor_name, confidence, x, y, width, height = compute_sponsor_detection(
+        request.frameRef,
+        request.streamer,
+        request.frameSequence,
+    )
+
+    logger.info(
+        "sponsor request processed frameId=%s streamer=%s sponsor=%s confidence=%.3f",
+        request.frameId,
+        request.streamer,
+        sponsor_name,
+        confidence,
+    )
+
+    return SponsorResponse(
+        sponsor=sponsor_name,
+        confidence=confidence,
+        modelVersion="stub-v1",
+        x=x,
+        y=y,
+        width=width,
+        height=height,
+    )
