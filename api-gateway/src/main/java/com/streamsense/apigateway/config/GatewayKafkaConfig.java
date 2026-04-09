@@ -14,6 +14,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 import com.streamsense.apigateway.events.ChatMessageEvent;
+import com.streamsense.apigateway.events.SponsorDetectionEvent;
 import com.streamsense.apigateway.events.SentimentAnalysisEvent;
 
 @Configuration
@@ -52,6 +53,24 @@ public class GatewayKafkaConfig {
             ConsumerFactory<String, SentimentAnalysisEvent> sentimentConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, SentimentAnalysisEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(sentimentConsumerFactory);
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, SponsorDetectionEvent> sponsorConsumerFactory(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+            @Value("${spring.kafka.consumer.group-id}") String groupId,
+            @Value("${spring.kafka.consumer.auto-offset-reset:latest}") String autoOffsetReset) {
+        return new DefaultKafkaConsumerFactory<>(baseConsumerProps(bootstrapServers, groupId, autoOffsetReset),
+                new StringDeserializer(),
+                new JsonDeserializer<>(SponsorDetectionEvent.class, false));
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, SponsorDetectionEvent> sponsorKafkaListenerContainerFactory(
+            ConsumerFactory<String, SponsorDetectionEvent> sponsorConsumerFactory) {
+        ConcurrentKafkaListenerContainerFactory<String, SponsorDetectionEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(sponsorConsumerFactory);
         return factory;
     }
 

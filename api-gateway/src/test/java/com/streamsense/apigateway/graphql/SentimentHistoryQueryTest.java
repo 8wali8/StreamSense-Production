@@ -20,8 +20,10 @@ import okhttp3.mockwebserver.MockWebServer;
         "spring.kafka.listener.auto-startup=false",
         "streamsense.topics.chatMessages=stream.chat.messages",
         "streamsense.topics.sentimentEvents=stream.sentiment.events",
+        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
         "spring.kafka.bootstrap-servers=localhost:9092",
-        "spring.kafka.consumer.group-id=api-gateway-test-group"
+        "spring.kafka.consumer.group-id=api-gateway-test-group",
+        "streamsense.services.video-service.base-url=http://localhost:8084"
 })
 class SentimentHistoryQueryTest {
 

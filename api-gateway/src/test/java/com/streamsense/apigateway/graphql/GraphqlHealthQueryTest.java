@@ -13,7 +13,9 @@ import org.springframework.graphql.test.tester.HttpGraphQlTester;
                 "spring.kafka.listener.auto-startup=false",
                 "streamsense.topics.chatMessages=stream.chat.messages",
                 "streamsense.topics.sentimentEvents=stream.sentiment.events",
+                "streamsense.topics.sponsorDetections=stream.sponsor.detections",
                 "streamsense.services.sentiment-service.base-url=http://localhost:8083",
+                "streamsense.services.video-service.base-url=http://localhost:8084",
                 "spring.kafka.bootstrap-servers=localhost:9092",
                 "spring.kafka.consumer.group-id=api-gateway-test-group"
 })

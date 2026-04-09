@@ -12,9 +12,12 @@ streamsense:
   topics:
     chatMessages: stream.chat.messages
     sentimentEvents: stream.sentiment.events
+    sponsorDetections: stream.sponsor.detections
   services:
     sentiment-service:
       base-url: http://sentiment-service:8083
+    video-service:
+      base-url: http://video-service:8084
 
 spring:
   kafka:

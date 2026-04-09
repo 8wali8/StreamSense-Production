@@ -11,7 +11,9 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.kafka.consumer.group-id=api-gateway-context-loads",
         "streamsense.topics.chatMessages=stream.chat.messages",
         "streamsense.topics.sentimentEvents=stream.sentiment.events",
+        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
         "streamsense.services.sentiment-service.base-url=http://localhost:8083",
+        "streamsense.services.video-service.base-url=http://localhost:8084",
         "spring.graphql.websocket.path=/graphql"
 })
 class ApiGatewayApplicationTests {

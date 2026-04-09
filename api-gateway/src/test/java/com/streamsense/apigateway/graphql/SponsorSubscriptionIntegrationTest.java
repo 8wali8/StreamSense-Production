@@ -22,13 +22,13 @@ import org.springframework.kafka.test.utils.ContainerTestUtils;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 
-import com.streamsense.apigateway.events.SentimentAnalysisEvent;
+import com.streamsense.apigateway.events.SponsorDetectionEvent;
 
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@EmbeddedKafka(partitions = 1, topics = { "stream.sentiment.events" })
+@EmbeddedKafka(partitions = 1, topics = { "stream.sponsor.detections" })
 @TestPropertySource(properties = {
         "spring.cloud.config.enabled=false",
         "eureka.client.enabled=false",
@@ -42,7 +42,7 @@ import reactor.test.StepVerifier;
         "streamsense.services.video-service.base-url=http://localhost:8084",
         "spring.graphql.websocket.path=/graphql"
 })
-class SentimentSubscriptionIntegrationTest {
+class SponsorSubscriptionIntegrationTest {
 
     @LocalServerPort
     int port;
@@ -61,57 +61,61 @@ class SentimentSubscriptionIntegrationTest {
     }
 
     @Test
-    void subscription_receivesSentimentEventPublishedToKafka() {
+    void subscription_receivesSponsorDetectionPublishedToKafka() {
         WebSocketGraphQlTester tester = WebSocketGraphQlTester.builder(
                 "ws://localhost:" + port + "/graphql",
                 new ReactorNettyWebSocketClient()).build();
 
-        Flux<SentimentAnalysisEvent> subscription = tester.document("""
+        Flux<SponsorDetectionEvent> subscription = tester.document("""
                         subscription($streamer: String!) {
-                          onSentiment(streamer: $streamer) {
-                            sentimentEventId
-                            sourceEventId
+                          onSponsorDetection(streamer: $streamer) {
+                            detectionEventId
+                            sourceFrameId
                             streamer
-                            label
-                            score
+                            sponsor
+                            confidence
                           }
                         }
                         """)
                 .variable("streamer", "test")
                 .executeSubscription()
-                .toFlux("onSentiment", SentimentAnalysisEvent.class);
+                .toFlux("onSponsorDetection", SponsorDetectionEvent.class);
 
-        SentimentAnalysisEvent event = new SentimentAnalysisEvent();
-        event.setSentimentEventId("sent-123");
-        event.setSourceEventId("evt-123");
+        SponsorDetectionEvent event = new SponsorDetectionEvent();
+        event.setDetectionEventId("det-123");
+        event.setSourceFrameId("frame-123");
         event.setStreamer("test");
-        event.setUser("u1");
-        event.setMessage("great stream");
-        event.setChatTimestamp(1710000000000L);
+        event.setFrameRef("frames/test.png");
+        event.setFrameSequence(1L);
+        event.setCapturedAt(1710000000000L);
         event.setProcessedAt(1710000000500L);
-        event.setLabel("POSITIVE");
-        event.setScore(0.82d);
+        event.setSponsor("Nike");
+        event.setConfidence(0.91d);
         event.setModelVersion("stub-v1");
+        event.setX(0.12d);
+        event.setY(0.18d);
+        event.setWidth(0.31d);
+        event.setHeight(0.24d);
 
         StepVerifier.create(subscription)
                 .then(() -> {
                     try {
-                        testKafkaTemplate().send("stream.sentiment.events", "test", event).get();
+                        testKafkaTemplate().send("stream.sponsor.detections", "test", event).get();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 })
                 .assertNext(received -> {
-                    org.assertj.core.api.Assertions.assertThat(received.getSentimentEventId()).isEqualTo("sent-123");
-                    org.assertj.core.api.Assertions.assertThat(received.getSourceEventId()).isEqualTo("evt-123");
+                    org.assertj.core.api.Assertions.assertThat(received.getDetectionEventId()).isEqualTo("det-123");
+                    org.assertj.core.api.Assertions.assertThat(received.getSourceFrameId()).isEqualTo("frame-123");
                     org.assertj.core.api.Assertions.assertThat(received.getStreamer()).isEqualTo("test");
-                    org.assertj.core.api.Assertions.assertThat(received.getLabel()).isEqualTo("POSITIVE");
+                    org.assertj.core.api.Assertions.assertThat(received.getSponsor()).isEqualTo("Nike");
                 })
                 .thenCancel()
                 .verify(Duration.ofSeconds(10));
     }
 
-    private KafkaTemplate<String, SentimentAnalysisEvent> testKafkaTemplate() {
+    private KafkaTemplate<String, SponsorDetectionEvent> testKafkaTemplate() {
         Map<String, Object> props = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, embeddedKafkaBroker.getBrokersAsString(),
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,

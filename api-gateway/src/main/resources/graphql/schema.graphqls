@@ -1,11 +1,13 @@
 type Query {
   health: String!
   recentSentiment(streamer: String!, limit: Int!): [SentimentAnalysisEvent!]!
+  sponsorDetections(streamer: String!, limit: Int!): [SponsorDetectionEvent!]!
 }
 
 type Subscription {
   onChatMessage(streamer: String!): ChatMessageEvent!
   onSentiment(streamer: String!): SentimentAnalysisEvent!
+  onSponsorDetection(streamer: String!): SponsorDetectionEvent!
 }
 
 type ChatMessageEvent {
@@ -27,4 +29,21 @@ type SentimentAnalysisEvent {
   label: String!
   score: Float!
   modelVersion: String!
+}
+
+type SponsorDetectionEvent {
+  detectionEventId: ID!
+  sourceFrameId: ID!
+  streamer: String!
+  frameRef: String!
+  frameSequence: Float!
+  capturedAt: Float!
+  processedAt: Float!
+  sponsor: String!
+  confidence: Float!
+  modelVersion: String!
+  x: Float!
+  y: Float!
+  width: Float!
+  height: Float!
 }
