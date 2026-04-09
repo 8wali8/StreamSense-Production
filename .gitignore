@@ -18,6 +18,7 @@ coverage/
 .settings/
 .idea/
 .vscode/
+.opencode/
 
 # OS
 .DS_Store
