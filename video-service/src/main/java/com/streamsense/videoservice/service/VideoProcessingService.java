@@ -1,0 +1,100 @@
+package com.streamsense.videoservice.service;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.streamsense.videoservice.client.MlEngineClient;
+import com.streamsense.videoservice.config.StreamSenseProperties;
+import com.streamsense.videoservice.dto.MlSponsorRequest;
+import com.streamsense.videoservice.dto.MlSponsorResponse;
+import com.streamsense.videoservice.events.FrameData;
+import com.streamsense.videoservice.events.SponsorDetectionEvent;
+import com.streamsense.videoservice.kafka.SponsorDetectionProducer;
+import com.streamsense.videoservice.metrics.VideoMetrics;
+import com.streamsense.videoservice.persistence.SponsorDetectionEntity;
+import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
+
+@Service
+public class VideoProcessingService {
+
+    private static final Logger log = LoggerFactory.getLogger(VideoProcessingService.class);
+
+    private final MlEngineClient mlEngineClient;
+    private final SponsorDetectionRepository repository;
+    private final SponsorDetectionProducer sponsorDetectionProducer;
+    private final VideoMetrics videoMetrics;
+    private final StreamSenseProperties properties;
+
+    public VideoProcessingService(
+            MlEngineClient mlEngineClient,
+            SponsorDetectionRepository repository,
+            SponsorDetectionProducer sponsorDetectionProducer,
+            VideoMetrics videoMetrics,
+            StreamSenseProperties properties) {
+        this.mlEngineClient = mlEngineClient;
+        this.repository = repository;
+        this.sponsorDetectionProducer = sponsorDetectionProducer;
+        this.videoMetrics = videoMetrics;
+        this.properties = properties;
+    }
+
+    @Transactional
+    public SponsorDetectionEvent processFrame(FrameData frame, String correlationId, String traceparent) {
+        log.info("processing frame event frameId={} streamer={} sequence={}",
+                frame.getFrameId(), frame.getStreamer(), frame.getFrameSequence());
+
+        MlSponsorRequest request = new MlSponsorRequest(
+                frame.getFrameId(),
+                frame.getStreamer(),
+                frame.getFrameRef(),
+                frame.getFrameSequence(),
+                frame.getCapturedAt());
+
+        MlSponsorResponse response = videoMetrics.recordInferenceLatency(() -> mlEngineClient.analyzeSponsor(request));
+
+        SponsorDetectionEvent detectionEvent = buildDetectionEvent(frame, response);
+
+        repository.save(SponsorDetectionEntity.fromEvent(detectionEvent));
+        sponsorDetectionProducer.publish(detectionEvent, correlationId, traceparent);
+        videoMetrics.incrementSponsorDetection(detectionEvent.getSponsor());
+
+        log.info("processed sponsor detection detectionEventId={} frameId={} sponsor={} confidence={} modelVersion={}",
+                detectionEvent.getDetectionEventId(), detectionEvent.getSourceFrameId(), detectionEvent.getSponsor(),
+                detectionEvent.getConfidence(), detectionEvent.getModelVersion());
+
+        return detectionEvent;
+    }
+
+    @Transactional(readOnly = true)
+    public List<SponsorDetectionEvent> getRecentDetections(String streamer, int requestedLimit) {
+        int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
+        return repository.findByStreamerOrderByCapturedAtDesc(streamer, PageRequest.of(0, limit)).stream()
+                .map(SponsorDetectionEntity::toEvent)
+                .toList();
+    }
+
+    private SponsorDetectionEvent buildDetectionEvent(FrameData frame, MlSponsorResponse response) {
+        SponsorDetectionEvent event = new SponsorDetectionEvent();
+        event.setDetectionEventId(UUID.randomUUID().toString());
+        event.setSourceFrameId(frame.getFrameId());
+        event.setStreamer(frame.getStreamer());
+        event.setFrameRef(frame.getFrameRef());
+        event.setFrameSequence(frame.getFrameSequence());
+        event.setCapturedAt(frame.getCapturedAt());
+        event.setProcessedAt(System.currentTimeMillis());
+        event.setSponsor(response.getSponsor());
+        event.setConfidence(response.getConfidence());
+        event.setModelVersion(response.getModelVersion());
+        event.setX(response.getX());
+        event.setY(response.getY());
+        event.setWidth(response.getWidth());
+        event.setHeight(response.getHeight());
+        return event;
+    }
+}
