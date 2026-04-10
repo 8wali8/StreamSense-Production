@@ -502,6 +502,84 @@ Grafana:
 - fallback sponsor detections appear when `ml-engine` is forced to fail
 - sponsor metrics are visible in Prometheus and Grafana
 
+## Sprint 6 quickstart
+
+Sprint 6 is complete when the service-owned history read paths use Redis without moving history ownership into the gateway:
+
+- Redis runs in Docker Compose
+- `sentiment-service` caches `GET /api/sentiment/recent`
+- `video-service` caches `GET /api/video/detections/recent`
+- GraphQL history queries still come from service APIs
+- cache hits and misses are visible in Prometheus and Grafana
+
+### Verify the cache slice
+
+Verify Redis is healthy:
+
+```bash
+docker compose exec redis redis-cli ping
+```
+
+Seed fresh history data for a new streamer:
+
+```bash
+curl -X POST http://localhost:8081/api/chat/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"cache-demo","user":"u1","message":"cache me","timestamp":1710000020000}'
+
+curl -X POST http://localhost:8084/api/video/upload-frame \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"cache-demo","frameRef":"frames/cache-demo-001.png","frameSequence":1,"capturedAt":1710000021000}'
+```
+
+Query recent sentiment twice:
+
+```bash
+curl "http://localhost:8083/api/sentiment/recent?streamer=cache-demo&limit=5"
+curl "http://localhost:8083/api/sentiment/recent?streamer=cache-demo&limit=5"
+```
+
+Query recent sponsor detections twice:
+
+```bash
+curl "http://localhost:8084/api/video/detections/recent?streamer=cache-demo&limit=5"
+curl "http://localhost:8084/api/video/detections/recent?streamer=cache-demo&limit=5"
+```
+
+GraphQL history should still work through the gateway:
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query RecentSentiment($streamer:String!, $limit:Int!){ recentSentiment(streamer:$streamer, limit:$limit){ sentimentEventId label modelVersion } }","variables":{"streamer":"cache-demo","limit":5}}'
+
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query SponsorDetections($streamer:String!, $limit:Int!){ sponsorDetections(streamer:$streamer, limit:$limit){ detectionEventId sponsor modelVersion } }","variables":{"streamer":"cache-demo","limit":5}}'
+```
+
+Cache metrics to check in Prometheus:
+
+```text
+streamsense_cache_hits_total
+streamsense_cache_misses_total
+streamsense_history_lookup_latency_ms_count
+```
+
+Grafana:
+
+- open `http://localhost:3001`
+- use the `Sprint 6 Cache Overview` dashboard
+
+### Sprint 6 verification checklist
+
+- Redis responds with `PONG`
+- the first recent history query succeeds on DB fallback
+- the second identical recent history query increases cache-hit metrics
+- `recentSentiment(streamer, limit)` still returns service-owned history through GraphQL
+- `sponsorDetections(streamer, limit)` still returns service-owned history through GraphQL
+- cache metrics are visible in Prometheus and Grafana
+
 ### Sprint 3 observability checks
 
 Prometheus queries:

@@ -127,8 +127,8 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config
 
-      - name: Start Sprint 3 smoke stack
-        run: docker compose up -d --build zookeeper kafka kafka-topics-init postgres eureka-server config-server ml-engine sentiment-service chat-service api-gateway frontend
+      - name: Start Sprint 6 smoke stack
+        run: docker compose up -d --build zookeeper kafka kafka-topics-init postgres redis eureka-server config-server ml-engine sentiment-service chat-service video-service api-gateway frontend
 
       - name: Wait for core services
         run: |
@@ -144,6 +144,9 @@ jobs:
         run: |
           docker compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list | grep -q '^stream.chat.messages$'
           docker compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list | grep -q '^stream.sentiment.events$'
+
+      - name: Verify Redis is reachable
+        run: docker compose exec -T redis redis-cli ping | grep -q PONG
 
       - name: Verify chat ingest returns event id
         run: |
