@@ -2,6 +2,12 @@ package com.streamsense.sentimentservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -28,6 +34,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -44,6 +52,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
+import com.streamsense.sentimentservice.cache.RecentSentimentCache;
 import com.streamsense.sentimentservice.events.ChatMessageEvent;
 import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 import com.streamsense.sentimentservice.persistence.SentimentRecordEntity;
@@ -79,6 +88,8 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
         "streamsense.ml.base-url=http://ml-engine:8000",
         "streamsense.history.default-limit=20",
         "streamsense.history.max-limit=100",
+        "streamsense.cache.recentPrefix=sentiment:recent",
+        "streamsense.cache.recentTtlSeconds=60",
         "streamsense.processing.retryBackoffMs=50",
         "streamsense.processing.maxRetries=2",
         "resilience4j.retry.instances.mlSentiment.maxAttempts=3",
@@ -98,8 +109,11 @@ class SentimentPipelineIntegrationTest {
     @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 
-    @Autowired
+    @SpyBean
     private SentimentRecordRepository repository;
+
+    @MockBean
+    private RecentSentimentCache recentSentimentCache;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -149,6 +163,7 @@ class SentimentPipelineIntegrationTest {
                 new JsonDeserializer<>(ChatMessageEvent.class, false))
                 .createConsumer();
         deadLetterConsumer.subscribe(Collections.singletonList("stream.chat.messages.dlt"));
+        clearInvocations(repository, recentSentimentCache);
     }
 
     @AfterEach
@@ -307,6 +322,8 @@ class SentimentPipelineIntegrationTest {
                 "NEGATIVE", -0.7d, "stub-v1"));
         repository.save(entity("sent-2", "src-2", "test-streamer", "u2", "second", 1710000001000L,
                 1710000001100L, "POSITIVE", 0.8d, "stub-v1"));
+        clearInvocations(repository, recentSentimentCache);
+        when(recentSentimentCache.find("test-streamer", 2)).thenReturn(java.util.Optional.empty());
 
         mockMvc.perform(get("/api/sentiment/recent")
                 .param("streamer", "test-streamer")
@@ -316,6 +333,36 @@ class SentimentPipelineIntegrationTest {
                 .andExpect(jsonPath("$[0].label").value("POSITIVE"))
                 .andExpect(jsonPath("$[1].sentimentEventId").value("sent-1"))
                 .andExpect(jsonPath("$[1].label").value("NEGATIVE"));
+
+        verify(repository).findByStreamerOrderByChatTimestampDesc(eq("test-streamer"), any());
+        verify(recentSentimentCache).put(eq("test-streamer"), eq(2), any());
+    }
+
+    @Test
+    void recentEndpoint_usesCachedResultsWithoutHittingPostgres() throws Exception {
+        SentimentAnalysisEvent cachedEvent = new SentimentAnalysisEvent();
+        cachedEvent.setSentimentEventId("cached-sent-1");
+        cachedEvent.setSourceEventId("cached-src-1");
+        cachedEvent.setStreamer("test-streamer");
+        cachedEvent.setUser("cached-user");
+        cachedEvent.setMessage("cached message");
+        cachedEvent.setChatTimestamp(1710000005000L);
+        cachedEvent.setProcessedAt(1710000005100L);
+        cachedEvent.setLabel("POSITIVE");
+        cachedEvent.setScore(0.9d);
+        cachedEvent.setModelVersion("stub-v1");
+        when(recentSentimentCache.find("test-streamer", 2)).thenReturn(java.util.Optional.of(java.util.List.of(cachedEvent)));
+
+        mockMvc.perform(get("/api/sentiment/recent")
+                .param("streamer", "test-streamer")
+                .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].sentimentEventId").value("cached-sent-1"))
+                .andExpect(jsonPath("$[0].label").value("POSITIVE"))
+                .andExpect(jsonPath("$[0].message").value("cached message"));
+
+        verify(repository, never()).findByStreamerOrderByChatTimestampDesc(eq("test-streamer"), any());
+        verify(recentSentimentCache, never()).put(eq("test-streamer"), eq(2), any());
     }
 
     private KafkaTemplate<String, ChatMessageEvent> testChatKafkaTemplate() {

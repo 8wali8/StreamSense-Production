@@ -32,6 +32,16 @@ public class SentimentMetrics {
         }
     }
 
+    public <T> T recordHistoryLookup(String cache, String source, Supplier<T> supplier) {
+        return Timer.builder("streamsense_history_lookup_latency_ms")
+                .description("Latency of history lookups by cache and source")
+                .tag("cache", cache)
+                .tag("source", source)
+                .publishPercentileHistogram()
+                .register(meterRegistry)
+                .record(supplier);
+    }
+
     public void incrementProcessed(String label) {
         Counter.builder("streamsense_sentiment_events_total")
                 .description("Total number of processed sentiment events")
@@ -74,6 +84,22 @@ public class SentimentMetrics {
     public void incrementRetry() {
         Counter.builder("streamsense_sentiment_retry_total")
                 .description("Total number of sentiment processing retries")
+                .register(meterRegistry)
+                .increment();
+    }
+
+    public void incrementCacheHit(String cache) {
+        Counter.builder("streamsense_cache_hits_total")
+                .description("Total number of cache hits")
+                .tag("cache", cache)
+                .register(meterRegistry)
+                .increment();
+    }
+
+    public void incrementCacheMiss(String cache) {
+        Counter.builder("streamsense_cache_misses_total")
+                .description("Total number of cache misses")
+                .tag("cache", cache)
                 .register(meterRegistry)
                 .increment();
     }

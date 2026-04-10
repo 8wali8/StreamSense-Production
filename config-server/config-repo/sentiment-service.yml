@@ -18,6 +18,9 @@ streamsense:
   history:
     defaultLimit: 20
     maxLimit: 100
+  cache:
+    recentPrefix: sentiment:recent
+    recentTtlSeconds: 60
   processing:
     retryBackoffMs: 1000
     maxRetries: 2
@@ -64,6 +67,14 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+      repositories:
+        enabled: false
+      timeout: 2s
 
 resilience4j:
   circuitbreaker:

@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.streamsense.sentimentservice.cache.RecentSentimentCache;
 import com.streamsense.sentimentservice.client.MlEngineClient;
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
@@ -30,18 +31,21 @@ public class SentimentService {
     private final SentimentKafkaProducer sentimentKafkaProducer;
     private final SentimentMetrics sentimentMetrics;
     private final StreamSenseProperties properties;
+    private final RecentSentimentCache recentSentimentCache;
 
     public SentimentService(
             MlEngineClient mlEngineClient,
             SentimentRecordRepository repository,
             SentimentKafkaProducer sentimentKafkaProducer,
             SentimentMetrics sentimentMetrics,
-            StreamSenseProperties properties) {
+            StreamSenseProperties properties,
+            RecentSentimentCache recentSentimentCache) {
         this.mlEngineClient = mlEngineClient;
         this.repository = repository;
         this.sentimentKafkaProducer = sentimentKafkaProducer;
         this.sentimentMetrics = sentimentMetrics;
         this.properties = properties;
+        this.recentSentimentCache = recentSentimentCache;
     }
 
     @Transactional
@@ -70,6 +74,7 @@ public class SentimentService {
         try {
             repository.save(SentimentRecordEntity.fromEvent(sentimentEvent));
             sentimentMetrics.incrementPersistence("success");
+            recentSentimentCache.evict(sentimentEvent.getStreamer());
         } catch (RuntimeException e) {
             sentimentMetrics.incrementPersistence("failure");
             log.error("failed to persist sentiment event sentimentEventId={} sourceEventId={} error={}",
@@ -90,9 +95,8 @@ public class SentimentService {
     @Transactional(readOnly = true)
     public List<SentimentAnalysisEvent> getRecentSentiment(String streamer, int requestedLimit) {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
-        return repository.findByStreamerOrderByChatTimestampDesc(streamer, PageRequest.of(0, limit)).stream()
-                .map(SentimentRecordEntity::toEvent)
-                .toList();
+        return recentSentimentCache.find(streamer, limit)
+                .orElseGet(() -> loadRecentSentimentFromDatabase(streamer, limit));
     }
 
     private SentimentAnalysisEvent buildSentimentEvent(ChatMessageEvent event, MlSentimentResponse response) {
@@ -108,5 +112,17 @@ public class SentimentService {
         sentimentEvent.setScore(response.getScore());
         sentimentEvent.setModelVersion(response.getModelVersion());
         return sentimentEvent;
+    }
+
+    private List<SentimentAnalysisEvent> loadRecentSentimentFromDatabase(String streamer, int limit) {
+        return sentimentMetrics.recordHistoryLookup("recentSentiment", "db", () -> {
+            List<SentimentAnalysisEvent> recent = repository.findByStreamerOrderByChatTimestampDesc(streamer, PageRequest.of(0, limit))
+                    .stream()
+                    .map(SentimentRecordEntity::toEvent)
+                    .toList();
+            recentSentimentCache.put(streamer, limit, recent);
+            log.info("sentiment history cache miss streamer={} limit={} results={}", streamer, limit, recent.size());
+            return recent;
+        });
     }
 }

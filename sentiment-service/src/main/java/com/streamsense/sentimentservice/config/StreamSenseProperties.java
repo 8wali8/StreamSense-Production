@@ -8,6 +8,7 @@ public class StreamSenseProperties {
     private Topics topics = new Topics();
     private Ml ml = new Ml();
     private History history = new History();
+    private Cache cache = new Cache();
     private Processing processing = new Processing();
 
     public Topics getTopics() {
@@ -32,6 +33,14 @@ public class StreamSenseProperties {
 
     public void setHistory(History history) {
         this.history = history;
+    }
+
+    public Cache getCache() {
+        return cache;
+    }
+
+    public void setCache(Cache cache) {
+        this.cache = cache;
     }
 
     public Processing getProcessing() {
@@ -120,6 +129,27 @@ public class StreamSenseProperties {
 
         public void setMaxLimit(int maxLimit) {
             this.maxLimit = maxLimit;
+        }
+    }
+
+    public static class Cache {
+        private String recentPrefix = "sentiment:recent";
+        private long recentTtlSeconds = 60;
+
+        public String getRecentPrefix() {
+            return recentPrefix;
+        }
+
+        public void setRecentPrefix(String recentPrefix) {
+            this.recentPrefix = recentPrefix;
+        }
+
+        public long getRecentTtlSeconds() {
+            return recentTtlSeconds;
+        }
+
+        public void setRecentTtlSeconds(long recentTtlSeconds) {
+            this.recentTtlSeconds = recentTtlSeconds;
         }
     }
 
