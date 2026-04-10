@@ -19,6 +19,9 @@ streamsense:
   history:
     defaultLimit: 20
     maxLimit: 100
+  cache:
+    recentPrefix: sponsor:recent
+    recentTtlSeconds: 60
   payload:
     maxFrameRefLength: 512
 
@@ -98,6 +101,14 @@ spring:
     table: video_service_flyway_history
     baseline-on-migrate: true
     baseline-version: 0
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+      repositories:
+        enabled: false
+      timeout: 2s
 
 management:
   health:

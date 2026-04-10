@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.streamsense.videoservice.cache.RecentSponsorDetectionsCache;
 import com.streamsense.videoservice.client.MlEngineClient;
 import com.streamsense.videoservice.config.StreamSenseProperties;
 import com.streamsense.videoservice.dto.MlSponsorRequest;
@@ -30,18 +31,21 @@ public class VideoProcessingService {
     private final SponsorDetectionProducer sponsorDetectionProducer;
     private final VideoMetrics videoMetrics;
     private final StreamSenseProperties properties;
+    private final RecentSponsorDetectionsCache recentSponsorDetectionsCache;
 
     public VideoProcessingService(
             MlEngineClient mlEngineClient,
             SponsorDetectionRepository repository,
             SponsorDetectionProducer sponsorDetectionProducer,
             VideoMetrics videoMetrics,
-            StreamSenseProperties properties) {
+            StreamSenseProperties properties,
+            RecentSponsorDetectionsCache recentSponsorDetectionsCache) {
         this.mlEngineClient = mlEngineClient;
         this.repository = repository;
         this.sponsorDetectionProducer = sponsorDetectionProducer;
         this.videoMetrics = videoMetrics;
         this.properties = properties;
+        this.recentSponsorDetectionsCache = recentSponsorDetectionsCache;
     }
 
     @Transactional
@@ -61,6 +65,7 @@ public class VideoProcessingService {
         SponsorDetectionEvent detectionEvent = buildDetectionEvent(frame, response);
 
         repository.save(SponsorDetectionEntity.fromEvent(detectionEvent));
+        recentSponsorDetectionsCache.evict(detectionEvent.getStreamer());
         sponsorDetectionProducer.publish(detectionEvent, correlationId, traceparent);
         videoMetrics.incrementSponsorDetection(detectionEvent.getSponsor());
 
@@ -74,9 +79,8 @@ public class VideoProcessingService {
     @Transactional(readOnly = true)
     public List<SponsorDetectionEvent> getRecentDetections(String streamer, int requestedLimit) {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
-        return repository.findByStreamerOrderByCapturedAtDesc(streamer, PageRequest.of(0, limit)).stream()
-                .map(SponsorDetectionEntity::toEvent)
-                .toList();
+        return recentSponsorDetectionsCache.find(streamer, limit)
+                .orElseGet(() -> loadRecentDetectionsFromDatabase(streamer, limit));
     }
 
     private SponsorDetectionEvent buildDetectionEvent(FrameData frame, MlSponsorResponse response) {
@@ -96,5 +100,17 @@ public class VideoProcessingService {
         event.setWidth(response.getWidth());
         event.setHeight(response.getHeight());
         return event;
+    }
+
+    private List<SponsorDetectionEvent> loadRecentDetectionsFromDatabase(String streamer, int limit) {
+        return videoMetrics.recordHistoryLookup("recentSponsorDetections", "db", () -> {
+            List<SponsorDetectionEvent> recent = repository.findByStreamerOrderByCapturedAtDesc(streamer, PageRequest.of(0, limit))
+                    .stream()
+                    .map(SponsorDetectionEntity::toEvent)
+                    .toList();
+            recentSponsorDetectionsCache.put(streamer, limit, recent);
+            log.info("sponsor history cache miss streamer={} limit={} results={}", streamer, limit, recent.size());
+            return recent;
+        });
     }
 }

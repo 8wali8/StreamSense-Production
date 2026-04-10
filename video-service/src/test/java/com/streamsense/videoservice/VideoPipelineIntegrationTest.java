@@ -1,6 +1,12 @@
 package com.streamsense.videoservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -26,6 +32,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.MessageListenerContainer;
@@ -40,6 +48,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
+import com.streamsense.videoservice.cache.RecentSponsorDetectionsCache;
 import com.streamsense.videoservice.events.SponsorDetectionEvent;
 import com.streamsense.videoservice.persistence.SponsorDetectionEntity;
 import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
@@ -71,6 +80,8 @@ import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
         "streamsense.ml.base-url=http://ml-engine:8000",
         "streamsense.history.defaultLimit=20",
         "streamsense.history.maxLimit=100",
+        "streamsense.cache.recentPrefix=sponsor:recent",
+        "streamsense.cache.recentTtlSeconds=60",
         "streamsense.payload.maxFrameRefLength=512",
         "resilience4j.retry.instances.mlSponsor.maxAttempts=3",
         "resilience4j.retry.instances.mlSponsor.waitDuration=10ms",
@@ -89,8 +100,11 @@ class VideoPipelineIntegrationTest {
     @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 
-    @Autowired
+    @SpyBean
     private SponsorDetectionRepository repository;
+
+    @MockBean
+    private RecentSponsorDetectionsCache recentSponsorDetectionsCache;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -122,6 +136,7 @@ class VideoPipelineIntegrationTest {
                 new JsonDeserializer<>(SponsorDetectionEvent.class, false))
                 .createConsumer();
         sponsorConsumer.subscribe(Collections.singletonList("stream.sponsor.detections"));
+        clearInvocations(repository, recentSponsorDetectionsCache);
     }
 
     @AfterEach
@@ -223,6 +238,8 @@ class VideoPipelineIntegrationTest {
                 1710000000100L, "Nike", 0.81d, "stub-v1", 0.1d, 0.2d, 0.3d, 0.4d));
         repository.save(entity("det-2", "frame-2", "test-streamer", "frames/b.png", 2, 1710000001000L,
                 1710000001100L, "Prime", 0.74d, "stub-v1", 0.2d, 0.1d, 0.25d, 0.22d));
+        clearInvocations(repository, recentSponsorDetectionsCache);
+        when(recentSponsorDetectionsCache.find("test-streamer", 2)).thenReturn(java.util.Optional.empty());
 
         mockMvc.perform(get("/api/video/detections/recent")
                 .param("streamer", "test-streamer")
@@ -232,6 +249,40 @@ class VideoPipelineIntegrationTest {
                 .andExpect(jsonPath("$[0].sponsor").value("Prime"))
                 .andExpect(jsonPath("$[1].detectionEventId").value("det-1"))
                 .andExpect(jsonPath("$[1].sponsor").value("Nike"));
+
+        verify(repository).findByStreamerOrderByCapturedAtDesc(eq("test-streamer"), any());
+        verify(recentSponsorDetectionsCache).put(eq("test-streamer"), eq(2), any());
+    }
+
+    @Test
+    void recentEndpoint_usesCachedResultsWithoutHittingPostgres() throws Exception {
+        SponsorDetectionEvent cachedEvent = new SponsorDetectionEvent();
+        cachedEvent.setDetectionEventId("cached-det-1");
+        cachedEvent.setSourceFrameId("cached-frame-1");
+        cachedEvent.setStreamer("test-streamer");
+        cachedEvent.setFrameRef("frames/cached.png");
+        cachedEvent.setFrameSequence(9L);
+        cachedEvent.setCapturedAt(1710000005000L);
+        cachedEvent.setProcessedAt(1710000005100L);
+        cachedEvent.setSponsor("Logitech");
+        cachedEvent.setConfidence(0.88d);
+        cachedEvent.setModelVersion("stub-v1");
+        cachedEvent.setX(0.12d);
+        cachedEvent.setY(0.22d);
+        cachedEvent.setWidth(0.3d);
+        cachedEvent.setHeight(0.19d);
+        when(recentSponsorDetectionsCache.find("test-streamer", 2)).thenReturn(java.util.Optional.of(java.util.List.of(cachedEvent)));
+
+        mockMvc.perform(get("/api/video/detections/recent")
+                .param("streamer", "test-streamer")
+                .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].detectionEventId").value("cached-det-1"))
+                .andExpect(jsonPath("$[0].sponsor").value("Logitech"))
+                .andExpect(jsonPath("$[0].frameRef").value("frames/cached.png"));
+
+        verify(repository, never()).findByStreamerOrderByCapturedAtDesc(eq("test-streamer"), any());
+        verify(recentSponsorDetectionsCache, never()).put(eq("test-streamer"), eq(2), any());
     }
 
     private SponsorDetectionEntity entity(
