@@ -20,6 +20,18 @@ streamsense:
       base-url: http://sentiment-service:8083
     video-service:
       base-url: http://video-service:8084
+  gateway:
+    auth:
+      enabled: ${STREAMSENSE_GATEWAY_AUTH_ENABLED:false}
+      required-issuer: streamsense-local
+      required-audience: streamsense-clients
+      protected-paths:
+        - /graphql
+        - /api/**
+      excluded-paths:
+        - /actuator/**
+        - /graphiql
+        - /graphiql/**
 
 spring:
   kafka:

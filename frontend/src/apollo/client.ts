@@ -2,35 +2,48 @@ import { ApolloClient, HttpLink, InMemoryCache, split } from "@apollo/client";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { getMainDefinition } from "@apollo/client/utilities";
 import { createClient } from "graphql-ws";
+import type { ClientOptions } from "graphql-ws";
 
-function makeWsUrl(): string {
-    const isHttps = window.location.protocol === "https:";
-    const wsProto = isHttps ? "wss" : "ws";
-    // Same host/port as the frontend (nginx), which proxies /graphql to api-gateway
-    return `${wsProto}://${window.location.host}/graphql`;
+type BrowserLocation = Pick<Location, "protocol" | "host">;
+type TokenStorage = Pick<Storage, "getItem">;
+
+export function makeWsUrl(location: BrowserLocation = window.location): string {
+    const isHttps = location.protocol === "https:";
+    const wsProtocol = isHttps ? "wss" : "ws";
+    return `${wsProtocol}://${location.host}/graphql`;
+}
+
+export function buildConnectionParams(storage: TokenStorage = window.localStorage): Record<string, string> {
+    const token = storage.getItem("streamsense.authToken");
+    if (!token) {
+        return {};
+    }
+
+    return {
+        Authorization: `Bearer ${token}`,
+    };
+}
+
+export function buildWsClientOptions(
+    location: BrowserLocation = window.location,
+    storage: TokenStorage = window.localStorage
+): ClientOptions {
+    return {
+        url: makeWsUrl(location),
+        connectionParams: () => buildConnectionParams(storage),
+    };
 }
 
 const httpLink = new HttpLink({
     uri: "/graphql",
-    // If you ever need cookies/auth later:
-    // credentials: "include",
 });
 
-const wsLink = new GraphQLWsLink(
-    createClient({
-        url: makeWsUrl(),
-        // optional but helpful
-        retryAttempts: Infinity,
-        shouldRetry: () => true,
-        // Keep it simple: automatic reconnect
-        // (graphql-ws handles graphql-transport-ws protocol)
-    })
-);
+const wsLink = new GraphQLWsLink(createClient(buildWsClientOptions()));
 
 const splitLink = split(
     ({ query }) => {
-        const def = getMainDefinition(query);
-        return def.kind === "OperationDefinition" && def.operation === "subscription";
+        const definition = getMainDefinition(query);
+        return definition.kind === "OperationDefinition" && definition.operation === "subscription";
     },
     wsLink,
     httpLink

@@ -34,6 +34,8 @@ services:
     build: ./api-gateway
     ports:
       - "8080:8080" # port for api-gateway
+    environment:
+      - STREAMSENSE_GATEWAY_AUTH_ENABLED=${STREAMSENSE_GATEWAY_AUTH_ENABLED:-false}
     depends_on:
       eureka-server:
         condition: service_healthy
