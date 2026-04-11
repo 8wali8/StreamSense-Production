@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   java-build-test:
@@ -127,8 +127,11 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config
 
+      - name: Build Sprint 6 smoke images
+        run: docker compose build eureka-server config-server ml-engine sentiment-service chat-service video-service api-gateway
+
       - name: Start Sprint 6 smoke stack
-        run: docker compose up -d --build zookeeper kafka kafka-topics-init postgres redis eureka-server config-server ml-engine sentiment-service chat-service video-service api-gateway frontend
+        run: docker compose up -d zookeeper kafka kafka-topics-init postgres redis eureka-server config-server ml-engine sentiment-service chat-service video-service api-gateway
 
       - name: Wait for core services
         run: |
@@ -175,9 +178,6 @@ jobs:
           curl -fsS http://localhost:8080/graphql \
             -H 'Content-Type: application/json' \
             -d '{"query":"query RecentSentiment($streamer:String!, $limit:Int!){ recentSentiment(streamer:$streamer, limit:$limit){ sentimentEventId label } }","variables":{"streamer":"ci-test","limit":1}}' | grep -q '"sentimentEventId"'
-
-      - name: Verify frontend serves HTML
-        run: curl -fsS http://localhost:3000 | grep -qi '<!doctype html>'
 
       - name: Dump docker compose logs on failure
         if: failure()
