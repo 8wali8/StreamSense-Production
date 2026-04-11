@@ -1,0 +1,5 @@
+type Query {
+  health: String!
+  recentSentiment(streamer: String!, limit: Int!): [SentimentAnalysisEvent!]!
+  sponsorDetections(streamer: String!, limit: Int!): [SponsorDetectionEvent!]!
+}

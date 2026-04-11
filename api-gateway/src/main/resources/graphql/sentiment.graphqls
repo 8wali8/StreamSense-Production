@@ -1,0 +1,12 @@
+type SentimentAnalysisEvent {
+  sentimentEventId: ID!
+  sourceEventId: ID!
+  streamer: String!
+  user: String!
+  message: String!
+  chatTimestamp: Float!
+  processedAt: Float!
+  label: String!
+  score: Float!
+  modelVersion: String!
+}

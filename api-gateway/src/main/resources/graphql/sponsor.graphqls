@@ -1,0 +1,16 @@
+type SponsorDetectionEvent {
+  detectionEventId: ID!
+  sourceFrameId: ID!
+  streamer: String!
+  frameRef: String!
+  frameSequence: Float!
+  capturedAt: Float!
+  processedAt: Float!
+  sponsor: String!
+  confidence: Float!
+  modelVersion: String!
+  x: Float!
+  y: Float!
+  width: Float!
+  height: Float!
+}
