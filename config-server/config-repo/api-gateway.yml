@@ -14,6 +14,8 @@ streamsense:
     sentimentEvents: stream.sentiment.events
     sponsorDetections: stream.sponsor.detections
   services:
+    chat-service:
+      base-url: http://chat-service:8081
     sentiment-service:
       base-url: http://sentiment-service:8083
     video-service:
@@ -24,14 +26,34 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     consumer:
       group-id: api-gateway-subscriptions
+      client-id: api-gateway-subscriptions
       auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
         spring.json.trusted.packages: com.streamsense.apigateway.events
         spring.json.value.default.type: com.streamsense.apigateway.events.ChatMessageEvent
         spring.json.use.type.headers: false
-        
+
+  cloud:
+    gateway:
+      metrics:
+        enabled: true
+      routes:
+        - id: chat-service-api
+          uri: ${streamsense.services.chat-service.base-url}
+          predicates:
+            - Path=/api/chat/**
+        - id: sentiment-service-api
+          uri: ${streamsense.services.sentiment-service.base-url}
+          predicates:
+            - Path=/api/sentiment/**
+        - id: video-service-api
+          uri: ${streamsense.services.video-service.base-url}
+          predicates:
+            - Path=/api/video/**
+
   graphql:
     graphiql:
       enabled: true
