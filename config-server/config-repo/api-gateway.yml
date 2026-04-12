@@ -32,6 +32,17 @@ streamsense:
         - /actuator/**
         - /graphiql
         - /graphiql/**
+    rate-limits:
+      - id: chat-ingest
+        path: /api/chat/ingest
+        method: POST
+        requests: 30
+        window-seconds: 60
+      - id: video-upload
+        path: /api/video/upload-frame
+        method: POST
+        requests: 20
+        window-seconds: 60
 
 spring:
   kafka:

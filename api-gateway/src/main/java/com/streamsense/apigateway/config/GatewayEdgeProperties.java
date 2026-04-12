@@ -1,5 +1,6 @@
 package com.streamsense.apigateway.config;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -8,9 +9,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class GatewayEdgeProperties {
 
     private final Auth auth = new Auth();
+    private final List<RateLimitRule> rateLimits = new ArrayList<>();
 
     public Auth getAuth() {
         return auth;
+    }
+
+    public List<RateLimitRule> getRateLimits() {
+        return rateLimits;
     }
 
     public static class Auth {
@@ -59,6 +65,55 @@ public class GatewayEdgeProperties {
 
         public void setRequiredAudience(String requiredAudience) {
             this.requiredAudience = requiredAudience;
+        }
+    }
+
+    public static class RateLimitRule {
+
+        private String id;
+        private String path;
+        private String method = "POST";
+        private int requests = 30;
+        private int windowSeconds = 60;
+
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+
+        public String getMethod() {
+            return method;
+        }
+
+        public void setMethod(String method) {
+            this.method = method;
+        }
+
+        public int getRequests() {
+            return requests;
+        }
+
+        public void setRequests(int requests) {
+            this.requests = requests;
+        }
+
+        public int getWindowSeconds() {
+            return windowSeconds;
+        }
+
+        public void setWindowSeconds(int windowSeconds) {
+            this.windowSeconds = windowSeconds;
         }
     }
 

@@ -30,6 +30,13 @@ export function buildWsClientOptions(
 ): ClientOptions {
     return {
         url: makeWsUrl(location),
+        keepAlive: 15000,
+        retryAttempts: Infinity,
+        shouldRetry: () => true,
+        retryWait: async (retries) => {
+            const delayMs = Math.min(1000 * 2 ** retries, 10000);
+            await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+        },
         connectionParams: () => buildConnectionParams(storage),
     };
 }
