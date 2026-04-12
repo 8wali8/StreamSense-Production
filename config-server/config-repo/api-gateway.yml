@@ -16,6 +16,8 @@ streamsense:
   services:
     chat-service:
       base-url: http://chat-service:8081
+    recommendation-service:
+      base-url: http://recommendation-service:8082
     sentiment-service:
       base-url: http://sentiment-service:8083
     video-service:
@@ -72,6 +74,10 @@ spring:
           uri: ${streamsense.services.sentiment-service.base-url}
           predicates:
             - Path=/api/sentiment/**
+        - id: recommendation-service-api
+          uri: ${streamsense.services.recommendation-service.base-url}
+          predicates:
+            - Path=/api/recommendations/**
         - id: video-service-api
           uri: ${streamsense.services.video-service.base-url}
           predicates:
