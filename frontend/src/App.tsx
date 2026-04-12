@@ -1,4 +1,5 @@
 import { Health } from "./components/Health";
+import { RecommendationPanel } from "./components/RecommendationPanel";
 import { SponsorPanel } from "./components/SponsorPanel";
 import { SentimentPanel } from "./components/SentimentPanel";
 import { LiveChat } from "./pages/LiveChat";
@@ -25,6 +26,7 @@ export default function App() {
           <LiveChat />
           <SentimentPanel />
           <SponsorPanel />
+          <RecommendationPanel />
         </div>
       </div>
     );
