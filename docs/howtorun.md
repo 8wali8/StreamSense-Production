@@ -1,6 +1,10 @@
 # Local Runbook
 ---
 
+Kubernetes runbook:
+
+- `docs/kubernetes-kind.md` covers the local `kind` workflow added in Sprint 9.
+
 # Prerequisites
 
 Install:
@@ -52,6 +56,18 @@ From repo root, start the full stack:
 
 ```
 docker compose up -d --build
+```
+
+Gateway auth is disabled by default for local Docker work. To restart only the gateway with auth enabled:
+
+```bash
+STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d api-gateway
+```
+
+Restore the local bypass mode with:
+
+```bash
+STREAMSENSE_GATEWAY_AUTH_ENABLED=false docker compose up -d api-gateway
 ```
 
 ## Sprint 2 quickstart
@@ -580,6 +596,104 @@ Grafana:
 - `sponsorDetections(streamer, limit)` still returns service-owned history through GraphQL
 - cache metrics are visible in Prometheus and Grafana
 
+## Sprint 7 quickstart
+
+Sprint 7 is complete when `api-gateway` behaves like a real edge service while preserving the service-owned history model:
+
+- `/api/**` routes are proxied centrally through Spring Cloud Gateway
+- auth hooks exist with a local bypass mode
+- ingest-facing routes are rate limited
+- GraphQL remains available with modularized schema files
+- subscription reconnect behavior stays stable through gateway restarts
+
+### Verify gateway routing
+
+Send ingest traffic through the gateway instead of calling services directly:
+
+```bash
+curl -X POST http://localhost:8080/api/chat/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"gateway-demo","user":"u1","message":"hello through the gateway","timestamp":1710000030000}'
+
+curl -X POST http://localhost:8080/api/video/upload-frame \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"gateway-demo","frameRef":"frames/gateway-demo-001.png","frameSequence":1,"capturedAt":1710000031000}'
+```
+
+Query GraphQL history through the same gateway after the downstream services persist the events:
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query RecentSentiment($streamer:String!, $limit:Int!){ recentSentiment(streamer:$streamer, limit:$limit){ sentimentEventId streamer label modelVersion } }","variables":{"streamer":"gateway-demo","limit":5}}'
+
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query SponsorDetections($streamer:String!, $limit:Int!){ sponsorDetections(streamer:$streamer, limit:$limit){ detectionEventId streamer sponsor modelVersion } }","variables":{"streamer":"gateway-demo","limit":5}}'
+```
+
+### Verify rate limiting
+
+The default chat-ingest limiter allows 30 requests per minute per client key. Reusing the same `X-Forwarded-For` value should eventually return `429`:
+
+```bash
+for i in $(seq 1 31); do
+  curl -s -o /dev/null -w "%{http_code}\n" \
+    -X POST http://localhost:8080/api/chat/ingest \
+    -H "Content-Type: application/json" \
+    -H "X-Forwarded-For: 198.51.100.77" \
+    -d '{"streamer":"gateway-limit-demo","user":"u1","message":"limit test","timestamp":1710000032000}'
+done
+```
+
+Expected behavior:
+
+- the first 30 responses return `200`
+- the next response returns `429`
+
+### Verify auth toggle
+
+Restart the gateway with auth enabled:
+
+```bash
+STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d api-gateway
+```
+
+Without a bearer token, GraphQL should return `401`:
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ health }"}'
+```
+
+To test the JWT hook locally, send a JWT-shaped bearer token with `iss=streamsense-local`, `aud=streamsense-clients`, and a future `exp` claim.
+
+After verification, restore local bypass mode:
+
+```bash
+STREAMSENSE_GATEWAY_AUTH_ENABLED=false docker compose up -d api-gateway
+```
+
+### Gateway metrics to check in Prometheus
+
+```text
+spring_cloud_gateway_routes_count
+streamsense_gateway_rate_limit_rejections_total
+streamsense_gateway_auth_rejections_total
+```
+
+### Sprint 7 verification checklist
+
+- routed chat ingest succeeds through `http://localhost:8080/api/chat/ingest`
+- routed frame ingest succeeds through `http://localhost:8080/api/video/upload-frame`
+- `recentSentiment(streamer, limit)` still resolves through GraphQL after routed ingest
+- `sponsorDetections(streamer, limit)` still resolves through GraphQL after routed frame ingest
+- repeated ingest traffic from the same client key eventually returns `429`
+- auth-enabled gateway rejects unauthenticated GraphQL requests with `401`
+- auth-enabled gateway accepts valid JWT-shaped bearer tokens
+- gateway metrics expose route counts and rate-limit rejections
+
 ### Sprint 3 observability checks
 
 Prometheus queries:
@@ -646,6 +760,96 @@ Tests cover:
 - Kafka produce
 - GraphQL health query
 - GraphQL subscription flow
+- gateway auth validation and local bypass behavior
+- gateway route proxying and rate-limit enforcement
+
+## Sprint 8 quickstart
+
+Sprint 8 is complete when the recommendation slice works end to end:
+
+- `recommendation-service` serves deterministic, explainable recommendations
+- it reads recent sentiment and sponsor history from service-owned APIs
+- recommendation experiment config is loaded from Config Server
+- `api-gateway` exposes recommendations through GraphQL
+- the frontend renders recommendation reasons and active variant details
+
+### Verify the recommendation flow
+
+Seed the stream through the gateway:
+
+```bash
+curl -X POST http://localhost:8080/api/chat/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"verify-s8","user":"u1","message":"this stream is great","timestamp":1710001000000}'
+
+curl -X POST http://localhost:8080/api/chat/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"verify-s8","user":"u2","message":"love this energy","timestamp":1710001001000}'
+
+curl -X POST http://localhost:8080/api/video/upload-frame \
+  -H "Content-Type: application/json" \
+  -d '{"streamer":"verify-s8","frameRef":"frames/verify-s8-1.png","frameSequence":1,"capturedAt":1710001003000}'
+```
+
+Check the recommendation REST API directly:
+
+```bash
+curl "http://localhost:8082/api/recommendations?streamer=verify-s8&limit=4"
+```
+
+Expected response shape per item:
+
+- `recommendationId`
+- `title`
+- `category`
+- `score`
+- `reasonSummary`
+- `reasons`
+- `experimentName`
+- `variantId`
+
+Check the GraphQL recommendation query through the gateway:
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query Recommendations($streamer:String!, $limit:Int!){ recommendations(streamer:$streamer, limit:$limit){ recommendationId category score reasonSummary variantId experimentName } }","variables":{"streamer":"verify-s8","limit":4}}'
+```
+
+Expected behavior:
+
+- response contains `recommendationId`
+- `variantId` matches the active Config Server variant
+- `reasonSummary` is populated with human-readable explanation text
+
+Open the frontend and verify the recommendation panel renders the same stream:
+
+```text
+http://localhost:3000
+```
+
+In the UI:
+
+- enter `verify-s8` in the Recommendations panel
+- load recommendations
+- verify title, category, score, reason summary, detailed reasons, and variant are all visible
+
+### Recommendation metrics to check
+
+```text
+streamsense_recommendations_served_total
+streamsense_experiment_variant_total
+streamsense_recommendation_latency_ms_count
+```
+
+### Sprint 8 verification checklist
+
+- `recommendation-service` health is `UP` at `http://localhost:8082/actuator/health`
+- `GET /api/recommendations` returns recommendation objects with reasons and variant metadata
+- `recommendations(streamer, limit)` works through GraphQL
+- recommendation output is derived from recent sentiment and sponsor history, not hardcoded values
+- frontend renders recommendation cards with visible explanations
+- recommendation metrics increase after live requests
 
 ---
 
