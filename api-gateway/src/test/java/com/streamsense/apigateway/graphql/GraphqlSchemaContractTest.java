@@ -42,7 +42,7 @@ class GraphqlSchemaContractTest {
                 .entityList(String.class)
                 .get();
 
-        assertThat(fields).containsExactlyInAnyOrder("health", "recentSentiment", "sponsorDetections");
+        assertThat(fields).containsExactlyInAnyOrder("health", "recentSentiment", "sponsorDetections", "recommendations");
     }
 
     @Test
