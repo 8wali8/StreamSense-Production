@@ -1,0 +1,405 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-server-native-repo
+  namespace: streamsense
+data:
+  application.yml: |
+    logging:
+      pattern:
+        level: "%5p [traceId=%X{traceId:-}, spanId=%X{spanId:-}, correlationId=%X{correlationId:-}]"
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health, info, prometheus
+      endpoint:
+        prometheus:
+          enabled: true
+      tracing:
+        sampling:
+          probability: 1.0
+      zipkin:
+        tracing:
+          endpoint: http://zipkin:9411/api/v2/spans
+  api-gateway.yml: |
+    server:
+      port: 8080
+
+    eureka:
+      client:
+        service-url:
+          defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+    streamsense:
+      topics:
+        chatMessages: stream.chat.messages
+        sentimentEvents: stream.sentiment.events
+        sponsorDetections: stream.sponsor.detections
+      services:
+        chat-service:
+          base-url: http://chat-service:8081
+        recommendation-service:
+          base-url: http://recommendation-service:8082
+        sentiment-service:
+          base-url: http://sentiment-service:8083
+        video-service:
+          base-url: http://video-service:8084
+      gateway:
+        auth:
+          enabled: ${STREAMSENSE_GATEWAY_AUTH_ENABLED:false}
+          required-issuer: streamsense-local
+          required-audience: streamsense-clients
+          protected-paths:
+            - /graphql
+            - /api/**
+          excluded-paths:
+            - /actuator/**
+            - /graphiql
+            - /graphiql/**
+        rate-limits:
+          - id: chat-ingest
+            path: /api/chat/ingest
+            method: POST
+            requests: 30
+            window-seconds: 60
+          - id: video-upload
+            path: /api/video/upload-frame
+            method: POST
+            requests: 20
+            window-seconds: 60
+
+    spring:
+      kafka:
+        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+        consumer:
+          group-id: api-gateway-subscriptions
+          client-id: api-gateway-subscriptions
+          auto-offset-reset: latest
+          key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+          properties:
+            partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+            spring.json.trusted.packages: com.streamsense.apigateway.events
+            spring.json.value.default.type: com.streamsense.apigateway.events.ChatMessageEvent
+            spring.json.use.type.headers: false
+
+      cloud:
+        gateway:
+          metrics:
+            enabled: true
+          routes:
+            - id: chat-service-api
+              uri: ${streamsense.services.chat-service.base-url}
+              predicates:
+                - Path=/api/chat/**
+            - id: sentiment-service-api
+              uri: ${streamsense.services.sentiment-service.base-url}
+              predicates:
+                - Path=/api/sentiment/**
+            - id: recommendation-service-api
+              uri: ${streamsense.services.recommendation-service.base-url}
+              predicates:
+                - Path=/api/recommendations/**
+            - id: video-service-api
+              uri: ${streamsense.services.video-service.base-url}
+              predicates:
+                - Path=/api/video/**
+
+      graphql:
+        graphiql:
+          enabled: true
+        websocket:
+          path: /graphql
+  chat-service.yml: |
+    server:
+      port: 8081
+
+    eureka:
+      client:
+        service-url:
+          defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+    streamsense:
+      topics:
+        chatMessages: stream.chat.messages
+
+    spring:
+      kafka:
+        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  sentiment-service.yml: |
+    server:
+      port: 8083
+
+    eureka:
+      client:
+        service-url:
+          defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+    streamsense:
+      topics:
+        chatMessages: stream.chat.messages
+        sentimentEvents: stream.sentiment.events
+        chatMessagesDlt: stream.chat.messages.dlt
+      ml:
+        base-url: http://ml-engine:8000
+        connectTimeoutMs: 2000
+        readTimeoutMs: 3000
+      history:
+        defaultLimit: 20
+        maxLimit: 100
+      cache:
+        recentPrefix: sentiment:recent
+        recentTtlSeconds: 60
+      processing:
+        retryBackoffMs: 1000
+        maxRetries: 2
+
+    hystrix:
+      command:
+        mlSentiment:
+          executionTimeoutMs: 3000
+          requestVolumeThreshold: 10
+          errorThresholdPercentage: 50
+          sleepWindowMs: 15000
+          maxConcurrentCalls: 4
+          maxRetries: 2
+
+    spring:
+      kafka:
+        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+        consumer:
+          group-id: sentiment-service
+          auto-offset-reset: earliest
+          key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+          properties:
+            spring.json.trusted.packages: "*"
+            spring.json.value.default.type: com.streamsense.sentimentservice.events.ChatMessageEvent
+            spring.json.use.type.headers: false
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+      datasource:
+        url: jdbc:postgresql://postgres:5432/streamsense
+        username: streamsense
+        password: streamsense
+        driver-class-name: org.postgresql.Driver
+
+      jpa:
+        hibernate:
+          ddl-auto: validate
+        properties:
+          hibernate:
+            dialect: org.hibernate.dialect.PostgreSQLDialect
+
+      flyway:
+        enabled: true
+        locations: classpath:db/migration
+
+      data:
+        redis:
+          host: redis
+          port: 6379
+          repositories:
+            enabled: false
+          timeout: 2s
+
+    resilience4j:
+      circuitbreaker:
+        instances:
+          mlSentiment:
+            slidingWindowType: COUNT_BASED
+            slidingWindowSize: 10
+            minimumNumberOfCalls: 5
+            failureRateThreshold: 50
+            waitDurationInOpenState: 15s
+            permittedNumberOfCallsInHalfOpenState: 2
+            automaticTransitionFromOpenToHalfOpenEnabled: true
+            recordExceptions:
+              - com.streamsense.sentimentservice.client.MlDependencyException
+      retry:
+        instances:
+          mlSentiment:
+            maxAttempts: 3
+            waitDuration: 1s
+            retryExceptions:
+              - com.streamsense.sentimentservice.client.MlDependencyException
+              - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+              - io.github.resilience4j.bulkhead.BulkheadFullException
+            ignoreExceptions:
+              - java.lang.IllegalStateException
+              - java.lang.IllegalArgumentException
+      bulkhead:
+        instances:
+          mlSentiment:
+            maxConcurrentCalls: 4
+            maxWaitDuration: 0ms
+
+    management:
+      health:
+        circuitbreakers:
+          enabled: true
+  video-service.yml: |
+    server:
+      port: 8084
+
+    eureka:
+      client:
+        service-url:
+          defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+    streamsense:
+      topics:
+        videoFrames: stream.video.frames
+        sponsorDetections: stream.sponsor.detections
+      ml:
+        base-url: http://ml-engine:8000
+        connectTimeoutMs: 2000
+        readTimeoutMs: 3000
+      history:
+        defaultLimit: 20
+        maxLimit: 100
+      cache:
+        recentPrefix: sponsor:recent
+        recentTtlSeconds: 60
+      payload:
+        maxFrameRefLength: 512
+
+    hystrix:
+      command:
+        mlSponsor:
+          executionTimeoutMs: 3000
+          requestVolumeThreshold: 10
+          errorThresholdPercentage: 50
+          sleepWindowMs: 15000
+          maxConcurrentCalls: 4
+          maxRetries: 2
+
+    resilience4j:
+      circuitbreaker:
+        instances:
+          mlSponsor:
+            slidingWindowType: COUNT_BASED
+            slidingWindowSize: 10
+            minimumNumberOfCalls: 5
+            failureRateThreshold: 50
+            waitDurationInOpenState: 15s
+            permittedNumberOfCallsInHalfOpenState: 2
+            automaticTransitionFromOpenToHalfOpenEnabled: true
+            recordExceptions:
+              - com.streamsense.videoservice.client.MlDependencyException
+      retry:
+        instances:
+          mlSponsor:
+            maxAttempts: 3
+            waitDuration: 1s
+            retryExceptions:
+              - com.streamsense.videoservice.client.MlDependencyException
+              - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+              - io.github.resilience4j.bulkhead.BulkheadFullException
+            ignoreExceptions:
+              - java.lang.IllegalStateException
+              - java.lang.IllegalArgumentException
+      bulkhead:
+        instances:
+          mlSponsor:
+            maxConcurrentCalls: 4
+            maxWaitDuration: 0ms
+
+    spring:
+      kafka:
+        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+        consumer:
+          group-id: video-service
+          auto-offset-reset: earliest
+          key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+          properties:
+            spring.json.trusted.packages: "*"
+            spring.json.value.default.type: com.streamsense.videoservice.events.FrameData
+            spring.json.use.type.headers: false
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+      datasource:
+        url: jdbc:postgresql://postgres:5432/streamsense
+        username: streamsense
+        password: streamsense
+        driver-class-name: org.postgresql.Driver
+
+      jpa:
+        hibernate:
+          ddl-auto: validate
+        properties:
+          hibernate:
+            dialect: org.hibernate.dialect.PostgreSQLDialect
+
+      flyway:
+        enabled: true
+        locations: classpath:db/migration
+        table: video_service_flyway_history
+        baseline-on-migrate: true
+        baseline-version: 0
+
+      data:
+        redis:
+          host: redis
+          port: 6379
+          repositories:
+            enabled: false
+          timeout: 2s
+
+    management:
+      health:
+        circuitbreakers:
+          enabled: true
+  recommendation-service.yml: |
+    server:
+      port: 8082
+
+    eureka:
+      client:
+        service-url:
+          defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+    streamsense:
+      services:
+        sentiment-service:
+          base-url: http://sentiment-service:8083
+        video-service:
+          base-url: http://video-service:8084
+      recommendations:
+        defaultLimit: 3
+        maxLimit: 6
+        signalWindowLimit: 20
+        refreshMode: restart
+        experimentName: recommendation-ranking-v1
+        activeVariant: balanced
+        variants:
+          balanced:
+            enabled: true
+            positiveWeight: 1.0
+            sponsorWeight: 0.9
+            cautionWeight: 1.1
+            momentumThreshold: 0.15
+            sponsorConfidenceThreshold: 0.65
+          sponsorBoost:
+            enabled: true
+            positiveWeight: 0.85
+            sponsorWeight: 1.25
+            cautionWeight: 1.0
+            momentumThreshold: 0.10
+            sponsorConfidenceThreshold: 0.55
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus
