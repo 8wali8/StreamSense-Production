@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - config/config-server-config-repo.yaml
+  - config/prometheus-config.yaml
+  - config/grafana-config.yaml
+  - platform/eureka-server.yaml
+  - platform/config-server.yaml
+  - platform/postgres.yaml
+  - platform/redis.yaml
+  - platform/kafka.yaml
+  - apps/ml-engine.yaml
+  - apps/chat-service.yaml
+  - apps/sentiment-service.yaml
+  - apps/video-service.yaml
+  - apps/recommendation-service.yaml
+  - apps/api-gateway.yaml
+  - monitoring/prometheus.yaml
+  - monitoring/grafana.yaml
+  - monitoring/zipkin.yaml
+  - ingress/streamsense-ingress.yaml
