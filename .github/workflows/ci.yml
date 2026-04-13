@@ -134,14 +134,14 @@ jobs:
       - name: Reset smoke stack state
         run: docker compose down -v --remove-orphans || true
 
-      - name: Start smoke stack
+      - name: Start core smoke stack
         run: |
           for attempt in 1 2; do
-            if docker compose up -d zookeeper kafka kafka-topics-init postgres redis eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service api-gateway; then
+            if docker compose up -d zookeeper kafka kafka-topics-init postgres redis eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service; then
               exit 0
             fi
 
-            echo "Smoke stack startup attempt ${attempt} failed"
+            echo "Core smoke stack startup attempt ${attempt} failed"
             docker compose ps || true
             docker compose logs --no-color || true
             docker compose down -v --remove-orphans || true
@@ -153,7 +153,20 @@ jobs:
       - name: Wait for core services
         run: |
           for i in {1..60}; do
-            if curl -fsS http://localhost:8761/actuator/health >/dev/null && curl -fsS http://localhost:8888/actuator/health >/dev/null && curl -fsS http://localhost:8080/actuator/health >/dev/null && curl -fsS http://localhost:8081/actuator/health >/dev/null && curl -fsS http://localhost:8082/actuator/health >/dev/null && curl -fsS http://localhost:8083/actuator/health >/dev/null && curl -fsS http://localhost:8084/actuator/health >/dev/null && curl -fsS http://localhost:8000/ml/health >/dev/null; then
+            if curl -fsS http://localhost:8761/actuator/health >/dev/null && curl -fsS http://localhost:8888/actuator/health >/dev/null && curl -fsS http://localhost:8081/actuator/health >/dev/null && curl -fsS http://localhost:8082/actuator/health >/dev/null && curl -fsS http://localhost:8083/actuator/health >/dev/null && curl -fsS http://localhost:8084/actuator/health >/dev/null && curl -fsS http://localhost:8000/ml/health >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Start gateway after core services
+        run: docker compose up -d api-gateway
+
+      - name: Wait for gateway health
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null; then
               exit 0
             fi
             sleep 5
