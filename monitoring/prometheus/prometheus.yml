@@ -20,6 +20,11 @@ scrape_configs:
          - "sentiment-service:8083"
          - "video-service:8084"
 
+  - job_name: "kafka-exporter"
+    static_configs:
+      - targets:
+          - "kafka-exporter:9308"
+
   # Future: Zipkin metrics endpoint (optional; Zipkin isn't typically scraped for app metrics)
   # - job_name: "zipkin"
   #   static_configs:
