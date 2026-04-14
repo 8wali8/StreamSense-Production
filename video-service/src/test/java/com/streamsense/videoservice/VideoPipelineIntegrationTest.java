@@ -55,7 +55,7 @@ import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 1, topics = { "stream.video.frames", "stream.sponsor.detections" })
+@EmbeddedKafka(partitions = 3, topics = { "stream.video.frames", "stream.sponsor.detections" })
 @TestPropertySource(properties = {
         "spring.cloud.config.enabled=false",
         "eureka.client.enabled=false",

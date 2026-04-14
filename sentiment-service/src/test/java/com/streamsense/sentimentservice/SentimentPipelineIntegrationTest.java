@@ -62,7 +62,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 1, topics = { "stream.chat.messages", "stream.sentiment.events", "stream.chat.messages.dlt" })
+@EmbeddedKafka(partitions = 3, topics = { "stream.chat.messages", "stream.sentiment.events", "stream.chat.messages.dlt" })
 @TestPropertySource(properties = {
         "spring.cloud.config.enabled=false",
         "eureka.client.enabled=false",

@@ -2,6 +2,7 @@ package com.streamsense.chatservice.kafka;
 
 import com.streamsense.chatservice.events.ChatMessageEvent;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
@@ -27,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 1, topics = { "stream.chat.messages" })
+@EmbeddedKafka(partitions = 3, topics = { "stream.chat.messages" })
 @TestPropertySource(properties = {
                 "spring.cloud.config.enabled=false",
                 "eureka.client.enabled=false",
@@ -54,21 +55,29 @@ class ChatKafkaProducerIntegrationTest {
                 }
         }
 
-        @Test
-        void validIngest_producesRecordToKafka() throws Exception {
-                Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("chat-service-test-group", "true",
-                                embeddedKafkaBroker);
-
+        private Consumer<String, ChatMessageEvent> createConsumerAtEnd(String group) {
+                Map<String, Object> consumerProps = KafkaTestUtils.consumerProps(group, "true", embeddedKafkaBroker);
+                consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
                 consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
                 consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ChatMessageEvent.class.getName());
                 consumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
-                consumer = new DefaultKafkaConsumerFactory<>(
+                Consumer<String, ChatMessageEvent> c = new DefaultKafkaConsumerFactory<>(
                                 consumerProps,
                                 new StringDeserializer(),
                                 new JsonDeserializer<>(ChatMessageEvent.class, false)).createConsumer();
+                c.subscribe(Collections.singletonList("stream.chat.messages"));
+                // Trigger partition assignment. With auto.offset.reset=latest this positions
+                // the consumer at the current end of the log so that messages produced by
+                // other tests that ran earlier are not visible. Messages produced after
+                // this poll() call will be picked up on the next poll().
+                c.poll(Duration.ofSeconds(2));
+                return c;
+        }
 
-                consumer.subscribe(Collections.singletonList("stream.chat.messages"));
+        @Test
+        void validIngest_producesRecordToKafka() throws Exception {
+                consumer = createConsumerAtEnd("chat-service-test-group");
 
                 String body = """
                                 {
@@ -95,5 +104,51 @@ class ChatKafkaProducerIntegrationTest {
                 assertThat(record.value().getMessage()).isEqualTo("hello from test");
                 assertThat(record.value().getTimestamp()).isEqualTo(1710000000000L);
                 assertThat(record.value().getEventId()).isNotBlank();
+        }
+
+        @Test
+        void sameStreamerKey_alwaysRoutesToSamePartition_underThreePartitionTopology() throws Exception {
+                consumer = createConsumerAtEnd("chat-partition-routing-test-group");
+
+                String body1 = """
+                                {
+                                  "streamer": "routing-streamer",
+                                  "user": "u1",
+                                  "message": "first message",
+                                  "timestamp": 1710000001000
+                                }
+                                """;
+                String body2 = """
+                                {
+                                  "streamer": "routing-streamer",
+                                  "user": "u2",
+                                  "message": "second message",
+                                  "timestamp": 1710000002000
+                                }
+                                """;
+
+                mockMvc.perform(post("/api/chat/ingest")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body1))
+                                .andExpect(status().isOk());
+
+                ConsumerRecord<String, ChatMessageEvent> first = KafkaTestUtils.getSingleRecord(
+                                consumer, "stream.chat.messages", Duration.ofSeconds(10));
+
+                assertThat(first.key()).isEqualTo("routing-streamer");
+                assertThat(first.partition()).isBetween(0, 2);
+
+                mockMvc.perform(post("/api/chat/ingest")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body2))
+                                .andExpect(status().isOk());
+
+                ConsumerRecord<String, ChatMessageEvent> second = KafkaTestUtils.getSingleRecord(
+                                consumer, "stream.chat.messages", Duration.ofSeconds(10));
+
+                assertThat(second.key()).isEqualTo("routing-streamer");
+                // Same key must route to same partition — this is the guarantee that enables
+                // per-streamer ordering across the 3-partition topic.
+                assertThat(second.partition()).isEqualTo(first.partition());
         }
 }
