@@ -4,15 +4,16 @@
 
 This runbook brings StreamSense up on a local `kind` cluster using the same prebuilt-JAR Docker image workflow already used by Docker Compose.
 
-Sprint 9 keeps the repo architecture intact in Kubernetes:
+The cluster keeps the full repo architecture intact:
 
 - `eureka-server` stays in-cluster
 - `config-server` stays in native mode
-- Spring services still fetch centralized config from `config-server`
-- Kafka runs as a minimal single-node local dependency so the existing services can boot and be tested end to end
+- Spring services fetch centralized config from `config-server`
+- Kafka runs as a single-node local broker with three partitions per topic
+- `kafka-exporter` scrapes consumer lag and topic metrics for Prometheus
 - ingress exposes `api-gateway`, Grafana, and Zipkin
 
-This is a local-first Kubernetes workflow. It is not the final cloud production shape and it is not the scaling-focused Kafka story planned for Sprint 10.
+This is a local-first Kubernetes workflow. It is not the final cloud production shape.
 
 ## Prerequisites
 
@@ -299,6 +300,179 @@ Then inspect the dependency directly:
 ```bash
 kubectl get pods -n streamsense
 kubectl logs deployment/<dependency> -n streamsense
+```
+
+## 10. Kafka Consumer Lag Dashboard
+
+Kafka Exporter runs in-cluster and exposes consumer group lag metrics to Prometheus. Grafana provisions the `StreamSense - Kafka` dashboard automatically.
+
+To access the dashboard, open Grafana at `http://grafana.streamsense.local` (or via port-forward) and select **StreamSense - Kafka** from the dashboard list.
+
+To verify the exporter is up directly:
+
+```bash
+kubectl port-forward -n streamsense svc/kafka-exporter 9308:9308
+curl -s http://127.0.0.1:9308/metrics | grep kafka_consumergroup_lag | head -10
+```
+
+To check consumer group lag via Prometheus:
+
+```bash
+kubectl port-forward -n streamsense svc/prometheus 9090:9090
+curl -s 'http://127.0.0.1:9090/api/v1/query?query=kafka_consumergroup_lag' | python3 -m json.tool
+```
+
+## 11. Consumer Scaling Demonstration
+
+`sentiment-service` uses consumer group `sentiment-service` and subscribes to `stream.chat.messages` which has three partitions. Scaling the deployment demonstrates Kafka partition rebalancing.
+
+### Check current partition assignment (one replica)
+
+```bash
+kubectl exec -n streamsense deployment/kafka -- \
+  kafka-consumer-groups --bootstrap-server kafka:9092 \
+  --describe --group sentiment-service
+```
+
+Expected output shows all three partitions owned by a single consumer instance.
+
+### Scale to two replicas
+
+```bash
+kubectl scale deployment sentiment-service --replicas=2 -n streamsense
+kubectl rollout status deployment/sentiment-service -n streamsense
+```
+
+### Verify partition rebalance
+
+Wait about 30 seconds for Kafka to rebalance, then:
+
+```bash
+kubectl exec -n streamsense deployment/kafka -- \
+  kafka-consumer-groups --bootstrap-server kafka:9092 \
+  --describe --group sentiment-service
+```
+
+Expected output shows partitions split across two consumer IDs (approximately 1–2 partitions each).
+
+### Inject traffic to observe lag movement
+
+```bash
+for i in $(seq 1 10); do
+  curl -s \
+    -H 'Host: gateway.streamsense.local' \
+    -H 'Content-Type: application/json' \
+    -d "{\"streamer\":\"scale-demo\",\"user\":\"u${i}\",\"message\":\"message ${i}\",\"timestamp\":$((1710000000000 + i))}" \
+    http://127.0.0.1/api/chat/ingest
+done
+```
+
+Open the Kafka dashboard in Grafana and observe the **Consumer Lag by Group and Topic** panel: lag rises briefly as messages are produced, then drops as consumers process them.
+
+### Scale back to one replica
+
+```bash
+kubectl scale deployment sentiment-service --replicas=1 -n streamsense
+kubectl rollout status deployment/sentiment-service -n streamsense
+```
+
+Run the consumer group describe again to confirm all partitions return to a single consumer.
+
+## Troubleshooting - Kafka
+
+### Kafka broker not ready
+
+`kafka-topics-init` Job fails because the broker is not yet available.
+
+Check broker logs:
+
+```bash
+kubectl logs deployment/kafka -n streamsense
+```
+
+Common cause: the Confluent image picked up a Kubernetes service-link env var (e.g., `KAFKA_PORT`). The Kafka pod template sets `enableServiceLinks: false` to prevent this. If a manifest change accidentally re-enables service links, disable them again.
+
+### Consumer group stuck in rebalance
+
+Symptoms: consumer group describe shows `REBALANCING` state for more than a couple of minutes, or lag grows continuously.
+
+Check consumer service logs:
+
+```bash
+kubectl logs deployment/sentiment-service -n streamsense
+```
+
+Look for heartbeat timeout or session timeout errors. If pods are restarting frequently, probe intervals or JVM startup time may be causing liveness failures before the consumer fully joins the group.
+
+### Topic not created
+
+`kafka-topics-init` Job may have completed before Kafka was actually accepting connections.
+
+Check Job logs:
+
+```bash
+kubectl logs job/kafka-topics-init -n streamsense
+```
+
+If the Job failed, delete and re-apply it:
+
+```bash
+kubectl delete job kafka-topics-init -n streamsense
+kubectl apply -f k8s/platform/kafka.yaml
+```
+
+Verify topics exist:
+
+```bash
+kubectl exec -n streamsense deployment/kafka -- \
+  kafka-topics --bootstrap-server kafka:9092 --list
+```
+
+Expected topics:
+
+```text
+stream.chat.messages
+stream.chat.messages.dlt
+stream.sentiment.events
+stream.sponsor.detections
+stream.video.frames
+```
+
+### Kafka Exporter shows no metrics
+
+Check if the exporter pod is ready:
+
+```bash
+kubectl get pods -n streamsense -l app=kafka-exporter
+kubectl logs deployment/kafka-exporter -n streamsense
+```
+
+The exporter waits for Kafka via an init container. If the init container is stuck, Kafka may not be ready yet. Wait and retry.
+
+If the exporter is running but Prometheus shows no `kafka_consumergroup_*` metrics, verify the scrape job:
+
+```bash
+kubectl port-forward -n streamsense svc/prometheus 9090:9090
+# then open http://127.0.0.1:9090/targets and check kafka-exporter target status
+```
+
+### Service DNS resolution failure for Kafka bootstrap address
+
+Spring services should use `kafka:9092` as the bootstrap address. This is set via `KAFKA_BOOTSTRAP_SERVERS=kafka:9092` in each app Deployment.
+
+If a service fails to connect at startup:
+
+```bash
+kubectl exec -n streamsense deployment/chat-service -- \
+  wget -qO- http://kafka:9092 || echo "port check only"
+```
+
+Or check DNS resolution directly:
+
+```bash
+kubectl run dns-test --image=busybox:1.36 --restart=Never -n streamsense -- \
+  nslookup kafka
+kubectl delete pod dns-test -n streamsense
 ```
 
 ## Cleanup
