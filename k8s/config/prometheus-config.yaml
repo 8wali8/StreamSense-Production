@@ -26,3 +26,8 @@ data:
               - video-service:8084
               - config-server:8888
               - eureka-server:8761
+
+      - job_name: kafka-exporter
+        static_configs:
+          - targets:
+              - kafka-exporter:9308

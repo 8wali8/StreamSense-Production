@@ -19,4 +19,5 @@ resources:
   - monitoring/prometheus.yaml
   - monitoring/grafana.yaml
   - monitoring/zipkin.yaml
+  - monitoring/kafka-exporter.yaml
   - ingress/streamsense-ingress.yaml
