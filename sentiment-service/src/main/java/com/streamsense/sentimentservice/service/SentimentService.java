@@ -72,7 +72,7 @@ public class SentimentService {
         }
 
         try {
-            repository.save(SentimentRecordEntity.fromEvent(sentimentEvent));
+            sentimentMetrics.recordPersistenceLatency(() -> repository.save(SentimentRecordEntity.fromEvent(sentimentEvent)));
             sentimentMetrics.incrementPersistence("success");
             recentSentimentCache.evict(sentimentEvent.getStreamer());
         } catch (RuntimeException e) {
@@ -84,6 +84,7 @@ public class SentimentService {
 
         sentimentKafkaProducer.publish(sentimentEvent, correlationId, traceparent);
         sentimentMetrics.incrementProcessed(sentimentEvent.getLabel());
+        sentimentMetrics.recordEndToEndLatency(System.currentTimeMillis() - event.getTimestamp());
 
         log.info("processed sentimentEventId={} sourceEventId={} streamer={} label={} score={}",
                 sentimentEvent.getSentimentEventId(), sentimentEvent.getSourceEventId(), sentimentEvent.getStreamer(),
