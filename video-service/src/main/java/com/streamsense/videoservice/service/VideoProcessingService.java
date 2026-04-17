@@ -64,10 +64,11 @@ public class VideoProcessingService {
 
         SponsorDetectionEvent detectionEvent = buildDetectionEvent(frame, response);
 
-        repository.save(SponsorDetectionEntity.fromEvent(detectionEvent));
+        videoMetrics.recordPersistenceLatency(() -> repository.save(SponsorDetectionEntity.fromEvent(detectionEvent)));
         recentSponsorDetectionsCache.evict(detectionEvent.getStreamer());
         sponsorDetectionProducer.publish(detectionEvent, correlationId, traceparent);
         videoMetrics.incrementSponsorDetection(detectionEvent.getSponsor());
+        videoMetrics.recordEndToEndLatency(System.currentTimeMillis() - frame.getCapturedAt());
 
         log.info("processed sponsor detection detectionEventId={} frameId={} sponsor={} confidence={} modelVersion={}",
                 detectionEvent.getDetectionEventId(), detectionEvent.getSourceFrameId(), detectionEvent.getSponsor(),

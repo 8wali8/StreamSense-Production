@@ -14,11 +14,21 @@ public class VideoMetrics {
 
     private final MeterRegistry meterRegistry;
     private final Timer sponsorLatencyTimer;
+    private final Timer persistenceLatencyTimer;
+    private final Timer endToEndLatencyTimer;
 
     public VideoMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
         this.sponsorLatencyTimer = Timer.builder("streamsense_sponsor_inference_latency_ms")
                 .description("Latency of ML sponsor inference calls")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        this.persistenceLatencyTimer = Timer.builder("streamsense_sponsor_persistence_latency_ms")
+                .description("Latency of sponsor detection persistence writes")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        this.endToEndLatencyTimer = Timer.builder("streamsense_sponsor_end_to_end_latency_ms")
+                .description("End-to-end latency from frame capture to processed sponsor detection event")
                 .publishPercentileHistogram()
                 .register(meterRegistry);
     }
@@ -30,6 +40,19 @@ public class VideoMetrics {
         } finally {
             sponsorLatencyTimer.record(System.nanoTime() - start, TimeUnit.NANOSECONDS);
         }
+    }
+
+    public <T> T recordPersistenceLatency(Supplier<T> supplier) {
+        long start = System.nanoTime();
+        try {
+            return supplier.get();
+        } finally {
+            persistenceLatencyTimer.record(System.nanoTime() - start, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    public void recordEndToEndLatency(long durationMs) {
+        endToEndLatencyTimer.record(durationMs, TimeUnit.MILLISECONDS);
     }
 
     public <T> T recordHistoryLookup(String cache, String source, Supplier<T> supplier) {
