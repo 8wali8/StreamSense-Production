@@ -170,7 +170,7 @@ Result summary:
 
 These numbers validate the load tool behavior only. They do not represent full StreamSense runtime performance.
 
-### Manifest and dashboard validation
+### Dashboard and manifest validation
 
 Executed:
 

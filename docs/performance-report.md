@@ -13,8 +13,7 @@ What is complete in this iteration:
 
 What is not complete in this iteration:
 
-- a live Docker Compose benchmark was not executed in this session because Docker was unavailable from the local environment
-- the measured numbers below therefore cover tooling validation only, not full platform throughput claims
+- the live benchmark exposed gateway rate limiting at the current test rate, so the numbers below reflect current behavior rather than a no-limit saturation test
 
 ## Implemented Measurement Assets
 
@@ -119,48 +118,51 @@ Results:
 
 ## Live Measurement Blocker
 
-The live Compose benchmark planned for this Sprint 11 slice could not run in this session because Docker was unavailable:
+The original Docker-availability blocker was resolved by running the stack from Ubuntu WSL against Docker Desktop.
 
-- `docker compose down --remove-orphans` failed with `Cannot connect to the Docker daemon`
-- gateway, sentiment-service, Prometheus, and Grafana localhost health checks all failed because the stack was not running
+One environment-specific issue remained during packaging:
 
-That means no honest end-to-end platform throughput or latency numbers should be claimed yet from this session.
+- Maven could not write build outputs on the Windows-mounted checkout, so the repo was copied to `/home/ujjawal/StreamSense-Production` for the live run.
 
-## First Live Runs To Execute Once Docker Is Available
+## Live Run Results
 
 ### Baseline
 
-```bash
-make package
-docker compose up -d --build
-python tools/load/chat_ingest_load.py \
-  --base-url http://localhost:8080 \
-  --rate 2 \
-  --duration 30 \
-  --streamers 3 \
-  --output /tmp/streamsense-baseline.json
-```
+- requests attempted: `60`
+- requests succeeded: `48`
+- HTTP request p50: `13.31 ms`
+- HTTP request p95: `16.96 ms`
+- matched sentiment events: `48 / 48`
+- matched sentiment p50: `20.0 ms`
+- matched sentiment p95: `176.5 ms`
+- status codes: `48 x 200`, `12 x 429`
 
 ### Degraded path
 
-```bash
-ML_ENGINE_FORCE_FAILURE=true docker compose up -d ml-engine
-python tools/load/chat_ingest_load.py \
-  --base-url http://localhost:8080 \
-  --rate 2 \
-  --duration 30 \
-  --streamers 3 \
-  --output /tmp/streamsense-degraded.json
-ML_ENGINE_FORCE_FAILURE=false docker compose up -d ml-engine
-```
+- requests attempted: `60`
+- requests succeeded: `14`
+- HTTP request p50: `3.77 ms`
+- HTTP request p95: `13.18 ms`
+- matched sentiment events: `4`
+- unmatched events: `10`
+- matched sentiment p50: `9108.0 ms`
+- matched sentiment p95: `10049.5 ms`
+- status codes: `14 x 200`, `46 x 429`
+
+### Environment Notes
+
+- Docker Desktop 4.69.0 on WSL2
+- Java 21 in Ubuntu WSL
+- Maven 3.8.7 in Ubuntu WSL
+- Node 20.20.2 via `nvm`
+- `kubectl kustomize k8s` rendered successfully
+- `cd frontend && npm run test` passed
+- `make test` passed from the Ubuntu copy of the repo
 
 ## Next Report Update
 
-When Docker is available, update this document with:
+Future updates should focus on:
 
-- environment details for the actual run machine
-- baseline request latency p50 and p95
-- matched sentiment end-to-end p50 and p95
-- fallback or error behavior under `ML_ENGINE_FORCE_FAILURE=true`
-- screenshots or metric references from the performance dashboard
-- any bottleneck observations in Kafka lag, cache ratio, or persistence latency
+- gateway rate-limiting tuning
+- dashboard screenshots or metric references under load
+- Kafka lag, cache ratio, and persistence-latency observations
