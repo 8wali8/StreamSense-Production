@@ -157,31 +157,37 @@ The final repository must include all of the following:
 
 ## Current State Summary
 
-The repository already contains significant platform surface area, but large parts are incomplete, inconsistent, or only partially connected.
+This section reflects the implementation records in `opencodeCommandHistory/` through `2026-04-23-sprint-11-live-compose-benchmark-and-metrics.md`.
 
-What exists in some form:
+The repository is no longer in the original partial-implementation state. Sprints 1 through 11 have been implemented or substantially closed, including the core vertical slices, gateway maturity work, Kubernetes deployment, Kafka metrics, and the first measured Compose benchmark.
 
-- service directories for the expected Spring applications
-- Docker Compose
-- Config Server config repository inside the monorepo
-- monitoring folder with Prometheus and Grafana provisioning skeletons
-- `k8s/` folder placeholder
-- Kafka and topic initialization in Compose
-- a frontend
-- a Python `ml-engine`
-- docs describing architecture and local run steps
+What is now implemented according to the command history:
 
-What remains materially incomplete for final production readiness:
+- repo standards, service metadata cleanup, root task runner updates, CI baseline, and service boot tests
+- Config Server native mode using `config-server/config-repo/`
+- shared HTTP correlation ID filters and common logging/tracing conventions
+- Docker Compose startup hardening for Config Server, Kafka, Postgres, Redis, `ml-engine`, Spring services, monitoring, and frontend
+- GraphQL `health` query returning `ok`
+- chat ingest through `chat-service`, Kafka topic initialization, gateway GraphQL subscription fanout, and frontend live chat rendering
+- `sentiment-service` ownership of the chat -> sentiment pipeline, including ML calls, Postgres persistence, Kafka sentiment events, REST history, GraphQL query/subscription, frontend sentiment UI, metrics, and tests
+- Resilience4j protection around sentiment ML calls, fallback persistence/publication, retry and dead-letter handling for terminal processing failures, chaos toggle support, resilience metrics, and Grafana coverage
+- `video-service` ownership of the frame -> sponsor pipeline, including deterministic sponsor inference, fallback behavior, Postgres persistence, Kafka sponsor events, REST history, GraphQL query/subscription, frontend sponsor UI, metrics, and tests
+- Redis-backed hot-read caching for recent sentiment and sponsor history, with cache hit/miss metrics and dashboard coverage
+- gateway routing, auth hook with local bypass mode, ingest rate limiting, modular GraphQL schema files, subscription reliability improvements, and frontend WebSocket reconnect hardening
+- `recommendation-service` with deterministic explainable recommendations, centralized experiment config, downstream signal aggregation, REST API, GraphQL query, frontend recommendation panel, and metrics
+- local Kubernetes deployment for `kind`, including manifests for core services, supporting infrastructure, monitoring, ingress, ConfigMaps, local image workflow, and runbook
+- Kafka-on-Kubernetes local demo support using the existing Confluent-based deployment, 3-partition topics, streamer-keyed records, kafka-exporter, Prometheus scraping, Grafana Kafka dashboard, and consumer scaling documentation
+- schema contract tests for documented event JSON schemas, GraphQL schema contract protection, load tooling under `tools/load/`, performance dashboarding, and `docs/performance-report.md`
+- live Compose benchmark results captured in `docs/performance-report.md`, including baseline and degraded-path measurements
 
-- one coherent end-to-end sentiment vertical slice still needs to be made fully correct and production-shaped
-- video and sponsor flow are not yet realized at the same level as the chat flow target
-- recommendation flow is not yet implemented at the level implied by the architecture
-- gateway maturity is incomplete around routing, auth, rate limiting, and operational behavior
-- Redis cache strategy is missing
-- Kubernetes deployment work is effectively not started
-- performance measurement and reporting are missing
-- observability exists as scaffolding but not yet as a finished production story
-- docs and runbooks still need to be made trustworthy and complete
+What remains for final production-style closure:
+
+- run the final API-level smoke path against a real Docker daemon from a clean state and record the result
+- run the degraded-path proof runbook and capture the actual final evidence: GraphQL fallback payload, Prometheus fallback/circuit-breaker samples, Zipkin trace ID, and frontend observation note
+- run the new rate-limit-relaxed benchmark mode and update `docs/performance-report.md` with measured results if deeper downstream performance numbers are desired
+- ensure Grafana dashboards are consistently provisioned for both Compose and Kubernetes during the final live demo run
+- document the optional Cassandra profile as non-blocking, or explicitly mark it out of scope if it will not be included
+- validate the final new-machine experience and record whether the full demo can be reproduced in the target time window
 
 ## Cross-Cutting Workstreams
 
@@ -225,7 +231,7 @@ These workstreams apply across multiple weeks and should be treated as always-ac
 
 ## Delivery Phases
 
-The work is organized into twelve weeks. Each week contains detailed objectives, build deliverables, checklists, testing requirements, observability requirements, a demo script target, definition of done, and risks.
+The original work was organized into twelve weeks. The week-by-week sections below are retained as historical roadmap detail and implementation context; they are no longer the current remaining-work checklist. For current remaining work, use `Current State Summary`, `Remaining Priority Ladder`, and `Final Success Criteria Status`.
 
 ---
 
@@ -1387,41 +1393,33 @@ The work is organized into twelve weeks. Each week contains detailed objectives,
 
 ---
 
-## Priority Ladder Inside The 12-Week Plan
+## Remaining Priority Ladder
 
-If sequencing pressure forces prioritization inside this roadmap, use this order:
+The original P0 through P3 items are now mostly complete according to `opencodeCommandHistory/`. If sequencing pressure remains, use this updated order.
 
-### P0 - Core Platform Correctness
+### P0 - Final Demo Runnability
 
-- fix GraphQL `health` mismatch
-- lock service ownership for sentiment flow
-- implement the minimum real `sentiment-service`
-- add Postgres migrations and persistence baseline
-- prevent silent message loss
-- make Docker startup predictable enough for development
+- run `make smoke-e2e` against a real Docker daemon from a clean state
+- fix any startup timing or smoke assertion issues found during that run
+- record the final clean-state result in the docs or command history
 
-### P1 - Product Surface Completion
+### P1 - Demo Tooling And Documentation Polish
 
-- sentiment GraphQL query and subscription
-- frontend sentiment UI
-- `ml-engine` deterministic endpoints
-- video sponsor path
-- gateway maturity basics
+- complete optional Cassandra/out-of-scope documentation
+- perform one final read-through of local and Kubernetes runbooks after the live smoke run
+- update troubleshooting notes with any issues discovered during clean-state validation
 
-### P2 - Reliability And Query Performance
+### P2 - Observability And Resilience Evidence
 
-- Resilience4j rollout
-- retries, dead letters, and fallbacks
-- Redis cache
-- dashboard quality improvements
-- recommendation service and experiment wiring
+- execute `docs/degraded-path-proof.md` and capture the representative evidence it lists
+- verify Compose and Kubernetes Grafana dashboard provisioning during the final live demo run
 
-### P3 - Platform Packaging
+### P3 - Performance And Optional Scope
 
-- Kubernetes manifests
-- Kafka on Kubernetes
-- CI hardening and load testing report
-- demo automation and optional Cassandra profile
+- run the rate-limit-relaxed benchmark mode if downstream saturation numbers are needed
+- update `docs/performance-report.md` with any new relaxed-mode measurements
+- document optional Cassandra as explicitly non-blocking, add a profile only if time remains, or mark it out of scope
+- document the Strimzi/cloud Kafka path as a future adaptation, since the local `kind` implementation intentionally uses the existing Confluent-based deployment
 
 ## Weekly Time Split Guidance
 
@@ -1458,8 +1456,8 @@ Risk:
 
 Mitigation:
 
-- defer Kafka on Kubernetes until week 10
-- use Strimzi or another boring, low-surprise local option
+- local Kubernetes now uses the existing Confluent-based Kafka deployment because it already works for the `kind` demo and avoids Strimzi overhead
+- keep Strimzi documented as the likely future path for cloud-managed Kubernetes rather than migrating the local demo unnecessarily
 
 ### ML Realism Creep
 
@@ -1506,45 +1504,44 @@ Mitigation:
 - publish measured numbers only
 - clearly label design targets versus achieved local results
 
-## Final Success Criteria
+## Final Success Criteria Status
 
-The repository is in the desired final state when all of the following are true:
+According to `opencodeCommandHistory/`, these criteria are implemented or substantially proven:
 
-- `docker compose up -d` can bring up the full local stack reliably
 - Eureka and Config Server work predictably in local development
 - Kafka topics exist and all core event pipelines function
 - `chat-service` only ingests and publishes chat events
 - `sentiment-service` owns sentiment inference, persistence, and historical query behavior
 - `video-service` owns sponsor inference flow and historical query behavior
 - `recommendation-service` returns explainable recommendation results
-- `ml-engine` exposes stable sentiment and sponsor endpoints with deterministic behavior and hardened validation
+- `ml-engine` exposes stable sentiment and sponsor endpoints with deterministic behavior and validation tests
 - GraphQL gateway exposes working queries and subscriptions for chat, sentiment, sponsor, and recommendations where planned
-- frontend displays live and historical analytics, not just raw event text
+- frontend displays live and historical analytics for chat, sentiment, sponsor detections, and recommendations
 - Postgres schema is created automatically with migrations
 - Redis is used for hot historical queries and that usage is visible in metrics
 - failures are retried, dead-lettered, or fall back in explicit ways rather than being silently dropped
-- Prometheus, Grafana, and Zipkin provide meaningful operational visibility
+- Prometheus, Grafana, and Zipkin provide operational visibility across the main services
 - CI runs useful automated tests across Java, Python, and frontend code
-- load testing can be executed and results are documented honestly
-- `k8s/` manifests deploy the platform to `kind` or `minikube` with documented steps
-- docs, runbooks, and troubleshooting material match the actual implementation
-- a new machine can reproduce the end-of-week-12 demo in reasonable time
+- load testing can be executed and first measured results are documented honestly
+- `k8s/` manifests deploy the platform to local `kind` with documented steps
+
+These criteria still need final closure or stronger proof:
+
+- the canonical full-stack local start path should be verified by running `make smoke-e2e` from a clean state
+- degraded-path observability should be captured by executing `docs/degraded-path-proof.md`
+- frontend fallback behavior should have final browser-level evidence or documented manual verification from the degraded-path proof run
+- rate-limit-relaxed benchmark results should be added if downstream saturation numbers are desired
+- the new-machine reproduction target should be tested and recorded
 
 ## Final Execution Summary
 
-If only the shortest possible summary of this entire document is needed, it is this:
+If only the shortest possible summary of what remains is needed, it is this:
 
-1. Stabilize the platform skeleton and centralized config.
-2. Make chat -> Kafka -> gateway -> frontend work reliably.
-3. Make chat -> sentiment -> persistence -> GraphQL -> frontend fully real.
-4. Add resilience, retries, dead-letter handling, and fallback behavior.
-5. Build the video -> sponsor path.
-6. Add Redis caching and service-owned history queries.
-7. Mature the gateway with routing, auth hooks, rate limiting, and subscription reliability.
-8. Implement recommendations and experiment config wiring.
-9. Deploy the stack to local Kubernetes.
-10. Put Kafka on Kubernetes and demonstrate scaling.
-11. Harden CI, tests, and load reporting.
-12. Package the repository as a production-style demo with runbooks, dashboards, traces, and optional Cassandra planning.
+1. Freeze feature scope; the main platform, data paths, gateway, Kubernetes, CI, and load-reporting work are already implemented according to the command history.
+2. Run the final `make smoke-e2e` path against Docker from a clean state and fix any issues found.
+3. Execute the degraded-path proof runbook and record Zipkin, Grafana/Prometheus, and frontend evidence.
+4. Run the rate-limit-relaxed benchmark mode only if deeper downstream measurements are needed.
+5. Document optional Cassandra and cloud/Strimzi Kafka as future/non-blocking paths unless there is time to implement them safely.
+6. Validate and record the new-machine reproduction experience.
 
-That is the full scope required for a final production-shaped repository.
+That is the remaining scope required to turn the implemented platform into a final production-shaped demo package.

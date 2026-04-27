@@ -239,6 +239,27 @@ After gateway traffic, verify that traces arrived:
 curl -s -H 'Host: zipkin.streamsense.local' http://127.0.0.1/api/v2/services
 ```
 
+## Gateway Demo Toggles
+
+The local `kind` manifests keep the same defaults as Compose:
+
+- `STREAMSENSE_GATEWAY_AUTH_ENABLED=false`
+- `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true`
+
+For a backend-focused benchmark in `kind`, patch the gateway deployment temporarily:
+
+```bash
+kubectl -n streamsense set env deployment/api-gateway STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=false
+kubectl -n streamsense rollout status deployment/api-gateway
+```
+
+Restore the normal demo policy afterward:
+
+```bash
+kubectl -n streamsense set env deployment/api-gateway STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true
+kubectl -n streamsense rollout status deployment/api-gateway
+```
+
 ## Troubleshooting
 
 ### Pods are stuck in `ImagePullBackOff`

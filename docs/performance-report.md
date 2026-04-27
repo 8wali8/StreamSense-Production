@@ -1,168 +1,161 @@
-# Sprint 11 Performance Report
+# Performance Report
 
 ## Status
 
-This is the first Sprint 11 performance working document.
+This report includes the first live Compose benchmark captured in `opencodeCommandHistory/2026-04-23-sprint-11-live-compose-benchmark-and-metrics.md`.
 
-What is complete in this iteration:
-
-- repeatable chat-ingest load tooling exists under `tools/load/`
-- performance-oriented Grafana dashboard provisioning exists for Docker and Kubernetes
-- schema drift protection now exists for the documented core event contracts
-- sentiment and sponsor services now emit persistence and end-to-end latency timers
-
-What is not complete in this iteration:
-
-- the live benchmark exposed gateway rate limiting at the current test rate, so the numbers below reflect current behavior rather than a no-limit saturation test
+The measured numbers are local-demo measurements, not cloud production claims. Gateway rate limiting was active during the recorded run, so `429` responses are part of the current-system result.
 
 ## Implemented Measurement Assets
 
-### Load tooling
+Load tooling:
 
 - `tools/load/chat_ingest_load.py`
 - `tools/load/README.md`
 
-The load tool:
+Demo and smoke tooling:
 
-- sends paced `POST /api/chat/ingest` requests through the gateway path
-- records request latency and status codes
-- captures returned `eventId` values
-- queries `GET /api/sentiment/recent` after a settle period
-- computes matched end-to-end sentiment latency from `processedAt - ingest timestamp`
+- `tools/demo/seed_demo.py`
+- `tools/demo/open_demo.py`
+- `tools/smoke/compose_smoke.py`
 
-### Dashboarding
+Dashboarding:
 
 - Docker Grafana dashboard: `monitoring/grafana/provisioning/dashboards/performance-overview.json`
 - Kubernetes Grafana ConfigMap embed: `k8s/config/grafana-config.yaml`
 
-Dashboard panels added:
-
-- chat ingest rate
-- total consumer lag
-- cache hit ratio
-- fallback rate
-- sentiment and sponsor end-to-end latency p95
-- sentiment and sponsor persistence latency p95
-- sentiment and sponsor ML inference latency p95
-- Kafka produce and consume rates
-
-### New service metrics
+Service metrics:
 
 - `streamsense_sentiment_persistence_latency_ms`
 - `streamsense_sentiment_end_to_end_latency_ms`
 - `streamsense_sponsor_persistence_latency_ms`
 - `streamsense_sponsor_end_to_end_latency_ms`
 
-## Verification Completed
+Contract protection:
 
-### Contract protection
+- JSON schema tests for chat, sentiment, and video events
+- GraphQL schema contract coverage in `api-gateway`
 
-Executed:
+## Live Environment
 
-- `cd chat-service && mvn -Dtest=ChatMessageSchemaContractTest test`
-- `cd sentiment-service && mvn clean -Dtest=SentimentAnalysisSchemaContractTest test`
-- `cd video-service && mvn -Dtest=VideoEventSchemaContractTest test`
+The first live benchmark was run from an Ubuntu WSL copy of the repo with Docker Desktop integration.
 
-The new contract tests verify that documented JSON schemas match the actual serialized event shapes used by the services.
+Tools used:
 
-### Affected service suites
+- Java 21
+- Maven 3.8.7
+- Node 20.20.2
+- Python
+- Docker CLI / Docker Desktop 4.69.0 on WSL2
+- `kubectl`
+- `make`
 
-Executed:
+Startup and verification commands:
 
-- `cd chat-service && mvn test`
-- `cd sentiment-service && mvn test`
-- `cd video-service && mvn test`
+```bash
+make package
+docker compose up -d --build
+kubectl kustomize k8s
+cd frontend && npm run test
+make test
+```
 
-These runs verified that the added latency timers did not break the existing service suites.
+Health checks passed for:
 
-### Load tool validation
+- `http://localhost:8080/actuator/health`
+- `http://localhost:8083/actuator/health`
+- `http://localhost:8084/actuator/health`
+- `http://localhost:8000/ml/health`
+- `http://localhost:9090/-/healthy`
+- `http://localhost:3001/api/health`
 
-Because the real stack was unavailable, the load tool was validated end-to-end against a local mock HTTP server that simulated:
+## Baseline Run
 
-- `POST /api/chat/ingest`
-- `GET /api/sentiment/recent`
+Command:
 
-Executed scenario:
-
-- rate: `2 req/s`
-- duration: `5s`
-- streamers: `2`
-- settle period: `1s`
-
-Observed tooling-validation result:
-
-| Metric | Value |
-|------|------|
-| Requests attempted | `10` |
-| Requests succeeded | `10` |
-| HTTP request mean latency | `4.15 ms` |
-| HTTP request p95 latency | `14.71 ms` |
-| Matched sentiment events | `10 / 10` |
-| Matched sentiment end-to-end p95 | `250.0 ms` |
-
-These numbers validate the tool mechanics only. They are not platform performance claims.
-
-### Dashboard and manifest validation
-
-Executed:
-
-- `kubectl kustomize k8s > /tmp/streamsense-k8s-rendered.yaml`
-- JSON validation for `k8s/config/grafana-config.yaml`
-- JSON validation for `monitoring/grafana/provisioning/dashboards/performance-overview.json`
+```bash
+python3 tools/load/chat_ingest_load.py \
+  --base-url http://localhost:8080 \
+  --rate 2 \
+  --duration 30 \
+  --streamers 3 \
+  --output /tmp/streamsense-baseline.json
+```
 
 Results:
 
-- Kubernetes manifests rendered successfully
-- embedded Grafana dashboard JSON parsed successfully
-- Docker Grafana dashboard JSON parsed successfully
+| Metric | Value |
+|------|------|
+| Requests attempted | `60` |
+| Requests succeeded | `48` |
+| HTTP p50 | `13.31 ms` |
+| HTTP p95 | `16.96 ms` |
+| Matched sentiment events | `48 / 48` |
+| Sentiment p50 | `20.0 ms` |
+| Sentiment p95 | `176.5 ms` |
+| Status codes | `48 x 200`, `12 x 429` |
 
-## Live Measurement Blocker
+Interpretation:
 
-The original Docker-availability blocker was resolved by running the stack from Ubuntu WSL against Docker Desktop.
+- successful requests were processed and matched back to sentiment history
+- `429` responses came from the current gateway rate-limit policy
+- these numbers measure the demo stack with edge protection enabled
 
-One environment-specific issue remained during packaging:
+## Degraded-Path Run
 
-- Maven could not write build outputs on the Windows-mounted checkout, so the repo was copied to `/home/ujjawal/StreamSense-Production` for the live run.
+Command:
 
-## Live Run Results
+```bash
+ML_ENGINE_FORCE_FAILURE=true docker compose up -d ml-engine
+python3 tools/load/chat_ingest_load.py \
+  --base-url http://localhost:8080 \
+  --rate 2 \
+  --duration 30 \
+  --streamers 3 \
+  --output /tmp/streamsense-degraded.json
+ML_ENGINE_FORCE_FAILURE=false docker compose up -d ml-engine
+```
 
-### Baseline
+Results:
 
-- requests attempted: `60`
-- requests succeeded: `48`
-- HTTP request p50: `13.31 ms`
-- HTTP request p95: `16.96 ms`
-- matched sentiment events: `48 / 48`
-- matched sentiment p50: `20.0 ms`
-- matched sentiment p95: `176.5 ms`
-- status codes: `48 x 200`, `12 x 429`
+| Metric | Value |
+|------|------|
+| Requests attempted | `60` |
+| Requests succeeded | `14` |
+| HTTP p50 | `3.77 ms` |
+| HTTP p95 | `13.18 ms` |
+| Matched sentiment events | `4` |
+| Unmatched events | `10` |
+| Sentiment p50 | `9108.0 ms` |
+| Sentiment p95 | `10049.5 ms` |
+| Status codes | `14 x 200`, `46 x 429` |
 
-### Degraded path
+Interpretation:
 
-- requests attempted: `60`
-- requests succeeded: `14`
-- HTTP request p50: `3.77 ms`
-- HTTP request p95: `13.18 ms`
-- matched sentiment events: `4`
-- unmatched events: `10`
-- matched sentiment p50: `9108.0 ms`
-- matched sentiment p95: `10049.5 ms`
-- status codes: `14 x 200`, `46 x 429`
+- gateway rate limiting dominated the degraded run
+- matched degraded sentiment latency reflects fallback/retry behavior under forced ML failure
+- unmatched events likely needed a longer settle window or were still processing when the load tool queried recent history
 
-### Environment Notes
+## Rate-Limit-Relaxed Benchmark Mode
 
-- Docker Desktop 4.69.0 on WSL2
-- Java 21 in Ubuntu WSL
-- Maven 3.8.7 in Ubuntu WSL
-- Node 20.20.2 via `nvm`
-- `kubectl kustomize k8s` rendered successfully
-- `cd frontend && npm run test` passed
-- `make test` passed from the Ubuntu copy of the repo
+Use this mode when the measurement goal is downstream processing behavior rather than current edge rejection behavior.
 
-## Next Report Update
+```bash
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=false docker compose up -d api-gateway
+python tools/load/chat_ingest_load.py \
+  --base-url http://localhost:8080 \
+  --rate 2 \
+  --duration 30 \
+  --streamers 3 \
+  --output /tmp/streamsense-relaxed.json
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true docker compose up -d api-gateway
+```
 
-Future updates should focus on:
+Label any results from this mode separately. They are not directly comparable to the default edge-protected benchmark.
 
-- gateway rate-limiting tuning
-- dashboard screenshots or metric references under load
-- Kafka lag, cache ratio, and persistence-latency observations
+## Remaining Performance Work
+
+- run and record one rate-limit-relaxed baseline
+- run and record one rate-limit-relaxed degraded-path benchmark with a longer settle window
+- attach Grafana/Prometheus observations for Kafka lag, cache hit ratio, fallback rate, and persistence latency
+- keep all README or demo claims limited to measured values from this report

@@ -22,41 +22,52 @@ npm install -g wscat
 
 ---
 
-# Quickstart (Docker Compose)
+# Final Quickstart (Docker Compose)
 
-This repo is Docker-first.
+This repo is Docker-first. Spring services talk to `config-server`, `eureka-server`, `kafka`, and the other containers through Docker DNS.
 
-- Spring services talk to `config-server`, `eureka-server`, `kafka`, and the other containers through Docker DNS.
-- Java Dockerfiles currently copy `target/*.jar`, so package those JARs before Compose builds the images.
+The canonical local demo command is:
 
-## 1. Build service JARs
-
-Each Java Dockerfile copies `target/*.jar`, so build the Java services first:
-
-```
-cd <service>
-mvn clean package -DskipTests
+```bash
+make up
 ```
 
-Services:
+`make up` packages the Java service JARs, builds images, and starts the full Compose stack with `docker compose up -d --build`.
 
-- eureka-server
-- config-server
-- api-gateway
-- chat-service
-- sentiment-service
-- video-service
-- recommendation-service
+If the JARs and images are already current, use the faster path:
 
----
-
-## 2. Start the stack
-
-From repo root, start the full stack:
-
+```bash
+make up-fast
 ```
+
+Run the final API-level smoke path from a clean Compose state:
+
+```bash
+make smoke-e2e
+```
+
+Seed demo data into an already-running stack:
+
+```bash
+make demo-seed
+```
+
+Print and open the main demo surfaces:
+
+```bash
+make demo-open
+```
+
+Equivalent manual startup, if you do not use `make`:
+
+```bash
+make package
 docker compose up -d --build
 ```
+
+The sprint-by-sprint sections below are retained as historical verification detail. For a final demo, prefer the commands above.
+
+## Gateway Toggles
 
 Gateway auth is disabled by default for local Docker work. To restart only the gateway with auth enabled:
 
@@ -68,6 +79,18 @@ Restore the local bypass mode with:
 
 ```bash
 STREAMSENSE_GATEWAY_AUTH_ENABLED=false docker compose up -d api-gateway
+```
+
+Gateway rate limiting is enabled by default. To run a backend benchmark without edge `429` responses:
+
+```bash
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=false docker compose up -d api-gateway
+```
+
+Restore the normal demo policy with:
+
+```bash
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true docker compose up -d api-gateway
 ```
 
 ## Sprint 2 quickstart
@@ -853,6 +876,31 @@ streamsense_recommendation_latency_ms_count
 
 ---
 
+# Final Demo Script
+
+Use this sequence for the production-shaped local demo:
+
+```bash
+make smoke-e2e
+make up
+make demo-seed
+make demo-open
+```
+
+Expected visible surfaces:
+
+- frontend at `http://localhost:3000` shows live/historical analytics
+- GraphQL `query { health }` returns `ok` at `http://localhost:8080/graphql`
+- Grafana at `http://localhost:3001` has provisioned dashboards, login `admin/admin`
+- Zipkin at `http://localhost:9411` lists StreamSense services after traffic has flowed
+- Prometheus at `http://localhost:9090` can query StreamSense metrics
+
+For degraded-path evidence, use `docs/degraded-path-proof.md`.
+
+For load runs, use `tools/load/README.md`.
+
+---
+
 # Useful Commands
 
 List containers:
@@ -922,3 +970,54 @@ Check:
 - topic name `stream.chat.messages`
 - WebSocket protocol `graphql-transport-ws`
 - streamer filter matches subscription variable
+
+---
+
+### Gateway returns `429` during load tests
+
+This is expected when the default edge policy is active. It proves rate limiting is working.
+
+For a backend-focused benchmark, temporarily disable gateway rate limiting:
+
+```bash
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=false docker compose up -d api-gateway
+```
+
+Restore it after the run:
+
+```bash
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true docker compose up -d api-gateway
+```
+
+---
+
+### Redis cache metrics do not move
+
+Query the same history endpoint twice for the same streamer and limit. The first request should miss and populate Redis; the second should hit.
+
+Prometheus queries:
+
+```promql
+streamsense_cache_hits_total
+streamsense_cache_misses_total
+```
+
+---
+
+### Zipkin has no useful traces
+
+Generate fresh traffic after the stack is healthy:
+
+```bash
+python tools/demo/seed_demo.py --streamer trace-proof
+```
+
+Then open `http://localhost:9411` and search for `api-gateway`, `chat-service`, `sentiment-service`, or `video-service`.
+
+---
+
+### Degraded fallback is not visible
+
+Use the dedicated proof runbook: `docs/degraded-path-proof.md`.
+
+The most common issue is seeding one streamer while viewing another streamer in the UI or GraphQL query.
