@@ -7,8 +7,8 @@
 #   make test SERVICE=api-gateway
 #   make build SERVICE=config-server
 #
-# Requires: docker + docker compose
-# Optional: mvn (for local unit tests outside docker)
+# Requires: docker + docker compose + Java 21 + Maven
+# Optional: Node/Python for local tests and demo tooling
 
 SHELL := /bin/bash
 
@@ -36,11 +36,15 @@ endef
 help:
 	@echo ""
 	@echo "Common:"
-	@echo "  make up            Build (if needed) + start everything (detached)"
+	@echo "  make up            Package Java, build images, start everything"
+	@echo "  make up-fast       Start existing images/containers without packaging"
 	@echo "  make down          Stop everything"
 	@echo "  make restart       down then up"
 	@echo "  make logs          Follow logs for all services"
 	@echo "  make ps            Show running containers"
+	@echo "  make smoke-e2e     Run final API-level Compose smoke path"
+	@echo "  make demo-seed     Seed demo chat and video-frame data"
+	@echo "  make demo-open     Print/open demo URLs"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build         Build all docker images"
@@ -70,8 +74,13 @@ build:
 	fi
 
 .PHONY: up
-up:
-	@echo "Starting system (detached)..."
+up: package
+	@echo "Building images and starting system (detached)..."
+	@$(COMPOSE) $(COMPOSE_FILE) up -d --build
+
+.PHONY: up-fast
+up-fast:
+	@echo "Starting existing system (detached, no package/build)..."
 	@$(COMPOSE) $(COMPOSE_FILE) up -d
 
 .PHONY: down
@@ -161,3 +170,15 @@ package-one:
 	$(assert_service)
 	@echo "Packaging $(SERVICE)..."
 	@cd $(SERVICE) && mvn -q -DskipTests package
+
+.PHONY: demo-seed
+demo-seed:
+	@python tools/demo/seed_demo.py
+
+.PHONY: demo-open
+demo-open:
+	@python tools/demo/open_demo.py
+
+.PHONY: smoke-e2e
+smoke-e2e:
+	@python tools/smoke/compose_smoke.py --start-compose --teardown

@@ -165,10 +165,22 @@ Testing:
 
 Use `docs/howtorun.md` for the Docker-first runbook.
 
+Canonical local demo start:
+
+```bash
+make up
+```
+
+Final API-level smoke path:
+
+```bash
+make smoke-e2e
+```
+
 Important:
 
 - Java service Dockerfiles use the current prebuilt-JAR workflow.
-- Build the Java service JARs before running `docker compose up --build`.
+- `make up` packages Java service JARs before running `docker compose up -d --build`.
 - Config Server serves files from `config-server/config-repo/`.
 
 # License
