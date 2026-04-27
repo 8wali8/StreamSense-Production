@@ -64,6 +64,8 @@ spec:
               value: kafka:9092
             - name: STREAMSENSE_GATEWAY_AUTH_ENABLED
               value: "false"
+            - name: STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED
+              value: "true"
             - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
               value: "true"
           ports:

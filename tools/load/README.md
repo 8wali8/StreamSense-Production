@@ -30,3 +30,18 @@ Notes:
 - keep runs small enough that recent history queries stay within the current service `limit` cap of `100`
 - the tool is intentionally dependency-light and uses only the Python standard library
 - for a degraded-path run, restart `ml-engine` with `ML_ENGINE_FORCE_FAILURE=true` and then run the same command again
+- default benchmark runs include gateway rate limiting, so `429` responses are valid current-system behavior
+- for a deeper backend benchmark without edge rejection, restart the gateway with `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=false`
+
+Rate-limit-relaxed example:
+
+```bash
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=false docker compose up -d api-gateway
+python tools/load/chat_ingest_load.py \
+  --base-url http://localhost:8080 \
+  --rate 2 \
+  --duration 30 \
+  --streamers 3 \
+  --output /tmp/streamsense-chat-load-relaxed.json
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true docker compose up -d api-gateway
+```

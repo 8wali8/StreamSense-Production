@@ -38,6 +38,10 @@ public class GatewayRateLimitWebFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        if (!properties.isRateLimitEnabled()) {
+            return chain.filter(exchange);
+        }
+
         GatewayEdgeProperties.RateLimitRule matchingRule = findMatchingRule(exchange);
         if (matchingRule == null) {
             return chain.filter(exchange);

@@ -10,6 +10,7 @@ public class GatewayEdgeProperties {
 
     private final Auth auth = new Auth();
     private final List<RateLimitRule> rateLimits = new ArrayList<>();
+    private boolean rateLimitEnabled = true;
 
     public Auth getAuth() {
         return auth;
@@ -17,6 +18,14 @@ public class GatewayEdgeProperties {
 
     public List<RateLimitRule> getRateLimits() {
         return rateLimits;
+    }
+
+    public boolean isRateLimitEnabled() {
+        return rateLimitEnabled;
+    }
+
+    public void setRateLimitEnabled(boolean rateLimitEnabled) {
+        this.rateLimitEnabled = rateLimitEnabled;
     }
 
     public static class Auth {
