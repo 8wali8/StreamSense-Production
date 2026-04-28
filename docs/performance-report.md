@@ -2,7 +2,7 @@
 
 ## Status
 
-This report includes the first live Compose benchmark captured in `opencodeCommandHistory/2026-04-23-sprint-11-live-compose-benchmark-and-metrics.md`.
+This report includes the first live Compose benchmark captured in `opencodeCommandHistory/2026-04-23-sprint-11-live-compose-benchmark-and-metrics.md` and the first rate-limit-relaxed benchmark captured in `opencodeCommandHistory/2026-04-28-rate-limit-relaxed-benchmark.md`.
 
 The measured numbers are local-demo measurements, not cloud production claims. Gateway rate limiting was active during the recorded run, so `429` responses are part of the current-system result.
 
@@ -153,9 +153,60 @@ STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true docker compose up -d api-gateway
 
 Label any results from this mode separately. They are not directly comparable to the default edge-protected benchmark.
 
+## Rate-Limit-Relaxed Baseline Run
+
+Command:
+
+```bash
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=false docker compose up -d --force-recreate api-gateway
+python3 tools/load/chat_ingest_load.py \
+  --base-url http://localhost:8080 \
+  --rate 2 \
+  --duration 30 \
+  --streamers 3 \
+  --output /tmp/streamsense-relaxed-2026-04-28.json
+STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true docker compose up -d --force-recreate api-gateway
+```
+
+Results:
+
+| Metric | Value |
+|------|------|
+| Requests attempted | `60` |
+| Requests succeeded | `60` |
+| Achieved request rate | `2.03 req/s` |
+| HTTP p50 | `11.82 ms` |
+| HTTP p95 | `18.62 ms` |
+| Matched sentiment events | `60 / 60` |
+| Sentiment p50 | `19.0 ms` |
+| Sentiment p95 | `34.35 ms` |
+| Status codes | `60 x 200` |
+
+Supporting Prometheus observations captured immediately after the run:
+
+| Metric | Value |
+|------|------|
+| `sum(kafka_consumergroup_lag)` | `0` |
+| `streamsense_cache_hits_total{cache="recentSentiment"}` | absent, treated as `0` |
+| `streamsense_cache_misses_total{cache="recentSentiment"}` | `3` |
+| `streamsense_sentiment_fallback_total` | absent, treated as `0` |
+| `streamsense_gateway_rate_limit_rejections_total` | absent while disabled, treated as `0` |
+| `streamsense_sentiment_persistence_latency_ms_seconds_count` | `60` |
+| `streamsense_sentiment_persistence_latency_ms_seconds_sum` | `0.172752129 s` |
+| `streamsense_sentiment_persistence_latency_ms_seconds_max` | `0.079001168 s` |
+| `streamsense_sentiment_end_to_end_latency_ms_seconds_count` | `60` |
+| `streamsense_sentiment_end_to_end_latency_ms_seconds_sum` | `3.064 s` |
+| `streamsense_sentiment_end_to_end_latency_ms_seconds_max` | `1.104 s` |
+
+Interpretation:
+
+- disabling the gateway rate limiter removed edge rejections for this run
+- the downstream chat -> sentiment path processed and persisted every accepted event within the load tool settle window
+- Kafka consumer lag was `0` at the post-run Prometheus sample
+- cache misses were expected for the three streamer history reads performed by the load tool; no cache hits were observed during this one-shot run
+
 ## Remaining Performance Work
 
-- run and record one rate-limit-relaxed baseline
 - run and record one rate-limit-relaxed degraded-path benchmark with a longer settle window
-- attach Grafana/Prometheus observations for Kafka lag, cache hit ratio, fallback rate, and persistence latency
+- attach Grafana screenshots or dashboard observations for Kafka lag, cache hit ratio, fallback rate, and persistence latency if needed for final demo evidence
 - keep all README or demo claims limited to measured values from this report
