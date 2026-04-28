@@ -1,7 +1,6 @@
 package com.streamsense.chatservice.controller;
 
-import com.streamsense.chatservice.kafka.ChatKafkaProducer;
-import com.streamsense.chatservice.metrics.ChatMetrics;
+import com.streamsense.chatservice.service.ChatEventIngestService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -11,9 +10,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -24,10 +23,7 @@ class ChatIngestControllerTest {
         private MockMvc mockMvc;
 
         @MockBean
-        private ChatKafkaProducer producer;
-
-        @MockBean
-        private ChatMetrics chatMetrics;
+        private ChatEventIngestService ingestService;
 
         @Test
         void ingest_missingMessage_returns4xx() throws Exception {
@@ -44,11 +40,13 @@ class ChatIngestControllerTest {
                                 .content(body))
                                 .andExpect(status().is4xxClientError());
 
-                verify(producer, never()).publish(any(), any(), any());
+                verify(ingestService, never()).ingestSynthetic(any(), any(), any());
         }
 
         @Test
         void ingest_validPayload_returns2xxAndEventId() throws Exception {
+                when(ingestService.ingestSynthetic(any(), any(), any())).thenReturn("event-1");
+
                 String body = """
                                 {
                                   "streamer": "test",
@@ -65,7 +63,6 @@ class ChatIngestControllerTest {
                                 .andExpect(header().exists("X-Correlation-Id"))
                                 .andExpect(jsonPath("$.eventId", notNullValue()));
 
-                verify(producer).publish(any(), any(), any());
-                verify(chatMetrics).incrementChatIngest();
+                verify(ingestService).ingestSynthetic(any(), any(), any());
         }
 }

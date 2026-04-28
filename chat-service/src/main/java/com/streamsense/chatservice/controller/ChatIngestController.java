@@ -1,7 +1,5 @@
 package com.streamsense.chatservice.controller;
 
-import java.util.UUID;
-
 import jakarta.validation.Valid;
 
 import org.slf4j.MDC;
@@ -11,20 +9,16 @@ import org.springframework.web.bind.annotation.*;
 import com.streamsense.chatservice.api.ChatIngestRequest;
 import com.streamsense.chatservice.api.ChatIngestResponse;
 import com.streamsense.chatservice.config.CorrelationIdFilter;
-import com.streamsense.chatservice.events.ChatMessageEvent;
-import com.streamsense.chatservice.kafka.ChatKafkaProducer;
-import com.streamsense.chatservice.metrics.ChatMetrics;
+import com.streamsense.chatservice.service.ChatEventIngestService;
 
 @RestController
 @RequestMapping("/api/chat")
 public class ChatIngestController {
 
-    private final ChatKafkaProducer producer;
-    private final ChatMetrics chatMetrics;
+    private final ChatEventIngestService ingestService;
 
-    public ChatIngestController(ChatKafkaProducer producer, ChatMetrics chatMetrics) {
-        this.producer = producer;
-        this.chatMetrics = chatMetrics;
+    public ChatIngestController(ChatEventIngestService ingestService) {
+        this.ingestService = ingestService;
     }
 
     @PostMapping("/ingest")
@@ -34,17 +28,10 @@ public class ChatIngestController {
             @RequestHeader(value = CorrelationIdFilter.CORRELATION_ID_KEY, required = false) String legacyCorrelationId,
             @RequestHeader(value = "traceparent", required = false) String traceparent) {
 
-        String eventId = UUID.randomUUID().toString();
-
-        ChatMessageEvent event = new ChatMessageEvent(
-                eventId,
-                req.getStreamer(),
-                req.getUser(),
-                req.getMessage(),
-                req.getTimestamp());
-
-        producer.publish(event, firstNonBlank(correlationId, legacyCorrelationId, MDC.get(CorrelationIdFilter.CORRELATION_ID_KEY)), traceparent);
-        chatMetrics.incrementChatIngest();
+        String eventId = ingestService.ingestSynthetic(
+                req,
+                firstNonBlank(correlationId, legacyCorrelationId, MDC.get(CorrelationIdFilter.CORRELATION_ID_KEY)),
+                traceparent);
 
         return ResponseEntity.ok(new ChatIngestResponse(eventId));
     }
