@@ -18,10 +18,16 @@ function formatTime(ts: number): string {
     return new Date(ts).toLocaleTimeString();
 }
 
-export function LiveChat() {
-    const [streamerInput, setStreamerInput] = useState("test");
-    const [activeStreamer, setActiveStreamer] = useState<string>("");
-    const [connected, setConnected] = useState(false);
+type LiveChatProps = {
+    streamer?: string;
+    autoConnect?: boolean;
+    hideControls?: boolean;
+};
+
+export function LiveChat({ streamer, autoConnect = false, hideControls = false }: LiveChatProps) {
+    const [streamerInput, setStreamerInput] = useState(streamer ?? "test");
+    const [activeStreamer, setActiveStreamer] = useState<string>(autoConnect && streamer ? streamer : "");
+    const [connected, setConnected] = useState(Boolean(autoConnect && streamer));
 
     const [events, setEvents] = useState<ChatMessageEvent[]>([]);
     const seenIdsRef = useRef<Set<string>>(new Set());
@@ -59,60 +65,59 @@ export function LiveChat() {
         setConnected(false);
     }
 
+    const statusText = !connected ? "disconnected" : error ? `error (${error.message})` : `listening (streamer=${activeStreamer})`;
+
     return (
-        <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", fontFamily: "system-ui" }}>
-            <h1 style={{ marginBottom: 8 }}>Live Chat</h1>
-
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={{ fontSize: 12, opacity: 0.7 }}>Streamer</span>
-                    <input
-                        value={streamerInput}
-                        onChange={(e) => setStreamerInput(e.target.value)}
-                        placeholder="e.g. test"
-                        style={{ padding: 8, width: 220 }}
-                    />
-                </label>
-
-                {!connected ? (
-                    <button onClick={onConnect} style={{ padding: "10px 14px", cursor: "pointer" }}>
-                        Connect
-                    </button>
-                ) : (
-                    <button onClick={onDisconnect} style={{ padding: "10px 14px", cursor: "pointer" }}>
-                        Disconnect
-                    </button>
-                )}
-
-                <div style={{ marginLeft: "auto", fontSize: 12, opacity: 0.8 }}>
-                    Status:{" "}
-                    {!connected ? "disconnected" : error ? `error (${error.message})` : `listening (streamer=${activeStreamer})`}
+        <section className="dashboard-panel" id="evidence">
+            <div className="panel-title-row panel-heading">
+                <div>
+                    <div className="eyebrow">Audience evidence</div>
+                    <h2>Live Chat</h2>
+                    <p>Raw audience messages that feed the sentiment pipeline.</p>
                 </div>
+                <span className="status-pill">{events.length} messages</span>
             </div>
 
-            <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
-                    Showing last {events.length} messages
-                </div>
+            {!hideControls && (
+                <div className="panel-actions">
+                    <label>
+                        <span className="field-label">Streamer</span>
+                        <input
+                            className="text-input"
+                            value={streamerInput}
+                            onChange={(e) => setStreamerInput(e.target.value)}
+                            placeholder="e.g. test"
+                        />
+                    </label>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {events.map((e) => (
-                        <div key={e.eventId} style={{ borderBottom: "1px solid #f0f0f0", paddingBottom: 8 }}>
-                            <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                [{formatTime(e.timestamp)}] {e.streamer} • eventId={e.eventId}
-                            </div>
-                            <div style={{ fontWeight: 600 }}>{e.user}</div>
-                            <div>{e.message}</div>
-                        </div>
-                    ))}
-
-                    {events.length === 0 && (
-                        <div style={{ opacity: 0.7 }}>
-                            {connected ? "No messages yet — ingest some events." : "Connect to start receiving events."}
-                        </div>
+                    {!connected ? (
+                        <button className="button-primary" onClick={onConnect}>Connect</button>
+                    ) : (
+                        <button className="button-secondary" onClick={onDisconnect}>Disconnect</button>
                     )}
                 </div>
+            )}
+
+            <div className="status-line">Status: {statusText}</div>
+
+            <div className="event-list">
+                {events.map((e) => (
+                    <article className="event-card" key={e.eventId}>
+                        <div className="event-card-header">
+                            <span className="event-meta">[{formatTime(e.timestamp)}] {e.streamer} • eventId={e.eventId}</span>
+                            <span className="tag">chat</span>
+                        </div>
+                        <strong>{e.user}</strong>
+                        <p>{e.message}</p>
+                    </article>
+                ))}
+
+                {events.length === 0 && (
+                    <div className="empty-state">
+                        {connected ? "No messages yet — ingest some events." : "Connect to start receiving events."}
+                    </div>
+                )}
             </div>
-        </div>
+        </section>
     );
 }

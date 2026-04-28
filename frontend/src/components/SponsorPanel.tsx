@@ -41,10 +41,16 @@ function sponsorTone(sponsor: string): string {
   return "#0f766e";
 }
 
-export function SponsorPanel() {
+type SponsorPanelProps = {
+  streamer?: string;
+  hideControls?: boolean;
+};
+
+export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelProps) {
   const [streamerInput, setStreamerInput] = useState("test");
-  const [activeStreamer, setActiveStreamer] = useState("test");
+  const [localStreamer, setLocalStreamer] = useState("test");
   const [liveEvents, setLiveEvents] = useState<SponsorDetectionEvent[]>([]);
+  const activeStreamer = streamer ?? localStreamer;
 
   const { data, loading, error } = useQuery<RecentSponsorDetectionsData>(RECENT_SPONSOR_DETECTIONS_QUERY, {
     variables: { streamer: activeStreamer, limit: 20 },
@@ -82,7 +88,7 @@ export function SponsorPanel() {
     }
 
     setLiveEvents([]);
-    setActiveStreamer(nextStreamer);
+    setLocalStreamer(nextStreamer);
   }
 
   const averageConfidence =
@@ -92,67 +98,53 @@ export function SponsorPanel() {
   const recentTrend = events.slice(0, 8);
 
   return (
-    <section
-      style={{
-        border: "1px solid #d9e1ec",
-        borderRadius: 16,
-        padding: 16,
-        background: "#fff8f3",
-        minHeight: 420,
-      }}
-    >
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 16 }}>
+    <section className="dashboard-panel">
+      <div className="panel-title-row panel-heading">
         <div>
-          <h2 style={{ margin: 0 }}>Sponsors</h2>
-          <div style={{ fontSize: 13, opacity: 0.75 }}>Recent sponsor detections with live auto-reconnect updates</div>
+          <div className="eyebrow">Sponsor visibility</div>
+          <h2>Sponsors</h2>
+          <p>Recent sponsor detections with live auto-reconnect updates for @{activeStreamer}.</p>
         </div>
-
-        <label style={{ marginLeft: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 12, opacity: 0.7 }}>Streamer</span>
-          <input
-            value={streamerInput}
-            onChange={(event) => setStreamerInput(event.target.value)}
-            style={{ padding: 8, width: 220 }}
-          />
-        </label>
-
-        <button onClick={onLoad} style={{ padding: "10px 14px", cursor: "pointer" }}>
-          Load sponsors
-        </button>
+        <span className="status-pill">{events.length} detections</span>
       </div>
 
-      <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 14 }}>
+      {!hideControls && (
+        <div className="panel-actions">
+          <label>
+            <span className="field-label">Streamer</span>
+            <input
+              className="text-input"
+              value={streamerInput}
+              onChange={(event) => setStreamerInput(event.target.value)}
+            />
+          </label>
+
+          <button className="button-primary" onClick={onLoad}>Load sponsors</button>
+        </div>
+      )}
+
+      <div className="status-line">
         Status: {subscriptionError ? `subscription error (${subscriptionError.message})` : `live with auto-reconnect (streamer=${activeStreamer})`}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <MetricCard label="Detections" value={events.length} tone="#fde7d9" />
-        <MetricCard label="Avg confidence" value={averageConfidence.toFixed(2)} tone="#dbeafe" />
-        <MetricCard label="Fallbacks" value={fallbackCount} tone="#fef0c7" />
+      <div className="metric-grid">
+        <MetricCard label="Detections" value={events.length} tone="metric-violet" />
+        <MetricCard label="Avg confidence" value={averageConfidence.toFixed(2)} tone="metric-blue" />
+        <MetricCard label="Fallbacks" value={fallbackCount} tone="metric-neutral" />
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }}>Confidence trend</div>
-        <div style={{ display: "flex", alignItems: "end", gap: 6, minHeight: 90 }}>
-          {recentTrend.length === 0 && <div style={{ opacity: 0.7 }}>No confidence data yet.</div>}
+      <div className="trend-card">
+        <div className="field-label">Confidence trend</div>
+        <div className="trend-bars">
+          {recentTrend.length === 0 && <div className="muted-text">No confidence data yet.</div>}
           {recentTrend.map((event) => (
-            <div key={event.detectionEventId} style={{ flex: 1, minWidth: 0 }}>
+            <div className="trend-bar-wrap" key={event.detectionEventId}>
               <div
                 title={`${event.sponsor} ${event.confidence.toFixed(2)}`}
-                style={{
-                  height: `${Math.max(10, Math.round(event.confidence * 100))}px`,
-                  borderRadius: 8,
-                  background: sponsorTone(event.sponsor),
-                }}
+                className="trend-bar"
+                style={{ height: `${Math.max(10, Math.round(event.confidence * 100))}px`, background: sponsorTone(event.sponsor) }}
               />
-              <div style={{ marginTop: 4, fontSize: 11, opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div className="trend-label">
                 {event.sponsor}
               </div>
             </div>
@@ -163,37 +155,29 @@ export function SponsorPanel() {
       {loading && events.length === 0 && <div>Loading sponsor history...</div>}
 
       {error && (
-        <div role="alert" style={{ color: "#b42318", marginBottom: 12 }}>
+        <div className="error-state" role="alert">
           Failed to load sponsor history: {error.message}
         </div>
       )}
 
-      {!loading && !error && events.length === 0 && <div>No sponsor detections yet.</div>}
+      {!loading && !error && events.length === 0 && <div className="empty-state">No sponsor detections yet.</div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="event-list">
         {events.map((event) => (
-          <article
-            key={event.detectionEventId}
-            style={{
-              border: "1px solid #ead8c8",
-              borderRadius: 12,
-              padding: 12,
-              background: "white",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-              <div style={{ fontSize: 12, opacity: 0.7 }}>
+          <article className="event-card" key={event.detectionEventId}>
+            <div className="event-card-header">
+              <div className="event-meta">
                 [{formatTime(event.capturedAt)}] seq={event.frameSequence} • frame={event.sourceFrameId}
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: sponsorTone(event.sponsor) }}>{event.sponsor}</span>
+              <span className="category-label" style={{ color: sponsorTone(event.sponsor) }}>{event.sponsor}</span>
             </div>
 
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{event.frameRef}</div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, opacity: 0.8 }}>
-              <span>confidence={event.confidence.toFixed(2)}</span>
-              <span>processed={formatTime(event.processedAt)}</span>
-              <span>model={event.modelVersion}</span>
-              <span>
+            <strong>{event.frameRef}</strong>
+            <div className="event-tags">
+              <span className="tag">confidence={event.confidence.toFixed(2)}</span>
+              <span className="tag">processed={formatTime(event.processedAt)}</span>
+              <span className="tag">model={event.modelVersion}</span>
+              <span className="tag">
                 box={event.x.toFixed(2)},{event.y.toFixed(2)} {event.width.toFixed(2)}x{event.height.toFixed(2)}
               </span>
             </div>
@@ -206,9 +190,9 @@ export function SponsorPanel() {
 
 function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
   return (
-    <div style={{ padding: 12, borderRadius: 12, background: tone }}>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
+    <div className={`metric-card ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }

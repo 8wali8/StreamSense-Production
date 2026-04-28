@@ -37,9 +37,15 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString();
 }
 
-export function RecommendationPanel() {
+type RecommendationPanelProps = {
+  streamer?: string;
+  hideControls?: boolean;
+};
+
+export function RecommendationPanel({ streamer, hideControls = false }: RecommendationPanelProps) {
   const [streamerInput, setStreamerInput] = useState("test");
-  const [activeStreamer, setActiveStreamer] = useState("test");
+  const [localStreamer, setLocalStreamer] = useState("test");
+  const activeStreamer = streamer ?? localStreamer;
 
   const { data, loading, error } = useQuery<RecommendationsData>(RECOMMENDATIONS_QUERY, {
     variables: { streamer: activeStreamer, limit: 4 },
@@ -57,93 +63,74 @@ export function RecommendationPanel() {
     if (!nextStreamer) {
       return;
     }
-    setActiveStreamer(nextStreamer);
+    setLocalStreamer(nextStreamer);
   }
 
   return (
-    <section
-      style={{
-        border: "1px solid #ddd6fe",
-        borderRadius: 16,
-        padding: 16,
-        background: "#faf5ff",
-        minHeight: 420,
-      }}
-    >
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 16 }}>
+    <section className="dashboard-panel">
+      <div className="panel-title-row panel-heading">
         <div>
-          <h2 style={{ margin: 0 }}>Recommendations</h2>
-          <div style={{ fontSize: 13, opacity: 0.75 }}>Explainable guidance powered by recent sentiment, sponsors, and experiment config</div>
+          <div className="eyebrow">Action plan</div>
+          <h2>Recommendations</h2>
+          <p>Explainable guidance powered by recent sentiment, sponsors, and experiment config.</p>
         </div>
-
-        <label style={{ marginLeft: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 12, opacity: 0.7 }}>Streamer</span>
-          <input
-            value={streamerInput}
-            onChange={(event) => setStreamerInput(event.target.value)}
-            style={{ padding: 8, width: 220 }}
-          />
-        </label>
-
-        <button onClick={onLoad} style={{ padding: "10px 14px", cursor: "pointer" }}>
-          Load recommendations
-        </button>
+        <span className="status-pill">@{activeStreamer}</span>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <MetricCard label="Recommendations" value={recommendations.length} tone="#ede9fe" />
-        <MetricCard label="Strongest score" value={strongestScore.toFixed(2)} tone={scoreTone(strongestScore)} />
-        <MetricCard label="Caution signals" value={cautionCount} tone="#fee4e2" />
-        <MetricCard label="Variant" value={activeVariant} tone="#dbeafe" />
+      {!hideControls && (
+        <div className="panel-actions">
+          <label>
+            <span className="field-label">Streamer</span>
+            <input
+              className="text-input"
+              value={streamerInput}
+              onChange={(event) => setStreamerInput(event.target.value)}
+            />
+          </label>
+
+          <button className="button-primary" onClick={onLoad}>Load recommendations</button>
+        </div>
+      )}
+
+      <div className="metric-grid">
+        <MetricCard label="Recommendations" value={recommendations.length} tone="metric-violet" />
+        <MetricCard label="Strongest score" value={strongestScore.toFixed(2)} tone={scoreClass(strongestScore)} />
+        <MetricCard label="Caution signals" value={cautionCount} tone="metric-negative" />
+        <MetricCard label="Variant" value={activeVariant} tone="metric-blue" />
       </div>
 
       {loading && recommendations.length === 0 && <div>Loading recommendations...</div>}
 
       {error && (
-        <div role="alert" style={{ color: "#b42318", marginBottom: 12 }}>
+        <div className="error-state" role="alert">
           Failed to load recommendations: {error.message}
         </div>
       )}
 
-      {!loading && !error && recommendations.length === 0 && <div>No recommendations yet.</div>}
+      {!loading && !error && recommendations.length === 0 && <div className="empty-state">No recommendations yet.</div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="event-list">
         {recommendations.map((recommendation) => (
-          <article
-            key={recommendation.recommendationId}
-            style={{
-              border: "1px solid #ddd6fe",
-              borderRadius: 12,
-              padding: 12,
-              background: "white",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
+          <article className="event-card" key={recommendation.recommendationId}>
+            <div className="event-card-header">
               <div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                <div className="event-meta">
                   [{formatTime(recommendation.generatedAt)}] {recommendation.streamer} • {recommendation.experimentName}
                 </div>
-                <div style={{ fontWeight: 700, marginTop: 4 }}>{recommendation.title}</div>
+                <strong>{recommendation.title}</strong>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: categoryTone(recommendation.category) }}>{recommendation.category}</span>
-                <span style={{ padding: "6px 10px", borderRadius: 999, background: scoreTone(recommendation.score), fontWeight: 700 }}>
+              <div className="event-tags">
+                <span className="category-label" style={{ color: categoryTone(recommendation.category) }}>{recommendation.category}</span>
+                <span className="tag" style={{ background: scoreTone(recommendation.score), color: "#07111f" }}>
                   {recommendation.score.toFixed(2)}
                 </span>
               </div>
             </div>
 
-            <div style={{ marginBottom: 10 }}>{recommendation.reasonSummary}</div>
-            <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }}>Variant: {recommendation.variantId}</div>
-            <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+            <p>{recommendation.reasonSummary}</p>
+            <div className="event-tags"><span className="tag">Variant: {recommendation.variantId}</span></div>
+            <ul className="recommendation-reasons">
               {recommendation.reasons.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}
@@ -155,11 +142,18 @@ export function RecommendationPanel() {
   );
 }
 
+function scoreClass(score: number): string {
+  if (score >= 0.75) return "metric-positive";
+  if (score >= 0.5) return "metric-blue";
+  if (score >= 0.3) return "metric-neutral";
+  return "metric-negative";
+}
+
 function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
   return (
-    <div style={{ padding: 12, borderRadius: 12, background: tone }}>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
+    <div className={`metric-card ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }

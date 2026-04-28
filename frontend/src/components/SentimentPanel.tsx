@@ -34,10 +34,16 @@ function labelColor(label: string): string {
   return "#7a5c00";
 }
 
-export function SentimentPanel() {
+type SentimentPanelProps = {
+  streamer?: string;
+  hideControls?: boolean;
+};
+
+export function SentimentPanel({ streamer, hideControls = false }: SentimentPanelProps) {
   const [streamerInput, setStreamerInput] = useState("test");
-  const [activeStreamer, setActiveStreamer] = useState("test");
+  const [localStreamer, setLocalStreamer] = useState("test");
   const [liveEvents, setLiveEvents] = useState<SentimentAnalysisEvent[]>([]);
+  const activeStreamer = streamer ?? localStreamer;
 
   const { data, loading, error } = useQuery<RecentSentimentData>(RECENT_SENTIMENT_QUERY, {
     variables: { streamer: activeStreamer, limit: 20 },
@@ -78,7 +84,7 @@ export function SentimentPanel() {
     }
 
     setLiveEvents([]);
-    setActiveStreamer(nextStreamer);
+    setLocalStreamer(nextStreamer);
   }
 
   const counts = events.reduce(
@@ -95,96 +101,74 @@ export function SentimentPanel() {
     events.length === 0 ? 0 : events.reduce((sum, event) => sum + event.score, 0) / events.length;
 
   return (
-    <section
-      style={{
-        border: "1px solid #d9e1ec",
-        borderRadius: 16,
-        padding: 16,
-        background: "#f8fbff",
-        minHeight: 420,
-      }}
-    >
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 16 }}>
+    <section className="dashboard-panel">
+      <div className="panel-title-row panel-heading">
         <div>
-          <h2 style={{ margin: 0 }}>Sentiment</h2>
-          <div style={{ fontSize: 13, opacity: 0.75 }}>Recent history plus live sentiment updates</div>
+          <div className="eyebrow">Audience intelligence</div>
+          <h2>Sentiment</h2>
+          <p>Recent history plus live sentiment updates for @{activeStreamer}.</p>
         </div>
-
-        <label style={{ marginLeft: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 12, opacity: 0.7 }}>Streamer</span>
-          <input
-            value={streamerInput}
-            onChange={(event) => setStreamerInput(event.target.value)}
-            style={{ padding: 8, width: 220 }}
-          />
-        </label>
-
-        <button onClick={onLoad} style={{ padding: "10px 14px", cursor: "pointer" }}>
-          Load sentiment
-        </button>
+        <span className="status-pill">{events.length} signals</span>
       </div>
 
-      <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 14 }}>
+      {!hideControls && (
+        <div className="panel-actions">
+          <label>
+            <span className="field-label">Streamer</span>
+            <input
+              className="text-input"
+              value={streamerInput}
+              onChange={(event) => setStreamerInput(event.target.value)}
+            />
+          </label>
+
+          <button className="button-primary" onClick={onLoad}>Load sentiment</button>
+        </div>
+      )}
+
+      <div className="status-line">
         Status: {subscriptionError ? `subscription error (${subscriptionError.message})` : `live (streamer=${activeStreamer})`}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <MetricCard label="Positive" value={counts.positive} tone="#d1fadf" />
-        <MetricCard label="Neutral" value={counts.neutral} tone="#fef0c7" />
-        <MetricCard label="Negative" value={counts.negative} tone="#fee4e2" />
-        <MetricCard label="Avg score" value={averageScore.toFixed(2)} tone="#dbeafe" />
+      <div className="metric-grid">
+        <MetricCard label="Positive" value={counts.positive} tone="metric-positive" />
+        <MetricCard label="Neutral" value={counts.neutral} tone="metric-neutral" />
+        <MetricCard label="Negative" value={counts.negative} tone="metric-negative" />
+        <MetricCard label="Avg score" value={averageScore.toFixed(2)} tone="metric-blue" />
       </div>
 
       {loading && events.length === 0 && <div>Loading sentiment history...</div>}
 
       {error && (
-        <div role="alert" style={{ color: "#b42318", marginBottom: 12 }}>
+        <div className="error-state" role="alert">
           Failed to load sentiment history: {error.message}
         </div>
       )}
 
-      {!loading && !error && events.length === 0 && <div>No sentiment history yet.</div>}
+      {!loading && !error && events.length === 0 && <div className="empty-state">No sentiment history yet.</div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="event-list">
         {events.map((event) => (
-          <article
-            key={event.sentimentEventId}
-            style={{
-              border: "1px solid #d9e1ec",
-              borderRadius: 12,
-              padding: 12,
-              background: "white",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-              <div style={{ fontSize: 12, opacity: 0.7 }}>
+          <article className="event-card" key={event.sentimentEventId}>
+            <div className="event-card-header">
+              <div className="event-meta">
                 [{formatTime(event.chatTimestamp)}] {event.streamer} • source={event.sourceEventId}
               </div>
               <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: labelColor(event.label),
-                }}
+                className={`sentiment-label ${sentimentClass(event.label)}`}
+                style={{ color: labelColor(event.label) }}
               >
                 {event.label}
               </span>
             </div>
 
-            <div style={{ fontWeight: 700 }}>{event.user}</div>
-            <div style={{ margin: "4px 0 8px" }}>{event.message}</div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, opacity: 0.8 }}>
-              <span>score={event.score.toFixed(2)}</span>
-              <span>processed={formatTime(event.processedAt)}</span>
-              <span>eventId={event.sentimentEventId}</span>
-              <span>model={event.modelVersion}</span>
+            <strong>{event.user}</strong>
+            <p>{event.message}</p>
+            <div className="event-tags">
+              <span className="tag">score={event.score.toFixed(2)}</span>
+              <span className="tag">processed={formatTime(event.processedAt)}</span>
+              <span className="tag">eventId={event.sentimentEventId}</span>
+              <span className="tag">model={event.modelVersion}</span>
             </div>
           </article>
         ))}
@@ -193,11 +177,17 @@ export function SentimentPanel() {
   );
 }
 
+function sentimentClass(label: string): string {
+  if (label === "POSITIVE") return "label-positive";
+  if (label === "NEGATIVE") return "label-negative";
+  return "label-neutral";
+}
+
 function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
   return (
-    <div style={{ padding: 12, borderRadius: 12, background: tone }}>
-      <div style={{ fontSize: 12, opacity: 0.8 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 700 }}>{value}</div>
+    <div className={`metric-card ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
