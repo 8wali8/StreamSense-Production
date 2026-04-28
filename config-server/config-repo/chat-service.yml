@@ -11,6 +11,18 @@ eureka:
 streamsense:
   topics:
     chatMessages: stream.chat.messages
+  twitch:
+    chat:
+      enabled: ${STREAMSENSE_TWITCH_CHAT_ENABLED:false}
+      host: ${TWITCH_CHAT_HOST:irc.chat.twitch.tv}
+      port: ${TWITCH_CHAT_PORT:6697}
+      ssl: ${TWITCH_CHAT_SSL:true}
+      username: ${TWITCH_CHAT_USERNAME:}
+      oauth-token: ${TWITCH_CHAT_OAUTH_TOKEN:}
+      channels: ${TWITCH_CHANNELS:}
+      reconnect-delay-ms: ${TWITCH_CHAT_RECONNECT_DELAY_MS:5000}
+      max-reconnect-delay-ms: ${TWITCH_CHAT_MAX_RECONNECT_DELAY_MS:60000}
+      connection-timeout-ms: ${TWITCH_CHAT_CONNECTION_TIMEOUT_MS:10000}
 
 spring:
   kafka:
