@@ -16,8 +16,8 @@ export function Health() {
         fetchPolicy: "no-cache",
     });
 
-    if (loading) return <div>Health: loading…</div>;
-    if (error) return <div>Health: error — {error.message}</div>;
+    if (loading) return <div className="health-pill">Health: loading...</div>;
+    if (error) return <div className="health-pill">Health: error - {error.message}</div>;
 
-    return <div>Health: {data?.health ?? "(no data)"}</div>;
+    return <div className="health-pill">Health: {data?.health ?? "(no data)"}</div>;
 }
