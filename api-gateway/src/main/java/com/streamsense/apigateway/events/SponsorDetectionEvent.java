@@ -16,6 +16,11 @@ public class SponsorDetectionEvent {
     private double y;
     private double width;
     private double height;
+    private String source;
+    private String channelLogin;
+    private String streamSessionId;
+    private String twitchStreamId;
+    private Long videoTimestampMs;
 
     public String getDetectionEventId() {
         return detectionEventId;
@@ -127,5 +132,45 @@ public class SponsorDetectionEvent {
 
     public void setHeight(double height) {
         this.height = height;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getChannelLogin() {
+        return channelLogin;
+    }
+
+    public void setChannelLogin(String channelLogin) {
+        this.channelLogin = channelLogin;
+    }
+
+    public String getStreamSessionId() {
+        return streamSessionId;
+    }
+
+    public void setStreamSessionId(String streamSessionId) {
+        this.streamSessionId = streamSessionId;
+    }
+
+    public String getTwitchStreamId() {
+        return twitchStreamId;
+    }
+
+    public void setTwitchStreamId(String twitchStreamId) {
+        this.twitchStreamId = twitchStreamId;
+    }
+
+    public Long getVideoTimestampMs() {
+        return videoTimestampMs;
+    }
+
+    public void setVideoTimestampMs(Long videoTimestampMs) {
+        this.videoTimestampMs = videoTimestampMs;
     }
 }

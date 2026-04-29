@@ -29,9 +29,17 @@ class VideoEventSchemaContractTest {
         frame.setFrameRef("frames/frame-1.png");
         frame.setFrameSequence(1L);
         frame.setCapturedAt(1710000000000L);
+        frame.setSource("TWITCH");
+        frame.setChannelLogin("streamer-1");
+        frame.setStreamSessionId("streamer-1-1710000000000");
+        frame.setTwitchStreamId("12345");
+        frame.setVideoTimestampMs(0L);
+        frame.setArtifactContentType("image/jpeg");
+        frame.setArtifactSizeBytes(123L);
+        frame.setCaptureWorkerId("worker-1");
 
         assertThat(propertyNames(schema)).isEqualTo(serializedNames(frame));
-        assertThat(requiredNames(schema)).isEqualTo(serializedNames(frame));
+        assertThat(requiredNames(schema)).containsExactlyInAnyOrder("frameId", "streamer", "frameRef", "frameSequence", "capturedAt");
         assertThat(schema.path("additionalProperties").asBoolean()).isFalse();
     }
 
@@ -53,9 +61,16 @@ class VideoEventSchemaContractTest {
         event.setY(0.2d);
         event.setWidth(0.3d);
         event.setHeight(0.4d);
+        event.setSource("TWITCH");
+        event.setChannelLogin("streamer-1");
+        event.setStreamSessionId("streamer-1-1710000000000");
+        event.setTwitchStreamId("12345");
+        event.setVideoTimestampMs(0L);
 
         assertThat(propertyNames(schema)).isEqualTo(serializedNames(event));
-        assertThat(requiredNames(schema)).isEqualTo(serializedNames(event));
+        assertThat(requiredNames(schema)).containsExactlyInAnyOrder(
+                "detectionEventId", "sourceFrameId", "streamer", "frameRef", "frameSequence", "capturedAt",
+                "processedAt", "sponsor", "confidence", "modelVersion", "x", "y", "width", "height");
         assertThat(schema.path("additionalProperties").asBoolean()).isFalse();
     }
 

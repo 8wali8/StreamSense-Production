@@ -8,7 +8,7 @@
 
 ## Event Flow
 
-1. `POST /api/video/upload-frame` accepts a small reference-based frame payload.
+1. `POST /api/video/upload-frame` accepts a small reference-based frame payload, or `video-capture-service` samples a real Twitch frame and stores it as an artifact.
 2. `video-service` publishes `FrameData` to `stream.video.frames`.
 3. `video-service` consumes `stream.video.frames` and calls `ml-engine`.
 4. `video-service` persists the resulting `SponsorDetectionEvent`.
@@ -24,9 +24,19 @@
   "streamer": "string",
   "frameRef": "string",
   "frameSequence": 1,
-  "capturedAt": 1710000000000
+  "capturedAt": 1710000000000,
+  "source": "TWITCH",
+  "channelLogin": "austincs",
+  "streamSessionId": "austincs-1710000000000",
+  "twitchStreamId": null,
+  "videoTimestampMs": 0,
+  "artifactContentType": "image/jpeg",
+  "artifactSizeBytes": 145231,
+  "captureWorkerId": "video-capture-service-1"
 }
 ```
+
+The production metadata fields are optional so existing synthetic frame uploads continue to work.
 
 ## `SponsorDetectionEvent`
 
@@ -45,9 +55,16 @@
   "x": 0.12,
   "y": 0.18,
   "width": 0.31,
-  "height": 0.24
+  "height": 0.24,
+  "source": "TWITCH",
+  "channelLogin": "austincs",
+  "streamSessionId": "austincs-1710000000000",
+  "twitchStreamId": null,
+  "videoTimestampMs": 0
 }
 ```
+
+When Phase 2 video capture is enabled, `frameRef` points to a real stored frame artifact such as `s3://streamsense-frames/twitch/austincs/session/frame.jpg`, and `ml-engine` validates the artifact before returning the detection.
 
 ## Fallback Contract
 

@@ -19,7 +19,7 @@
     "frameRef": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 512
+      "maxLength": 1024
     },
     "frameSequence": {
       "type": "integer",
@@ -28,6 +28,38 @@
     "capturedAt": {
       "type": "integer",
       "minimum": 1
+    },
+    "source": {
+      "type": ["string", "null"],
+      "maxLength": 32
+    },
+    "channelLogin": {
+      "type": ["string", "null"],
+      "maxLength": 255
+    },
+    "streamSessionId": {
+      "type": ["string", "null"],
+      "maxLength": 255
+    },
+    "twitchStreamId": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "videoTimestampMs": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "artifactContentType": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "artifactSizeBytes": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "captureWorkerId": {
+      "type": ["string", "null"],
+      "maxLength": 255
     }
   }
 }
