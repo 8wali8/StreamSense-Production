@@ -58,6 +58,20 @@ spec:
               value: kafka:9092
             - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
               value: "true"
+            - name: STREAMSENSE_TWITCH_CHAT_ENABLED
+              value: "false"
+            - name: TWITCH_CHAT_HOST
+              value: irc.chat.twitch.tv
+            - name: TWITCH_CHAT_PORT
+              value: "6697"
+            - name: TWITCH_CHAT_SSL
+              value: "true"
+            - name: TWITCH_CHAT_USERNAME
+              value: ""
+            - name: TWITCH_CHAT_OAUTH_TOKEN
+              value: ""
+            - name: TWITCH_CHANNELS
+              value: ""
           ports:
             - containerPort: 8081
           readinessProbe:
