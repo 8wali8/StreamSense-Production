@@ -9,8 +9,13 @@ SPONSORS = [
 ]
 
 
-def compute_sponsor_detection(frame_ref: str, streamer: str, frame_sequence: int) -> tuple[str, float, float, float, float, float]:
-    seed = f"{streamer}|{frame_ref}|{frame_sequence}".encode("utf-8")
+def compute_sponsor_detection(
+    frame_ref: str,
+    streamer: str,
+    frame_sequence: int,
+    frame_signature: str | None = None,
+) -> tuple[str, float, float, float, float, float]:
+    seed = f"{streamer}|{frame_ref}|{frame_sequence}|{frame_signature or ''}".encode("utf-8")
     digest = hashlib.sha256(seed).digest()
 
     sponsor = SPONSORS[digest[0] % len(SPONSORS)]

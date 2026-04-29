@@ -40,6 +40,27 @@ def test_sponsor_detection_is_deterministic():
     assert response1.json() == response2.json()
 
 
+def test_sponsor_endpoint_reads_real_frame_fixture(monkeypatch, tmp_path):
+    monkeypatch.setenv("STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ", "true")
+    frame_path = tmp_path / "frame.ppm"
+    frame_path.write_bytes(b"P6\n1 1\n255\n\xff\x00\x00")
+
+    response = client.post("/ml/sponsor", json=sponsor_payload(f"file://{frame_path}"))
+
+    assert response.status_code == 200
+    assert response.json()["modelVersion"] == "frame-aware-stub-v1"
+
+
+def test_required_frame_read_failure_returns_503(monkeypatch, tmp_path):
+    monkeypatch.setenv("STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ", "true")
+    missing = tmp_path / "missing.jpg"
+
+    response = client.post("/ml/sponsor", json=sponsor_payload(f"file://{missing}"))
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "frame artifact read failed"
+
+
 def test_different_frames_can_produce_different_sponsor_results():
     response1 = client.post("/ml/sponsor", json=sponsor_payload("frames/test-001.png", 1))
     response2 = client.post("/ml/sponsor", json=sponsor_payload("frames/test-099.png", 99))
