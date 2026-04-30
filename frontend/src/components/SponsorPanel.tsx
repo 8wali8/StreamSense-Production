@@ -18,6 +18,11 @@ type SponsorDetectionEvent = {
   y: number;
   width: number;
   height: number;
+  source?: string | null;
+  channelLogin?: string | null;
+  streamSessionId?: string | null;
+  twitchStreamId?: string | null;
+  videoTimestampMs?: number | null;
 };
 
 type RecentSponsorDetectionsData = {
@@ -103,7 +108,7 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
         <div>
           <div className="eyebrow">Sponsor visibility</div>
           <h2>Sponsors</h2>
-          <p>Recent sponsor detections with live auto-reconnect updates for @{activeStreamer}.</p>
+          <p>Recent sponsor detections with live video-capture updates for @{activeStreamer}.</p>
         </div>
         <span className="status-pill">{events.length} detections</span>
       </div>
@@ -177,6 +182,9 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
               <span className="tag">confidence={event.confidence.toFixed(2)}</span>
               <span className="tag">processed={formatTime(event.processedAt)}</span>
               <span className="tag">model={event.modelVersion}</span>
+              {event.source && <span className="tag">source={event.source}</span>}
+              {event.streamSessionId && <span className="tag">session={event.streamSessionId}</span>}
+              {event.videoTimestampMs != null && <span className="tag">videoTs={Math.round(event.videoTimestampMs / 1000)}s</span>}
               <span className="tag">
                 box={event.x.toFixed(2)},{event.y.toFixed(2)} {event.width.toFixed(2)}x{event.height.toFixed(2)}
               </span>
