@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-capture-service
+  namespace: streamsense
+spec:
+  selector:
+    app: video-capture-service
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-capture-service
+  namespace: streamsense
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: video-capture-service
+  template:
+    metadata:
+      labels:
+        app: video-capture-service
+    spec:
+      initContainers:
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z kafka 9092; do sleep 2; done
+        - name: wait-for-minio
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z minio 9000; do sleep 2; done
+      containers:
+        - name: video-capture-service
+          image: streamsense/video-capture-service:sprint9
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: STREAMSENSE_TWITCH_VIDEO_ENABLED
+              value: "false"
+            - name: TWITCH_VIDEO_CHANNELS
+              value: ""
+            - name: TWITCH_VIDEO_QUALITY
+              value: best
+            - name: TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS
+              value: "10"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: STREAMSENSE_VIDEO_FRAMES_TOPIC
+              value: stream.video.frames
+            - name: STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED
+              value: "false"
+            - name: STREAMSENSE_TRANSCRIPT_SEGMENTS_TOPIC
+              value: stream.transcript.segments
+            - name: TWITCH_TRANSCRIPT_SEGMENT_SECONDS
+              value: "10"
+            - name: TWITCH_TRANSCRIPT_AUDIO_CAPTURE_TIMEOUT_SECONDS
+              value: "30"
+            - name: TWITCH_TRANSCRIPT_REQUEST_TIMEOUT_SECONDS
+              value: "60"
+            - name: TWITCH_TRANSCRIPT_LANGUAGE
+              value: en
+            - name: STREAMSENSE_TRANSCRIPT_TEXT_MAX_CHARS
+              value: "4000"
+            - name: STREAMSENSE_TRANSCRIPT_PREVIEW_CHARS
+              value: "160"
+            - name: ML_ENGINE_URL
+              value: http://ml-engine:8000
+            - name: STREAMSENSE_FRAME_STORAGE_BACKEND
+              value: s3
+            - name: STREAMSENSE_FRAME_STORAGE_BUCKET
+              value: streamsense-frames
+            - name: STREAMSENSE_FRAME_STORAGE_ENDPOINT
+              value: http://minio:9000
+            - name: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+              value: streamsense
+            - name: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
+              value: streamsense
+          ports:
+            - containerPort: 8090
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5

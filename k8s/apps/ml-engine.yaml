@@ -30,8 +30,32 @@ spec:
         - name: ml-engine
           image: streamsense/ml-engine:sprint9
           imagePullPolicy: IfNotPresent
+          env:
+            - name: STREAMSENSE_FRAME_STORAGE_ENDPOINT
+              value: http://minio:9000
+            - name: STREAMSENSE_FRAME_STORAGE_REGION
+              value: us-east-1
+            - name: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+              value: streamsense
+            - name: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
+              value: streamsense
+            - name: STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ
+              value: "false"
+            - name: STREAMSENSE_WHISPER_MODEL
+              value: small.en
+            - name: STREAMSENSE_WHISPER_COMPUTE_TYPE
+              value: int8
+            - name: STREAMSENSE_WHISPER_DEVICE
+              value: cpu
+            - name: STREAMSENSE_WHISPER_LANGUAGE
+              value: en
+            - name: STREAMSENSE_WHISPER_MODEL_CACHE
+              value: /models/whisper
           ports:
             - containerPort: 8000
+          volumeMounts:
+            - name: whisper-model-cache
+              mountPath: /models/whisper
           readinessProbe:
             httpGet:
               path: /ml/health
@@ -46,3 +70,6 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
             timeoutSeconds: 5
+      volumes:
+        - name: whisper-model-cache
+          emptyDir: {}

@@ -149,6 +149,9 @@ spec:
               kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages --partitions 3 --replication-factor 1;
               kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages.dlt --partitions 3 --replication-factor 1;
               kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sentiment.events --partitions 3 --replication-factor 1;
+              kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.segments --partitions 3 --replication-factor 1;
+              kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.segments.dlt --partitions 3 --replication-factor 1;
+              kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.sentiment.events --partitions 3 --replication-factor 1;
               kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.video.frames --partitions 3 --replication-factor 1;
               kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sponsor.detections --partitions 3 --replication-factor 1;
               kafka-topics --bootstrap-server kafka:9092 --list;
