@@ -10,15 +10,18 @@ import org.springframework.stereotype.Component;
 
 import com.streamsense.videoservice.config.CorrelationIdFilter;
 import com.streamsense.videoservice.events.FrameData;
+import com.streamsense.videoservice.metrics.VideoMetrics;
 import com.streamsense.videoservice.service.VideoProcessingService;
 
 @Component
 public class VideoFrameConsumer {
 
     private final VideoProcessingService videoProcessingService;
+    private final VideoMetrics videoMetrics;
 
-    public VideoFrameConsumer(VideoProcessingService videoProcessingService) {
+    public VideoFrameConsumer(VideoProcessingService videoProcessingService, VideoMetrics videoMetrics) {
         this.videoProcessingService = videoProcessingService;
+        this.videoMetrics = videoMetrics;
     }
 
     @KafkaListener(topics = "${streamsense.topics.videoFrames}")
@@ -34,6 +37,10 @@ public class VideoFrameConsumer {
         }
 
         try {
+            videoMetrics.incrementFramesIngested();
+            if ("TWITCH".equalsIgnoreCase(event.getSource())) {
+                videoMetrics.incrementFramesFromTwitch();
+            }
             videoProcessingService.processFrame(event, correlationId, traceparent);
         } finally {
             MDC.remove(CorrelationIdFilter.CORRELATION_ID_KEY);

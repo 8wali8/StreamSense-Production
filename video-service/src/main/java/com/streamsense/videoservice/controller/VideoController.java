@@ -21,7 +21,6 @@ import com.streamsense.videoservice.config.StreamSenseProperties;
 import com.streamsense.videoservice.events.FrameData;
 import com.streamsense.videoservice.events.SponsorDetectionEvent;
 import com.streamsense.videoservice.kafka.VideoFrameProducer;
-import com.streamsense.videoservice.metrics.VideoMetrics;
 import com.streamsense.videoservice.service.VideoProcessingService;
 
 import jakarta.validation.Valid;
@@ -36,17 +35,14 @@ public class VideoController {
 
     private final VideoFrameProducer videoFrameProducer;
     private final VideoProcessingService videoProcessingService;
-    private final VideoMetrics videoMetrics;
     private final StreamSenseProperties properties;
 
     public VideoController(
             VideoFrameProducer videoFrameProducer,
             VideoProcessingService videoProcessingService,
-            VideoMetrics videoMetrics,
             StreamSenseProperties properties) {
         this.videoFrameProducer = videoFrameProducer;
         this.videoProcessingService = videoProcessingService;
-        this.videoMetrics = videoMetrics;
         this.properties = properties;
     }
 
@@ -72,8 +68,6 @@ public class VideoController {
         videoFrameProducer.publish(frameData,
                 firstNonBlank(correlationId, legacyCorrelationId, MDC.get(CorrelationIdFilter.CORRELATION_ID_KEY)),
                 traceparent);
-        videoMetrics.incrementFramesIngested();
-
         return ResponseEntity.accepted().body(new FrameUploadResponse(frameId, "accepted"));
     }
 

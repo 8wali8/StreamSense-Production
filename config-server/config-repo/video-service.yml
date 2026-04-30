@@ -23,7 +23,7 @@ streamsense:
     recentPrefix: sponsor:recent
     recentTtlSeconds: 60
   payload:
-    maxFrameRefLength: 512
+    maxFrameRefLength: 1024
 
 hystrix:
   command:

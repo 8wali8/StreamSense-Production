@@ -49,9 +49,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
 import com.streamsense.videoservice.cache.RecentSponsorDetectionsCache;
+import com.streamsense.videoservice.events.FrameData;
 import com.streamsense.videoservice.events.SponsorDetectionEvent;
 import com.streamsense.videoservice.persistence.SponsorDetectionEntity;
 import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
+import com.streamsense.videoservice.service.VideoProcessingService;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -82,7 +84,7 @@ import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
         "streamsense.history.maxLimit=100",
         "streamsense.cache.recentPrefix=sponsor:recent",
         "streamsense.cache.recentTtlSeconds=60",
-        "streamsense.payload.maxFrameRefLength=512",
+        "streamsense.payload.maxFrameRefLength=1024",
         "resilience4j.retry.instances.mlSponsor.maxAttempts=3",
         "resilience4j.retry.instances.mlSponsor.waitDuration=10ms",
         "resilience4j.retry.instances.mlSponsor.ignoreExceptions[0]=java.lang.IllegalStateException",
@@ -111,6 +113,9 @@ class VideoPipelineIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private VideoProcessingService videoProcessingService;
 
     private MockRestServiceServer mockServer;
     private Consumer<String, SponsorDetectionEvent> sponsorConsumer;
@@ -191,6 +196,53 @@ class VideoPipelineIntegrationTest {
         assertThat(record.value().getStreamer()).isEqualTo("test-streamer");
         assertThat(record.value().getSponsor()).isEqualTo("Nike");
         assertThat(record.value().getConfidence()).isEqualTo(0.91d);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void twitchFrameMetadata_isCarriedThroughPersistenceAndKafka() throws Exception {
+        mockServer.expect(requestTo("http://ml-engine:8000/ml/sponsor"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(
+                        "{" +
+                                "\"sponsor\":\"Prime\"," +
+                                "\"confidence\":0.84," +
+                                "\"modelVersion\":\"frame-aware-stub-v1\"," +
+                                "\"x\":0.12," +
+                                "\"y\":0.18," +
+                                "\"width\":0.31," +
+                                "\"height\":0.24}",
+                        MediaType.APPLICATION_JSON));
+
+        FrameData frame = new FrameData();
+        frame.setFrameId("frame-twitch-1");
+        frame.setStreamer("austincs");
+        frame.setFrameRef("s3://streamsense-frames/twitch/austincs/session/frame.jpg");
+        frame.setFrameSequence(4L);
+        frame.setCapturedAt(1710000003000L);
+        frame.setSource("TWITCH");
+        frame.setChannelLogin("austincs");
+        frame.setStreamSessionId("austincs-1710000000000");
+        frame.setTwitchStreamId("12345");
+        frame.setVideoTimestampMs(30000L);
+        frame.setArtifactContentType("image/jpeg");
+        frame.setArtifactSizeBytes(1024L);
+
+        videoProcessingService.processFrame(frame, null, null);
+
+        SponsorDetectionEntity persisted = repository.findAll().getFirst();
+        assertThat(persisted.getSource()).isEqualTo("TWITCH");
+        assertThat(persisted.getChannelLogin()).isEqualTo("austincs");
+        assertThat(persisted.getStreamSessionId()).isEqualTo("austincs-1710000000000");
+        assertThat(persisted.getVideoTimestampMs()).isEqualTo(30000L);
+
+        ConsumerRecord<String, SponsorDetectionEvent> record = KafkaTestUtils.getSingleRecord(
+                sponsorConsumer,
+                "stream.sponsor.detections",
+                Duration.ofSeconds(10));
+        assertThat(record.value().getSource()).isEqualTo("TWITCH");
+        assertThat(record.value().getStreamSessionId()).isEqualTo("austincs-1710000000000");
 
         mockServer.verify();
     }

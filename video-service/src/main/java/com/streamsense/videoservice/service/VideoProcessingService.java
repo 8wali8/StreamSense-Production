@@ -58,7 +58,14 @@ public class VideoProcessingService {
                 frame.getStreamer(),
                 frame.getFrameRef(),
                 frame.getFrameSequence(),
-                frame.getCapturedAt());
+                frame.getCapturedAt(),
+                frame.getSource(),
+                frame.getChannelLogin(),
+                frame.getStreamSessionId(),
+                frame.getTwitchStreamId(),
+                frame.getVideoTimestampMs(),
+                frame.getArtifactContentType(),
+                frame.getArtifactSizeBytes());
 
         MlSponsorResponse response = videoMetrics.recordInferenceLatency(() -> mlEngineClient.analyzeSponsor(request));
 
@@ -100,6 +107,11 @@ public class VideoProcessingService {
         event.setY(response.getY());
         event.setWidth(response.getWidth());
         event.setHeight(response.getHeight());
+        event.setSource(frame.getSource());
+        event.setChannelLogin(frame.getChannelLogin());
+        event.setStreamSessionId(frame.getStreamSessionId());
+        event.setTwitchStreamId(frame.getTwitchStreamId());
+        event.setVideoTimestampMs(frame.getVideoTimestampMs());
         return event;
     }
 

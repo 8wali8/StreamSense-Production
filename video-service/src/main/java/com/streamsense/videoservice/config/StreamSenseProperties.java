@@ -145,7 +145,7 @@ public class StreamSenseProperties {
     }
 
     public static class Payload {
-        private int maxFrameRefLength = 512;
+        private int maxFrameRefLength = 1024;
 
         public int getMaxFrameRefLength() {
             return maxFrameRefLength;

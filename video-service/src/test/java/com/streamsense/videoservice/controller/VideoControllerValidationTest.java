@@ -21,7 +21,7 @@ class VideoControllerValidationTest {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
 
-        VideoController controller = new VideoController(null, null, null, properties);
+        VideoController controller = new VideoController(null, null, properties);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setValidator(validator)

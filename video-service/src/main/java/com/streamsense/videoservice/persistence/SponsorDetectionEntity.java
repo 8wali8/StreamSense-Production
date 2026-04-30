@@ -21,7 +21,7 @@ public class SponsorDetectionEntity {
     @Column(name = "streamer", nullable = false, length = 255)
     private String streamer;
 
-    @Column(name = "frame_ref", nullable = false, length = 512)
+    @Column(name = "frame_ref", nullable = false, length = 1024)
     private String frameRef;
 
     @Column(name = "frame_sequence", nullable = false)
@@ -53,6 +53,21 @@ public class SponsorDetectionEntity {
 
     @Column(name = "box_height", nullable = false)
     private double height;
+
+    @Column(name = "source", length = 32)
+    private String source;
+
+    @Column(name = "channel_login", length = 255)
+    private String channelLogin;
+
+    @Column(name = "stream_session_id", length = 255)
+    private String streamSessionId;
+
+    @Column(name = "twitch_stream_id", length = 128)
+    private String twitchStreamId;
+
+    @Column(name = "video_timestamp_ms")
+    private Long videoTimestampMs;
 
     public String getDetectionEventId() {
         return detectionEventId;
@@ -166,6 +181,46 @@ public class SponsorDetectionEntity {
         this.height = height;
     }
 
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getChannelLogin() {
+        return channelLogin;
+    }
+
+    public void setChannelLogin(String channelLogin) {
+        this.channelLogin = channelLogin;
+    }
+
+    public String getStreamSessionId() {
+        return streamSessionId;
+    }
+
+    public void setStreamSessionId(String streamSessionId) {
+        this.streamSessionId = streamSessionId;
+    }
+
+    public String getTwitchStreamId() {
+        return twitchStreamId;
+    }
+
+    public void setTwitchStreamId(String twitchStreamId) {
+        this.twitchStreamId = twitchStreamId;
+    }
+
+    public Long getVideoTimestampMs() {
+        return videoTimestampMs;
+    }
+
+    public void setVideoTimestampMs(Long videoTimestampMs) {
+        this.videoTimestampMs = videoTimestampMs;
+    }
+
     public SponsorDetectionEvent toEvent() {
         SponsorDetectionEvent event = new SponsorDetectionEvent();
         event.setDetectionEventId(detectionEventId);
@@ -182,6 +237,11 @@ public class SponsorDetectionEntity {
         event.setY(y);
         event.setWidth(width);
         event.setHeight(height);
+        event.setSource(source);
+        event.setChannelLogin(channelLogin);
+        event.setStreamSessionId(streamSessionId);
+        event.setTwitchStreamId(twitchStreamId);
+        event.setVideoTimestampMs(videoTimestampMs);
         return event;
     }
 
@@ -201,6 +261,11 @@ public class SponsorDetectionEntity {
         entity.setY(event.getY());
         entity.setWidth(event.getWidth());
         entity.setHeight(event.getHeight());
+        entity.setSource(event.getSource());
+        entity.setChannelLogin(event.getChannelLogin());
+        entity.setStreamSessionId(event.getStreamSessionId());
+        entity.setTwitchStreamId(event.getTwitchStreamId());
+        entity.setVideoTimestampMs(event.getVideoTimestampMs());
         return entity;
     }
 }

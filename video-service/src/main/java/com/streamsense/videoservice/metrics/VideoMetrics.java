@@ -72,6 +72,13 @@ public class VideoMetrics {
                 .increment();
     }
 
+    public void incrementFramesFromTwitch() {
+        Counter.builder("streamsense_video_frames_from_twitch_total")
+                .description("Total number of video frames captured from Twitch")
+                .register(meterRegistry)
+                .increment();
+    }
+
     public void incrementSponsorDetection(String sponsor) {
         Counter.builder("streamsense_sponsor_detections_total")
                 .description("Total number of sponsor detection events")

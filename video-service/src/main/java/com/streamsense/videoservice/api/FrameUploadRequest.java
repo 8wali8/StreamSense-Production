@@ -12,7 +12,7 @@ public class FrameUploadRequest {
     private String streamer;
 
     @NotBlank
-    @Size(max = 512)
+    @Size(max = 1024)
     private String frameRef;
 
     @Min(0)
