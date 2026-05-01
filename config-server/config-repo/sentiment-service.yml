@@ -11,6 +11,9 @@ streamsense:
     chatMessages: stream.chat.messages
     sentimentEvents: stream.sentiment.events
     chatMessagesDlt: stream.chat.messages.dlt
+    transcriptSegments: stream.transcript.segments
+    transcriptSentimentEvents: stream.transcript.sentiment.events
+    transcriptSegmentsDlt: stream.transcript.segments.dlt
   ml:
     base-url: http://ml-engine:8000
     connectTimeoutMs: 2000
@@ -67,6 +70,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
 
   data:
     redis:

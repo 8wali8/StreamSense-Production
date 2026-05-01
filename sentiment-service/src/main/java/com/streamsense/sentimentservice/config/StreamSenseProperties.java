@@ -52,9 +52,12 @@ public class StreamSenseProperties {
     }
 
     public static class Topics {
-        private String chatMessages;
-        private String sentimentEvents;
-        private String chatMessagesDlt;
+        private String chatMessages = "stream.chat.messages";
+        private String sentimentEvents = "stream.sentiment.events";
+        private String chatMessagesDlt = "stream.chat.messages.dlt";
+        private String transcriptSegments = "stream.transcript.segments";
+        private String transcriptSentimentEvents = "stream.transcript.sentiment.events";
+        private String transcriptSegmentsDlt = "stream.transcript.segments.dlt";
 
         public String getChatMessages() {
             return chatMessages;
@@ -78,6 +81,30 @@ public class StreamSenseProperties {
 
         public void setChatMessagesDlt(String chatMessagesDlt) {
             this.chatMessagesDlt = chatMessagesDlt;
+        }
+
+        public String getTranscriptSegments() {
+            return transcriptSegments;
+        }
+
+        public void setTranscriptSegments(String transcriptSegments) {
+            this.transcriptSegments = transcriptSegments;
+        }
+
+        public String getTranscriptSentimentEvents() {
+            return transcriptSentimentEvents;
+        }
+
+        public void setTranscriptSentimentEvents(String transcriptSentimentEvents) {
+            this.transcriptSentimentEvents = transcriptSentimentEvents;
+        }
+
+        public String getTranscriptSegmentsDlt() {
+            return transcriptSegmentsDlt;
+        }
+
+        public void setTranscriptSegmentsDlt(String transcriptSegmentsDlt) {
+            this.transcriptSegmentsDlt = transcriptSegmentsDlt;
         }
     }
 

@@ -57,12 +57,23 @@ import com.streamsense.sentimentservice.events.ChatMessageEvent;
 import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 import com.streamsense.sentimentservice.persistence.SentimentRecordEntity;
 import com.streamsense.sentimentservice.persistence.SentimentRecordRepository;
+import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordEntity;
+import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordRepository;
+import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordEntity;
+import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordRepository;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 3, topics = { "stream.chat.messages", "stream.sentiment.events", "stream.chat.messages.dlt" })
+@EmbeddedKafka(partitions = 3, topics = {
+        "stream.chat.messages",
+        "stream.sentiment.events",
+        "stream.chat.messages.dlt",
+        "stream.transcript.segments",
+        "stream.transcript.sentiment.events",
+        "stream.transcript.segments.dlt"
+})
 @TestPropertySource(properties = {
         "spring.cloud.config.enabled=false",
         "eureka.client.enabled=false",
@@ -85,6 +96,9 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
         "streamsense.topics.chatMessages=stream.chat.messages",
         "streamsense.topics.sentimentEvents=stream.sentiment.events",
         "streamsense.topics.chatMessagesDlt=stream.chat.messages.dlt",
+        "streamsense.topics.transcriptSegments=stream.transcript.segments",
+        "streamsense.topics.transcriptSentimentEvents=stream.transcript.sentiment.events",
+        "streamsense.topics.transcriptSegmentsDlt=stream.transcript.segments.dlt",
         "streamsense.ml.base-url=http://ml-engine:8000",
         "streamsense.history.default-limit=20",
         "streamsense.history.max-limit=100",
@@ -112,6 +126,12 @@ class SentimentPipelineIntegrationTest {
     @SpyBean
     private SentimentRecordRepository repository;
 
+    @Autowired
+    private TranscriptSegmentRecordRepository transcriptSegmentRepository;
+
+    @Autowired
+    private TranscriptSentimentRecordRepository transcriptSentimentRepository;
+
     @MockBean
     private RecentSentimentCache recentSentimentCache;
 
@@ -135,6 +155,8 @@ class SentimentPipelineIntegrationTest {
         }
 
         repository.deleteAll();
+        transcriptSentimentRepository.deleteAll();
+        transcriptSegmentRepository.deleteAll();
         circuitBreakerRegistry.circuitBreaker("mlSentiment").reset();
         mockServer = MockRestServiceServer.bindTo(restTemplate).build();
 
@@ -365,6 +387,48 @@ class SentimentPipelineIntegrationTest {
         verify(recentSentimentCache, never()).put(eq("test-streamer"), eq(2), any());
     }
 
+    @Test
+    void transcriptEndpoints_returnPersistedTranscriptAndTranscriptSentiment() throws Exception {
+        transcriptSegmentRepository.save(transcriptSegment(
+                "segment-1",
+                "test-streamer",
+                "first transcript",
+                1710000000000L,
+                1710000005000L,
+                1L));
+        transcriptSegmentRepository.save(transcriptSegment(
+                "segment-2",
+                "test-streamer",
+                "second transcript",
+                1710000010000L,
+                1710000015000L,
+                2L));
+        transcriptSentimentRepository.save(transcriptSentiment(
+                "transcript-sent-1",
+                "segment-2",
+                "test-streamer",
+                "second transcript",
+                "POSITIVE",
+                0.7d,
+                1710000015000L));
+
+        mockMvc.perform(get("/api/sentiment/transcript/recent")
+                .param("streamer", "test-streamer")
+                .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].segmentId").value("segment-2"))
+                .andExpect(jsonPath("$[0].text").value("second transcript"))
+                .andExpect(jsonPath("$[1].segmentId").value("segment-1"));
+
+        mockMvc.perform(get("/api/sentiment/transcript/sentiment/recent")
+                .param("streamer", "test-streamer")
+                .param("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].sentimentEventId").value("transcript-sent-1"))
+                .andExpect(jsonPath("$[0].segmentId").value("segment-2"))
+                .andExpect(jsonPath("$[0].label").value("POSITIVE"));
+    }
+
     private KafkaTemplate<String, ChatMessageEvent> testChatKafkaTemplate() {
         Map<String, Object> props = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, embeddedKafkaBroker.getBrokersAsString(),
@@ -396,6 +460,56 @@ class SentimentPipelineIntegrationTest {
         entity.setLabel(label);
         entity.setScore(score);
         entity.setModelVersion(modelVersion);
+        return entity;
+    }
+
+    private TranscriptSegmentRecordEntity transcriptSegment(
+            String segmentId,
+            String streamer,
+            String text,
+            long startedAt,
+            long endedAt,
+            long transcriptSequence) {
+        TranscriptSegmentRecordEntity entity = new TranscriptSegmentRecordEntity();
+        entity.setSegmentId(segmentId);
+        entity.setStreamer(streamer);
+        entity.setText(text);
+        entity.setStartedAt(startedAt);
+        entity.setEndedAt(endedAt);
+        entity.setLanguage("en");
+        entity.setConfidence(0.9d);
+        entity.setModelVersion("faster-whisper-small.en-int8");
+        entity.setSource("TWITCH");
+        entity.setChannelLogin(streamer);
+        entity.setStreamSessionId("test-session");
+        entity.setVideoTimestampMs((transcriptSequence - 1) * 5000L);
+        entity.setTranscriptSequence(transcriptSequence);
+        entity.setCaptureWorkerId("worker-1");
+        return entity;
+    }
+
+    private TranscriptSentimentRecordEntity transcriptSentiment(
+            String sentimentEventId,
+            String segmentId,
+            String streamer,
+            String text,
+            String label,
+            double score,
+            long segmentEndedAt) {
+        TranscriptSentimentRecordEntity entity = new TranscriptSentimentRecordEntity();
+        entity.setSentimentEventId(sentimentEventId);
+        entity.setSegmentId(segmentId);
+        entity.setStreamer(streamer);
+        entity.setText(text);
+        entity.setSegmentStartedAt(segmentEndedAt - 5000L);
+        entity.setSegmentEndedAt(segmentEndedAt);
+        entity.setProcessedAt(segmentEndedAt + 100L);
+        entity.setLabel(label);
+        entity.setScore(score);
+        entity.setModelVersion("stub-v1");
+        entity.setTranscriptModelVersion("faster-whisper-small.en-int8");
+        entity.setStreamSessionId("test-session");
+        entity.setTranscriptSequence(2L);
         return entity;
     }
 }

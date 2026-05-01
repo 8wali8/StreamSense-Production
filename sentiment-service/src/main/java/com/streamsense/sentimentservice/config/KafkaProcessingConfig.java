@@ -4,22 +4,30 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.util.backoff.FixedBackOff;
 
+import org.apache.kafka.common.serialization.StringDeserializer;
+
 import com.streamsense.sentimentservice.metrics.SentimentMetrics;
+import com.streamsense.sentimentservice.events.TranscriptSegmentEvent;
 
 @Configuration
 public class KafkaProcessingConfig {
@@ -43,7 +51,7 @@ public class KafkaProcessingConfig {
             SentimentMetrics sentimentMetrics) {
         DeadLetterPublishingRecoverer delegate = new DeadLetterPublishingRecoverer(
                 deadLetterKafkaTemplate,
-                (record, ex) -> new TopicPartition(properties.getTopics().getChatMessagesDlt(), record.partition()));
+                (record, ex) -> new TopicPartition(deadLetterTopic(record, properties), record.partition()));
 
         ConsumerRecordRecoverer recoverer = (record, ex) -> {
             String correlationId = headerAsString(record, "correlationId");
@@ -81,6 +89,38 @@ public class KafkaProcessingConfig {
         });
 
         return errorHandler;
+    }
+
+    @Bean
+    public ConsumerFactory<String, TranscriptSegmentEvent> transcriptSegmentConsumerFactory(
+            KafkaProperties kafkaProperties) {
+        Map<String, Object> config = kafkaProperties.buildConsumerProperties();
+        config.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "sentiment-service");
+        config.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, TranscriptSegmentEvent.class.getName());
+        config.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+        return new DefaultKafkaConsumerFactory<>(
+                config,
+                new StringDeserializer(),
+                new JsonDeserializer<>(TranscriptSegmentEvent.class, false));
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, TranscriptSegmentEvent> transcriptSegmentKafkaListenerContainerFactory(
+            ConsumerFactory<String, TranscriptSegmentEvent> transcriptSegmentConsumerFactory,
+            CommonErrorHandler kafkaErrorHandler) {
+        ConcurrentKafkaListenerContainerFactory<String, TranscriptSegmentEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(transcriptSegmentConsumerFactory);
+        factory.setCommonErrorHandler(kafkaErrorHandler);
+        return factory;
+    }
+
+    private String deadLetterTopic(ConsumerRecord<?, ?> record, StreamSenseProperties properties) {
+        if (record.topic().equals(properties.getTopics().getTranscriptSegments())) {
+            return properties.getTopics().getTranscriptSegmentsDlt();
+        }
+        return properties.getTopics().getChatMessagesDlt();
     }
 
     private String headerAsString(ConsumerRecord<?, ?> record, String name) {
