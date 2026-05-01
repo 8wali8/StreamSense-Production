@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.streamsense.apigateway.events.SentimentAnalysisEvent;
+import com.streamsense.apigateway.events.TranscriptSegmentEvent;
+import com.streamsense.apigateway.events.TranscriptSentimentEvent;
 
 import reactor.core.publisher.Mono;
 
@@ -19,6 +21,12 @@ public class SentimentServiceClient {
     private static final Logger log = LoggerFactory.getLogger(SentimentServiceClient.class);
 
     private static final ParameterizedTypeReference<List<SentimentAnalysisEvent>> SENTIMENT_LIST =
+            new ParameterizedTypeReference<>() {
+            };
+    private static final ParameterizedTypeReference<List<TranscriptSegmentEvent>> TRANSCRIPT_SEGMENT_LIST =
+            new ParameterizedTypeReference<>() {
+            };
+    private static final ParameterizedTypeReference<List<TranscriptSentimentEvent>> TRANSCRIPT_SENTIMENT_LIST =
             new ParameterizedTypeReference<>() {
             };
 
@@ -39,6 +47,32 @@ public class SentimentServiceClient {
                 .bodyToMono(SENTIMENT_LIST)
                 .doOnSubscribe(subscription -> log.info("fetching recent sentiment streamer={} limit={}", streamer, limit))
                 .doOnSuccess(response -> log.info("received recent sentiment streamer={} count={}", streamer,
+                        response != null ? response.size() : 0));
+    }
+
+    public Mono<List<TranscriptSegmentEvent>> recentTranscriptSegments(String streamer, int limit) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/sentiment/transcript/recent")
+                        .queryParam("streamer", streamer)
+                        .queryParam("limit", limit)
+                        .build())
+                .retrieve()
+                .bodyToMono(TRANSCRIPT_SEGMENT_LIST)
+                .doOnSubscribe(subscription -> log.info("fetching recent transcript streamer={} limit={}", streamer, limit))
+                .doOnSuccess(response -> log.info("received recent transcript streamer={} count={}", streamer,
+                        response != null ? response.size() : 0));
+    }
+
+    public Mono<List<TranscriptSentimentEvent>> recentTranscriptSentiment(String streamer, int limit) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/sentiment/transcript/sentiment/recent")
+                        .queryParam("streamer", streamer)
+                        .queryParam("limit", limit)
+                        .build())
+                .retrieve()
+                .bodyToMono(TRANSCRIPT_SENTIMENT_LIST)
+                .doOnSubscribe(subscription -> log.info("fetching recent transcript sentiment streamer={} limit={}", streamer, limit))
+                .doOnSuccess(response -> log.info("received recent transcript sentiment streamer={} count={}", streamer,
                         response != null ? response.size() : 0));
     }
 }

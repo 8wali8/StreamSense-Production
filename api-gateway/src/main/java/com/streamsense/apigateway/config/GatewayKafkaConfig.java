@@ -16,6 +16,8 @@ import org.springframework.kafka.support.serializer.JsonDeserializer;
 import com.streamsense.apigateway.events.ChatMessageEvent;
 import com.streamsense.apigateway.events.SponsorDetectionEvent;
 import com.streamsense.apigateway.events.SentimentAnalysisEvent;
+import com.streamsense.apigateway.events.TranscriptSegmentEvent;
+import com.streamsense.apigateway.events.TranscriptSentimentEvent;
 
 @Configuration
 public class GatewayKafkaConfig {
@@ -71,6 +73,42 @@ public class GatewayKafkaConfig {
             ConsumerFactory<String, SponsorDetectionEvent> sponsorConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, SponsorDetectionEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(sponsorConsumerFactory);
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, TranscriptSegmentEvent> transcriptSegmentConsumerFactory(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+            @Value("${spring.kafka.consumer.group-id}") String groupId,
+            @Value("${spring.kafka.consumer.auto-offset-reset:latest}") String autoOffsetReset) {
+        return new DefaultKafkaConsumerFactory<>(baseConsumerProps(bootstrapServers, groupId, autoOffsetReset),
+                new StringDeserializer(),
+                new JsonDeserializer<>(TranscriptSegmentEvent.class, false));
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, TranscriptSegmentEvent> transcriptSegmentKafkaListenerContainerFactory(
+            ConsumerFactory<String, TranscriptSegmentEvent> transcriptSegmentConsumerFactory) {
+        ConcurrentKafkaListenerContainerFactory<String, TranscriptSegmentEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(transcriptSegmentConsumerFactory);
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, TranscriptSentimentEvent> transcriptSentimentConsumerFactory(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+            @Value("${spring.kafka.consumer.group-id}") String groupId,
+            @Value("${spring.kafka.consumer.auto-offset-reset:latest}") String autoOffsetReset) {
+        return new DefaultKafkaConsumerFactory<>(baseConsumerProps(bootstrapServers, groupId, autoOffsetReset),
+                new StringDeserializer(),
+                new JsonDeserializer<>(TranscriptSentimentEvent.class, false));
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, TranscriptSentimentEvent> transcriptSentimentKafkaListenerContainerFactory(
+            ConsumerFactory<String, TranscriptSentimentEvent> transcriptSentimentConsumerFactory) {
+        ConcurrentKafkaListenerContainerFactory<String, TranscriptSentimentEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(transcriptSentimentConsumerFactory);
         return factory;
     }
 

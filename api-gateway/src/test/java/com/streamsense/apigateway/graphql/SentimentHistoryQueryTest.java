@@ -23,7 +23,8 @@ import okhttp3.mockwebserver.MockWebServer;
         "streamsense.topics.sponsorDetections=stream.sponsor.detections",
         "spring.kafka.bootstrap-servers=localhost:9092",
         "spring.kafka.consumer.group-id=api-gateway-test-group",
-        "streamsense.services.video-service.base-url=http://localhost:8084"
+        "streamsense.services.video-service.base-url=http://localhost:8084",
+        "streamsense.services.analytics-service.base-url=http://localhost:8085"
 })
 class SentimentHistoryQueryTest {
 
@@ -125,5 +126,89 @@ class SentimentHistoryQueryTest {
                 .path("recentSentiment[0].label")
                 .entity(String.class)
                 .isEqualTo("NEUTRAL");
+    }
+
+    @Test
+    void transcriptQueries_returnTranscriptHistoryFromSentimentService() {
+        MOCK_WEB_SERVER.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/json")
+                .setBody("""
+                        [
+                          {
+                            "segmentId": "segment-1",
+                            "streamer": "test",
+                            "text": "hello stream",
+                            "startedAt": 1710000000000,
+                            "endedAt": 1710000005000,
+                            "language": "en",
+                            "confidence": 0.91,
+                            "modelVersion": "faster-whisper-small.en-int8",
+                            "source": "TWITCH",
+                            "channelLogin": "test",
+                            "streamSessionId": "test-session",
+                            "twitchStreamId": null,
+                            "videoTimestampMs": 0,
+                            "transcriptSequence": 1,
+                            "captureWorkerId": "worker-1"
+                          }
+                        ]
+                        """));
+        MOCK_WEB_SERVER.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/json")
+                .setBody("""
+                        [
+                          {
+                            "sentimentEventId": "transcript-sent-1",
+                            "segmentId": "segment-1",
+                            "streamer": "test",
+                            "text": "hello stream",
+                            "segmentStartedAt": 1710000000000,
+                            "segmentEndedAt": 1710000005000,
+                            "processedAt": 1710000005500,
+                            "label": "POSITIVE",
+                            "score": 0.8,
+                            "modelVersion": "stub-v1",
+                            "transcriptModelVersion": "faster-whisper-small.en-int8",
+                            "streamSessionId": "test-session",
+                            "transcriptSequence": 1
+                          }
+                        ]
+                        """));
+
+        graphQlTester.document("""
+                        query RecentTranscript($streamer: String!, $limit: Int!) {
+                          recentTranscriptSegments(streamer: $streamer, limit: $limit) {
+                            segmentId
+                            text
+                            modelVersion
+                          }
+                        }
+                        """)
+                .variable("streamer", "test")
+                .variable("limit", 10)
+                .execute()
+                .errors()
+                .satisfy(errors -> assertThat(errors).isEmpty())
+                .path("recentTranscriptSegments[0].segmentId")
+                .entity(String.class)
+                .isEqualTo("segment-1");
+
+        graphQlTester.document("""
+                        query RecentTranscriptSentiment($streamer: String!, $limit: Int!) {
+                          recentTranscriptSentiment(streamer: $streamer, limit: $limit) {
+                            sentimentEventId
+                            segmentId
+                            label
+                          }
+                        }
+                        """)
+                .variable("streamer", "test")
+                .variable("limit", 10)
+                .execute()
+                .errors()
+                .satisfy(errors -> assertThat(errors).isEmpty())
+                .path("recentTranscriptSentiment[0].sentimentEventId")
+                .entity(String.class)
+                .isEqualTo("transcript-sent-1");
     }
 }

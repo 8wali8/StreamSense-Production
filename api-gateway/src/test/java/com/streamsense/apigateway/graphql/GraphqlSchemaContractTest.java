@@ -18,6 +18,7 @@ import org.springframework.graphql.test.tester.HttpGraphQlTester;
         "streamsense.topics.sponsorDetections=stream.sponsor.detections",
         "streamsense.services.sentiment-service.base-url=http://localhost:8083",
         "streamsense.services.video-service.base-url=http://localhost:8084",
+        "streamsense.services.analytics-service.base-url=http://localhost:8085",
         "spring.kafka.bootstrap-servers=localhost:9092",
         "spring.kafka.consumer.group-id=api-gateway-test-group"
 })
@@ -42,7 +43,17 @@ class GraphqlSchemaContractTest {
                 .entityList(String.class)
                 .get();
 
-        assertThat(fields).containsExactlyInAnyOrder("health", "recentSentiment", "sponsorDetections", "recommendations");
+        assertThat(fields).containsExactlyInAnyOrder(
+                "health",
+                "recentSentiment",
+                "recentTranscriptSegments",
+                "recentTranscriptSentiment",
+                "sponsorDetections",
+                "streamMetricsSummary",
+                "streamMetricsTimeseries",
+                "sponsorExposureMetrics",
+                "brandSafetyMetrics",
+                "recommendations");
     }
 
     @Test
@@ -61,6 +72,11 @@ class GraphqlSchemaContractTest {
                 .entityList(String.class)
                 .get();
 
-        assertThat(fields).containsExactlyInAnyOrder("onChatMessage", "onSentiment", "onSponsorDetection");
+        assertThat(fields).containsExactlyInAnyOrder(
+                "onChatMessage",
+                "onSentiment",
+                "onTranscriptSegment",
+                "onTranscriptSentiment",
+                "onSponsorDetection");
     }
 }
