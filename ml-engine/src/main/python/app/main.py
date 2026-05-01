@@ -1,11 +1,19 @@
 import logging
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
-from app.models import SentimentRequest, SentimentResponse, SponsorRequest, SponsorResponse
+from app.frame_store import FrameArtifactError, frame_read_required, load_frame_artifact
+from app.models import (
+    SentimentRequest,
+    SentimentResponse,
+    SponsorRequest,
+    SponsorResponse,
+    TranscriptionResponse,
+)
 from app.sponsor import compute_sponsor_detection
 from app.sentiment import compute_sentiment
+from app.transcription import TranscriptionError, transcriber
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s [ml-engine] %(message)s"
@@ -66,26 +74,89 @@ def sponsor(request: SponsorRequest):
         )
         raise HTTPException(status_code=503, detail="forced ml-engine failure")
 
+    try:
+        frame_artifact = load_frame_artifact(request.frameRef)
+    except FrameArtifactError as exc:
+        logger.warning(
+            "sponsor frame artifact read failed frameId=%s streamer=%s frameRef=%s error=%s",
+            request.frameId,
+            request.streamer,
+            request.frameRef,
+            exc,
+        )
+        if frame_read_required():
+            raise HTTPException(status_code=503, detail="frame artifact read failed") from exc
+        frame_artifact = None
+
     sponsor_name, confidence, x, y, width, height = compute_sponsor_detection(
         request.frameRef,
         request.streamer,
         request.frameSequence,
+        frame_artifact.signature if frame_artifact else None,
     )
+    model_version = "frame-aware-stub-v1" if frame_artifact else "stub-v1"
 
     logger.info(
-        "sponsor request processed frameId=%s streamer=%s sponsor=%s confidence=%.3f",
+        "sponsor request processed frameId=%s streamer=%s sponsor=%s confidence=%.3f modelVersion=%s",
         request.frameId,
         request.streamer,
         sponsor_name,
         confidence,
+        model_version,
     )
 
     return SponsorResponse(
         sponsor=sponsor_name,
         confidence=confidence,
-        modelVersion="stub-v1",
+        modelVersion=model_version,
         x=x,
         y=y,
         width=width,
         height=height,
+    )
+
+
+@app.post("/ml/transcribe", response_model=TranscriptionResponse)
+async def transcribe(
+    file: UploadFile = File(...),
+    streamer: str = Form(...),
+    segmentId: str = Form(...),
+    startedAt: int = Form(...),
+    endedAt: int = Form(...),
+    language: str | None = Form(default=None),
+):
+    if force_failure_enabled():
+        logger.warning(
+            "forced transcription failure segmentId=%s streamer=%s", segmentId, streamer
+        )
+        raise HTTPException(status_code=503, detail="forced ml-engine failure")
+
+    try:
+        audio = await file.read()
+        result = transcriber.transcribe_bytes(
+            audio, file.filename or f"{segmentId}.wav", language
+        )
+    except TranscriptionError as exc:
+        logger.warning(
+            "transcription failed segmentId=%s streamer=%s durationMs=%s error=%s",
+            segmentId,
+            streamer,
+            endedAt - startedAt,
+            exc,
+        )
+        raise HTTPException(status_code=503, detail="local transcription failed") from exc
+
+    logger.info(
+        "transcription processed segmentId=%s streamer=%s durationMs=%s textLength=%s modelVersion=%s",
+        segmentId,
+        streamer,
+        endedAt - startedAt,
+        len(result.text),
+        result.model_version,
+    )
+    return TranscriptionResponse(
+        text=result.text,
+        language=result.language,
+        confidence=result.confidence,
+        modelVersion=result.model_version,
     )
