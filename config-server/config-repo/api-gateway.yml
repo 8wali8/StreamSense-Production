@@ -12,6 +12,8 @@ streamsense:
   topics:
     chatMessages: stream.chat.messages
     sentimentEvents: stream.sentiment.events
+    transcriptSegments: stream.transcript.segments
+    transcriptSentimentEvents: stream.transcript.sentiment.events
     sponsorDetections: stream.sponsor.detections
   services:
     chat-service:
@@ -22,6 +24,10 @@ streamsense:
       base-url: http://sentiment-service:8083
     video-service:
       base-url: http://video-service:8084
+    video-capture-service:
+      base-url: http://video-capture-service:8090
+    analytics-service:
+      base-url: http://analytics-service:8085
   gateway:
     rate-limit-enabled: ${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:true}
     auth:
@@ -79,10 +85,18 @@ spring:
           uri: ${streamsense.services.recommendation-service.base-url}
           predicates:
             - Path=/api/recommendations/**
+        - id: video-capture-service-api
+          uri: ${streamsense.services.video-capture-service.base-url}
+          predicates:
+            - Path=/api/video/capture/**
         - id: video-service-api
           uri: ${streamsense.services.video-service.base-url}
           predicates:
             - Path=/api/video/**
+        - id: analytics-service-api
+          uri: ${streamsense.services.analytics-service.base-url}
+          predicates:
+            - Path=/api/analytics/**
 
   graphql:
     graphiql:

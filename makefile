@@ -14,8 +14,8 @@ SHELL := /bin/bash
 
 COMPOSE ?= docker compose
 
-JAVA_SERVICES := eureka-server config-server api-gateway chat-service sentiment-service video-service recommendation-service
-PYTHON_SERVICES := ml-engine
+JAVA_SERVICES := eureka-server config-server api-gateway chat-service sentiment-service video-service recommendation-service analytics-service
+PYTHON_SERVICES := ml-engine video-capture-service
 FRONTEND_SERVICE := frontend
 SERVICES := $(JAVA_SERVICES) $(PYTHON_SERVICES) $(FRONTEND_SERVICE)
 
@@ -45,6 +45,14 @@ help:
 	@echo "  make smoke-e2e     Run final API-level Compose smoke path"
 	@echo "  make demo-seed     Seed demo chat and video-frame data"
 	@echo "  make demo-open     Print/open demo URLs"
+	@echo "  make twitch-up     Start stack with .env.twitch.local loaded"
+	@echo "  make twitch-status Query Twitch chat connector status"
+	@echo "  make twitch-video-up     Start stack with Twitch chat/video env loaded"
+	@echo "  make twitch-video-status Query Twitch video capture status"
+	@echo "  make twitch-transcript-up     Start stack with Twitch video/transcript env loaded"
+	@echo "  make twitch-transcript-status Query transcript capture status preview"
+	@echo "  make twitch-analytics-up      Start stack with Twitch transcript analytics env loaded"
+	@echo "  make twitch-analytics-status  Query aggregate analytics summary"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build         Build all docker images"
@@ -123,7 +131,10 @@ test:
 		done; \
 		echo ""; \
 		echo "===== TEST ml-engine ====="; \
-		( cd ml-engine && PYTHONPATH=src/main/python pytest src/test/python ); \
+		( cd ml-engine && PYTHONPATH=src/main/python python3 -m pytest src/test/python ); \
+		echo ""; \
+		echo "===== TEST video-capture-service ====="; \
+		( cd video-capture-service && PYTHONPATH=src/main/python python3 -m pytest src/test/python ); \
 		echo ""; \
 		echo "===== CHECK frontend ====="; \
 		( cd frontend && npm run lint && npm run build ); \
@@ -137,9 +148,9 @@ test-one:
 	@if [[ -f "$(SERVICE)/pom.xml" ]]; then \
 		echo "Running Maven tests for $(SERVICE)..."; \
 		cd $(SERVICE) && mvn -q -DskipTests=false test; \
-	elif [[ "$(SERVICE)" == "ml-engine" ]]; then \
-		echo "Running pytest for ml-engine..."; \
-		cd ml-engine && PYTHONPATH=src/main/python pytest src/test/python; \
+	elif [[ "$(SERVICE)" == "ml-engine" || "$(SERVICE)" == "video-capture-service" ]]; then \
+		echo "Running pytest for $(SERVICE)..."; \
+		cd $(SERVICE) && PYTHONPATH=src/main/python python3 -m pytest src/test/python; \
 	elif [[ "$(SERVICE)" == "frontend" ]]; then \
 		echo "Running frontend lint/build..."; \
 		cd frontend && npm run lint && npm run build; \
@@ -168,8 +179,12 @@ package:
 .PHONY: package-one
 package-one:
 	$(assert_service)
-	@echo "Packaging $(SERVICE)..."
-	@cd $(SERVICE) && mvn -q -DskipTests package
+	@if [[ -f "$(SERVICE)/pom.xml" ]]; then \
+		echo "Packaging $(SERVICE)..."; \
+		cd $(SERVICE) && mvn -q -DskipTests package; \
+	else \
+		echo "No package step for $(SERVICE)"; \
+	fi
 
 .PHONY: demo-seed
 demo-seed:
@@ -182,3 +197,65 @@ demo-open:
 .PHONY: smoke-e2e
 smoke-e2e:
 	@python tools/smoke/compose_smoke.py --start-compose --teardown
+
+.PHONY: twitch-up
+twitch-up:
+	@if [[ ! -f ".env.twitch.local" ]]; then \
+		echo "ERROR: .env.twitch.local is required for Twitch verification"; \
+		exit 1; \
+	fi
+	@set -a; source .env.twitch.local; set +a; $(MAKE) up
+
+.PHONY: twitch-status
+twitch-status:
+	@curl -fsS http://localhost:8080/api/chat/twitch/status
+
+.PHONY: twitch-video-up
+twitch-video-up:
+	@if [[ ! -f ".env.twitch.local" ]]; then \
+		echo "ERROR: .env.twitch.local is required for Twitch video verification"; \
+		exit 1; \
+	fi
+	@set -a; source .env.twitch.local; set +a; $(MAKE) up
+
+.PHONY: twitch-video-status
+twitch-video-status:
+	@curl -fsS http://localhost:8080/api/video/capture/status
+
+.PHONY: twitch-transcript-up
+twitch-transcript-up:
+	@if [[ ! -f ".env.twitch.local" ]]; then \
+		echo "ERROR: .env.twitch.local is required for Twitch transcript verification"; \
+		exit 1; \
+	fi
+	@set -a; source .env.twitch.local; set +a; \
+	STREAMSENSE_TWITCH_VIDEO_ENABLED=true \
+	STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED=true \
+	$(MAKE) up
+
+.PHONY: twitch-transcript-status
+twitch-transcript-status:
+	@curl -fsS http://localhost:8080/api/video/capture/status
+
+.PHONY: twitch-analytics-up
+twitch-analytics-up:
+	@if [[ ! -f ".env.twitch.local" ]]; then \
+		echo "ERROR: .env.twitch.local is required for Twitch analytics verification"; \
+		exit 1; \
+	fi
+	@set -a; source .env.twitch.local; set +a; \
+	STREAMSENSE_TWITCH_VIDEO_ENABLED=true \
+	STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED=true \
+	$(MAKE) up
+
+.PHONY: twitch-analytics-status
+twitch-analytics-status:
+	@if [[ ! -f ".env.twitch.local" ]]; then \
+		echo "ERROR: .env.twitch.local is required for Twitch analytics status"; \
+		exit 1; \
+	fi
+	@set -a; source .env.twitch.local; set +a; \
+	STREAMER="$${TWITCH_VIDEO_CHANNELS%%,*}"; \
+	if [[ -z "$$STREAMER" ]]; then STREAMER="$${TWITCH_CHANNELS%%,*}"; fi; \
+	if [[ -z "$$STREAMER" ]]; then echo "ERROR: TWITCH_VIDEO_CHANNELS or TWITCH_CHANNELS is required"; exit 1; fi; \
+	curl -fsS "http://localhost:8080/api/analytics/streams/$$STREAMER/summary?windowMinutes=15"

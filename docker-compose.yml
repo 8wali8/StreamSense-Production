@@ -52,6 +52,10 @@ services:
         condition: service_healthy
       video-service:
         condition: service_healthy
+      video-capture-service:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
@@ -64,6 +68,17 @@ services:
     build: ./chat-service
     ports: 
     - "8081:8081" # port for chat-service following pattern
+    environment:
+      - STREAMSENSE_TWITCH_CHAT_ENABLED=${STREAMSENSE_TWITCH_CHAT_ENABLED:-false}
+      - TWITCH_CHAT_HOST=${TWITCH_CHAT_HOST:-irc.chat.twitch.tv}
+      - TWITCH_CHAT_PORT=${TWITCH_CHAT_PORT:-6697}
+      - TWITCH_CHAT_SSL=${TWITCH_CHAT_SSL:-true}
+      - TWITCH_CHAT_USERNAME=${TWITCH_CHAT_USERNAME:-}
+      - TWITCH_CHAT_OAUTH_TOKEN=${TWITCH_CHAT_OAUTH_TOKEN:-}
+      - TWITCH_CHANNELS=${TWITCH_CHANNELS:-}
+      - TWITCH_CHAT_RECONNECT_DELAY_MS=${TWITCH_CHAT_RECONNECT_DELAY_MS:-5000}
+      - TWITCH_CHAT_MAX_RECONNECT_DELAY_MS=${TWITCH_CHAT_MAX_RECONNECT_DELAY_MS:-60000}
+      - TWITCH_CHAT_CONNECTION_TIMEOUT_MS=${TWITCH_CHAT_CONNECTION_TIMEOUT_MS:-10000}
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -147,7 +162,73 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
-  
+
+  video-capture-service:
+    build: ./video-capture-service
+    ports:
+      - "8090:8090"
+    environment:
+      STREAMSENSE_TWITCH_VIDEO_ENABLED: ${STREAMSENSE_TWITCH_VIDEO_ENABLED:-false}
+      TWITCH_VIDEO_CHANNELS: ${TWITCH_VIDEO_CHANNELS:-}
+      TWITCH_VIDEO_QUALITY: ${TWITCH_VIDEO_QUALITY:-best}
+      TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS: ${TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS:-10}
+      TWITCH_VIDEO_STREAM_RESOLVE_TIMEOUT_SECONDS: ${TWITCH_VIDEO_STREAM_RESOLVE_TIMEOUT_SECONDS:-20}
+      TWITCH_VIDEO_FRAME_CAPTURE_TIMEOUT_SECONDS: ${TWITCH_VIDEO_FRAME_CAPTURE_TIMEOUT_SECONDS:-15}
+      TWITCH_VIDEO_OAUTH_TOKEN: ${TWITCH_VIDEO_OAUTH_TOKEN:-}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      STREAMSENSE_VIDEO_FRAMES_TOPIC: stream.video.frames
+      STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED: ${STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED:-false}
+      STREAMSENSE_TRANSCRIPT_SEGMENTS_TOPIC: stream.transcript.segments
+      TWITCH_TRANSCRIPT_SEGMENT_SECONDS: ${TWITCH_TRANSCRIPT_SEGMENT_SECONDS:-10}
+      TWITCH_TRANSCRIPT_AUDIO_CAPTURE_TIMEOUT_SECONDS: ${TWITCH_TRANSCRIPT_AUDIO_CAPTURE_TIMEOUT_SECONDS:-30}
+      TWITCH_TRANSCRIPT_REQUEST_TIMEOUT_SECONDS: ${TWITCH_TRANSCRIPT_REQUEST_TIMEOUT_SECONDS:-60}
+      TWITCH_TRANSCRIPT_LANGUAGE: ${TWITCH_TRANSCRIPT_LANGUAGE:-en}
+      STREAMSENSE_TRANSCRIPT_TEXT_MAX_CHARS: ${STREAMSENSE_TRANSCRIPT_TEXT_MAX_CHARS:-4000}
+      STREAMSENSE_TRANSCRIPT_PREVIEW_CHARS: ${STREAMSENSE_TRANSCRIPT_PREVIEW_CHARS:-160}
+      ML_ENGINE_URL: http://ml-engine:8000
+      STREAMSENSE_FRAME_STORAGE_BACKEND: ${STREAMSENSE_FRAME_STORAGE_BACKEND:-s3}
+      STREAMSENSE_FRAME_STORAGE_BUCKET: ${STREAMSENSE_FRAME_STORAGE_BUCKET:-streamsense-frames}
+      STREAMSENSE_FRAME_STORAGE_ENDPOINT: ${STREAMSENSE_FRAME_STORAGE_ENDPOINT:-http://minio:9000}
+      STREAMSENSE_FRAME_STORAGE_ACCESS_KEY: ${STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:-streamsense}
+      STREAMSENSE_FRAME_STORAGE_SECRET_KEY: ${STREAMSENSE_FRAME_STORAGE_SECRET_KEY:-streamsense}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+      ml-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health').read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  analytics-service:
+    build: ./analytics-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -245,6 +326,9 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages.dlt --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sentiment.events --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.segments --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.segments.dlt --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.sentiment.events --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.video.frames --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sponsor.detections --partitions 3 --replication-factor 1;
         echo 'Topics now:';
@@ -280,7 +364,7 @@ services:
     networks:
       - default
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -316,12 +400,36 @@ services:
       retries: 20
       start_period: 10s
 
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:-streamsense}
+      MINIO_ROOT_PASSWORD: ${STREAMSENSE_FRAME_STORAGE_SECRET_KEY:-streamsense}
+    volumes:
+      - minio-data:/data
+
   ml-engine:
     build: ./ml-engine
     ports:
       - "8000:8000"
     environment:
       ML_ENGINE_FORCE_FAILURE: ${ML_ENGINE_FORCE_FAILURE:-false}
+      STREAMSENSE_FRAME_STORAGE_ENDPOINT: ${STREAMSENSE_FRAME_STORAGE_ENDPOINT:-http://minio:9000}
+      STREAMSENSE_FRAME_STORAGE_REGION: ${STREAMSENSE_FRAME_STORAGE_REGION:-us-east-1}
+      STREAMSENSE_FRAME_STORAGE_ACCESS_KEY: ${STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:-streamsense}
+      STREAMSENSE_FRAME_STORAGE_SECRET_KEY: ${STREAMSENSE_FRAME_STORAGE_SECRET_KEY:-streamsense}
+      STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ: ${STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ:-false}
+      STREAMSENSE_WHISPER_MODEL: ${STREAMSENSE_WHISPER_MODEL:-small.en}
+      STREAMSENSE_WHISPER_COMPUTE_TYPE: ${STREAMSENSE_WHISPER_COMPUTE_TYPE:-int8}
+      STREAMSENSE_WHISPER_DEVICE: ${STREAMSENSE_WHISPER_DEVICE:-cpu}
+      STREAMSENSE_WHISPER_LANGUAGE: ${STREAMSENSE_WHISPER_LANGUAGE:-en}
+      STREAMSENSE_WHISPER_MODEL_CACHE: /models/whisper
+    volumes:
+      - whisper-models:/models/whisper
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ml/health').read()"]
       interval: 5s
@@ -331,3 +439,5 @@ services:
 
 volumes:
   postgres-data:
+  minio-data:
+  whisper-models:

@@ -36,6 +36,8 @@ data:
       topics:
         chatMessages: stream.chat.messages
         sentimentEvents: stream.sentiment.events
+        transcriptSegments: stream.transcript.segments
+        transcriptSentimentEvents: stream.transcript.sentiment.events
         sponsorDetections: stream.sponsor.detections
       services:
         chat-service:
@@ -46,6 +48,10 @@ data:
           base-url: http://sentiment-service:8083
         video-service:
           base-url: http://video-service:8084
+        video-capture-service:
+          base-url: http://video-capture-service:8090
+        analytics-service:
+          base-url: http://analytics-service:8085
       gateway:
         rate-limit-enabled: ${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:true}
         auth:
@@ -103,10 +109,18 @@ data:
               uri: ${streamsense.services.recommendation-service.base-url}
               predicates:
                 - Path=/api/recommendations/**
+            - id: video-capture-service-api
+              uri: ${streamsense.services.video-capture-service.base-url}
+              predicates:
+                - Path=/api/video/capture/**
             - id: video-service-api
               uri: ${streamsense.services.video-service.base-url}
               predicates:
                 - Path=/api/video/**
+            - id: analytics-service-api
+              uri: ${streamsense.services.analytics-service.base-url}
+              predicates:
+                - Path=/api/analytics/**
 
       graphql:
         graphiql:
@@ -125,6 +139,18 @@ data:
     streamsense:
       topics:
         chatMessages: stream.chat.messages
+      twitch:
+        chat:
+          enabled: ${STREAMSENSE_TWITCH_CHAT_ENABLED:false}
+          host: ${TWITCH_CHAT_HOST:irc.chat.twitch.tv}
+          port: ${TWITCH_CHAT_PORT:6697}
+          ssl: ${TWITCH_CHAT_SSL:true}
+          username: ${TWITCH_CHAT_USERNAME:}
+          oauth-token: ${TWITCH_CHAT_OAUTH_TOKEN:}
+          channels: ${TWITCH_CHANNELS:}
+          reconnect-delay-ms: ${TWITCH_CHAT_RECONNECT_DELAY_MS:5000}
+          max-reconnect-delay-ms: ${TWITCH_CHAT_MAX_RECONNECT_DELAY_MS:60000}
+          connection-timeout-ms: ${TWITCH_CHAT_CONNECTION_TIMEOUT_MS:10000}
 
     spring:
       kafka:
@@ -146,6 +172,9 @@ data:
         chatMessages: stream.chat.messages
         sentimentEvents: stream.sentiment.events
         chatMessagesDlt: stream.chat.messages.dlt
+        transcriptSegments: stream.transcript.segments
+        transcriptSentimentEvents: stream.transcript.sentiment.events
+        transcriptSegmentsDlt: stream.transcript.segments.dlt
       ml:
         base-url: http://ml-engine:8000
         connectTimeoutMs: 2000
@@ -202,6 +231,9 @@ data:
       flyway:
         enabled: true
         locations: classpath:db/migration
+        table: analytics_service_flyway_history
+        baseline-on-migrate: true
+        baseline-version: 0
 
       data:
         redis:
@@ -270,7 +302,7 @@ data:
         recentPrefix: sponsor:recent
         recentTtlSeconds: 60
       payload:
-        maxFrameRefLength: 512
+        maxFrameRefLength: 1024
 
     hystrix:
       command:
@@ -360,6 +392,63 @@ data:
     management:
       health:
         circuitbreakers:
+          enabled: true
+  analytics-service.yml: |
+    server:
+      port: 8085
+
+    eureka:
+      client:
+        service-url:
+          defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+    streamsense:
+      topics:
+        chatMessages: stream.chat.messages
+        sentimentEvents: stream.sentiment.events
+        sponsorDetections: stream.sponsor.detections
+        transcriptSentimentEvents: stream.transcript.sentiment.events
+      analytics:
+        bucket-size-seconds: ${STREAMSENSE_ANALYTICS_BUCKET_SIZE_SECONDS:60}
+        default-window-minutes: ${STREAMSENSE_ANALYTICS_DEFAULT_WINDOW_MINUTES:15}
+        max-window-minutes: ${STREAMSENSE_ANALYTICS_MAX_WINDOW_MINUTES:1440}
+        estimated-sponsor-exposure-ms-per-detection: ${STREAMSENSE_ANALYTICS_SPONSOR_EXPOSURE_MS_PER_DETECTION:10000}
+        minimum-sponsor-confidence: ${STREAMSENSE_ANALYTICS_MINIMUM_SPONSOR_CONFIDENCE:0.50}
+        negative-spike-ratio-threshold: ${STREAMSENSE_ANALYTICS_NEGATIVE_SPIKE_RATIO_THRESHOLD:0.60}
+        negative-spike-minimum-events: ${STREAMSENSE_ANALYTICS_NEGATIVE_SPIKE_MINIMUM_EVENTS:10}
+        engagement-spike-minimum-messages: ${STREAMSENSE_ANALYTICS_ENGAGEMENT_SPIKE_MINIMUM_MESSAGES:20}
+        engagement-spike-multiplier: ${STREAMSENSE_ANALYTICS_ENGAGEMENT_SPIKE_MULTIPLIER:2.0}
+        engagement-spike-trailing-window-minutes: ${STREAMSENSE_ANALYTICS_ENGAGEMENT_SPIKE_TRAILING_WINDOW_MINUTES:5}
+        low-data-minimum-events: ${STREAMSENSE_ANALYTICS_LOW_DATA_MINIMUM_EVENTS:5}
+
+    spring:
+      kafka:
+        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+        consumer:
+          group-id: analytics-service
+          auto-offset-reset: earliest
+          key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+          value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+      datasource:
+        url: jdbc:postgresql://postgres:5432/streamsense
+        username: streamsense
+        password: streamsense
+        driver-class-name: org.postgresql.Driver
+
+      flyway:
+        enabled: true
+        locations: classpath:db/migration
+        baseline-on-migrate: true
+        baseline-version: 0
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus
+      endpoint:
+        prometheus:
           enabled: true
   recommendation-service.yml: |
     server:

@@ -9,12 +9,15 @@ resources:
   - platform/config-server.yaml
   - platform/postgres.yaml
   - platform/redis.yaml
+  - platform/minio.yaml
   - platform/kafka.yaml
   - apps/ml-engine.yaml
+  - apps/video-capture-service.yaml
   - apps/chat-service.yaml
   - apps/sentiment-service.yaml
   - apps/video-service.yaml
   - apps/recommendation-service.yaml
+  - apps/analytics-service.yaml
   - apps/api-gateway.yaml
   - monitoring/prometheus.yaml
   - monitoring/grafana.yaml
