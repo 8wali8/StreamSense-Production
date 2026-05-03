@@ -479,6 +479,13 @@ a {
   padding: 20px;
 }
 
+.stream-metrics-panel {
+  border-color: rgba(34, 211, 238, 0.38);
+  background:
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 34%),
+    var(--panel);
+}
+
 .panel-heading {
   margin-bottom: 16px;
 }
@@ -523,6 +530,56 @@ a {
 .metric-negative { background: rgba(251, 113, 133, 0.12); }
 .metric-blue { background: rgba(96, 165, 250, 0.12); }
 .metric-violet { background: rgba(167, 139, 250, 0.12); }
+
+.analytics-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 14px;
+}
+
+.analytics-bars {
+  min-height: 132px;
+}
+
+.analytics-spike-bar {
+  background: linear-gradient(180deg, var(--amber), var(--red));
+}
+
+.analytics-stack {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.analytics-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.analytics-row:last-child {
+  border-bottom: 0;
+}
+
+.analytics-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.analytics-row strong {
+  color: white;
+  text-align: right;
+}
+
+.analytics-factors {
+  margin-top: 14px;
+}
 
 .event-list {
   display: grid;
@@ -702,7 +759,8 @@ a {
   }
 
   .hero-panel,
-  .content-grid {
+  .content-grid,
+  .analytics-layout {
     grid-template-columns: 1fr;
   }
 }

@@ -17,6 +17,47 @@ export const RECENT_SENTIMENT_QUERY = gql`
   }
 `;
 
+export const RECENT_TRANSCRIPT_SEGMENTS_QUERY = gql`
+  query RecentTranscriptSegments($streamer: String!, $limit: Int!) {
+    recentTranscriptSegments(streamer: $streamer, limit: $limit) {
+      segmentId
+      streamer
+      text
+      startedAt
+      endedAt
+      language
+      confidence
+      modelVersion
+      source
+      channelLogin
+      streamSessionId
+      videoTimestampMs
+      transcriptSequence
+      captureWorkerId
+    }
+  }
+`;
+
+export const RECENT_TRANSCRIPT_SENTIMENT_QUERY = gql`
+  query RecentTranscriptSentiment($streamer: String!, $limit: Int!) {
+    recentTranscriptSentiment(streamer: $streamer, limit: $limit) {
+      sentimentEventId
+      segmentId
+      streamer
+      text
+      segmentStartedAt
+      segmentEndedAt
+      processedAt
+      label
+      score
+      modelVersion
+      transcriptModelVersion
+      streamSessionId
+      transcriptSequence
+    }
+  }
+`;
+
 export const RECENT_SPONSOR_DETECTIONS_QUERY = gql`
   query SponsorDetections($streamer: String!, $limit: Int!) {
     sponsorDetections(streamer: $streamer, limit: $limit) {
@@ -34,6 +75,11 @@ export const RECENT_SPONSOR_DETECTIONS_QUERY = gql`
       y
       width
       height
+      source
+      channelLogin
+      streamSessionId
+      twitchStreamId
+      videoTimestampMs
     }
   }
 `;
@@ -51,6 +97,86 @@ export const RECOMMENDATIONS_QUERY = gql`
       experimentName
       variantId
       generatedAt
+    }
+  }
+`;
+
+export const STREAM_ANALYTICS_QUERY = gql`
+  query StreamAnalytics($streamer: String!, $windowMinutes: Int!, $bucketSeconds: Int!) {
+    streamMetricsSummary(streamer: $streamer, windowMinutes: $windowMinutes) {
+      streamer
+      streamSessionId
+      windowMinutes
+      bucketSizeSeconds
+      windowStart
+      windowEnd
+      chat {
+        totalMessages
+        messagesPerMinute
+        uniqueChatters
+        peakMessagesPerMinute
+      }
+      chatSentiment {
+        positive
+        neutral
+        negative
+        averageScore
+        negativeRatio
+      }
+      transcriptSentiment {
+        positive
+        neutral
+        negative
+        averageScore
+        negativeRatio
+      }
+      sponsorExposure {
+        totalDetections
+        acceptedDetections
+        estimatedExposureMs
+        topSponsors {
+          sponsor
+          detectionCount
+          acceptedDetectionCount
+          estimatedExposureMs
+          averageConfidence
+          maxConfidence
+          fallbackDetectionCount
+          lowConfidenceDetectionCount
+        }
+      }
+      engagement {
+        spikeCount
+        latestSpikeAt
+      }
+      risk {
+        level
+        score
+        factors {
+          name
+          value
+          weight
+        }
+      }
+      dataQuality {
+        lowData
+        latestEventAt
+        aggregationLagMs
+      }
+    }
+    streamMetricsTimeseries(streamer: $streamer, windowMinutes: $windowMinutes, bucketSeconds: $bucketSeconds) {
+      bucketStart
+      bucketEnd
+      chatMessageCount
+      uniqueChatters
+      chatAverageScore
+      chatNegativeRatio
+      transcriptAverageScore
+      transcriptNegativeRatio
+      sponsorDetectionCount
+      estimatedSponsorExposureMs
+      engagementSpike
+      negativeSpike
     }
   }
 `;

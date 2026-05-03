@@ -29,6 +29,47 @@ export const ON_SENTIMENT_SUBSCRIPTION = gql`
   }
 `;
 
+export const ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION = gql`
+  subscription OnTranscriptSegment($streamer: String!) {
+    onTranscriptSegment(streamer: $streamer) {
+      segmentId
+      streamer
+      text
+      startedAt
+      endedAt
+      language
+      confidence
+      modelVersion
+      source
+      channelLogin
+      streamSessionId
+      videoTimestampMs
+      transcriptSequence
+      captureWorkerId
+    }
+  }
+`;
+
+export const ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION = gql`
+  subscription OnTranscriptSentiment($streamer: String!) {
+    onTranscriptSentiment(streamer: $streamer) {
+      sentimentEventId
+      segmentId
+      streamer
+      text
+      segmentStartedAt
+      segmentEndedAt
+      processedAt
+      label
+      score
+      modelVersion
+      transcriptModelVersion
+      streamSessionId
+      transcriptSequence
+    }
+  }
+`;
+
 export const ON_SPONSOR_DETECTION_SUBSCRIPTION = gql`
   subscription OnSponsorDetection($streamer: String!) {
     onSponsorDetection(streamer: $streamer) {
@@ -46,6 +87,11 @@ export const ON_SPONSOR_DETECTION_SUBSCRIPTION = gql`
       y
       width
       height
+      source
+      channelLogin
+      streamSessionId
+      twitchStreamId
+      videoTimestampMs
     }
   }
 `;

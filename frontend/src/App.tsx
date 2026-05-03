@@ -3,6 +3,11 @@ import { Health } from "./components/Health";
 import { RecommendationPanel } from "./components/RecommendationPanel";
 import { SentimentPanel } from "./components/SentimentPanel";
 import { SponsorPanel } from "./components/SponsorPanel";
+import { StreamMetricsOverview } from "./components/StreamMetricsOverview";
+import { TwitchIngestionStatus } from "./components/TwitchIngestionStatus";
+import { TranscriptPanel } from "./components/TranscriptPanel";
+import { TranscriptSentimentPanel } from "./components/TranscriptSentimentPanel";
+import { VideoCaptureStatus } from "./components/VideoCaptureStatus";
 import { LiveChat } from "./pages/LiveChat";
 
 type PortfolioStreamer = {
@@ -65,6 +70,7 @@ export default function App() {
 
         <nav className="nav-stack">
           <a className="nav-item nav-item-active" href="#dashboard">Dashboard</a>
+          <a className="nav-item" href="#stream-metrics">Stream Metrics</a>
           <a className="nav-item" href="#portfolio">Streamers</a>
           <a className="nav-item" href="#analytics">Past analytics</a>
           <a className="nav-item" href="#evidence">Evidence feed</a>
@@ -90,7 +96,8 @@ export default function App() {
             <div className="health-strip">
               <Health />
               <span className="status-pill status-live">Live demo stack</span>
-              <span className="status-pill">Mock sponsor workflow</span>
+              <TwitchIngestionStatus />
+              <VideoCaptureStatus />
             </div>
           </div>
 
@@ -99,7 +106,7 @@ export default function App() {
               <span className="orb" />
               <div>
                 <h2>Analyze a sponsored streamer</h2>
-                <p>Use a Twitch handle now; real ingestion wiring can replace the demo data path later.</p>
+                <p>Use a Twitch handle. Live chat and video capture are active when their status pills are connected.</p>
               </div>
             </div>
 
@@ -157,12 +164,16 @@ export default function App() {
           <SummaryCard label="Recommended action" value="Increase" detail="Lean into high-engagement segments" tone="amber" />
         </section>
 
+        <StreamMetricsOverview key={`analytics-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} />
+
         <section className="content-grid">
           <div className="content-column content-column-wide">
             <SentimentPanel key={`sentiment-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
+            <TranscriptPanel key={`transcript-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
             <LiveChat key={`chat-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} autoConnect hideControls />
           </div>
           <div className="content-column">
+            <TranscriptSentimentPanel key={`transcript-sentiment-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
             <SponsorPanel key={`sponsor-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
             <RecommendationPanel key={`recommendations-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
           </div>
