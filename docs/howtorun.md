@@ -93,6 +93,256 @@ Restore the normal demo policy with:
 STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=true docker compose up -d api-gateway
 ```
 
+## Twitch Chat Ingestion Toggle
+
+Twitch chat ingestion is disabled by default. The existing synthetic demo and smoke paths continue to use `POST /api/chat/ingest` unless you explicitly enable Twitch ingestion.
+
+Required local values:
+
+```bash
+export STREAMSENSE_TWITCH_CHAT_ENABLED=true
+export TWITCH_CHAT_USERNAME=<twitch-bot-or-user-login>
+export TWITCH_CHAT_OAUTH_TOKEN=<oauth-token-or-oauth-prefixed-token>
+export TWITCH_CHANNELS=<target-channel-login>
+```
+
+Optional overrides:
+
+```bash
+export TWITCH_CHAT_HOST=irc.chat.twitch.tv
+export TWITCH_CHAT_PORT=6697
+export TWITCH_CHAT_SSL=true
+```
+
+Start or recreate the stack after exporting the values:
+
+```bash
+make up
+```
+
+If you keep those values in the ignored local file `.env.twitch.local`, use:
+
+```bash
+make twitch-up
+```
+
+Check the connector status through the gateway:
+
+```bash
+curl http://localhost:8080/api/chat/twitch/status
+```
+
+Equivalent make target:
+
+```bash
+make twitch-status
+```
+
+Expected disabled response shape when no Twitch credentials are configured:
+
+```json
+{"enabled":false,"state":"DISABLED","channels":[],"lastMessageAt":0,"lastError":null,"reconnectAttempts":0}
+```
+
+Expected enabled behavior:
+
+- `state` moves to `CONNECTED` after the IRC connection succeeds
+- `channels` contains the configured channel login
+- `lastMessageAt` updates after real Twitch chat arrives
+- `streamsense_twitch_chat_messages_total` increases in Prometheus
+
+Important:
+
+- Do not commit Twitch OAuth tokens or client secrets.
+- Use a bot/test Twitch account for local development when possible.
+- Twitch ingestion feeds the same `stream.chat.messages` Kafka topic as synthetic ingest, so the existing sentiment pipeline, GraphQL subscriptions, and frontend live chat panel should continue to work for the configured channel.
+
+## Twitch Video Capture Toggle
+
+Twitch video capture is disabled by default. The existing synthetic sponsor path through `POST /api/video/upload-frame` remains available unless you explicitly enable video capture.
+
+Phase 2 local capture uses a real Twitch playback resolver and real frame extraction:
+
+```text
+streamlink -> ffmpeg -> MinIO frame artifact -> stream.video.frames -> video-service -> ml-engine -> stream.sponsor.detections
+```
+
+Recommended local values in `.env.twitch.local`:
+
+```bash
+STREAMSENSE_TWITCH_VIDEO_ENABLED=true
+TWITCH_VIDEO_CHANNELS=austincs
+TWITCH_VIDEO_QUALITY=best
+TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS=10
+STREAMSENSE_FRAME_STORAGE_BACKEND=s3
+STREAMSENSE_FRAME_STORAGE_BUCKET=streamsense-frames
+STREAMSENSE_FRAME_STORAGE_ENDPOINT=http://minio:9000
+STREAMSENSE_FRAME_STORAGE_ACCESS_KEY=streamsense
+STREAMSENSE_FRAME_STORAGE_SECRET_KEY=streamsense
+STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ=true
+```
+
+Public Twitch streams do not need a video OAuth token. If your target stream requires authenticated playback, add `TWITCH_VIDEO_OAUTH_TOKEN` through `.env.twitch.local` only.
+
+Start or recreate the stack with Twitch chat/video values loaded:
+
+```bash
+make twitch-video-up
+```
+
+Check video capture status through the gateway:
+
+```bash
+make twitch-video-status
+```
+
+Expected disabled response shape:
+
+```json
+{"enabled":false,"state":"DISABLED","channels":["disabled"],"lastFrameAt":null,"channelStatuses":[{"channel":"disabled","state":"DISABLED"}]}
+```
+
+Expected enabled behavior when the Twitch channel is live:
+
+- `state` moves to `CAPTURING`
+- `channels` contains the configured channel login
+- `lastFrameAt` updates every sampling interval
+- MinIO at `http://localhost:9001` contains non-empty frame objects under the `streamsense-frames` bucket
+- `stream.video.frames` receives frame events whose `frameRef` starts with `s3://streamsense-frames/`
+- `stream.sponsor.detections` receives detections with `modelVersion=frame-aware-stub-v1`
+- the frontend video status pill shows capture state and the sponsor panel receives live detections
+
+Useful verification commands:
+
+```bash
+docker compose logs video-capture-service
+docker compose exec kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic stream.video.frames --from-beginning --timeout-ms 10000
+docker compose exec kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic stream.sponsor.detections --from-beginning --timeout-ms 10000
+```
+
+Prometheus metrics:
+
+```promql
+streamsense_twitch_video_frames_captured_total
+streamsense_twitch_video_frames_published_total
+streamsense_twitch_video_last_frame_age_seconds
+streamsense_frames_ingested_total
+streamsense_sponsor_detections_total
+```
+
+Important:
+
+- Do not commit video OAuth tokens.
+- Do not commit captured frame artifacts.
+- Treat captured frames as potentially sensitive content.
+- If `STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ=true`, `ml-engine` fails unreadable frame refs so `video-service` emits visible fallback detections instead of pretending the frame was analyzed.
+
+## Twitch Transcript Capture Toggle
+
+Streamer transcript capture is disabled by default and runs only when Twitch video capture is also enabled. It extracts short WAV chunks from the live Twitch HLS stream, sends them to local `faster-whisper` in `ml-engine`, publishes transcript segments to Kafka, then stores transcript text and transcript-only sentiment separately from chat sentiment.
+
+```text
+streamlink -> ffmpeg WAV chunk -> ml-engine /ml/transcribe -> stream.transcript.segments -> sentiment-service -> stream.transcript.sentiment.events
+```
+
+Recommended local values in `.env.twitch.local`:
+
+```bash
+STREAMSENSE_TWITCH_VIDEO_ENABLED=true
+STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED=true
+TWITCH_VIDEO_CHANNELS=austincs
+TWITCH_TRANSCRIPT_SEGMENT_SECONDS=10
+TWITCH_TRANSCRIPT_LANGUAGE=en
+STREAMSENSE_WHISPER_MODEL=small.en
+STREAMSENSE_WHISPER_COMPUTE_TYPE=int8
+STREAMSENSE_WHISPER_DEVICE=cpu
+STREAMSENSE_TRANSCRIPT_TEXT_MAX_CHARS=4000
+```
+
+Start or recreate the stack with transcript capture enabled:
+
+```bash
+make twitch-transcript-up
+```
+
+Check capture status and the latest transcript preview:
+
+```bash
+make twitch-transcript-status
+```
+
+Expected enabled behavior when the Twitch channel is live and speaking:
+
+- `channelStatuses[].transcriptSegmentsCaptured` increases
+- `channelStatuses[].transcriptSegmentsPublished` increases for non-empty transcript text
+- `channelStatuses[].lastTranscriptPreview` shows a short transcript preview
+- `stream.transcript.segments` receives transcript segment events
+- `stream.transcript.sentiment.events` receives transcript sentiment events
+- GraphQL exposes `recentTranscriptSegments`, `recentTranscriptSentiment`, `onTranscriptSegment`, and `onTranscriptSentiment`
+- the frontend shows separate Transcript and Voice sentiment panels
+
+Useful verification commands:
+
+```bash
+docker compose logs video-capture-service ml-engine sentiment-service
+docker compose exec kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic stream.transcript.segments --from-beginning --timeout-ms 10000
+docker compose exec kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic stream.transcript.sentiment.events --from-beginning --timeout-ms 10000
+```
+
+Important:
+
+- The first `small.en` transcription may download the model into the `whisper-models` Docker volume.
+- Raw WAV chunks are temporary files in `video-capture-service` and are deleted after each transcription attempt.
+- Persisted transcript text is stored in `sentiment-service`; chat sentiment and transcript sentiment remain separate.
+- Do not commit Twitch tokens or captured audio artifacts.
+
+## Twitch Analytics Aggregation Toggle
+
+Product metrics aggregation runs in `analytics-service`. It consumes the real Twitch event topics and writes one-minute aggregate buckets to Postgres.
+
+```text
+stream.chat.messages + stream.sentiment.events + stream.transcript.sentiment.events + stream.sponsor.detections -> analytics-service -> /api/analytics -> GraphQL/frontend metric panels
+```
+
+Start or recreate the stack with chat, video, transcript, and analytics enabled:
+
+```bash
+make twitch-analytics-up
+```
+
+Check the current aggregate summary for the first configured Twitch channel:
+
+```bash
+make twitch-analytics-status
+```
+
+Direct REST checks:
+
+```bash
+curl -fsS 'http://localhost:8080/api/analytics/streams/<channel>/summary?windowMinutes=15'
+curl -fsS 'http://localhost:8080/api/analytics/streams/<channel>/timeseries?windowMinutes=15&bucketSeconds=60'
+curl -fsS 'http://localhost:8080/api/analytics/streams/<channel>/sponsors?windowMinutes=60'
+curl -fsS 'http://localhost:8080/api/analytics/streams/<channel>/risk?windowMinutes=15'
+```
+
+Expected enabled behavior after events arrive:
+
+- `chat.totalMessages` and `chat.messagesPerMinute` update from real Twitch chat
+- `chatSentiment` updates from `stream.sentiment.events`
+- `transcriptSentiment` updates from `stream.transcript.sentiment.events`
+- `sponsorExposure` updates from `stream.sponsor.detections`
+- `risk.level` returns `LOW_DATA` until enough signals exist, then `LOW`, `MEDIUM`, or `HIGH`
+- GraphQL exposes `streamMetricsSummary`, `streamMetricsTimeseries`, `sponsorExposureMetrics`, and `brandSafetyMetrics`
+- the frontend shows the Live stream metrics panel above the raw event panels
+
+Useful verification commands:
+
+```bash
+docker compose logs analytics-service api-gateway
+docker compose exec postgres psql -U streamsense -d streamsense -c 'select streamer, bucket_start, chat_message_count, chat_sentiment_count, transcript_sentiment_count from stream_metric_buckets order by bucket_start desc limit 10;'
+docker compose exec postgres psql -U streamsense -d streamsense -c 'select streamer, sponsor, detection_count, estimated_exposure_ms from sponsor_metric_buckets order by bucket_start desc limit 10;'
+```
+
 ## Sprint 2 quickstart
 
 Sprint 2 is complete when the live chat slice works end to end:
