@@ -1,6 +1,12 @@
 type Query {
   health: String!
   recentSentiment(streamer: String!, limit: Int!): [SentimentAnalysisEvent!]!
+  recentTranscriptSegments(streamer: String!, limit: Int!): [TranscriptSegmentEvent!]!
+  recentTranscriptSentiment(streamer: String!, limit: Int!): [TranscriptSentimentEvent!]!
   recommendations(streamer: String!, limit: Int!): [Recommendation!]!
   sponsorDetections(streamer: String!, limit: Int!): [SponsorDetectionEvent!]!
+  streamMetricsSummary(streamer: String!, streamSessionId: String, windowMinutes: Int!): StreamMetricsSummary!
+  streamMetricsTimeseries(streamer: String!, streamSessionId: String, windowMinutes: Int!, bucketSeconds: Int!): [StreamMetricBucket!]!
+  sponsorExposureMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int!): [SponsorExposureMetric!]!
+  brandSafetyMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int!): BrandSafetyMetrics!
 }
