@@ -3,6 +3,7 @@ import tempfile
 import threading
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 
 from app import metrics
@@ -15,7 +16,7 @@ from app.kafka_publisher import (
     TranscriptEventPublisher,
     TranscriptSegmentEvent,
 )
-from app.status import CaptureState, CaptureStatusStore
+from app.status import CaptureState, CaptureStatusStore, ChannelStatus
 from app.storage import FrameStorage
 from app.transcription_client import TranscriptionClient, TranscriptionClientError
 from app.twitch_source import TwitchSourceResolver, TwitchStreamOffline, TwitchStreamResolutionError
@@ -60,13 +61,35 @@ class CaptureManager:
             logger.info("started Twitch video capture loop channel=%s session=%s", channel, status.capture_session_id)
 
     def stop(self) -> None:
-        self.stop_event.set()
-        for thread in self.threads:
-            thread.join(timeout=5)
+        self._stop_threads()
         if self.publisher:
             self.publisher.close()
         if self.transcript_publisher:
             self.transcript_publisher.close()
+
+    def switch_channels(self, channels: list[str]) -> dict:
+        normalized = _normalize_channels(channels)
+        if not normalized:
+            raise ValueError("at least one Twitch channel is required")
+        if not self.config.enabled:
+            raise RuntimeError("Twitch video capture is disabled")
+        if self.storage is None or self.publisher is None:
+            raise RuntimeError("storage and publisher are required when capture is enabled")
+
+        self._stop_threads()
+        self.stop_event = threading.Event()
+        self.config = replace(self.config, channels=normalized)
+        self.status_store.statuses.clear()
+        for channel in normalized:
+            self.status_store.statuses[channel] = ChannelStatus(channel=channel, state=CaptureState.STARTING)
+        self.start()
+        return self.status_store.snapshot()
+
+    def _stop_threads(self) -> None:
+        self.stop_event.set()
+        for thread in self.threads:
+            thread.join(timeout=5)
+        self.threads.clear()
         for status in self.status_store.statuses.values():
             if status.state != CaptureState.DISABLED:
                 status.state = CaptureState.STOPPED
@@ -305,3 +328,14 @@ def _content_type(suffix: str) -> str:
     if suffix.lower() == "png":
         return "image/png"
     return "application/octet-stream"
+
+
+def _normalize_channels(channels: list[str]) -> list[str]:
+    normalized = []
+    seen = set()
+    for channel in channels:
+        value = channel.strip().lower().lstrip("#@")
+        if value and value not in seen:
+            normalized.append(value)
+            seen.add(value)
+    return normalized

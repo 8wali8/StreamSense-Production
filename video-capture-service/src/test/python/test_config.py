@@ -13,14 +13,15 @@ def test_disabled_config_does_not_require_channel(monkeypatch):
     assert config.enabled is False
 
 
-def test_enabled_config_requires_channel(monkeypatch):
+def test_enabled_config_can_wait_for_runtime_channel(monkeypatch):
     monkeypatch.setenv("STREAMSENSE_TWITCH_VIDEO_ENABLED", "true")
     monkeypatch.delenv("TWITCH_VIDEO_CHANNELS", raising=False)
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_BACKEND", "filesystem")
 
     config = CaptureConfig.from_env()
 
-    with pytest.raises(ValueError, match="TWITCH_VIDEO_CHANNELS"):
-        config.validate()
+    config.validate()
+    assert config.channels == []
 
 
 def test_enabled_config_binds_channels_and_storage(monkeypatch):

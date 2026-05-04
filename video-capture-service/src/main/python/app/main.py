@@ -1,7 +1,8 @@
 import logging
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from pydantic import BaseModel, Field
 
 from app.capture_loop import CaptureManager
 from app.config import CaptureConfig
@@ -44,6 +45,10 @@ capture_manager = CaptureManager(config, status_store, storage, publisher, trans
 app = FastAPI(title="StreamSense Video Capture Service", version="0.1.0")
 
 
+class ChannelSwitchRequest(BaseModel):
+    channels: list[str] = Field(min_length=1, max_length=10)
+
+
 @app.on_event("startup")
 def startup() -> None:
     capture_manager.start()
@@ -62,6 +67,16 @@ def health() -> dict:
 @app.get("/api/video/capture/status")
 def capture_status() -> dict:
     return status_store.snapshot()
+
+
+@app.post("/api/video/capture/channels")
+def switch_capture_channels(request: ChannelSwitchRequest) -> dict:
+    try:
+        return capture_manager.switch_channels(request.channels)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/metrics")

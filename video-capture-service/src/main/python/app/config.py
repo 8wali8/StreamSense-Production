@@ -106,8 +106,6 @@ class CaptureConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
-        if not self.channels:
-            raise ValueError("TWITCH_VIDEO_CHANNELS is required when video capture is enabled")
         if self.sample_interval_seconds < 5:
             raise ValueError("TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS must be at least 5")
         if self.frame_capture_timeout_seconds < 1:
