@@ -1,6 +1,11 @@
 import logging
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
-from fastapi import FastAPI, HTTPException, Response
+import boto3
+from botocore.client import Config
+from botocore.exceptions import ClientError
+from fastapi import FastAPI, HTTPException, Query, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 
@@ -79,6 +84,59 @@ def switch_capture_channels(request: ChannelSwitchRequest) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@app.get("/api/video/capture/frame")
+def capture_frame(frameRef: str = Query(..., min_length=1, max_length=2048)) -> Response:
+    data, content_type = _read_frame_artifact(frameRef)
+    return Response(data, media_type=content_type, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/metrics")
 def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+def _read_frame_artifact(frame_ref: str) -> tuple[bytes, str]:
+    parsed = urlparse(frame_ref)
+
+    if parsed.scheme == "s3":
+        bucket = parsed.netloc
+        key = unquote(parsed.path.lstrip("/"))
+        if bucket != config.storage.bucket or not key:
+            raise HTTPException(status_code=403, detail="frameRef bucket is not allowed")
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=config.storage.endpoint,
+            region_name=config.storage.region,
+            aws_access_key_id=config.storage.access_key,
+            aws_secret_access_key=config.storage.secret_key,
+            config=Config(signature_version="s3v4"),
+        )
+        try:
+            response = client.get_object(Bucket=bucket, Key=key)
+        except ClientError as exc:
+            status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 502)
+            if status == 404:
+                raise HTTPException(status_code=404, detail="frame artifact not found") from exc
+            raise HTTPException(status_code=502, detail="failed to read frame artifact") from exc
+
+        content_type = response.get("ContentType") or _content_type_from_name(key)
+        return response["Body"].read(), content_type
+
+    if parsed.scheme == "file":
+        root = Path(config.storage.filesystem_root).resolve()
+        path = Path(unquote(parsed.path)).resolve()
+        if root not in path.parents and path != root:
+            raise HTTPException(status_code=403, detail="frameRef path is not allowed")
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="frame artifact not found")
+        return path.read_bytes(), _content_type_from_name(path.name)
+
+    raise HTTPException(status_code=400, detail="unsupported frameRef scheme")
+
+
+def _content_type_from_name(name: str) -> str:
+    lowered = name.lower()
+    if lowered.endswith(".png"):
+        return "image/png"
+    return "image/jpeg"
