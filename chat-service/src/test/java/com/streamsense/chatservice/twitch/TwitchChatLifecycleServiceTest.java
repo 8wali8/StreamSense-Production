@@ -61,15 +61,15 @@ class TwitchChatLifecycleServiceTest {
     }
 
     @Test
-    void start_failsFastWhenEnabledWithoutChannels() {
+    void start_waitsForRuntimeChannelWhenEnabledWithoutChannels() {
         StreamSenseProperties properties = enabledProperties();
         properties.getTwitch().getChat().setChannels(List.of());
 
         TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics);
 
-        assertThatThrownBy(service::start)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("no channels are configured");
+        service.start();
+
+        verify(metrics).markStopped();
     }
 
     private static StreamSenseProperties enabledProperties() {

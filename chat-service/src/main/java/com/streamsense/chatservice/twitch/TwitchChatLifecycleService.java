@@ -47,14 +47,23 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
+        if (running) {
+            return;
+        }
         if (!properties.isEnabled()) {
             metrics.markDisabled();
             log.info("Twitch chat ingestion disabled");
             return;
         }
 
-        validateProperties();
+        validateCredentials();
+        if (normalizedChannels().isEmpty()) {
+            metrics.markStopped();
+            log.info("Twitch chat ingestion enabled, waiting for a channel");
+            return;
+        }
+
         running = true;
         worker = new Thread(this::runConnectorLoop, "twitch-chat-connector");
         worker.setDaemon(true);
@@ -62,7 +71,7 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
         running = false;
         closeActiveSocket();
         if (worker != null) {
@@ -79,6 +88,28 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     @Override
     public int getPhase() {
         return Integer.MAX_VALUE;
+    }
+
+    public synchronized TwitchChatStatus switchChannels(List<String> channels) {
+        List<String> normalized = normalizeChannels(channels);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("at least one Twitch channel is required");
+        }
+        if (!properties.isEnabled()) {
+            throw new IllegalStateException("Twitch chat ingestion is disabled");
+        }
+
+        validateCredentials();
+        properties.setChannels(normalized);
+        metrics.setChannels(normalized);
+
+        if (running) {
+            closeActiveSocket();
+        } else {
+            start();
+        }
+
+        return metrics.snapshot();
     }
 
     private void runConnectorLoop() {
@@ -171,15 +202,12 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         writer.flush();
     }
 
-    private void validateProperties() {
+    private void validateCredentials() {
         if (isBlank(properties.getUsername())) {
             throw new IllegalStateException("Twitch chat is enabled but username is missing");
         }
         if (isBlank(properties.getOauthToken())) {
             throw new IllegalStateException("Twitch chat is enabled but OAuth token is missing");
-        }
-        if (normalizedChannels().isEmpty()) {
-            throw new IllegalStateException("Twitch chat is enabled but no channels are configured");
         }
     }
 
@@ -189,10 +217,14 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     }
 
     private List<String> normalizedChannels() {
-        if (properties.getChannels() == null) {
+        return normalizeChannels(properties.getChannels());
+    }
+
+    private static List<String> normalizeChannels(List<String> channels) {
+        if (channels == null) {
             return List.of();
         }
-        return properties.getChannels().stream()
+        return channels.stream()
                 .filter(channel -> channel != null && !channel.isBlank())
                 .map(channel -> channel.trim().toLowerCase(Locale.ROOT))
                 .map(channel -> channel.startsWith("#") ? channel.substring(1) : channel)

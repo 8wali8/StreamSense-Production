@@ -18,7 +18,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 public class TwitchChatMetrics {
 
     private final boolean enabled;
-    private final List<String> channels;
+    private final AtomicReference<List<String>> channels;
     private final Counter messages;
     private final Counter reconnects;
     private final Counter errors;
@@ -32,7 +32,7 @@ public class TwitchChatMetrics {
     public TwitchChatMetrics(MeterRegistry meterRegistry, StreamSenseProperties properties) {
         StreamSenseProperties.Chat chat = properties.getTwitch().getChat();
         this.enabled = chat.isEnabled();
-        this.channels = normalizeChannels(chat.getChannels());
+        this.channels = new AtomicReference<>(normalizeChannels(chat.getChannels()));
 
         this.messages = Counter.builder("streamsense_twitch_chat_messages_total")
                 .description("Total Twitch chat messages accepted into StreamSense")
@@ -105,10 +105,14 @@ public class TwitchChatMetrics {
         return new TwitchChatStatus(
                 enabled,
                 state.get(),
-                channels,
+                channels.get(),
                 lastMessageAt.get(),
                 lastError.get(),
                 reconnectAttempts.get());
+    }
+
+    public void setChannels(List<String> channels) {
+        this.channels.set(normalizeChannels(channels));
     }
 
     private boolean isConnected() {
