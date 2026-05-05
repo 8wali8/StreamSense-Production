@@ -1,41 +1,167 @@
 import { useState } from "react";
+import { useQuery, useSubscription } from "@apollo/client/react";
 import { Health } from "./components/Health";
 import { RecommendationPanel } from "./components/RecommendationPanel";
 import { SentimentPanel } from "./components/SentimentPanel";
 import { SponsorPanel } from "./components/SponsorPanel";
 import { StreamMetricsOverview } from "./components/StreamMetricsOverview";
 import { TwitchIngestionStatus } from "./components/TwitchIngestionStatus";
-import { TranscriptPanel } from "./components/TranscriptPanel";
-import { TranscriptSentimentPanel } from "./components/TranscriptSentimentPanel";
 import { VideoCaptureStatus } from "./components/VideoCaptureStatus";
-import { LiveChat } from "./pages/LiveChat";
+import {
+  RECENT_SENTIMENT_QUERY,
+  RECENT_SPONSOR_DETECTIONS_QUERY,
+  RECENT_TRANSCRIPT_SEGMENTS_QUERY,
+  RECENT_TRANSCRIPT_SENTIMENT_QUERY,
+} from "./graphql/queries";
+import {
+  ON_CHAT_MESSAGE_SUBSCRIPTION,
+  ON_SENTIMENT_SUBSCRIPTION,
+  ON_SPONSOR_DETECTION_SUBSCRIPTION,
+  ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION,
+  ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION,
+} from "./graphql/subscriptions";
+
+type SponsorDetectionEvent = {
+  detectionEventId: string;
+  sourceFrameId: string;
+  streamer: string;
+  frameRef: string;
+  frameSequence: number;
+  capturedAt: number;
+  processedAt: number;
+  sponsor: string;
+  confidence: number;
+  modelVersion: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  source?: string | null;
+  channelLogin?: string | null;
+  streamSessionId?: string | null;
+  twitchStreamId?: string | null;
+  videoTimestampMs?: number | null;
+};
+
+type TranscriptSegmentEvent = {
+  segmentId: string;
+  streamer: string;
+  text: string;
+  startedAt: number;
+  endedAt: number;
+  language?: string | null;
+  confidence?: number | null;
+  modelVersion: string;
+  source?: string | null;
+  channelLogin?: string | null;
+  streamSessionId?: string | null;
+  videoTimestampMs: number;
+  transcriptSequence: number;
+  captureWorkerId?: string | null;
+};
+
+type ChatMessageEvent = {
+  eventId: string;
+  streamer: string;
+  user: string;
+  message: string;
+  timestamp: number;
+};
+
+type SentimentEvent = {
+  sentimentEventId: string;
+  sourceEventId: string;
+  streamer: string;
+  user: string;
+  message: string;
+  chatTimestamp: number;
+  processedAt: number;
+  label: string;
+  score: number;
+  modelVersion: string;
+};
+
+type TranscriptSentimentEvent = {
+  sentimentEventId: string;
+  segmentId: string;
+  streamer: string;
+  text: string;
+  segmentStartedAt: number;
+  segmentEndedAt: number;
+  processedAt: number;
+  label: string;
+  score: number;
+  modelVersion: string;
+  transcriptModelVersion: string;
+  streamSessionId?: string | null;
+  transcriptSequence: number;
+};
 
 type PortfolioStreamer = {
   handle: string;
   brand: string;
-  sentiment: string;
-  visibility: string;
+  owner: string;
   risk: string;
 };
 
 const portfolioStreamers: PortfolioStreamer[] = [
-  { handle: "test", brand: "Nike", sentiment: "+18%", visibility: "Strong", risk: "Low" },
-  { handle: "speedrun-lab", brand: "Prime", sentiment: "+11%", visibility: "Medium", risk: "Watch" },
-  { handle: "arena-night", brand: "Razer", sentiment: "-4%", visibility: "Strong", risk: "Medium" },
+  { handle: "test", brand: "Nike", owner: "Demo channel", risk: "Low" },
+  { handle: "speedrun-lab", brand: "Prime", owner: "Speedrun lab", risk: "Watch" },
+  { handle: "arena-night", brand: "Razer", owner: "Arena night", risk: "Medium" },
 ];
 
-const pipelineStages = [
-  "Audience chat ingest",
-  "Sentiment scoring",
-  "Sponsor visibility scan",
-  "Recommendation synthesis",
-];
+function formatTime(ts?: number | null): string {
+  if (!ts) return "--:--:--";
+  return new Date(ts).toLocaleTimeString();
+}
 
-const historicalRuns = [
-  { label: "Last 24h", sentiment: "+18%", exposure: "92%", action: "Increase activation" },
-  { label: "7 days", sentiment: "+9%", exposure: "74%", action: "Maintain spend" },
-  { label: "30 days", sentiment: "+14%", exposure: "81%", action: "Renew sponsor slot" },
-];
+function formatDuration(ms?: number | null): string {
+  if (ms == null) return "--";
+  return `${Math.round(ms / 1000)}s`;
+}
+
+function mergeById<T>(liveItems: T[], historyItems: T[], getId: (item: T) => string, limit: number): T[] {
+  const seen = new Set<string>();
+  const merged: T[] = [];
+
+  for (const item of [...liveItems, ...historyItems]) {
+    const id = getId(item);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    merged.push(item);
+  }
+
+  return merged.slice(0, limit);
+}
+
+function percent(value: number): string {
+  const normalized = value <= 1 ? value * 100 : value;
+  return `${Math.max(0, Math.min(100, normalized))}%`;
+}
+
+function sentimentClass(label?: string): string {
+  const normalized = label?.toLowerCase();
+  if (normalized === "positive") return "analysis-positive";
+  if (normalized === "negative") return "analysis-negative";
+  return "analysis-neutral";
+}
+
+function twitchPlayerUrl(streamer: string): string {
+  const channel = streamer.trim().toLowerCase().replace(/^[@#]/, "");
+  const parent = encodeURIComponent(window.location.hostname || "localhost");
+  return `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${parent}&muted=true&autoplay=true`;
+}
+
+async function switchRuntimeChannels(path: string, streamer: string): Promise<void> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channels: [streamer] }),
+  });
+  if (!response.ok) {
+    throw new Error(`${path} returned ${response.status}`);
+  }
+}
 
 export default function App() {
   const [streamerInput, setStreamerInput] = useState("test");
@@ -43,19 +169,42 @@ export default function App() {
   const [sponsorBrand, setSponsorBrand] = useState("Nike");
   const [campaignGoal, setCampaignGoal] = useState("Launch-week brand lift");
   const [analysisRuns, setAnalysisRuns] = useState(1);
+  const [channelSwitchStatus, setChannelSwitchStatus] = useState("Runtime capture follows the streamer field.");
 
-  function analyzeStreamer() {
+  async function analyzeStreamer() {
     const nextStreamer = streamerInput.trim();
-    if (!nextStreamer) {
+    if (!nextStreamer) return;
+
+    await loadStreamer(nextStreamer, sponsorBrand);
+  }
+
+  async function selectPortfolioStreamer(streamer: PortfolioStreamer) {
+    setStreamerInput(streamer.handle);
+    setSponsorBrand(streamer.brand);
+    await loadStreamer(streamer.handle, streamer.brand);
+  }
+
+  async function loadStreamer(streamer: string, brand: string) {
+    setSelectedStreamer(streamer);
+    setSponsorBrand(brand);
+    setAnalysisRuns((current) => current + 1);
+    setChannelSwitchStatus(`Switching Twitch ingest to @${streamer}...`);
+
+    const results = await Promise.allSettled([
+      switchRuntimeChannels("/api/chat/twitch/channels", streamer),
+      switchRuntimeChannels("/api/video/capture/channels", streamer),
+    ]);
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length > 0) {
+      setChannelSwitchStatus(`Loaded @${streamer}; ${failures.length} Twitch connector update failed. Check service status pills.`);
       return;
     }
 
-    setSelectedStreamer(nextStreamer);
-    setAnalysisRuns((current) => current + 1);
+    setChannelSwitchStatus(`Chat, video frames, and transcript capture are pointed at @${streamer}.`);
   }
 
-  const activePortfolio = portfolioStreamers.find((streamer) => streamer.handle === selectedStreamer);
-  const displayBrand = sponsorBrand.trim() || activePortfolio?.brand || "Sponsor brand";
+  const selectedPortfolio = portfolioStreamers.find((streamer) => streamer.handle === selectedStreamer);
+  const displayBrand = sponsorBrand.trim() || selectedPortfolio?.brand || "Sponsor";
 
   return (
     <div className="app-shell">
@@ -64,173 +213,118 @@ export default function App() {
           <div className="brand-mark">SS</div>
           <div>
             <div className="brand-name">StreamSense</div>
-            <div className="brand-kicker">Sponsor intelligence</div>
+            <div className="brand-kicker">Live sponsor ops</div>
           </div>
         </div>
 
         <nav className="nav-stack">
-          <a className="nav-item nav-item-active" href="#dashboard">Dashboard</a>
-          <a className="nav-item" href="#stream-metrics">Stream Metrics</a>
-          <a className="nav-item" href="#portfolio">Streamers</a>
-          <a className="nav-item" href="#analytics">Past analytics</a>
-          <a className="nav-item" href="#evidence">Evidence feed</a>
+          <a className="nav-item nav-item-active" href="#console">Live console</a>
+          <a className="nav-item" href="#metrics">Metrics</a>
+          <a className="nav-item" href="#evidence">Evidence</a>
+          <a className="nav-item" href="#roster">Roster</a>
         </nav>
 
         <div className="sidebar-card">
-          <div className="eyebrow">Current campaign</div>
-          <strong>{displayBrand}</strong>
-          <span>{campaignGoal || "Campaign goal not set"}</span>
+          <span className="field-label">Active review</span>
+          <strong>@{selectedStreamer}</strong>
+          <span>{displayBrand} / {campaignGoal || "No campaign goal"}</span>
         </div>
       </aside>
 
       <main className="main-stage">
-        <header className="hero-panel" id="dashboard">
-          <div className="hero-copy">
-            <div className="eyebrow">Sponsor Command Center</div>
-            <h1>Turn streamer moments into sponsor decisions.</h1>
-            <p>
-              Enter a Twitch streamer, run the StreamSense pipeline, and review audience sentiment,
-              sponsor visibility, and recommended campaign actions in one place.
-            </p>
-
-            <div className="health-strip">
-              <Health />
-              <span className="status-pill status-live">Live demo stack</span>
-              <TwitchIngestionStatus />
-              <VideoCaptureStatus />
-            </div>
+        <header className="command-panel" id="console">
+          <div>
+            <div className="eyebrow">Twitch sponsor monitoring</div>
+            <h1>Live stream console</h1>
+            <p>Watch captured stream frames, chat, transcript, sponsor detections, and risk signals in the same operating view.</p>
           </div>
 
-          <section className="analysis-card" aria-label="Analyze streamer">
-            <div className="analysis-card-header">
-              <span className="orb" />
-              <div>
-                <h2>Analyze a sponsored streamer</h2>
-                <p>Use a Twitch handle. Live chat and video capture are active when their status pills are connected.</p>
-              </div>
-            </div>
+          <div className="command-status-row">
+            <Health />
+            <TwitchIngestionStatus />
+            <VideoCaptureStatus />
+          </div>
 
-            <label className="field-label" htmlFor="streamer-handle">Twitch streamer</label>
-            <div className="search-row">
+          <div className="command-form" aria-label="Stream analysis controls">
+            <label>
+              <span className="field-label">Streamer</span>
               <input
-                id="streamer-handle"
-                className="text-input text-input-large"
+                className="text-input"
                 value={streamerInput}
                 onChange={(event) => setStreamerInput(event.target.value)}
                 placeholder="e.g. shroud"
               />
-              <button className="button-primary" onClick={analyzeStreamer}>Analyze Streamer</button>
-            </div>
+            </label>
+            <label>
+              <span className="field-label">Sponsor</span>
+              <input
+                className="text-input"
+                value={sponsorBrand}
+                onChange={(event) => setSponsorBrand(event.target.value)}
+                placeholder="Nike, Prime, Razer"
+              />
+            </label>
+            <label>
+              <span className="field-label">Goal</span>
+              <input
+                className="text-input"
+                value={campaignGoal}
+                onChange={(event) => setCampaignGoal(event.target.value)}
+                placeholder="Brand lift, renewal, risk review"
+              />
+            </label>
+            <button className="button-primary" onClick={analyzeStreamer}>Load Console</button>
+          </div>
 
-            <div className="form-grid">
-              <label>
-                <span className="field-label">Sponsor brand</span>
-                <input
-                  className="text-input"
-                  value={sponsorBrand}
-                  onChange={(event) => setSponsorBrand(event.target.value)}
-                  placeholder="Nike, Prime, Razer"
-                />
-              </label>
-              <label>
-                <span className="field-label">Campaign goal</span>
-                <input
-                  className="text-input"
-                  value={campaignGoal}
-                  onChange={(event) => setCampaignGoal(event.target.value)}
-                  placeholder="Brand lift, renewal, risk review"
-                />
-              </label>
-            </div>
-          </section>
+          <div className="runtime-channel-note">{channelSwitchStatus}</div>
         </header>
 
-        <section className="pipeline-panel" aria-label="Analysis pipeline status">
-          {pipelineStages.map((stage, index) => (
-            <div className="pipeline-step" key={stage}>
-              <span className="pipeline-index">0{index + 1}</span>
-              <div>
-                <strong>{stage}</strong>
-                <p>{analysisRuns > 1 ? "Complete for current run" : "Ready when analysis starts"}</p>
-              </div>
-            </div>
-          ))}
+        <LiveStreamConsole
+          key={`${selectedStreamer}-${analysisRuns}`}
+          streamer={selectedStreamer}
+          sponsorBrand={displayBrand}
+          campaignGoal={campaignGoal}
+        />
+
+        <section className="ops-strip" aria-label="Operator notes">
+          <OperatorNote label="Stream" value={`@${selectedStreamer}`} detail={selectedPortfolio?.owner ?? "Custom Twitch handle"} />
+          <OperatorNote label="Sponsor" value={displayBrand} detail="Detection overlays use captured frame coordinates" />
+          <OperatorNote label="Risk mode" value={selectedPortfolio?.risk ?? "Live"} detail="Escalate on negative voice or chat spikes" />
+          <OperatorNote label="Refresh" value="Realtime" detail="GraphQL subscriptions update chat, transcript, and detections" />
         </section>
 
-        <section className="summary-grid" aria-label="Executive summary">
-          <SummaryCard label="Streamer" value={`@${selectedStreamer}`} detail="Selected sponsor target" tone="cyan" />
-          <SummaryCard label="Audience mood" value="Positive" detail="Recent chat skews constructive" tone="green" />
-          <SummaryCard label="Sponsor visibility" value="Strong" detail={`${displayBrand} has clean detection signals`} tone="violet" />
-          <SummaryCard label="Recommended action" value="Increase" detail="Lean into high-engagement segments" tone="amber" />
+        <section className="metrics-section" id="metrics">
+          <StreamMetricsOverview key={`analytics-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} />
         </section>
 
-        <StreamMetricsOverview key={`analytics-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} />
-
-        <section className="content-grid">
-          <div className="content-column content-column-wide">
-            <SentimentPanel key={`sentiment-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
-            <TranscriptPanel key={`transcript-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
-            <LiveChat key={`chat-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} autoConnect hideControls />
-          </div>
-          <div className="content-column">
-            <TranscriptSentimentPanel key={`transcript-sentiment-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
-            <SponsorPanel key={`sponsor-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
-            <RecommendationPanel key={`recommendations-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
-          </div>
+        <section className="evidence-grid" id="evidence">
+          <SentimentPanel key={`sentiment-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
+          <SponsorPanel key={`sponsor-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
+          <RecommendationPanel key={`recommendations-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
         </section>
 
-        <section className="portfolio-section" id="portfolio">
+        <section className="roster-section" id="roster">
           <div className="section-heading">
             <div>
-              <div className="eyebrow">Sponsored roster</div>
-              <h2>Choose streamers to review</h2>
+              <div className="eyebrow">Watched channels</div>
+              <h2>Quick-switch roster</h2>
             </div>
-            <span className="status-pill">{portfolioStreamers.length} tracked streamers</span>
+            <span className="status-pill">{portfolioStreamers.length} saved</span>
           </div>
-
           <div className="portfolio-grid">
             {portfolioStreamers.map((streamer) => (
               <button
                 className={`portfolio-card${streamer.handle === selectedStreamer ? " portfolio-card-active" : ""}`}
                 key={streamer.handle}
-                onClick={() => {
-                  setStreamerInput(streamer.handle);
-                  setSelectedStreamer(streamer.handle);
-                  setSponsorBrand(streamer.brand);
-                  setAnalysisRuns((current) => current + 1);
-                }}
+                onClick={() => selectPortfolioStreamer(streamer)}
               >
                 <span>@{streamer.handle}</span>
                 <strong>{streamer.brand}</strong>
                 <div className="portfolio-meta">
-                  <span>{streamer.sentiment} sentiment</span>
-                  <span>{streamer.visibility} visibility</span>
-                  <span>{streamer.risk} risk</span>
+                  <span>{streamer.owner}</span>
+                  <span>Risk: {streamer.risk}</span>
                 </div>
               </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="history-section" id="analytics">
-          <div className="section-heading">
-            <div>
-              <div className="eyebrow">Past analytics</div>
-              <h2>Use prior runs to guide sponsor work</h2>
-            </div>
-            <span className="status-pill">Demo trend model</span>
-          </div>
-
-          <div className="history-grid">
-            {historicalRuns.map((run) => (
-              <article className="history-card" key={run.label}>
-                <span>{run.label}</span>
-                <strong>{run.action}</strong>
-                <div className="history-metrics">
-                  <span>Sentiment {run.sentiment}</span>
-                  <span>Exposure {run.exposure}</span>
-                </div>
-              </article>
             ))}
           </div>
         </section>
@@ -239,9 +333,277 @@ export default function App() {
   );
 }
 
-function SummaryCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
+function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer: string; sponsorBrand: string; campaignGoal: string }) {
+  const [liveSponsors, setLiveSponsors] = useState<SponsorDetectionEvent[]>([]);
+  const [liveTranscripts, setLiveTranscripts] = useState<TranscriptSegmentEvent[]>([]);
+  const [liveChat, setLiveChat] = useState<ChatMessageEvent[]>([]);
+  const [liveSentiment, setLiveSentiment] = useState<SentimentEvent[]>([]);
+  const [liveTranscriptSentiment, setLiveTranscriptSentiment] = useState<TranscriptSentimentEvent[]>([]);
+
+  const sponsorQuery = useQuery<{ sponsorDetections: SponsorDetectionEvent[] }>(RECENT_SPONSOR_DETECTIONS_QUERY, {
+    variables: { streamer, limit: 12 },
+    fetchPolicy: "network-only",
+  });
+  const transcriptQuery = useQuery<{ recentTranscriptSegments: TranscriptSegmentEvent[] }>(RECENT_TRANSCRIPT_SEGMENTS_QUERY, {
+    variables: { streamer, limit: 10 },
+    fetchPolicy: "network-only",
+  });
+  const sentimentQuery = useQuery<{ recentSentiment: SentimentEvent[] }>(RECENT_SENTIMENT_QUERY, {
+    variables: { streamer, limit: 12 },
+    fetchPolicy: "network-only",
+  });
+  const transcriptSentimentQuery = useQuery<{ recentTranscriptSentiment: TranscriptSentimentEvent[] }>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
+    variables: { streamer, limit: 10 },
+    fetchPolicy: "network-only",
+  });
+
+  const sponsorHistory = sponsorQuery.data?.sponsorDetections ?? [];
+  const transcriptHistory = transcriptQuery.data?.recentTranscriptSegments ?? [];
+  const sentimentHistory = sentimentQuery.data?.recentSentiment ?? [];
+  const transcriptSentimentHistory = transcriptSentimentQuery.data?.recentTranscriptSentiment ?? [];
+
+  const sponsors = mergeById(liveSponsors, sponsorHistory, (event) => event.detectionEventId, 20);
+  const transcriptSegments = mergeById(liveTranscripts, transcriptHistory, (event) => event.segmentId, 16);
+  const chatSentiments = mergeById(liveSentiment, sentimentHistory, (event) => event.sentimentEventId, 16);
+  const transcriptSentiments = mergeById(
+    liveTranscriptSentiment,
+    transcriptSentimentHistory,
+    (event) => event.sentimentEventId,
+    16,
+  );
+
+  const sponsorHistoryIds = new Set(sponsorHistory.map((event) => event.detectionEventId));
+  const transcriptHistoryIds = new Set(transcriptHistory.map((event) => event.segmentId));
+  const sentimentHistoryIds = new Set(sentimentHistory.map((event) => event.sentimentEventId));
+  const transcriptSentimentHistoryIds = new Set(transcriptSentimentHistory.map((event) => event.sentimentEventId));
+
+  useSubscription<{ onSponsorDetection: SponsorDetectionEvent }>(ON_SPONSOR_DETECTION_SUBSCRIPTION, {
+    variables: { streamer },
+    onData: ({ data }) => {
+      const event = data.data?.onSponsorDetection;
+      if (!event) return;
+      setLiveSponsors((current) => {
+        if (sponsorHistoryIds.has(event.detectionEventId) || current.some((item) => item.detectionEventId === event.detectionEventId)) {
+          return current;
+        }
+        return [event, ...current].slice(0, 20);
+      });
+    },
+  });
+
+  useSubscription<{ onTranscriptSegment: TranscriptSegmentEvent }>(ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION, {
+    variables: { streamer },
+    onData: ({ data }) => {
+      const event = data.data?.onTranscriptSegment;
+      if (!event) return;
+      setLiveTranscripts((current) => {
+        if (transcriptHistoryIds.has(event.segmentId) || current.some((item) => item.segmentId === event.segmentId)) {
+          return current;
+        }
+        return [event, ...current].slice(0, 16);
+      });
+    },
+  });
+
+  useSubscription<{ onChatMessage: ChatMessageEvent }>(ON_CHAT_MESSAGE_SUBSCRIPTION, {
+    variables: { streamer },
+    onData: ({ data }) => {
+      const event = data.data?.onChatMessage;
+      if (!event) return;
+      setLiveChat((current) => {
+        if (current.some((item) => item.eventId === event.eventId)) return current;
+        return [event, ...current].slice(0, 14);
+      });
+    },
+  });
+
+  useSubscription<{ onSentiment: SentimentEvent }>(ON_SENTIMENT_SUBSCRIPTION, {
+    variables: { streamer },
+    onData: ({ data }) => {
+      const event = data.data?.onSentiment;
+      if (!event) return;
+      setLiveSentiment((current) => {
+        if (sentimentHistoryIds.has(event.sentimentEventId) || current.some((item) => item.sentimentEventId === event.sentimentEventId)) {
+          return current;
+        }
+        return [event, ...current].slice(0, 16);
+      });
+    },
+  });
+
+  useSubscription<{ onTranscriptSentiment: TranscriptSentimentEvent }>(ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
+    variables: { streamer },
+    onData: ({ data }) => {
+      const event = data.data?.onTranscriptSentiment;
+      if (!event) return;
+      setLiveTranscriptSentiment((current) => {
+        if (
+          transcriptSentimentHistoryIds.has(event.sentimentEventId) ||
+          current.some((item) => item.sentimentEventId === event.sentimentEventId)
+        ) {
+          return current;
+        }
+        return [event, ...current].slice(0, 16);
+      });
+    },
+  });
+
+  const latestFrame = sponsors.find((event) => event.frameRef);
+  const playerUrl = twitchPlayerUrl(streamer);
+  const frameOverlays = latestFrame
+    ? sponsors.filter((event) => event.frameRef === latestFrame.frameRef).slice(0, 6)
+    : [];
+  const topSponsor = sponsors.find((event) => event.sponsor !== "UNKNOWN") ?? latestFrame;
+  const negativeChatCount = chatSentiments.filter((event) => event.label.toLowerCase() === "negative").length;
+  const latestTranscriptSentiment = transcriptSentiments[0];
+  const latestChat = liveChat[0];
+  const latestEventAt = latestFrame?.capturedAt ?? latestTranscriptSentiment?.processedAt ?? latestChat?.timestamp;
+  const transcriptSentimentBySegment = new Map(transcriptSentiments.map((event) => [event.segmentId, event]));
+
   return (
-    <article className={`summary-card summary-${tone}`}>
+    <section className="stream-console" aria-label="Live stream analysis console">
+      <div className="video-console-card">
+        <div className="video-topbar">
+          <div>
+            <span className="live-dot">LIVE</span>
+            <strong>@{streamer}</strong>
+            <span>{sponsorBrand}</span>
+          </div>
+          <div className="video-clock">Last signal {formatTime(latestEventAt)}</div>
+        </div>
+
+        <div className="stream-frame-shell">
+          <iframe
+            className="stream-video-iframe"
+            src={playerUrl}
+            title={`Live Twitch stream for ${streamer}`}
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+          />
+
+          <div className="video-overlay video-overlay-top-left">
+            <span>Campaign</span>
+            <strong>{campaignGoal || "Live review"}</strong>
+          </div>
+
+          <div className="video-overlay video-overlay-bottom-left">
+            <span>Sponsor read</span>
+            <strong>{topSponsor ? `${topSponsor.sponsor} ${(topSponsor.confidence * 100).toFixed(0)}%` : "No detection yet"}</strong>
+          </div>
+
+          <div className="video-overlay video-overlay-bottom-right">
+            <span>Frame</span>
+            <strong>{latestFrame ? `#${latestFrame.frameSequence}` : "--"}</strong>
+          </div>
+
+          {frameOverlays.map((event) => (
+            <div
+              className="detection-box"
+              key={event.detectionEventId}
+              style={{
+                left: percent(event.x),
+                top: percent(event.y),
+                width: percent(event.width),
+                height: percent(event.height),
+              }}
+            >
+              <span>{event.sponsor}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="console-metrics-row">
+          <ConsoleMetric label="Detections" value={sponsors.length} detail={topSponsor?.sponsor ?? "none"} />
+          <ConsoleMetric label="Voice read" value={latestTranscriptSentiment?.label ?? "pending"} detail={latestTranscriptSentiment ? latestTranscriptSentiment.score.toFixed(2) : "no transcript"} />
+          <ConsoleMetric label="Chat risk" value={negativeChatCount} detail="negative hits" />
+          <ConsoleMetric label="Exposure" value={formatDuration(latestFrame?.videoTimestampMs)} detail="stream timestamp" />
+        </div>
+      </div>
+
+      <aside className="stream-sidecar" aria-label="Transcript and chat analysis">
+        <section className="sidecar-panel transcript-feed">
+          <div className="sidecar-heading">
+            <div>
+              <span className="eyebrow">Streamer audio</span>
+              <h2>Transcript</h2>
+            </div>
+            <span className="status-pill">{transcriptSegments.length} segments</span>
+          </div>
+
+          <div className="feed-stack">
+            {transcriptQuery.loading && transcriptSegments.length === 0 && <div className="empty-state">Loading transcript...</div>}
+            {!transcriptQuery.loading && transcriptSegments.length === 0 && <div className="empty-state">No transcript segments yet.</div>}
+            {transcriptSegments.map((segment) => {
+              const analysis = transcriptSentimentBySegment.get(segment.segmentId);
+              return (
+                <article className="transcript-line" key={segment.segmentId}>
+                  <div className="line-meta">
+                    <span>{formatTime(segment.startedAt)}</span>
+                    <span>seq {segment.transcriptSequence}</span>
+                    <span className={`analysis-chip ${sentimentClass(analysis?.label)}`}>{analysis?.label ?? "pending"}</span>
+                  </div>
+                  <p>{segment.text}</p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="sidecar-panel chat-feed">
+          <div className="sidecar-heading">
+            <div>
+              <span className="eyebrow">Audience layer</span>
+              <h2>Chat + sentiment</h2>
+            </div>
+            <span className="status-pill">{liveChat.length + chatSentiments.length} signals</span>
+          </div>
+
+          <div className="feed-stack compact-feed">
+            {liveChat.slice(0, 5).map((event) => (
+              <article className="chat-line" key={event.eventId}>
+                <div className="line-meta">
+                  <span>{formatTime(event.timestamp)}</span>
+                  <span>{event.user}</span>
+                  <span className="analysis-chip analysis-live">raw</span>
+                </div>
+                <p>{event.message}</p>
+              </article>
+            ))}
+
+            {chatSentiments.map((event) => (
+              <article className="chat-line" key={event.sentimentEventId}>
+                <div className="line-meta">
+                  <span>{formatTime(event.chatTimestamp)}</span>
+                  <span>{event.user}</span>
+                  <span className={`analysis-chip ${sentimentClass(event.label)}`}>{event.label} {event.score.toFixed(2)}</span>
+                </div>
+                <p>{event.message}</p>
+              </article>
+            ))}
+
+            {!sentimentQuery.loading && liveChat.length === 0 && chatSentiments.length === 0 && (
+              <div className="empty-state">No chat signals yet.</div>
+            )}
+          </div>
+        </section>
+      </aside>
+    </section>
+  );
+}
+
+function ConsoleMetric({ label, value, detail }: { label: string; value: string | number; detail: string }) {
+  return (
+    <div className="console-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function OperatorNote({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article className="operator-note">
       <span>{label}</span>
       <strong>{value}</strong>
       <p>{detail}</p>
