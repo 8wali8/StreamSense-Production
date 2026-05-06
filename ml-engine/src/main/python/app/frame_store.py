@@ -2,7 +2,7 @@ import hashlib
 import os
 from dataclasses import dataclass
 from io import BytesIO
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import boto3
 from botocore.client import Config
@@ -25,6 +25,16 @@ class FrameArtifact:
         return f"{self.checksum}:{self.width}x{self.height}:{self.size_bytes}"
 
 
+@dataclass(frozen=True)
+class FrameImage:
+    artifact: FrameArtifact
+    image: Image.Image
+
+    @property
+    def signature(self) -> str:
+        return self.artifact.signature
+
+
 def frame_read_required() -> bool:
     return os.getenv("STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ", "false").strip().lower() in {
         "1",
@@ -35,11 +45,16 @@ def frame_read_required() -> bool:
 
 
 def load_frame_artifact(frame_ref: str) -> FrameArtifact | None:
+    frame_image = load_frame_image(frame_ref)
+    return frame_image.artifact if frame_image else None
+
+
+def load_frame_image(frame_ref: str) -> FrameImage | None:
     parsed = urlparse(frame_ref)
     if parsed.scheme == "file":
-        return _validate_image(_read_file(parsed.path), frame_ref)
+        return _decode_image(_read_file(_file_path(parsed)), frame_ref)
     if parsed.scheme == "s3":
-        return _validate_image(_read_s3(parsed.netloc, parsed.path.lstrip("/")), frame_ref)
+        return _decode_image(_read_s3(parsed.netloc, parsed.path.lstrip("/")), frame_ref)
     if frame_read_required():
         raise FrameArtifactError(f"unsupported frameRef scheme for required frame read: {parsed.scheme or 'none'}")
     return None
@@ -51,6 +66,13 @@ def _read_file(path: str) -> bytes:
             return handle.read()
     except OSError as exc:
         raise FrameArtifactError(f"failed to read frame file: {path}") from exc
+
+
+def _file_path(parsed) -> str:
+    path = unquote(parsed.path or parsed.netloc)
+    if os.name == "nt" and path.startswith("/") and len(path) > 2 and path[2] == ":":
+        return path[1:]
+    return path
 
 
 def _read_s3(bucket: str, key: str) -> bytes:
@@ -69,19 +91,21 @@ def _read_s3(bucket: str, key: str) -> bytes:
         raise FrameArtifactError(f"failed to read s3 frame artifact: s3://{bucket}/{key}") from exc
 
 
-def _validate_image(data: bytes, frame_ref: str) -> FrameArtifact:
+def _decode_image(data: bytes, frame_ref: str) -> FrameImage:
     if not data:
         raise FrameArtifactError(f"empty frame artifact: {frame_ref}")
     try:
         with Image.open(BytesIO(data)) as image:
-            image.verify()
             width, height = image.size
+            image.load()
+            decoded = image.convert("RGB")
     except (UnidentifiedImageError, OSError) as exc:
         raise FrameArtifactError(f"invalid frame image: {frame_ref}") from exc
 
-    return FrameArtifact(
+    artifact = FrameArtifact(
         checksum=hashlib.sha256(data).hexdigest(),
         width=width,
         height=height,
         size_bytes=len(data),
     )
+    return FrameImage(artifact=artifact, image=decoded)
