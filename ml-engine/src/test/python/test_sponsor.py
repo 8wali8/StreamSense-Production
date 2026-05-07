@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from PIL import Image
 
 import app.main as main_module
 from app.main import app
@@ -49,6 +50,23 @@ def test_sponsor_endpoint_reads_real_frame_fixture(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert response.json()["modelVersion"] == "frame-aware-stub-v1"
+
+
+def test_sponsor_endpoint_can_use_heuristic_region_proposals(monkeypatch, tmp_path):
+    monkeypatch.setenv("STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ", "true")
+    monkeypatch.setenv("STREAMSENSE_SPONSOR_SEGMENTATION_ENABLED", "true")
+    monkeypatch.setenv("STREAMSENSE_SPONSOR_MODEL_BACKEND", "heuristic")
+    frame_path = tmp_path / "frame.png"
+    image = Image.new("RGB", (8, 8), "white")
+    for x in range(4):
+        for y in range(8):
+            image.putpixel((x, y), (0, 0, 0))
+    image.save(frame_path)
+
+    response = client.post("/ml/sponsor", json=sponsor_payload(f"file://{frame_path}"))
+
+    assert response.status_code == 200
+    assert response.json()["modelVersion"] == "proposal-aware-stub-v1"
 
 
 def test_required_frame_read_failure_returns_503(monkeypatch, tmp_path):
