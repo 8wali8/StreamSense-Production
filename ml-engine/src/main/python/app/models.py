@@ -15,6 +15,25 @@ class SentimentResponse(BaseModel):
     modelVersion: str
 
 
+class SponsorRelevanceRequest(BaseModel):
+    eventId: str | None = None
+    streamer: str
+    text: str
+    sponsor: str
+    aliases: list[str] = []
+    semanticTerms: list[str] = []
+    minScore: float | None = None
+
+
+class SponsorRelevanceResponse(BaseModel):
+    sponsorRelevant: bool
+    matchedSponsor: str | None
+    matchedTerms: list[str]
+    relevanceScore: float
+    relevanceReason: str
+    modelVersion: str
+
+
 class SponsorRequest(BaseModel):
     frameId: str
     streamer: str
@@ -38,6 +57,29 @@ class SponsorResponse(BaseModel):
     y: float
     width: float
     height: float
+
+
+class SegmentationRequest(BaseModel):
+    frameId: str | None = None
+    frameRef: str
+
+
+class RegionProposalResponse(BaseModel):
+    label: str
+    confidence: float
+    x: float
+    y: float
+    width: float
+    height: float
+    source: str
+    areaRatio: float
+
+
+class SegmentationResponse(BaseModel):
+    modelVersion: str
+    frameWidth: int
+    frameHeight: int
+    proposals: list[RegionProposalResponse]
 
 
 class TranscriptionResponse(BaseModel):

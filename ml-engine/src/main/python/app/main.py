@@ -3,16 +3,23 @@ import os
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
-from app.frame_store import FrameArtifactError, frame_read_required, load_frame_artifact
+from app.frame_store import FrameArtifactError, frame_read_required, load_frame_image
 from app.models import (
+    RegionProposalResponse,
+    SegmentationRequest,
+    SegmentationResponse,
     SentimentRequest,
     SentimentResponse,
+    SponsorRelevanceRequest,
+    SponsorRelevanceResponse,
     SponsorRequest,
     SponsorResponse,
     TranscriptionResponse,
 )
-from app.sponsor import compute_sponsor_detection
-from app.sentiment import compute_sentiment
+from app.relevance import SponsorRelevanceInput, analyze_relevance
+from app.sponsor import detect_sponsor
+from app.segmentation import SegmentationConfig, propose_regions
+from app.sentiment import analyze_sentiment
 from app.transcription import TranscriptionError, transcriber
 
 logging.basicConfig(
@@ -23,6 +30,15 @@ logger = logging.getLogger(__name__)
 
 def force_failure_enabled() -> bool:
     return os.getenv("ML_ENGINE_FORCE_FAILURE", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def sponsor_segmentation_enabled() -> bool:
+    return os.getenv("STREAMSENSE_SPONSOR_SEGMENTATION_ENABLED", "false").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -49,18 +65,65 @@ def sentiment(request: SentimentRequest):
         )
         raise HTTPException(status_code=503, detail="forced ml-engine failure")
 
-    label, score = compute_sentiment(request.message)
+    result = analyze_sentiment(request.message)
 
     logger.info(
-        "sentiment request processed eventId=%s streamer=%s user=%s label=%s score=%.3f",
+        "sentiment request processed eventId=%s streamer=%s user=%s label=%s score=%.3f modelVersion=%s",
         request.eventId,
         request.streamer,
         request.user,
-        label,
-        score,
+        result.label,
+        result.score,
+        result.model_version,
     )
 
-    return SentimentResponse(label=label, score=score, modelVersion="stub-v1")
+    return SentimentResponse(
+        label=result.label,
+        score=result.score,
+        modelVersion=result.model_version,
+    )
+
+
+@app.post("/ml/relevance", response_model=SponsorRelevanceResponse)
+def relevance(request: SponsorRelevanceRequest):
+    if force_failure_enabled():
+        logger.warning(
+            "forced relevance failure eventId=%s streamer=%s sponsor=%s",
+            request.eventId,
+            request.streamer,
+            request.sponsor,
+        )
+        raise HTTPException(status_code=503, detail="forced ml-engine failure")
+
+    result = analyze_relevance(
+        SponsorRelevanceInput(
+            text=request.text,
+            sponsor=request.sponsor,
+            aliases=request.aliases,
+            semantic_terms=request.semanticTerms,
+            min_score=request.minScore,
+        )
+    )
+
+    logger.info(
+        "relevance request processed eventId=%s streamer=%s sponsor=%s relevant=%s score=%.3f reason=%s modelVersion=%s",
+        request.eventId,
+        request.streamer,
+        request.sponsor,
+        result.sponsor_relevant,
+        result.relevance_score,
+        result.relevance_reason,
+        result.model_version,
+    )
+
+    return SponsorRelevanceResponse(
+        sponsorRelevant=result.sponsor_relevant,
+        matchedSponsor=result.matched_sponsor,
+        matchedTerms=result.matched_terms,
+        relevanceScore=result.relevance_score,
+        relevanceReason=result.relevance_reason,
+        modelVersion=result.model_version,
+    )
 
 
 @app.post("/ml/sponsor", response_model=SponsorResponse)
@@ -75,7 +138,7 @@ def sponsor(request: SponsorRequest):
         raise HTTPException(status_code=503, detail="forced ml-engine failure")
 
     try:
-        frame_artifact = load_frame_artifact(request.frameRef)
+        frame_image = load_frame_image(request.frameRef)
     except FrameArtifactError as exc:
         logger.warning(
             "sponsor frame artifact read failed frameId=%s streamer=%s frameRef=%s error=%s",
@@ -86,35 +149,81 @@ def sponsor(request: SponsorRequest):
         )
         if frame_read_required():
             raise HTTPException(status_code=503, detail="frame artifact read failed") from exc
-        frame_artifact = None
+        frame_image = None
 
-    sponsor_name, confidence, x, y, width, height = compute_sponsor_detection(
+    proposals = propose_regions(frame_image.image) if frame_image and sponsor_segmentation_enabled() else []
+
+    detection = detect_sponsor(
         request.frameRef,
         request.streamer,
         request.frameSequence,
-        frame_artifact.signature if frame_artifact else None,
+        frame_image.signature if frame_image else None,
+        proposals,
     )
-    model_version = "frame-aware-stub-v1" if frame_artifact else "stub-v1"
 
     logger.info(
-        "sponsor request processed frameId=%s streamer=%s sponsor=%s confidence=%.3f modelVersion=%s",
+        "sponsor request processed frameId=%s streamer=%s sponsor=%s confidence=%.3f modelVersion=%s proposals=%s",
         request.frameId,
         request.streamer,
-        sponsor_name,
-        confidence,
-        model_version,
+        detection.sponsor,
+        detection.confidence,
+        detection.model_version,
+        len(proposals),
     )
 
     return SponsorResponse(
-        sponsor=sponsor_name,
-        confidence=confidence,
-        modelVersion=model_version,
-        x=x,
-        y=y,
-        width=width,
-        height=height,
+        sponsor=detection.sponsor,
+        confidence=detection.confidence,
+        modelVersion=detection.model_version,
+        x=detection.x,
+        y=detection.y,
+        width=detection.width,
+        height=detection.height,
     )
 
+
+@app.post("/ml/segment", response_model=SegmentationResponse)
+def segment(request: SegmentationRequest):
+    try:
+        frame_image = load_frame_image(request.frameRef)
+    except FrameArtifactError as exc:
+        logger.warning(
+            "segmentation frame artifact read failed frameId=%s frameRef=%s error=%s",
+            request.frameId,
+            request.frameRef,
+            exc,
+        )
+        raise HTTPException(status_code=503, detail="frame artifact read failed") from exc
+
+    if frame_image is None:
+        raise HTTPException(status_code=400, detail="segmentation requires readable frameRef")
+
+    segmentation_config = SegmentationConfig.from_env()
+    proposals = propose_regions(frame_image.image, segmentation_config)
+    logger.info(
+        "segmentation processed frameId=%s frameRef=%s proposals=%s",
+        request.frameId,
+        request.frameRef,
+        len(proposals),
+    )
+    return SegmentationResponse(
+        modelVersion=segmentation_config.model_version,
+        frameWidth=frame_image.artifact.width,
+        frameHeight=frame_image.artifact.height,
+        proposals=[
+            RegionProposalResponse(
+                label=proposal.label,
+                confidence=proposal.confidence,
+                x=proposal.x,
+                y=proposal.y,
+                width=proposal.width,
+                height=proposal.height,
+                source=proposal.source,
+                areaRatio=proposal.area_ratio,
+            )
+            for proposal in proposals
+        ],
+    )
 
 @app.post("/ml/transcribe", response_model=TranscriptionResponse)
 async def transcribe(
