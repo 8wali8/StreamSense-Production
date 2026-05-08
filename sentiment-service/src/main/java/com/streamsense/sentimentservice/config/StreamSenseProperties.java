@@ -10,6 +10,7 @@ public class StreamSenseProperties {
     private History history = new History();
     private Cache cache = new Cache();
     private Processing processing = new Processing();
+    private Sentiment sentiment = new Sentiment();
 
     public Topics getTopics() {
         return topics;
@@ -49,6 +50,14 @@ public class StreamSenseProperties {
 
     public void setProcessing(Processing processing) {
         this.processing = processing;
+    }
+
+    public Sentiment getSentiment() {
+        return sentiment;
+    }
+
+    public void setSentiment(Sentiment sentiment) {
+        this.sentiment = sentiment;
     }
 
     public static class Topics {
@@ -198,6 +207,78 @@ public class StreamSenseProperties {
 
         public void setMaxRetries(long maxRetries) {
             this.maxRetries = maxRetries;
+        }
+    }
+
+    public static class Sentiment {
+        private Relevance relevance = new Relevance();
+
+        public Relevance getRelevance() {
+            return relevance;
+        }
+
+        public void setRelevance(Relevance relevance) {
+            this.relevance = relevance;
+        }
+    }
+
+    public static class Relevance {
+        private boolean enabled = true;
+        private double minScore = 0.50d;
+        private java.util.List<Sponsor> sponsors = new java.util.ArrayList<>();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public double getMinScore() {
+            return minScore;
+        }
+
+        public void setMinScore(double minScore) {
+            this.minScore = minScore;
+        }
+
+        public java.util.List<Sponsor> getSponsors() {
+            return sponsors;
+        }
+
+        public void setSponsors(java.util.List<Sponsor> sponsors) {
+            this.sponsors = sponsors != null ? sponsors : new java.util.ArrayList<>();
+        }
+    }
+
+    public static class Sponsor {
+        private String name;
+        private java.util.List<String> aliases = new java.util.ArrayList<>();
+        private java.util.List<String> semanticTerms = new java.util.ArrayList<>();
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public java.util.List<String> getAliases() {
+            return aliases;
+        }
+
+        public void setAliases(java.util.List<String> aliases) {
+            this.aliases = aliases != null ? aliases : new java.util.ArrayList<>();
+        }
+
+        public java.util.List<String> getSemanticTerms() {
+            return semanticTerms;
+        }
+
+        public void setSemanticTerms(java.util.List<String> semanticTerms) {
+            this.semanticTerms = semanticTerms != null ? semanticTerms : new java.util.ArrayList<>();
         }
     }
 }
