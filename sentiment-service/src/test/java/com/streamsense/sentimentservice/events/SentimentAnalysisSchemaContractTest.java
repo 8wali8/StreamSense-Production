@@ -33,7 +33,7 @@ class SentimentAnalysisSchemaContractTest {
         event.setProcessedAt(1710000000500L);
         event.setLabel("POSITIVE");
         event.setScore(0.87d);
-        event.setModelVersion("stub-v1");
+        event.setModelVersion("cardiffnlp/twitter-roberta-base-sentiment-latest");
 
         assertThat(propertyNames(schema)).isEqualTo(serializedNames(event));
         assertThat(requiredNames(schema)).isEqualTo(serializedNames(event));

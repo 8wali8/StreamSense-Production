@@ -13,7 +13,13 @@
         "processedAt",
         "label",
         "score",
-        "modelVersion"
+        "modelVersion",
+        "sponsorRelevant",
+        "matchedSponsor",
+        "matchedTerms",
+        "relevanceScore",
+        "relevanceReason",
+        "relevanceVersion"
     ],
     "properties": {
         "sentimentEventId": {
@@ -56,6 +62,33 @@
         "modelVersion": {
             "type": "string",
             "description": "Version of ML model used for inference"
+        },
+        "sponsorRelevant": {
+            "type": "boolean",
+            "description": "Whether this sentiment text is relevant to the active sponsor profile"
+        },
+        "matchedSponsor": {
+            "type": ["string", "null"],
+            "description": "Sponsor matched by the relevance model"
+        },
+        "matchedTerms": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Terms or semantic seeds that made the text sponsor-relevant"
+        },
+        "relevanceScore": {
+            "type": "number",
+            "description": "Sponsor relevance confidence in range [0.0, 1.0]"
+        },
+        "relevanceReason": {
+            "type": ["string", "null"],
+            "description": "Reason returned by the relevance model"
+        },
+        "relevanceVersion": {
+            "type": ["string", "null"],
+            "description": "Version of sponsor relevance model used for inference"
         }
     }
 }
