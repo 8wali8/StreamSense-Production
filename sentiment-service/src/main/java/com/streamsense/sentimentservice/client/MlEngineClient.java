@@ -8,6 +8,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
+import com.streamsense.sentimentservice.dto.MlRelevanceRequest;
+import com.streamsense.sentimentservice.dto.MlRelevanceResponse;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
 import com.streamsense.sentimentservice.metrics.SentimentMetrics;
@@ -83,6 +85,36 @@ public class MlEngineClient {
         fallback.setScore(0.0d);
         fallback.setModelVersion("fallback");
         return fallback;
+    }
+
+    public MlRelevanceResponse analyzeRelevance(MlRelevanceRequest request) {
+        String url = properties.getMl().getBaseUrl() + "/ml/relevance";
+
+        log.info("calling ml-engine relevance endpoint eventId={} streamer={} sponsor={}",
+                request.getEventId(), request.getStreamer(), request.getSponsor());
+
+        MlRelevanceResponse response;
+        try {
+            response = restTemplate.postForObject(url, request, MlRelevanceResponse.class);
+        } catch (RestClientException e) {
+            log.warn("ml-engine relevance call failed eventId={} streamer={} sponsor={} error={}",
+                    request.getEventId(), request.getStreamer(), request.getSponsor(), e.getMessage());
+            return MlRelevanceResponse.notRelevant("relevance-ml-fallback", "fallback");
+        }
+
+        if (response == null) {
+            return MlRelevanceResponse.notRelevant("relevance-null-response", "fallback");
+        }
+        if (!StringUtils.hasText(response.getModelVersion())) {
+            response.setModelVersion("unknown-relevance");
+        }
+        if (!StringUtils.hasText(response.getRelevanceReason())) {
+            response.setRelevanceReason(response.isSponsorRelevant() ? "relevant" : "not-relevant");
+        }
+        if (response.getRelevanceScore() < 0.0d || response.getRelevanceScore() > 1.0d) {
+            response.setRelevanceScore(Math.max(0.0d, Math.min(1.0d, response.getRelevanceScore())));
+        }
+        return response;
     }
 
     private boolean isFallbackCandidate(Throwable throwable) {
