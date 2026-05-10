@@ -13,6 +13,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -61,6 +62,7 @@ import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordEntit
 import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordRepository;
 import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordEntity;
 import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordRepository;
+import com.streamsense.sentimentservice.service.SponsorRelevanceProfileService;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
@@ -142,6 +144,9 @@ class SentimentPipelineIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
+    private SponsorRelevanceProfileService sponsorRelevanceProfileService;
+
+    @Autowired
     private CircuitBreakerRegistry circuitBreakerRegistry;
 
     private MockRestServiceServer mockServer;
@@ -157,11 +162,13 @@ class SentimentPipelineIntegrationTest {
         repository.deleteAll();
         transcriptSentimentRepository.deleteAll();
         transcriptSegmentRepository.deleteAll();
+        sponsorRelevanceProfileService.clear();
         circuitBreakerRegistry.circuitBreaker("mlSentiment").reset();
         mockServer = MockRestServiceServer.bindTo(restTemplate).build();
 
-        Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("sentiment-events-test-group", "true",
+        Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("sentiment-events-test-group-" + System.nanoTime(), "true",
                 embeddedKafkaBroker);
+        consumerProps.put("auto.offset.reset", "latest");
         consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, SentimentAnalysisEvent.class.getName());
         consumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
@@ -172,9 +179,11 @@ class SentimentPipelineIntegrationTest {
                 new JsonDeserializer<>(SentimentAnalysisEvent.class, false))
                 .createConsumer();
         sentimentConsumer.subscribe(Collections.singletonList("stream.sentiment.events"));
+        sentimentConsumer.poll(Duration.ofMillis(100));
 
-        Map<String, Object> deadLetterConsumerProps = KafkaTestUtils.consumerProps("sentiment-dlt-test-group", "true",
+        Map<String, Object> deadLetterConsumerProps = KafkaTestUtils.consumerProps("sentiment-dlt-test-group-" + System.nanoTime(), "true",
                 embeddedKafkaBroker);
+        deadLetterConsumerProps.put("auto.offset.reset", "latest");
         deadLetterConsumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         deadLetterConsumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ChatMessageEvent.class.getName());
         deadLetterConsumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
@@ -185,6 +194,7 @@ class SentimentPipelineIntegrationTest {
                 new JsonDeserializer<>(ChatMessageEvent.class, false))
                 .createConsumer();
         deadLetterConsumer.subscribe(Collections.singletonList("stream.chat.messages.dlt"));
+        deadLetterConsumer.poll(Duration.ofMillis(100));
         clearInvocations(repository, recentSentimentCache);
     }
 
@@ -236,6 +246,67 @@ class SentimentPipelineIntegrationTest {
         assertThat(record.value().getStreamer()).isEqualTo("test-streamer");
         assertThat(record.value().getLabel()).isEqualTo("POSITIVE");
         assertThat(record.value().getChatTimestamp()).isEqualTo(1710000000000L);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void runtimeSponsorProfile_marksRelevantSentimentAndExposesSponsorHistory() throws Exception {
+        mockMvc.perform(post("/api/sentiment/relevance/sponsors")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "streamer": "test-streamer",
+                          "sponsor": "Nike",
+                          "semanticTerms": ["shoes"],
+                          "campaignGoal": "brand lift"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.streamer").value("test-streamer"))
+                .andExpect(jsonPath("$.sponsor").value("Nike"));
+
+        mockServer.expect(requestTo("http://ml-engine:8000/ml/sentiment"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(
+                        "{\"label\":\"POSITIVE\",\"score\":0.74,\"modelVersion\":\"stub-v1\"}",
+                        MediaType.APPLICATION_JSON));
+        mockServer.expect(requestTo("http://ml-engine:8000/ml/relevance"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(
+                        """
+                                {"sponsorRelevant":true,"matchedSponsor":"Nike","matchedTerms":["shoes"],"relevanceScore":0.82,"relevanceReason":"semantic-similarity","modelVersion":"relevance-v1"}
+                                """,
+                        MediaType.APPLICATION_JSON));
+
+        ChatMessageEvent event = new ChatMessageEvent();
+        event.setEventId("evt-sponsor");
+        event.setStreamer("test-streamer");
+        event.setUser("u-sponsor");
+        event.setMessage("those shoes are clean");
+        event.setTimestamp(1710000006000L);
+
+        testChatKafkaTemplate().send("stream.chat.messages", "test-streamer", event).get();
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThat(repository.findAll())
+                        .anySatisfy(record -> {
+                            assertThat(record.getSourceEventId()).isEqualTo("evt-sponsor");
+                            assertThat(record.isSponsorRelevant()).isTrue();
+                            assertThat(record.getMatchedSponsor()).isEqualTo("Nike");
+                            assertThat(record.getMatchedTerms()).isEqualTo("shoes");
+                            assertThat(record.getRelevanceVersion()).isEqualTo("relevance-v1");
+                        }));
+
+        mockMvc.perform(get("/api/sentiment/sponsor/recent")
+                .param("streamer", "test-streamer")
+                .param("sponsor", "Nike")
+                .param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].sourceEventId").value("evt-sponsor"))
+                .andExpect(jsonPath("$[0].sponsorRelevant").value(true))
+                .andExpect(jsonPath("$[0].matchedTerms[0]").value("shoes"));
 
         mockServer.verify();
     }

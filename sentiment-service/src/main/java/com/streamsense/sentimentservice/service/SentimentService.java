@@ -12,8 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.streamsense.sentimentservice.cache.RecentSentimentCache;
 import com.streamsense.sentimentservice.client.MlEngineClient;
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
+import com.streamsense.sentimentservice.dto.MlRelevanceRequest;
+import com.streamsense.sentimentservice.dto.MlRelevanceResponse;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
+import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.events.ChatMessageEvent;
 import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 import com.streamsense.sentimentservice.events.TranscriptSegmentEvent;
@@ -40,6 +43,7 @@ public class SentimentService {
     private final SentimentMetrics sentimentMetrics;
     private final StreamSenseProperties properties;
     private final RecentSentimentCache recentSentimentCache;
+    private final SponsorRelevanceProfileService sponsorRelevanceProfileService;
 
     public SentimentService(
             MlEngineClient mlEngineClient,
@@ -49,7 +53,8 @@ public class SentimentService {
             SentimentKafkaProducer sentimentKafkaProducer,
             SentimentMetrics sentimentMetrics,
             StreamSenseProperties properties,
-            RecentSentimentCache recentSentimentCache) {
+            RecentSentimentCache recentSentimentCache,
+            SponsorRelevanceProfileService sponsorRelevanceProfileService) {
         this.mlEngineClient = mlEngineClient;
         this.repository = repository;
         this.transcriptSegmentRepository = transcriptSegmentRepository;
@@ -58,6 +63,7 @@ public class SentimentService {
         this.sentimentMetrics = sentimentMetrics;
         this.properties = properties;
         this.recentSentimentCache = recentSentimentCache;
+        this.sponsorRelevanceProfileService = sponsorRelevanceProfileService;
     }
 
     @Transactional
@@ -76,6 +82,7 @@ public class SentimentService {
                 () -> mlEngineClient.analyzeSentiment(request));
 
         SentimentAnalysisEvent sentimentEvent = buildSentimentEvent(event, response);
+        applyChatSponsorRelevance(sentimentEvent);
 
         if ("fallback".equalsIgnoreCase(sentimentEvent.getModelVersion())) {
             log.warn("persisting fallback sentiment sourceEventId={} streamer={} label={} score={}",
@@ -130,6 +137,7 @@ public class SentimentService {
 
         TranscriptSegmentEvent normalizedSegment = normalizeTranscriptSegment(event, transcriptText);
         TranscriptSentimentEvent sentimentEvent = buildTranscriptSentimentEvent(normalizedSegment, response);
+        applyTranscriptSponsorRelevance(sentimentEvent);
 
         try {
             sentimentMetrics.recordPersistenceLatency(
@@ -176,6 +184,32 @@ public class SentimentService {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
         return transcriptSentimentRepository.findByStreamerOrderBySegmentEndedAtDesc(streamer, PageRequest.of(0, limit))
                 .stream()
+                .map(TranscriptSentimentRecordEntity::toEvent)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SentimentAnalysisEvent> getRecentSponsorSentiment(String streamer, String sponsor, int requestedLimit) {
+        int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
+        var pageable = PageRequest.of(0, limit);
+        var records = sponsor == null || sponsor.isBlank()
+                ? repository.findByStreamerAndSponsorRelevantTrueOrderByChatTimestampDesc(streamer, pageable)
+                : repository.findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseOrderByChatTimestampDesc(
+                        streamer, sponsor.trim(), pageable);
+        return records.stream()
+                .map(SentimentRecordEntity::toEvent)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TranscriptSentimentEvent> getRecentSponsorTranscriptSentiment(String streamer, String sponsor, int requestedLimit) {
+        int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
+        var pageable = PageRequest.of(0, limit);
+        var records = sponsor == null || sponsor.isBlank()
+                ? transcriptSentimentRepository.findByStreamerAndSponsorRelevantTrueOrderBySegmentEndedAtDesc(streamer, pageable)
+                : transcriptSentimentRepository.findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseOrderBySegmentEndedAtDesc(
+                        streamer, sponsor.trim(), pageable);
+        return records.stream()
                 .map(TranscriptSentimentRecordEntity::toEvent)
                 .toList();
     }
@@ -233,6 +267,80 @@ public class SentimentService {
         sentimentEvent.setStreamSessionId(event.getStreamSessionId());
         sentimentEvent.setTranscriptSequence(event.getTranscriptSequence());
         return sentimentEvent;
+    }
+
+    private void applyChatSponsorRelevance(SentimentAnalysisEvent event) {
+        sponsorRelevanceProfileService.findActive(event.getStreamer())
+                .ifPresentOrElse(
+                        profile -> applyRelevance(event, event.getSentimentEventId(), event.getStreamer(), event.getMessage(), profile),
+                        () -> markNotRelevant(event, "no-active-sponsor", "none"));
+    }
+
+    private void applyTranscriptSponsorRelevance(TranscriptSentimentEvent event) {
+        sponsorRelevanceProfileService.findActive(event.getStreamer())
+                .ifPresentOrElse(
+                        profile -> applyRelevance(event, event.getSentimentEventId(), event.getStreamer(), event.getText(), profile),
+                        () -> markNotRelevant(event, "no-active-sponsor", "none"));
+    }
+
+    private void applyRelevance(
+            SentimentAnalysisEvent event,
+            String eventId,
+            String streamer,
+            String text,
+            SponsorRelevanceProfile profile) {
+        MlRelevanceResponse relevance = mlEngineClient.analyzeRelevance(new MlRelevanceRequest(
+                eventId,
+                streamer,
+                text,
+                profile.getSponsor(),
+                profile.getAliases(),
+                profile.getSemanticTerms(),
+                profile.getMinScore()));
+        event.setSponsorRelevant(relevance.isSponsorRelevant());
+        event.setMatchedSponsor(relevance.getMatchedSponsor());
+        event.setMatchedTerms(relevance.getMatchedTerms());
+        event.setRelevanceScore(relevance.getRelevanceScore());
+        event.setRelevanceReason(relevance.getRelevanceReason());
+        event.setRelevanceVersion(relevance.getModelVersion());
+    }
+
+    private void applyRelevance(
+            TranscriptSentimentEvent event,
+            String eventId,
+            String streamer,
+            String text,
+            SponsorRelevanceProfile profile) {
+        MlRelevanceResponse relevance = mlEngineClient.analyzeRelevance(new MlRelevanceRequest(
+                eventId,
+                streamer,
+                text,
+                profile.getSponsor(),
+                profile.getAliases(),
+                profile.getSemanticTerms(),
+                profile.getMinScore()));
+        event.setSponsorRelevant(relevance.isSponsorRelevant());
+        event.setMatchedSponsor(relevance.getMatchedSponsor());
+        event.setMatchedTerms(relevance.getMatchedTerms());
+        event.setRelevanceScore(relevance.getRelevanceScore());
+        event.setRelevanceReason(relevance.getRelevanceReason());
+        event.setRelevanceVersion(relevance.getModelVersion());
+    }
+
+    private void markNotRelevant(SentimentAnalysisEvent event, String reason, String version) {
+        event.setSponsorRelevant(false);
+        event.setMatchedTerms(List.of());
+        event.setRelevanceScore(0.0d);
+        event.setRelevanceReason(reason);
+        event.setRelevanceVersion(version);
+    }
+
+    private void markNotRelevant(TranscriptSentimentEvent event, String reason, String version) {
+        event.setSponsorRelevant(false);
+        event.setMatchedTerms(List.of());
+        event.setRelevanceScore(0.0d);
+        event.setRelevanceReason(reason);
+        event.setRelevanceVersion(version);
     }
 
     private List<SentimentAnalysisEvent> loadRecentSentimentFromDatabase(String streamer, int limit) {
