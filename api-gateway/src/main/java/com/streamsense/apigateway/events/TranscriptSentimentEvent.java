@@ -1,5 +1,8 @@
 package com.streamsense.apigateway.events;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TranscriptSentimentEvent {
 
     private String sentimentEventId;
@@ -15,6 +18,12 @@ public class TranscriptSentimentEvent {
     private String transcriptModelVersion;
     private String streamSessionId;
     private long transcriptSequence;
+    private boolean sponsorRelevant;
+    private String matchedSponsor;
+    private List<String> matchedTerms = new ArrayList<>();
+    private double relevanceScore;
+    private String relevanceReason;
+    private String relevanceVersion;
 
     public String getSentimentEventId() {
         return sentimentEventId;
@@ -118,5 +127,53 @@ public class TranscriptSentimentEvent {
 
     public void setTranscriptSequence(long transcriptSequence) {
         this.transcriptSequence = transcriptSequence;
+    }
+
+    public boolean isSponsorRelevant() {
+        return sponsorRelevant;
+    }
+
+    public void setSponsorRelevant(boolean sponsorRelevant) {
+        this.sponsorRelevant = sponsorRelevant;
+    }
+
+    public String getMatchedSponsor() {
+        return matchedSponsor;
+    }
+
+    public void setMatchedSponsor(String matchedSponsor) {
+        this.matchedSponsor = matchedSponsor;
+    }
+
+    public List<String> getMatchedTerms() {
+        return matchedTerms;
+    }
+
+    public void setMatchedTerms(List<String> matchedTerms) {
+        this.matchedTerms = matchedTerms != null ? matchedTerms : new ArrayList<>();
+    }
+
+    public double getRelevanceScore() {
+        return relevanceScore;
+    }
+
+    public void setRelevanceScore(double relevanceScore) {
+        this.relevanceScore = relevanceScore;
+    }
+
+    public String getRelevanceReason() {
+        return relevanceReason;
+    }
+
+    public void setRelevanceReason(String relevanceReason) {
+        this.relevanceReason = relevanceReason;
+    }
+
+    public String getRelevanceVersion() {
+        return relevanceVersion;
+    }
+
+    public void setRelevanceVersion(String relevanceVersion) {
+        this.relevanceVersion = relevanceVersion;
     }
 }

@@ -46,8 +46,10 @@ class GraphqlSchemaContractTest {
         assertThat(fields).containsExactlyInAnyOrder(
                 "health",
                 "recentSentiment",
+                "recentSponsorSentiment",
                 "recentTranscriptSegments",
                 "recentTranscriptSentiment",
+                "recentSponsorTranscriptSentiment",
                 "sponsorDetections",
                 "streamMetricsSummary",
                 "streamMetricsTimeseries",
@@ -75,8 +77,10 @@ class GraphqlSchemaContractTest {
         assertThat(fields).containsExactlyInAnyOrder(
                 "onChatMessage",
                 "onSentiment",
+                "onSponsorSentiment",
                 "onTranscriptSegment",
                 "onTranscriptSentiment",
+                "onSponsorTranscriptSentiment",
                 "onSponsorDetection");
     }
 }

@@ -9,6 +9,12 @@ type SentimentAnalysisEvent {
   label: String!
   score: Float!
   modelVersion: String!
+  sponsorRelevant: Boolean!
+  matchedSponsor: String
+  matchedTerms: [String!]!
+  relevanceScore: Float!
+  relevanceReason: String
+  relevanceVersion: String
 }
 
 type TranscriptSegmentEvent {
@@ -43,4 +49,10 @@ type TranscriptSentimentEvent {
   transcriptModelVersion: String!
   streamSessionId: String!
   transcriptSequence: Float!
+  sponsorRelevant: Boolean!
+  matchedSponsor: String
+  matchedTerms: [String!]!
+  relevanceScore: Float!
+  relevanceReason: String
+  relevanceVersion: String
 }
