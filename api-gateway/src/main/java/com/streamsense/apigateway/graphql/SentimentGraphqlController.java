@@ -38,10 +38,30 @@ public class SentimentGraphqlController {
         return sentimentServiceClient.recentSentiment(streamer, limit);
     }
 
+    @QueryMapping
+    public Mono<List<SentimentAnalysisEvent>> recentSponsorSentiment(
+            @Argument("streamer") String streamer,
+            @Argument("sponsor") String sponsor,
+            @Argument("limit") int limit) {
+        return sentimentServiceClient.recentSponsorSentiment(streamer, sponsor, limit);
+    }
+
     @SubscriptionMapping("onSentiment")
     public Flux<SentimentAnalysisEvent> onSentiment(@Argument("streamer") String streamer) {
         log.info("onSentiment subscription started streamer={}", streamer);
         return sentimentSubscriptionBus.flux()
                 .filter(event -> streamer.equals(event.getStreamer()));
+    }
+
+    @SubscriptionMapping("onSponsorSentiment")
+    public Flux<SentimentAnalysisEvent> onSponsorSentiment(
+            @Argument("streamer") String streamer,
+            @Argument("sponsor") String sponsor) {
+        log.info("onSponsorSentiment subscription started streamer={} sponsor={}", streamer, sponsor);
+        return sentimentSubscriptionBus.flux()
+                .filter(event -> streamer.equals(event.getStreamer()))
+                .filter(SentimentAnalysisEvent::isSponsorRelevant)
+                .filter(event -> sponsor == null || sponsor.isBlank()
+                        || sponsor.equalsIgnoreCase(event.getMatchedSponsor()));
     }
 }

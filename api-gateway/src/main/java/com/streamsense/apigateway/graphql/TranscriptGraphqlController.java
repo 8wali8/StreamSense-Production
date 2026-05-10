@@ -46,6 +46,14 @@ public class TranscriptGraphqlController {
         return sentimentServiceClient.recentTranscriptSentiment(streamer, limit);
     }
 
+    @QueryMapping
+    public Mono<List<TranscriptSentimentEvent>> recentSponsorTranscriptSentiment(
+            @Argument("streamer") String streamer,
+            @Argument("sponsor") String sponsor,
+            @Argument("limit") int limit) {
+        return sentimentServiceClient.recentSponsorTranscriptSentiment(streamer, sponsor, limit);
+    }
+
     @SubscriptionMapping("onTranscriptSegment")
     public Flux<TranscriptSegmentEvent> onTranscriptSegment(@Argument("streamer") String streamer) {
         log.info("onTranscriptSegment subscription started streamer={}", streamer);
@@ -58,5 +66,17 @@ public class TranscriptGraphqlController {
         log.info("onTranscriptSentiment subscription started streamer={}", streamer);
         return transcriptSubscriptionBus.sentimentFlux()
                 .filter(event -> streamer.equals(event.getStreamer()));
+    }
+
+    @SubscriptionMapping("onSponsorTranscriptSentiment")
+    public Flux<TranscriptSentimentEvent> onSponsorTranscriptSentiment(
+            @Argument("streamer") String streamer,
+            @Argument("sponsor") String sponsor) {
+        log.info("onSponsorTranscriptSentiment subscription started streamer={} sponsor={}", streamer, sponsor);
+        return transcriptSubscriptionBus.sentimentFlux()
+                .filter(event -> streamer.equals(event.getStreamer()))
+                .filter(TranscriptSentimentEvent::isSponsorRelevant)
+                .filter(event -> sponsor == null || sponsor.isBlank()
+                        || sponsor.equalsIgnoreCase(event.getMatchedSponsor()));
     }
 }

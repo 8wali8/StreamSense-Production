@@ -50,6 +50,25 @@ public class SentimentServiceClient {
                         response != null ? response.size() : 0));
     }
 
+    public Mono<List<SentimentAnalysisEvent>> recentSponsorSentiment(String streamer, String sponsor, int limit) {
+        return webClient.get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder.path("/api/sentiment/sponsor/recent")
+                            .queryParam("streamer", streamer)
+                            .queryParam("limit", limit);
+                    if (sponsor != null && !sponsor.isBlank()) {
+                        builder.queryParam("sponsor", sponsor);
+                    }
+                    return builder.build();
+                })
+                .retrieve()
+                .bodyToMono(SENTIMENT_LIST)
+                .doOnSubscribe(subscription -> log.info("fetching recent sponsor sentiment streamer={} sponsor={} limit={}",
+                        streamer, sponsor, limit))
+                .doOnSuccess(response -> log.info("received recent sponsor sentiment streamer={} sponsor={} count={}",
+                        streamer, sponsor, response != null ? response.size() : 0));
+    }
+
     public Mono<List<TranscriptSegmentEvent>> recentTranscriptSegments(String streamer, int limit) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/sentiment/transcript/recent")
@@ -74,5 +93,26 @@ public class SentimentServiceClient {
                 .doOnSubscribe(subscription -> log.info("fetching recent transcript sentiment streamer={} limit={}", streamer, limit))
                 .doOnSuccess(response -> log.info("received recent transcript sentiment streamer={} count={}", streamer,
                         response != null ? response.size() : 0));
+    }
+
+    public Mono<List<TranscriptSentimentEvent>> recentSponsorTranscriptSentiment(String streamer, String sponsor, int limit) {
+        return webClient.get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder.path("/api/sentiment/transcript/sponsor/recent")
+                            .queryParam("streamer", streamer)
+                            .queryParam("limit", limit);
+                    if (sponsor != null && !sponsor.isBlank()) {
+                        builder.queryParam("sponsor", sponsor);
+                    }
+                    return builder.build();
+                })
+                .retrieve()
+                .bodyToMono(TRANSCRIPT_SENTIMENT_LIST)
+                .doOnSubscribe(subscription -> log.info(
+                        "fetching recent sponsor transcript sentiment streamer={} sponsor={} limit={}",
+                        streamer, sponsor, limit))
+                .doOnSuccess(response -> log.info(
+                        "received recent sponsor transcript sentiment streamer={} sponsor={} count={}",
+                        streamer, sponsor, response != null ? response.size() : 0));
     }
 }
