@@ -51,11 +51,25 @@ spec:
               value: en
             - name: STREAMSENSE_WHISPER_MODEL_CACHE
               value: /models/whisper
+            - name: STREAMSENSE_RELEVANCE_BACKEND
+              value: sentence-transformers
+            - name: STREAMSENSE_RELEVANCE_MODEL
+              value: sentence-transformers/all-MiniLM-L6-v2
+            - name: STREAMSENSE_RELEVANCE_DEVICE
+              value: cpu
+            - name: STREAMSENSE_RELEVANCE_CACHE_DIR
+              value: /models/relevance
+            - name: STREAMSENSE_RELEVANCE_MIN_SCORE
+              value: "0.50"
+            - name: STREAMSENSE_RELEVANCE_PRELOAD
+              value: "false"
           ports:
             - containerPort: 8000
           volumeMounts:
             - name: whisper-model-cache
               mountPath: /models/whisper
+            - name: relevance-model-cache
+              mountPath: /models/relevance
           readinessProbe:
             httpGet:
               path: /ml/health
@@ -72,4 +86,6 @@ spec:
             timeoutSeconds: 5
       volumes:
         - name: whisper-model-cache
+          emptyDir: {}
+        - name: relevance-model-cache
           emptyDir: {}
