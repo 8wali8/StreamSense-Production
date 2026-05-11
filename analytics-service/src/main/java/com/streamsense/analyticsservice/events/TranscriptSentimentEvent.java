@@ -1,5 +1,8 @@
 package com.streamsense.analyticsservice.events;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class TranscriptSentimentEvent {
     private String sentimentEventId;
     private String segmentId;
