@@ -1,5 +1,8 @@
 package com.streamsense.recommendationservice.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record SentimentSignal(
         String sentimentEventId,
         String sourceEventId,
