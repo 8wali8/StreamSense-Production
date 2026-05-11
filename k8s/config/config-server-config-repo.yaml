@@ -178,7 +178,7 @@ data:
       ml:
         base-url: http://ml-engine:8000
         connectTimeoutMs: 2000
-        readTimeoutMs: 3000
+        readTimeoutMs: 10000
       history:
         defaultLimit: 20
         maxLimit: 100
@@ -188,6 +188,20 @@ data:
       processing:
         retryBackoffMs: 1000
         maxRetries: 2
+      sentiment:
+        relevance:
+          enabled: true
+          minScore: 0.50
+          sponsors:
+            - name: Nike
+              aliases: [nike, swoosh, just do it]
+              semanticTerms: [shoes, sneakers, kicks, running shoes, apparel, sportswear, trainers]
+            - name: Prime
+              aliases: [prime, prime hydration]
+              semanticTerms: [hydration, drink, energy drink, bottle]
+            - name: Razer
+              aliases: [razer]
+              semanticTerms: [keyboard, mouse, headset, gaming gear, peripherals]
 
     hystrix:
       command:
