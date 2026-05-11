@@ -13,6 +13,35 @@ export const RECENT_SENTIMENT_QUERY = gql`
       label
       score
       modelVersion
+      sponsorRelevant
+      matchedSponsor
+      matchedTerms
+      relevanceScore
+      relevanceReason
+      relevanceVersion
+    }
+  }
+`;
+
+export const RECENT_SPONSOR_SENTIMENT_QUERY = gql`
+  query RecentSponsorSentiment($streamer: String!, $sponsor: String, $limit: Int!) {
+    recentSponsorSentiment(streamer: $streamer, sponsor: $sponsor, limit: $limit) {
+      sentimentEventId
+      sourceEventId
+      streamer
+      user
+      message
+      chatTimestamp
+      processedAt
+      label
+      score
+      modelVersion
+      sponsorRelevant
+      matchedSponsor
+      matchedTerms
+      relevanceScore
+      relevanceReason
+      relevanceVersion
     }
   }
 `;
@@ -54,6 +83,38 @@ export const RECENT_TRANSCRIPT_SENTIMENT_QUERY = gql`
       transcriptModelVersion
       streamSessionId
       transcriptSequence
+      sponsorRelevant
+      matchedSponsor
+      matchedTerms
+      relevanceScore
+      relevanceReason
+      relevanceVersion
+    }
+  }
+`;
+
+export const RECENT_SPONSOR_TRANSCRIPT_SENTIMENT_QUERY = gql`
+  query RecentSponsorTranscriptSentiment($streamer: String!, $sponsor: String, $limit: Int!) {
+    recentSponsorTranscriptSentiment(streamer: $streamer, sponsor: $sponsor, limit: $limit) {
+      sentimentEventId
+      segmentId
+      streamer
+      text
+      segmentStartedAt
+      segmentEndedAt
+      processedAt
+      label
+      score
+      modelVersion
+      transcriptModelVersion
+      streamSessionId
+      transcriptSequence
+      sponsorRelevant
+      matchedSponsor
+      matchedTerms
+      relevanceScore
+      relevanceReason
+      relevanceVersion
     }
   }
 `;
