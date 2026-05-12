@@ -1,188 +1,160 @@
-
 # StreamSense
 
-**StreamSense** is a distributed microservices platform for **real‑time Twitch chat analytics**.  
-It ingests chat messages, streams them through Kafka, processes them in backend services, and delivers live updates to a frontend dashboard via GraphQL subscriptions.
+StreamSense is a real-time sponsor analytics platform for Twitch streams. It ingests chat, video frames, and transcript segments; runs ML-backed sentiment, sponsor detection, segmentation, transcription, and relevance analysis; then exposes live results through GraphQL and the web console.
 
-The project demonstrates a modern event‑driven architecture using Spring Boot microservices, Kafka streaming, and real‑time WebSocket delivery. Currently in the process of a full production port from V2 of Streamsense, rebuilding from the ground up with more optimal architectural principles, using all of the information gained from V1 and V2 iterations.
 
----
-
-# Architecture Overview
-
-## High-level diagram
+## Architecture
 
 ```mermaid
-flowchart LR
-  %% ---- Client layer ----
-  FE[frontend<br/>React + TS + Apollo] -->|GraphQL queries/subscriptions| GW[api-gateway<br/>GraphQL + routing]
+flowchart TB
+  classDef client fill:#dbeafe,stroke:#2563eb,color:#0f172a
+  classDef edge fill:#ede9fe,stroke:#7c3aed,color:#0f172a
+  classDef service fill:#dcfce7,stroke:#16a34a,color:#0f172a
+  classDef data fill:#fef3c7,stroke:#d97706,color:#0f172a
+  classDef infra fill:#f1f5f9,stroke:#64748b,color:#0f172a
+  classDef ml fill:#fee2e2,stroke:#dc2626,color:#0f172a
 
-  %% ---- Core platform ----
-  GW -->|REST| CHAT[chat-service]
-  GW -->|REST| SENT[sentiment-service]
-  GW -->|REST| VIDEO[video-service]
-  GW -->|REST| RECO[recommendation-service]
+  TW[Twitch streams<br/>chat, video, audio]:::client
+  FE[frontend<br/>React + Apollo + nginx]:::client
+  GW[api-gateway<br/>GraphQL, REST routing, subscriptions]:::edge
 
-  %% ---- Discovery + config ----
-  EUREKA[eureka-server<br/>service discovery]
-  CONFIG[config-server<br/>central config]
-
-  CHAT -.->|register| EUREKA
-  SENT -.->|register| EUREKA
-  VIDEO -.->|register| EUREKA
-  RECO -.->|register| EUREKA
-  GW   -.->|register| EUREKA
-
-  CHAT -->|fetch config| CONFIG
-  SENT -->|fetch config| CONFIG
-  VIDEO -->|fetch config| CONFIG
-  RECO -->|fetch config| CONFIG
-  GW   -->|fetch config| CONFIG
-
-  CONFIG -->|serves YAML| CREPO[config-repo<br/>config-server/config-repo/*.yml]
-
-  %% ---- Event backbone ----
-  subgraph KAFKA[kafka-cluster]
-    TCHAT[(stream.chat.messages)]
-    TSENT[(stream.sentiment.events)]
-    TVID[(stream.video.frames)]
-    TSPON[(stream.sponsor.detections)]
+  subgraph INGEST[Ingestion]
+    CHAT[chat-service<br/>IRC + manual chat ingest]:::service
+    CAP[video-capture-service<br/>frame capture + transcript audio]:::service
   end
 
-  CHAT -->|produce| TCHAT
-  SENT -->|consume| TCHAT
-  SENT -->|produce| TSENT
-
-  VIDEO -->|produce| TVID
-  VIDEO -->|produce| TSPON
-
-  %% ---- ML ----
-  VIDEO -->|"HTTP (circuit breaker)"| ML[ml-engine<br/>Python inference]
-
-  %% ---- Observability ----
-  subgraph OBS[monitoring]
-    PROM[Prometheus]
-    GRAF[Grafana]
-    ZIP[Zipkin]
+  subgraph CORE[Processing]
+    SENT[sentiment-service<br/>general + sponsor sentiment]:::service
+    VIDEO[video-service<br/>frame processing + sponsor detections]:::service
+    ANALYTICS[analytics-service<br/>metric aggregation]:::service
+    RECO[recommendation-service<br/>recommendation summaries]:::service
+    ML[ml-engine<br/>sentiment, relevance, sponsor,<br/>segmentation, transcription]:::ml
   end
 
-  GW -.->|metrics/traces| OBS
-  CHAT -.->|metrics/traces| OBS
-  SENT -.->|metrics/traces| OBS
-  VIDEO -.->|metrics/traces| OBS
-  RECO -.->|metrics/traces| OBS
+  subgraph DATA[Data + Events]
+    KAFKA[(Kafka<br/>chat, frames, transcripts,<br/>sentiment, sponsor detections)]:::data
+    PG[(Postgres)]:::data
+    REDIS[(Redis)]:::data
+    MINIO[(MinIO<br/>captured frame storage)]:::data
+  end
+
+  subgraph PLATFORM[Platform]
+    CONFIG[config-server<br/>config-repo YAML]:::infra
+    EUREKA[eureka-server<br/>service discovery]:::infra
+    OBS[Prometheus + Grafana + Zipkin]:::infra
+  end
+
+  FE -->|/graphql + /api| GW
+  FE -.->|/ml preview routes| ML
+
+  GW --> CHAT
+  GW --> SENT
+  GW --> VIDEO
+  GW --> ANALYTICS
+  GW --> RECO
+  KAFKA -->|live subscriptions| GW
+
+  TW --> CHAT
+  TW --> CAP
+  CHAT -->|stream.chat.messages| KAFKA
+  CAP -->|frame objects| MINIO
+  CAP -->|stream.video.frames| KAFKA
+  CAP -->|/ml/transcribe| ML
+  CAP -->|stream.transcript.segments| KAFKA
+
+  KAFKA --> SENT
+  SENT -->|/ml/sentiment + /ml/relevance| ML
+  SENT -->|sentiment events| KAFKA
+  SENT --> PG
+  SENT --> REDIS
+
+  KAFKA --> VIDEO
+  VIDEO -->|/ml/sponsor| ML
+  VIDEO -->|sponsor detections| KAFKA
+  VIDEO --> PG
+  VIDEO --> REDIS
+
+  KAFKA --> ANALYTICS
+  ANALYTICS --> PG
+
+  GW -.-> CONFIG
+  CHAT -.-> CONFIG
+  SENT -.-> CONFIG
+  VIDEO -.-> CONFIG
+  ANALYTICS -.-> CONFIG
+  RECO -.-> CONFIG
+
+  GW -.-> EUREKA
+  CHAT -.-> EUREKA
+  SENT -.-> EUREKA
+  VIDEO -.-> EUREKA
+  ANALYTICS -.-> EUREKA
+  RECO -.-> EUREKA
+
+  GW -.-> OBS
+  CHAT -.-> OBS
+  CAP -.-> OBS
+  SENT -.-> OBS
+  VIDEO -.-> OBS
+  ANALYTICS -.-> OBS
+  RECO -.-> OBS
+  ML -.-> OBS
 ```
 
-## Services and their responsibilities
+## Services
 
-eureka-server: Service discovery registry for all Spring services.
+- `frontend`: React live console for chat, video status, sponsor detections, sentiment, transcript sentiment, and sponsor-specific sentiment.
+- `api-gateway`: GraphQL API, REST routing, subscriptions, auth/rate-limit toggles.
+- `chat-service`: Twitch IRC chat ingestion and manual chat ingest.
+- `video-capture-service`: Twitch frame capture, MinIO frame storage, transcript audio capture, transcription requests.
+- `video-service`: Consumes frame events, calls sponsor detection, persists detections, publishes sponsor events.
+- `sentiment-service`: Consumes chat/transcript text, calls ML sentiment and sponsor relevance, persists and publishes general and sponsor-specific sentiment.
+- `analytics-service`: Aggregates stream metrics from event streams.
+- `recommendation-service`: Produces recommendation summaries from platform signals.
+- `ml-engine`: FastAPI service for sentiment, relevance, sponsor detection, segmentation, and transcription.
+- `config-server` and `eureka-server`: Central config and service discovery for Spring services.
 
-config-server: Central configuration service (native file backend during local/dev).
+## Capabilities
 
-api-gateway: Single entry point; routing + GraphQL (queries/subscriptions).
+- Real-time Kafka pipelines for chat, frames, transcripts, sentiment, and sponsor detections.
+- GraphQL queries and subscriptions for live dashboard updates.
+- ML-backed sentiment with lexical fallback.
+- Sponsor relevance scoring for chat and transcript sentiment.
+- Frame-aware sponsor detection path with decoded image loading and segmentation proposals.
+- Twitch video capture with MinIO-backed frame artifacts.
+- Transcript capture through `ml-engine` transcription.
+- Prometheus, Grafana, Zipkin, Kafka UI, Postgres, Redis, and MinIO in Compose.
 
-chat-service: Chat ingestion; produces stream.chat.messages.
+## Tech Stack
 
-sentiment-service: Consumes chat; produces stream.sentiment.events (stubbed early, real later).
+- Java 21, Spring Boot, Spring Cloud, Spring GraphQL, Kafka, Flyway.
+- Python, FastAPI, Transformers, sentence-transformers, Whisper, segmentation tooling.
+- React, TypeScript, Vite, Apollo Client, `graphql-transport-ws`.
+- Docker Compose, Kubernetes manifests, Prometheus, Grafana, Zipkin, Postgres, Redis, MinIO.
 
-video-service: Frame ingestion; sponsor detection via ML; produces stream.sponsor.detections.
+## Running Locally
 
-recommendation-service: Aggregates signals into recommendation outputs.
-
-kafka-cluster: Event backbone enabling decoupled async pipelines.
-
-ml-engine: Containerized Python inference services (sentiment + sponsor).
-
-monitoring: Prometheus + Grafana + Zipkin for metrics, dashboards, and tracing.
-
-frontend: React dashboard consuming GraphQL queries/subscriptions.
-
-# Key Features
-
-### Real-Time Streaming
-- Kafka event backbone
-- Partitioned topics by streamer
-- Low-latency event delivery
-
-### GraphQL API
-- Queries for health and system data
-- Real-time **GraphQL subscriptions**
-- WebSocket transport (`graphql-transport-ws`)
-
-### Observability
-- **Prometheus** metrics
-- **Zipkin** distributed tracing
-- Actuator health endpoints
-
-### Microservices Architecture
-- Spring Boot services
-- Eureka service discovery
-- Config Server centralized configuration
-
-### Developer Friendly
-- Docker Compose environment
-- Embedded Kafka integration tests
-- CI-friendly test design
-
----
-
-# Technology Stack
-
-Backend:
-
-- Java 21
-- Spring Boot
-- Spring Cloud
-- Spring GraphQL
-- Apache Kafka
-- Micrometer
-- Zipkin
-
-Infrastructure:
-
-- Docker / Docker Compose
-- Prometheus
-- Kafka UI
-- Eureka
-- Config Server
-
-Frontend:
-
-- React
-- Apollo Client
-- GraphQL subscriptions
-
-Testing:
-
-- JUnit
-- Embedded Kafka
-- GraphQL test utilities
-- Maven CI compatibility
-
----
-
-# Running the Project
-
-Use `docs/howtorun.md` for the Docker-first runbook.
-
-Canonical local demo start:
+Use the root `makefile` as the main task runner.
 
 ```bash
+make help
 make up
 ```
 
-Final API-level smoke path:
+`make up` packages Java service JARs, builds images, and starts the full Compose stack. The frontend is served at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` routes.
+
+Useful commands:
 
 ```bash
-make smoke-e2e
+make up-fast          # start existing images without packaging/building
+make logs             # follow all service logs
+make smoke-e2e        # run the API-level Compose smoke path
+make demo-seed        # seed demo chat/frame data into a running stack
+make twitch-up        # start with .env.twitch.local loaded
+make twitch-video-up  # start with Twitch video env loaded
 ```
 
-Important:
-
-- Java service Dockerfiles use the current prebuilt-JAR workflow.
-- `make up` packages Java service JARs before running `docker compose up -d --build`.
-- Config Server serves files from `config-server/config-repo/`.
-
-# License
+For the longer runbook, see `docs/howtorun.md`.
+## License
 
 MIT License
