@@ -12,7 +12,7 @@ class AudioSampler:
         self.timeout_seconds = timeout_seconds
         self.duration_seconds = duration_seconds
 
-    def capture(self, hls_url: str, output_path: Path) -> tuple[Path, int]:
+    def capture(self, hls_url: str, output_path: Path, seek_seconds: float | None = None) -> tuple[Path, int]:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         command = [
             "ffmpeg",
@@ -21,6 +21,10 @@ class AudioSampler:
             "warning",
             "-rw_timeout",
             str(self.timeout_seconds * 1_000_000),
+        ]
+        if seek_seconds is not None:
+            command.extend(["-ss", f"{max(0.0, seek_seconds):.3f}"])
+        command.extend([
             "-i",
             hls_url,
             "-t",
@@ -33,7 +37,7 @@ class AudioSampler:
             "-c:a",
             "pcm_s16le",
             str(output_path),
-        ]
+        ])
 
         start = time.monotonic()
         try:

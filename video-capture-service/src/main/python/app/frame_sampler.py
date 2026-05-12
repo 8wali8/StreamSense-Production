@@ -13,7 +13,7 @@ class FrameSampler:
         self.output_format = output_format
         self.jpeg_quality = jpeg_quality
 
-    def capture(self, hls_url: str, output_path: Path) -> tuple[Path, int]:
+    def capture(self, hls_url: str, output_path: Path, seek_seconds: float | None = None) -> tuple[Path, int]:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         quality = max(2, min(31, round((100 - self.jpeg_quality) / 4) + 2))
         command = [
@@ -23,6 +23,10 @@ class FrameSampler:
             "warning",
             "-rw_timeout",
             str(self.timeout_seconds * 1_000_000),
+        ]
+        if seek_seconds is not None:
+            command.extend(["-ss", f"{max(0.0, seek_seconds):.3f}"])
+        command.extend([
             "-i",
             hls_url,
             "-frames:v",
@@ -30,7 +34,7 @@ class FrameSampler:
             "-q:v",
             str(quality),
             str(output_path),
-        ]
+        ])
 
         start = time.monotonic()
         try:

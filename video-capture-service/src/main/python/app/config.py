@@ -16,9 +16,24 @@ def _int_env(name: str, default: int) -> int:
     return int(raw)
 
 
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return float(raw)
+
+
 def _csv_env(name: str) -> list[str]:
     raw = os.getenv(name, "")
     return [item.strip().lower() for item in raw.split(",") if item.strip()]
+
+
+def _env_key(value: str) -> str:
+    return "".join(char.upper() if char.isalnum() else "_" for char in value.strip())
+
+
+def _normalize_alias(value: str) -> str:
+    return value.strip().lower().lstrip("#@")
 
 
 @dataclass(frozen=True)
@@ -31,6 +46,18 @@ class StorageConfig:
     secret_key: str | None
     path_prefix: str
     filesystem_root: str
+
+
+@dataclass(frozen=True)
+class ReplayAliasConfig:
+    alias: str
+    provider: str
+    vod_id: str
+    vod_url: str
+    replay_speed: float
+    start_offset_seconds: float
+    source: str
+    loop: bool
 
 
 @dataclass(frozen=True)
@@ -60,6 +87,7 @@ class CaptureConfig:
     ml_engine_url: str
     worker_id: str
     storage: StorageConfig
+    replay_aliases: dict[str, ReplayAliasConfig]
 
     @staticmethod
     def from_env() -> "CaptureConfig":
@@ -101,6 +129,7 @@ class CaptureConfig:
             ml_engine_url=os.getenv("ML_ENGINE_URL", "http://ml-engine:8000").strip().rstrip("/"),
             worker_id=os.getenv("STREAMSENSE_VIDEO_CAPTURE_WORKER_ID", "video-capture-service-1").strip(),
             storage=storage,
+            replay_aliases=_replay_aliases_from_env(),
         )
 
     def validate(self) -> None:
@@ -134,3 +163,36 @@ class CaptureConfig:
                 raise ValueError("STREAMSENSE_FRAME_STORAGE_BUCKET is required for s3 storage")
             if not self.storage.access_key or not self.storage.secret_key:
                 raise ValueError("S3 frame storage access key and secret key are required")
+        for alias, replay in self.replay_aliases.items():
+            if replay.provider != "twitch":
+                raise ValueError(f"unsupported replay provider for {alias}: {replay.provider}")
+            if not replay.vod_id:
+                raise ValueError(f"STREAMSENSE_REPLAY_{_env_key(alias)}_VOD_ID is required")
+            if not replay.vod_url:
+                raise ValueError(f"STREAMSENSE_REPLAY_{_env_key(alias)}_VOD_URL is required")
+            if replay.replay_speed <= 0:
+                raise ValueError(f"STREAMSENSE_REPLAY_{_env_key(alias)}_REPLAY_SPEED must be positive")
+            if replay.start_offset_seconds < 0:
+                raise ValueError(f"STREAMSENSE_REPLAY_{_env_key(alias)}_START_OFFSET_SECONDS must be non-negative")
+
+
+def _replay_aliases_from_env() -> dict[str, ReplayAliasConfig]:
+    aliases: dict[str, ReplayAliasConfig] = {}
+    for raw_alias in _csv_env("STREAMSENSE_REPLAY_ALIASES"):
+        alias = _normalize_alias(raw_alias)
+        if not alias:
+            continue
+        key = _env_key(alias)
+        vod_id = os.getenv(f"STREAMSENSE_REPLAY_{key}_VOD_ID", "").strip()
+        vod_url = os.getenv(f"STREAMSENSE_REPLAY_{key}_VOD_URL", "").strip()
+        aliases[alias] = ReplayAliasConfig(
+            alias=alias,
+            provider=os.getenv(f"STREAMSENSE_REPLAY_{key}_PROVIDER", "twitch").strip().lower() or "twitch",
+            vod_id=vod_id,
+            vod_url=vod_url,
+            replay_speed=_float_env(f"STREAMSENSE_REPLAY_{key}_REPLAY_SPEED", 1.0),
+            start_offset_seconds=_float_env(f"STREAMSENSE_REPLAY_{key}_START_OFFSET_SECONDS", 0.0),
+            source=os.getenv(f"STREAMSENSE_REPLAY_{key}_SOURCE", "TWITCH_VOD_REPLAY").strip() or "TWITCH_VOD_REPLAY",
+            loop=_bool_env(f"STREAMSENSE_REPLAY_{key}_LOOP", True),
+        )
+    return aliases

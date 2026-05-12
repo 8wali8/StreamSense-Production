@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app import metrics
 from app.audio_sampler import AudioCaptureError, AudioSampler
-from app.config import CaptureConfig
+from app.config import CaptureConfig, ReplayAliasConfig
 from app.frame_sampler import FrameCaptureError, FrameSampler
 from app.kafka_publisher import (
     FrameEvent,
@@ -54,7 +54,7 @@ class CaptureManager:
         for channel in self.config.channels:
             status = self.status_store.statuses[channel]
             status.state = CaptureState.STARTING
-            status.capture_session_id = f"{channel}-{int(time.time() * 1000)}"
+            status.capture_session_id = self._session_id(channel)
             thread = threading.Thread(target=self._capture_channel, args=(channel,), daemon=True)
             thread.start()
             self.threads.append(thread)
@@ -96,6 +96,7 @@ class CaptureManager:
 
     def _capture_channel(self, channel: str) -> None:
         status = self.status_store.statuses[channel]
+        replay_alias = self.config.replay_aliases.get(channel)
         resolver = TwitchSourceResolver(
             self.config.quality,
             self.config.stream_resolve_timeout_seconds,
@@ -112,11 +113,12 @@ class CaptureManager:
         )
         sequence = 0
         transcript_sequence = 0
+        replay_started_at = time.monotonic()
 
         while not self.stop_event.is_set():
             self._set_state(channel, CaptureState.RESOLVING_STREAM)
             try:
-                hls_url = resolver.resolve(channel)
+                hls_url = resolver.resolve_url(replay_alias.vod_url, channel) if replay_alias else resolver.resolve(channel)
             except TwitchStreamOffline as exc:
                 self._record_failure(channel, CaptureState.IDLE_OFFLINE, str(exc), "resolve", reconnect=False)
                 self._sleep(self.config.reconnect_delay_seconds)
@@ -129,11 +131,12 @@ class CaptureManager:
             sequence += 1
             frame_id = str(uuid.uuid4())
             captured_at = int(time.time() * 1000)
+            replay_offset_seconds = _replay_offset_seconds(replay_alias, replay_started_at)
             suffix = "jpg" if self.config.output_format in {"jpg", "jpeg"} else self.config.output_format
             temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{frame_id}.{suffix}"
 
             try:
-                captured_path, capture_latency_ms = sampler.capture(hls_url, temp_path)
+                captured_path, capture_latency_ms = sampler.capture(hls_url, temp_path, replay_offset_seconds)
                 metrics.capture_latency.labels(channel=channel).observe(capture_latency_ms)
                 status.frames_captured += 1
                 metrics.frames_captured.labels(channel=channel).inc()
@@ -150,11 +153,13 @@ class CaptureManager:
                     frameRef=stored.frame_ref,
                     frameSequence=sequence,
                     capturedAt=captured_at,
-                    source="TWITCH",
+                    source=replay_alias.source if replay_alias else "TWITCH",
                     channelLogin=channel,
                     streamSessionId=status.capture_session_id or f"{channel}-{captured_at}",
-                    twitchStreamId=None,
-                    videoTimestampMs=(sequence - 1) * self.config.sample_interval_seconds * 1000,
+                    twitchStreamId=replay_alias.vod_id if replay_alias else None,
+                    videoTimestampMs=_video_timestamp_ms(
+                        replay_alias, replay_offset_seconds, sequence, self.config.sample_interval_seconds
+                    ),
                     artifactContentType=stored.content_type,
                     artifactSizeBytes=stored.size_bytes,
                     captureWorkerId=self.config.worker_id,
@@ -181,9 +186,12 @@ class CaptureManager:
                 if self.config.transcript_enabled:
                     transcript_sequence += 1
                     self._capture_transcript_segment(
-                        channel, hls_url, status, audio_sampler, transcript_sequence
+                        channel, hls_url, status, audio_sampler, transcript_sequence, replay_alias, replay_offset_seconds
                     )
             except FrameCaptureError as exc:
+                if replay_alias and replay_alias.loop:
+                    replay_started_at = time.monotonic()
+                    status.capture_session_id = self._session_id(channel)
                 status.frames_skipped += 1
                 metrics.frames_skipped.labels(channel=channel, reason="capture_error").inc()
                 self._record_failure(channel, CaptureState.RECONNECTING, str(exc), "capture", reconnect=True)
@@ -229,6 +237,8 @@ class CaptureManager:
         status,
         audio_sampler: AudioSampler,
         sequence: int,
+        replay_alias: ReplayAliasConfig | None = None,
+        replay_offset_seconds: float | None = None,
     ) -> None:
         if self.transcription_client is None or self.transcript_publisher is None:
             return
@@ -237,7 +247,7 @@ class CaptureManager:
         started_at = int(time.time() * 1000)
         temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{segment_id}.wav"
         try:
-            audio_path, audio_latency_ms = audio_sampler.capture(hls_url, temp_path)
+            audio_path, audio_latency_ms = audio_sampler.capture(hls_url, temp_path, replay_offset_seconds)
             status.transcript_segments_captured += 1
             metrics.transcript_audio_captured.labels(channel=channel).inc()
             metrics.transcript_audio_capture_latency.labels(channel=channel).observe(audio_latency_ms)
@@ -264,11 +274,13 @@ class CaptureManager:
                 language=result.language,
                 confidence=result.confidence,
                 modelVersion=result.model_version,
-                source="TWITCH",
+                source=replay_alias.source if replay_alias else "TWITCH",
                 channelLogin=channel,
                 streamSessionId=status.capture_session_id or f"{channel}-{started_at}",
-                twitchStreamId=None,
-                videoTimestampMs=(sequence - 1) * self.config.transcript_segment_duration_seconds * 1000,
+                twitchStreamId=replay_alias.vod_id if replay_alias else None,
+                videoTimestampMs=_video_timestamp_ms(
+                    replay_alias, replay_offset_seconds, sequence, self.config.transcript_segment_duration_seconds
+                ),
                 transcriptSequence=sequence,
                 captureWorkerId=self.config.worker_id,
             )
@@ -321,6 +333,13 @@ class CaptureManager:
         session = session_id or f"{channel}-{int(time.time() * 1000)}"
         return f"{self.config.storage.path_prefix}/{channel}/{session}/{sequence:06d}-{frame_id}.{suffix}"
 
+    def _session_id(self, channel: str) -> str:
+        replay_alias = self.config.replay_aliases.get(channel)
+        timestamp = int(time.time() * 1000)
+        if replay_alias:
+            return f"{channel}-{replay_alias.vod_id}-{timestamp}"
+        return f"{channel}-{timestamp}"
+
 
 def _content_type(suffix: str) -> str:
     if suffix.lower() in {"jpg", "jpeg"}:
@@ -328,6 +347,24 @@ def _content_type(suffix: str) -> str:
     if suffix.lower() == "png":
         return "image/png"
     return "application/octet-stream"
+
+
+def _replay_offset_seconds(replay_alias: ReplayAliasConfig | None, replay_started_at: float) -> float | None:
+    if replay_alias is None:
+        return None
+    elapsed_seconds = time.monotonic() - replay_started_at
+    return replay_alias.start_offset_seconds + elapsed_seconds * replay_alias.replay_speed
+
+
+def _video_timestamp_ms(
+    replay_alias: ReplayAliasConfig | None,
+    replay_offset_seconds: float | None,
+    sequence: int,
+    interval_seconds: int,
+) -> int:
+    if replay_alias is not None and replay_offset_seconds is not None:
+        return int(replay_offset_seconds * 1000)
+    return (sequence - 1) * interval_seconds * 1000
 
 
 def _normalize_channels(channels: list[str]) -> list[str]:

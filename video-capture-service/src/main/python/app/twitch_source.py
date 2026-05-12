@@ -16,10 +16,13 @@ class TwitchSourceResolver:
         self.oauth_token = oauth_token
 
     def resolve(self, channel: str) -> str:
+        return self.resolve_url(f"https://www.twitch.tv/{channel}", channel)
+
+    def resolve_url(self, source_url: str, label: str) -> str:
         command = [
             "streamlink",
             "--stream-url",
-            f"https://www.twitch.tv/{channel}",
+            source_url,
             self.quality,
         ]
         if self.oauth_token:
@@ -40,7 +43,7 @@ class TwitchSourceResolver:
         output = f"{result.stdout}\n{result.stderr}".strip()
         if result.returncode != 0:
             if _looks_offline(output):
-                raise TwitchStreamOffline(f"Twitch channel {channel} is offline")
+                raise TwitchStreamOffline(f"Twitch source {label} is offline or unavailable")
             raise TwitchStreamResolutionError(_safe_error(output))
 
         stream_url = result.stdout.strip().splitlines()[-1].strip() if result.stdout.strip() else ""
