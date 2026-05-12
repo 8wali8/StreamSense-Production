@@ -31,19 +31,23 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     private final TwitchIrcMessageParser parser;
     private final TwitchChatMessageHandler handler;
     private final TwitchChatMetrics metrics;
+    private final TwitchVodChatReplayService replayService;
     private volatile boolean running;
     private volatile Socket activeSocket;
+    private volatile List<String> liveChannels = List.of();
     private Thread worker;
 
     public TwitchChatLifecycleService(
             StreamSenseProperties streamSenseProperties,
             TwitchIrcMessageParser parser,
             TwitchChatMessageHandler handler,
-            TwitchChatMetrics metrics) {
+            TwitchChatMetrics metrics,
+            TwitchVodChatReplayService replayService) {
         this.properties = streamSenseProperties.getTwitch().getChat();
         this.parser = parser;
         this.handler = handler;
         this.metrics = metrics;
+        this.replayService = replayService;
     }
 
     @Override
@@ -57,13 +61,28 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
             return;
         }
 
-        validateCredentials();
-        if (normalizedChannels().isEmpty()) {
+        List<String> channels = normalizedChannels();
+        if (channels.isEmpty()) {
             metrics.markStopped();
             log.info("Twitch chat ingestion enabled, waiting for a channel");
             return;
         }
 
+        liveChannels = channels.stream()
+                .filter(channel -> !replayService.isReplayChannel(channel))
+                .toList();
+        if (!liveChannels.isEmpty()) {
+            validateCredentials();
+        }
+
+        List<String> replayChannels = replayService.start(channels);
+
+        if (liveChannels.isEmpty()) {
+            running = true;
+            metrics.markConnected();
+            log.info("Twitch VOD chat replay started channels={}", replayChannels);
+            return;
+        }
         running = true;
         worker = new Thread(this::runConnectorLoop, "twitch-chat-connector");
         worker.setDaemon(true);
@@ -73,6 +92,7 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     @Override
     public synchronized void stop() {
         running = false;
+        replayService.stop();
         closeActiveSocket();
         if (worker != null) {
             worker.interrupt();
@@ -99,15 +119,13 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
             throw new IllegalStateException("Twitch chat ingestion is disabled");
         }
 
-        validateCredentials();
+        if (running) {
+            stop();
+        }
+
         properties.setChannels(normalized);
         metrics.setChannels(normalized);
-
-        if (running) {
-            closeActiveSocket();
-        } else {
-            start();
-        }
+        start();
 
         return metrics.snapshot();
     }
@@ -144,7 +162,7 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
             activeSocket = socket;
             authenticateAndJoin(writer);
             metrics.markConnected();
-            log.info("Twitch chat connector connected channels={}", normalizedChannels());
+            log.info("Twitch chat connector connected channels={}", liveChannels());
 
             String line;
             while (running && (line = reader.readLine()) != null) {
@@ -177,7 +195,7 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         send(writer, "PASS " + normalizedOauthToken());
         send(writer, "NICK " + properties.getUsername().trim());
         send(writer, "CAP REQ :twitch.tv/tags twitch.tv/commands");
-        for (String channel : normalizedChannels()) {
+        for (String channel : liveChannels()) {
             send(writer, "JOIN #" + channel);
         }
     }
@@ -218,6 +236,10 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
 
     private List<String> normalizedChannels() {
         return normalizeChannels(properties.getChannels());
+    }
+
+    private List<String> liveChannels() {
+        return liveChannels == null ? List.of() : liveChannels;
     }
 
     private static List<String> normalizeChannels(List<String> channels) {
