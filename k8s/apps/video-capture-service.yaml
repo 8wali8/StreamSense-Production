@@ -52,6 +52,22 @@ spec:
               value: best
             - name: TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS
               value: "10"
+            - name: STREAMSENSE_REPLAY_ALIASES
+              value: redbull-testing
+            - name: STREAMSENSE_REPLAY_REDBULL_TESTING_PROVIDER
+              value: twitch
+            - name: STREAMSENSE_REPLAY_REDBULL_TESTING_VOD_ID
+              value: "2750461300"
+            - name: STREAMSENSE_REPLAY_REDBULL_TESTING_VOD_URL
+              value: https://www.twitch.tv/videos/2750461300
+            - name: STREAMSENSE_REPLAY_REDBULL_TESTING_REPLAY_SPEED
+              value: "1.0"
+            - name: STREAMSENSE_REPLAY_REDBULL_TESTING_START_OFFSET_SECONDS
+              value: "1800"
+            - name: STREAMSENSE_REPLAY_REDBULL_TESTING_SOURCE
+              value: TWITCH_VOD_REPLAY
+            - name: STREAMSENSE_REPLAY_REDBULL_TESTING_LOOP
+              value: "true"
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
             - name: STREAMSENSE_VIDEO_FRAMES_TOPIC

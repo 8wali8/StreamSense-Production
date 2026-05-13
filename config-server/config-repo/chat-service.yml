@@ -23,6 +23,22 @@ streamsense:
       reconnect-delay-ms: ${TWITCH_CHAT_RECONNECT_DELAY_MS:5000}
       max-reconnect-delay-ms: ${TWITCH_CHAT_MAX_RECONNECT_DELAY_MS:60000}
       connection-timeout-ms: ${TWITCH_CHAT_CONNECTION_TIMEOUT_MS:10000}
+  replay:
+    aliases:
+      redbull-testing:
+        provider: twitch
+        vod-id: "2750461300"
+        vod-url: "https://www.twitch.tv/videos/2750461300"
+        replay-speed: 1.0
+        start-offset-seconds: 1800
+        source: TWITCH_VOD_REPLAY
+        loop: true
+        chat-fixture-path: classpath:replay/redbull-testing-chat.json
+    twitch-graphql:
+      endpoint: ${TWITCH_GQL_ENDPOINT:https://gql.twitch.tv/gql}
+      client-id: ${TWITCH_GQL_CLIENT_ID:kimne78kx3ncx6brgo4mv6wki5h1ko}
+      request-timeout-ms: ${TWITCH_GQL_REQUEST_TIMEOUT_MS:10000}
+      max-pages: ${TWITCH_GQL_MAX_PAGES:200}
 
 spring:
   kafka:
