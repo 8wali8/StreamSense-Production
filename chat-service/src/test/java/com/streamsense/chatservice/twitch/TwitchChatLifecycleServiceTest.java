@@ -2,6 +2,7 @@ package com.streamsense.chatservice.twitch;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 
@@ -24,12 +25,15 @@ class TwitchChatLifecycleServiceTest {
     @Mock
     private TwitchChatMetrics metrics;
 
+    @Mock
+    private TwitchVodChatReplayService replayService;
+
     @Test
     void start_marksDisabledWhenTwitchChatDisabled() {
         StreamSenseProperties properties = new StreamSenseProperties();
         properties.getTwitch().getChat().setEnabled(false);
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics);
+        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         service.start();
 
@@ -41,7 +45,7 @@ class TwitchChatLifecycleServiceTest {
         StreamSenseProperties properties = enabledProperties();
         properties.getTwitch().getChat().setUsername("");
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics);
+        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         assertThatThrownBy(service::start)
                 .isInstanceOf(IllegalStateException.class)
@@ -53,7 +57,7 @@ class TwitchChatLifecycleServiceTest {
         StreamSenseProperties properties = enabledProperties();
         properties.getTwitch().getChat().setOauthToken("");
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics);
+        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         assertThatThrownBy(service::start)
                 .isInstanceOf(IllegalStateException.class)
@@ -65,11 +69,28 @@ class TwitchChatLifecycleServiceTest {
         StreamSenseProperties properties = enabledProperties();
         properties.getTwitch().getChat().setChannels(List.of());
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics);
+        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         service.start();
 
         verify(metrics).markStopped();
+    }
+
+    @Test
+    void start_allowsReplayChannelWithoutTwitchCredentials() {
+        StreamSenseProperties properties = new StreamSenseProperties();
+        StreamSenseProperties.Chat chat = properties.getTwitch().getChat();
+        chat.setEnabled(true);
+        chat.setChannels(List.of("redbull-testing"));
+        when(replayService.isReplayChannel("redbull-testing")).thenReturn(true);
+        when(replayService.start(List.of("redbull-testing"))).thenReturn(List.of("redbull-testing"));
+
+        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
+
+        service.start();
+
+        verify(replayService).start(List.of("redbull-testing"));
+        verify(metrics).markConnected();
     }
 
     private static StreamSenseProperties enabledProperties() {

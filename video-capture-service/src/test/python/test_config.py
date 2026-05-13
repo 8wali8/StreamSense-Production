@@ -1,5 +1,3 @@
-import pytest
-
 from app.config import CaptureConfig
 
 
@@ -35,6 +33,23 @@ def test_enabled_config_binds_channels_and_storage(monkeypatch):
 
     assert config.channels == ["austincs", "example"]
     assert config.storage.backend == "filesystem"
+
+
+def test_replay_alias_config_binds_from_env(monkeypatch):
+    monkeypatch.setenv("STREAMSENSE_TWITCH_VIDEO_ENABLED", "true")
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_BACKEND", "filesystem")
+    monkeypatch.setenv("STREAMSENSE_REPLAY_ALIASES", "redbull-testing")
+    monkeypatch.setenv("STREAMSENSE_REPLAY_REDBULL_TESTING_VOD_ID", "2750461300")
+    monkeypatch.setenv("STREAMSENSE_REPLAY_REDBULL_TESTING_VOD_URL", "https://www.twitch.tv/videos/2750461300")
+
+    config = CaptureConfig.from_env()
+
+    config.validate()
+    replay = config.replay_aliases["redbull-testing"]
+    assert replay.provider == "twitch"
+    assert replay.vod_id == "2750461300"
+    assert replay.vod_url == "https://www.twitch.tv/videos/2750461300"
+    assert replay.loop is True
 
 
 def test_transcript_config_binds_ml_and_topic(monkeypatch):

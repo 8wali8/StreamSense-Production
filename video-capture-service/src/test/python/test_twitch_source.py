@@ -6,7 +6,11 @@ from app.twitch_source import TwitchSourceResolver, TwitchStreamOffline, TwitchS
 
 
 def test_resolver_returns_hls_url(monkeypatch):
+    captured_command = None
+
     def fake_run(*args, **kwargs):
+        nonlocal captured_command
+        captured_command = args[0]
         return subprocess.CompletedProcess(args[0], 0, stdout="https://example.com/live.m3u8\n", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -14,6 +18,23 @@ def test_resolver_returns_hls_url(monkeypatch):
     resolver = TwitchSourceResolver("best", 5)
 
     assert resolver.resolve("austincs") == "https://example.com/live.m3u8"
+    assert "https://www.twitch.tv/austincs" in captured_command
+
+
+def test_resolver_can_resolve_vod_url(monkeypatch):
+    captured_command = None
+
+    def fake_run(*args, **kwargs):
+        nonlocal captured_command
+        captured_command = args[0]
+        return subprocess.CompletedProcess(args[0], 0, stdout="https://example.com/vod.m3u8\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    resolver = TwitchSourceResolver("best", 5)
+
+    assert resolver.resolve_url("https://www.twitch.tv/videos/2750461300", "redbull-testing") == "https://example.com/vod.m3u8"
+    assert "https://www.twitch.tv/videos/2750461300" in captured_command
 
 
 def test_resolver_maps_offline_channel(monkeypatch):
