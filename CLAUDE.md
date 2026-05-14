@@ -4,25 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is StreamSense
 
-Real-time Twitch chat analytics platform built as distributed microservices. Chat messages flow through Kafka into sentiment analysis, video frames feed sponsor detection via ML inference, and an API gateway aggregates everything for a React dashboard via GraphQL (including WebSocket subscriptions).
+Real-time sponsor analytics platform for Twitch streams, built as distributed microservices. It ingests chat, video frames, and transcript audio; runs ML-backed sentiment, sponsor relevance, sponsor detection, segmentation, and transcription through a FastAPI ml-engine; and exposes live results via GraphQL (queries + WebSocket subscriptions) to a React dashboard.
 
 ## Commands
+
+The root task runner is `makefile` (lowercase). It uses `SHELL := /bin/bash`, so run it from a bash-capable shell (Git Bash on Windows). `tools/start-stack.ps1` is the PowerShell equivalent for starting the stack on Windows. Run `make help` for the full target list.
 
 ### Full Stack (Docker Compose — primary development mode)
 
 ```bash
-make up              # Start entire stack
+make up              # Package Java jars, build images, start everything
+make up-fast         # Start existing images/containers (no packaging/building)
 make down            # Stop everything
-make build           # Build all Docker images
+make build           # Build all Docker images (does NOT package jars first)
 make build SERVICE=<name>   # Build a single image (e.g., SERVICE=api-gateway)
-make test            # Run all tests (Java + Python + frontend)
+make package         # Build all Java jars locally (mvn -DskipTests package)
+make test            # Run all tests (Java + Python + frontend lint/build)
 make test SERVICE=<name>    # Test a single service
 make logs            # Follow all logs
-make clean           # Remove containers/volumes
-make nuke            # Full teardown including images
+make smoke-e2e       # API-level Compose smoke test (tools/smoke/compose_smoke.py)
+make replay-smoke    # Verify VOD replay alias path against a running stack (tools/smoke/replay_smoke.py)
+make demo-seed       # Seed demo chat/frame data into a running stack
+make clean           # docker compose down (keeps volumes)
+make nuke            # docker compose down -v (removes volumes/data)
 ```
 
-### Java Services (run from any service directory)
+Java Dockerfiles copy `target/*.jar` — after Java changes you must package jars before rebuilding images. `make up` does this for you; `make build` alone does not.
+
+Twitch verification targets (`make twitch-up`, `twitch-video-up`, `twitch-transcript-up`, `twitch-analytics-up`, and matching `*-status` targets) load credentials from `.env.twitch.local` (not committed).
+
+### Java Services
+
+Not a Maven monorepo — each Java service has its own `pom.xml`. Run Maven from the service directory or with `mvn -f <service>/pom.xml`.
 
 ```bash
 mvn clean test                     # Run tests
@@ -30,12 +43,13 @@ mvn clean package -DskipTests      # Build JAR
 mvn clean test -Dtest=MyTest       # Run a single test class
 ```
 
-### Python — ml-engine
+### Python services (ml-engine, video-capture-service)
 
 ```bash
-# From ml-engine/
-PYTHONPATH=src/main/python pytest src/test/python          # All tests
+# From ml-engine/ or video-capture-service/
+PYTHONPATH=src/main/python pytest src/test/python            # All tests
 PYTHONPATH=src/main/python pytest src/test/python/test_X.py  # Single file
+ruff check src/main/python src/test/python                   # Lint (CI runs this for ml-engine)
 ```
 
 ### Frontend
@@ -43,10 +57,14 @@ PYTHONPATH=src/main/python pytest src/test/python/test_X.py  # Single file
 ```bash
 # From frontend/
 npm run dev     # Dev server (port 3000)
-npm run build   # Production build
-npm run test    # Vitest
+npm run build   # tsc -b && vite build
+npm run test    # Vitest (vitest run)
 npm run lint    # ESLint
 ```
+
+### CI parity
+
+CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. CI's Java matrix currently omits analytics-service (which `make test` does cover) and doesn't test video-capture-service. If you touch `k8s/`, run `kubectl kustomize k8s` — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end.
 
 ### Kubernetes (kind cluster)
 
@@ -61,43 +79,61 @@ See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`.
 | eureka-server | 8761 | Java | Service discovery |
 | config-server | 8888 | Java | Centralised config |
 | api-gateway | 8080 | Java | Entry point, GraphQL, auth, rate limiting |
-| chat-service | 8081 | Java | Chat ingestion → Kafka producer |
-| sentiment-service | 8083 | Java | Kafka consumer → ml-engine → Kafka producer |
-| video-service | 8084 | Java | Frame ingest → ml-engine → Kafka producer |
-| recommendation-service | 8082 | Java | Aggregates signals |
-| ml-engine | 8000 | Python | FastAPI inference (sentiment + sponsor detection) |
-| frontend | 3000 | React/TS | Dashboard (Apollo Client, GraphQL subscriptions) |
+| chat-service | 8081 | Java | Twitch IRC + manual chat ingest → Kafka producer |
+| recommendation-service | 8082 | Java | Recommendation summaries from platform signals |
+| sentiment-service | 8083 | Java | Kafka consumer → ml-engine sentiment/relevance → Kafka producer |
+| video-service | 8084 | Java | Frame events → ml-engine sponsor detection → Kafka producer |
+| analytics-service | 8085 | Java | Aggregates stream metrics from event streams |
+| video-capture-service | 8090 | Python | Twitch frame capture → MinIO, transcript audio → ml-engine |
+| ml-engine | 8000 | Python | FastAPI inference: sentiment, relevance, sponsor, segmentation, transcription |
+| frontend | 3000 | React/TS | Live console (Apollo Client, GraphQL subscriptions) |
 
-Infrastructure: Kafka/Zookeeper, PostgreSQL 16, Redis 7, Prometheus, Grafana (port 3001), Zipkin (port 9411), Kafka UI (port 8088).
+Infrastructure: Kafka/Zookeeper (host access `localhost:29092`, internal `kafka:9092`), PostgreSQL 16, Redis 7, MinIO (9000/9001, frame storage), Prometheus (9090), Grafana (3001), Zipkin (9411), Kafka UI (8088), kafka-exporter (9308).
 
 ### Data Flow
 
 ```
 Twitch Chat → chat-service → stream.chat.messages (Kafka)
                                    ↓
-                         sentiment-service → ml-engine → stream.sentiment.events
+                       sentiment-service → ml-engine (/ml/sentiment, /ml/relevance)
+                                   → stream.sentiment.events + stream.transcript.sentiment.events
 
-Video Frames → video-service → ml-engine → stream.sponsor.detections
+Twitch Video → video-capture-service → frames to MinIO + stream.video.frames
+                                     → audio to ml-engine (/ml/transcribe) → stream.transcript.segments
 
-stream.sentiment.events  ┐
-stream.sponsor.detections ┤ → recommendation-service → Postgres/Redis
-stream.chat.messages      ┘
+stream.video.frames → video-service → ml-engine (/ml/sponsor) → stream.sponsor.detections
+stream.transcript.segments → sentiment-service (same sentiment/relevance path as chat)
+
+sentiment/sponsor/chat/transcript-sentiment events → analytics-service → Postgres
+                                                   → recommendation-service
 
 Frontend ← GraphQL queries/subscriptions ← api-gateway ← Redis/Postgres/Kafka consumers
 ```
 
 ### Kafka Topics
 
-- `stream.chat.messages` — raw chat
-- `stream.sentiment.events` — ML sentiment results
-- `stream.video.frames` — video frame data
+Created by the `kafka-topics-init` Compose service (auto-create is disabled):
+
+- `stream.chat.messages` (+ `.dlt`) — raw chat
+- `stream.sentiment.events` — chat sentiment results (now enriched with sponsor-relevance fields)
+- `stream.transcript.segments` (+ `.dlt`) — transcribed audio segments
+- `stream.transcript.sentiment.events` — transcript sentiment results
+- `stream.video.frames` — frame metadata (frame bytes live in MinIO)
 - `stream.sponsor.detections` — ML sponsor detection results
 
 ### Configuration
 
-Services load config from **config-server** at startup. Source files live in `config-server/config-repo/` (one YAML per service plus `application.yml` for shared defaults). Each service's own `application.yml` is minimal — it just points to the config server URL.
+Spring services load config from **config-server** at startup; each service's own `src/main/resources/application.yml` is bootstrap-only. Real runtime config lives in `config-server/config-repo/*.yml` (one YAML per service plus `application.yml` for shared defaults). Override the config-server URL with `CONFIG_SERVER_URL`.
 
-Override config-server URL with the `CONFIG_SERVER_URL` env var.
+**If you change config that Kubernetes uses, mirror it in `k8s/config/config-server-config-repo.yaml`** — it duplicates the config-repo as a ConfigMap.
+
+The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings).
+
+Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
+
+### Twitch VOD replay
+
+Both chat-service and video-capture-service support replaying a recorded Twitch VOD instead of a live stream, driven by named replay aliases (default alias: `redbull-testing`, wired in `config-server/config-repo/chat-service.yml` and the video-capture-service environment in `docker-compose.yml`). chat-service replays from a chat fixture (`classpath:replay/...`) or the Twitch GraphQL API; video-capture-service replays frames from the VOD URL. See `plans/vod-replay-testing-plan.md` for the replay startup workflow.
 
 ### API Gateway internals
 
@@ -112,21 +148,28 @@ GraphQL schema is in `docs/schemas/` and `docs/contracts/`.
 
 ### Frontend internals
 
-React 19 + Vite + Apollo Client 4. GraphQL operations live in `frontend/src/graphql/`. Apollo config and WebSocket link setup is in `frontend/src/apollo/`. Subscriptions use `graphql-ws`.
+React 19 + Vite + Apollo Client 4. GraphQL operations live in `frontend/src/graphql/`. Apollo config and WebSocket link setup is in `frontend/src/apollo/client.ts`. Subscriptions use `graphql-ws`.
+
+In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` to the backend. Local `npm run dev` has **no** Vite proxy for these routes — for end-to-end browser checks, prefer the Docker frontend.
 
 ### Java service conventions
 
 - Package root: `com.streamsense.<servicename>`
-- All services register with Eureka and pull from config-server
-- Health endpoint: `GET /actuator/health`
-- Tracing: Micrometer + Zipkin (auto-configured via Spring Cloud Sleuth/Micrometer Tracing)
+- All Java services register with Eureka and pull from config-server
+- Health endpoint: `GET /actuator/health` (Python services: ml-engine `GET /ml/health`, video-capture-service `GET /health`)
+- Tracing: Micrometer + Zipkin
 - Kafka: Spring Kafka; consumers use `@KafkaListener`, producers use `KafkaTemplate`
+
+### Test behavior
+
+Java tests are self-contained: test configs disable config-server and Eureka; integration tests use Embedded Kafka, H2, and MockWebServer instead of the Docker stack. `sentiment-service` and `video-service` use Flyway migrations under `src/main/resources/db/migration/`; video-service uses a custom Flyway history table and baseline settings from config.
 
 ## Key Docs
 
 - `docs/howtorun.md` — local Docker Compose runbook (ports, startup order, troubleshooting)
-- `docs/architecture.md` — ASCII architecture diagram
+- `docs/architecture.md` — architecture diagram (README.md has a mermaid version)
 - `docs/kubernetes-kind.md` — Kubernetes/kind deployment guide
 - `docs/contracts/` — GraphQL API contracts
 - `docs/schemas/` — DB and GraphQL schemas
+- `plans/vod-replay-testing-plan.md` — Twitch VOD replay workflow
 - `plan.md` — full 12-week production roadmap
