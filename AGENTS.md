@@ -10,7 +10,7 @@
 
 - Java service check: `cd <service> && mvn -B -ntp clean test`
 - Focused Java test: `cd <service> && mvn -Dtest=MyTest test`
-- ML checks: `cd ml-engine && pip install -r requirements.txt ruff && ruff check src/main/python src/test/python && PYTHONPATH=src/main/python pytest src/test/python`
+- ML checks: `cd ml-engine && pip install -r requirements.txt ruff==0.16.3 && ruff check src/main/python src/test/python && PYTHONPATH=src/main/python pytest src/test/python`
 - Frontend CI check: `cd frontend && npm ci && npm run lint && npm run test && npm run build`
 - `make test` is not identical to CI: it runs Java tests and ML tests, but for `frontend` it only runs `npm run lint && npm run build` and skips Vitest.
 - If you touch `k8s/`, run `kubectl kustomize k8s`. CI also validates the JSON embedded in `k8s/config/grafana-config.yaml`.

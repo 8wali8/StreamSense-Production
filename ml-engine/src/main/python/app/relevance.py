@@ -121,7 +121,7 @@ class EmbeddingRelevanceAnalyzer:
         if self._model is not None:
             return self._model
 
-        from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+        from sentence_transformers import SentenceTransformer
 
         self._model = SentenceTransformer(
             self._config.model,

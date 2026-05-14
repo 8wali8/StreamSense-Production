@@ -1,11 +1,10 @@
 import os
 
-import pytest
-from fastapi.testclient import TestClient
-
 import app.main as main_module
+import pytest
 from app.main import app
 from app.sentiment import SentimentResult, analyze_sentiment, preprocess_text
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

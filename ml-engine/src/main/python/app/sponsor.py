@@ -121,9 +121,7 @@ def _seed(
     frame_signature: str | None,
     proposal_signature: str | None,
 ) -> bytes:
-    return f"{streamer}|{frame_ref}|{frame_sequence}|{frame_signature or ''}|{proposal_signature or ''}".encode(
-        "utf-8"
-    )
+    return f"{streamer}|{frame_ref}|{frame_sequence}|{frame_signature or ''}|{proposal_signature or ''}".encode()
 
 
 def _synthetic_box(digest: bytes) -> tuple[float, float, float, float]:

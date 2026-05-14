@@ -1,0 +1,5 @@
+[lint.per-file-ignores]
+# FastAPI route parameters use File()/Depends() calls as argument defaults.
+"src/main/python/app/main.py" = ["B008"]
+# Segmentation deliberately catches broad exceptions to fall back to degraded output.
+"src/main/python/app/segmentation.py" = ["BLE001"]

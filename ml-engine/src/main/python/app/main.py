@@ -17,9 +17,9 @@ from app.models import (
     TranscriptionResponse,
 )
 from app.relevance import SponsorRelevanceInput, analyze_relevance
-from app.sponsor import detect_sponsor
 from app.segmentation import SegmentationConfig, propose_regions
 from app.sentiment import analyze_sentiment
+from app.sponsor import detect_sponsor
 from app.transcription import TranscriptionError, transcriber
 
 logging.basicConfig(

@@ -1,6 +1,11 @@
+from app.segmentation import (
+    RegionProposal,
+    SamSegmenter,
+    SegmentationConfig,
+    create_segmenter,
+    propose_regions,
+)
 from PIL import Image
-
-from app.segmentation import RegionProposal, SamSegmenter, SegmentationConfig, create_segmenter, propose_regions
 
 
 def segmentation_config(**overrides):

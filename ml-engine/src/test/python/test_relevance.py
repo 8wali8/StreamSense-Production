@@ -1,5 +1,3 @@
-from fastapi.testclient import TestClient
-
 import app.main as main_module
 from app.main import app
 from app.relevance import (
@@ -9,6 +7,7 @@ from app.relevance import (
     direct_match,
     normalize_text,
 )
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

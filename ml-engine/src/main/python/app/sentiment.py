@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class TransformersSentimentAnalyzer:
         if self._classifier is not None:
             return self._classifier
 
-        from transformers import (  # noqa: PLC0415
+        from transformers import (
             AutoModelForSequenceClassification,
             AutoTokenizer,
             pipeline,
@@ -117,7 +117,7 @@ class TransformersSentimentAnalyzer:
 
 
 class LexicalFallbackSentimentAnalyzer:
-    _positive_words = {
+    _positive_words: ClassVar[set[str]] = {
         "amazing",
         "awesome",
         "best",
@@ -135,7 +135,7 @@ class LexicalFallbackSentimentAnalyzer:
         "win",
         "wow",
     }
-    _negative_words = {
+    _negative_words: ClassVar[set[str]] = {
         "awful",
         "bad",
         "boring",
