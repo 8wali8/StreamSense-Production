@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { Health } from "./components/Health";
 import { RecommendationPanel } from "./components/RecommendationPanel";
@@ -121,6 +121,12 @@ type PortfolioStreamer = {
   risk: string;
 };
 
+type RestTranscriptState = {
+  streamer: string;
+  segments: TranscriptSegmentEvent[];
+  error: string | null;
+};
+
 const portfolioStreamers: PortfolioStreamer[] = [
   { handle: "test", brand: "Nike", owner: "Demo channel", risk: "Low" },
   { handle: "speedrun-lab", brand: "Prime", owner: "Speedrun lab", risk: "Watch" },
@@ -158,17 +164,42 @@ function sentimentClass(label?: string): string {
   return "analysis-neutral";
 }
 
+function formatScore(value?: number | null): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
+}
+
+function matchedContext(
+  event: { matchedTerms?: string[] | null; matchedSponsor?: string | null },
+  fallback: string,
+): string {
+  const terms = Array.isArray(event.matchedTerms) ? event.matchedTerms.filter(Boolean) : [];
+  return terms.join(", ") || event.matchedSponsor || fallback || "sponsor context";
+}
+
+const replayVodByStreamer: Record<string, string> = {
+  "redbull-testing": "2750461300",
+};
+
 function twitchPlayerUrl(streamer: string): string {
-  const channel = streamer.trim().toLowerCase().replace(/^[@#]/, "");
+  const channel = normalizeStreamerHandle(streamer);
   const parent = encodeURIComponent(window.location.hostname || "localhost");
+  const replayVodId = replayVodByStreamer[channel];
+  if (replayVodId) {
+    return `https://player.twitch.tv/?video=${encodeURIComponent(replayVodId)}&parent=${parent}&muted=true&autoplay=true`;
+  }
   return `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${parent}&muted=true&autoplay=true`;
 }
 
+function normalizeStreamerHandle(streamer: string): string {
+  return streamer.trim().toLowerCase().replace(/^[@#]+/, "");
+}
+
 async function switchRuntimeChannels(path: string, streamer: string): Promise<void> {
+  const normalizedStreamer = normalizeStreamerHandle(streamer);
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channels: [streamer] }),
+    body: JSON.stringify({ channels: [normalizedStreamer] }),
   });
   if (!response.ok) {
     throw new Error(`${path} returned ${response.status}`);
@@ -176,11 +207,12 @@ async function switchRuntimeChannels(path: string, streamer: string): Promise<vo
 }
 
 function sponsorProfileFromInput(streamer: string, sponsorInput: string, campaignGoal: string) {
+  const normalizedStreamer = normalizeStreamerHandle(streamer);
   const parts = sponsorInput.split(",").map((part) => part.trim()).filter(Boolean);
   const sponsor = parts[0] || sponsorInput.trim();
   const semanticTerms = parts.slice(1);
   return {
-    streamer,
+    streamer: normalizedStreamer,
     sponsor,
     aliases: [] as string[],
     semanticTerms,
@@ -206,40 +238,48 @@ export default function App() {
   const [selectedStreamer, setSelectedStreamer] = useState("test");
   const [sponsorBrand, setSponsorBrand] = useState("Nike");
   const [campaignGoal, setCampaignGoal] = useState("Launch-week brand lift");
-  const [analysisRuns, setAnalysisRuns] = useState(1);
   const [channelSwitchStatus, setChannelSwitchStatus] = useState("Runtime capture follows the streamer field.");
 
   async function analyzeStreamer() {
-    const nextStreamer = streamerInput.trim();
+    const nextStreamer = normalizeStreamerHandle(streamerInput);
     if (!nextStreamer) return;
 
     await loadStreamer(nextStreamer, sponsorBrand);
   }
 
   async function selectPortfolioStreamer(streamer: PortfolioStreamer) {
-    setStreamerInput(streamer.handle);
+    const nextStreamer = normalizeStreamerHandle(streamer.handle);
+    setStreamerInput(nextStreamer);
     setSponsorBrand(streamer.brand);
-    await loadStreamer(streamer.handle, streamer.brand);
+    await loadStreamer(nextStreamer, streamer.brand);
   }
 
   async function loadStreamer(streamer: string, brand: string) {
-    setSelectedStreamer(streamer);
+    const nextStreamer = normalizeStreamerHandle(streamer);
+    const isSameStreamer = nextStreamer === selectedStreamer;
+    setSelectedStreamer(nextStreamer);
     setSponsorBrand(brand);
-    setAnalysisRuns((current) => current + 1);
-    setChannelSwitchStatus(`Switching Twitch ingest to @${streamer}...`);
+    setChannelSwitchStatus(isSameStreamer ? `Updating sponsor relevance for @${nextStreamer}...` : `Switching Twitch ingest to @${nextStreamer}...`);
 
-    const results = await Promise.allSettled([
-      switchRuntimeChannels("/api/chat/twitch/channels", streamer),
-      switchRuntimeChannels("/api/video/capture/channels", streamer),
-      updateSponsorRelevance(streamer, brand, campaignGoal),
-    ]);
+    const runtimeUpdates = isSameStreamer
+      ? [updateSponsorRelevance(nextStreamer, brand, campaignGoal)]
+      : [
+          switchRuntimeChannels("/api/chat/twitch/channels", nextStreamer),
+          switchRuntimeChannels("/api/video/capture/channels", nextStreamer),
+          updateSponsorRelevance(nextStreamer, brand, campaignGoal),
+        ];
+    const results = await Promise.allSettled(runtimeUpdates);
     const failures = results.filter((result) => result.status === "rejected");
     if (failures.length > 0) {
-      setChannelSwitchStatus(`Loaded @${streamer}; ${failures.length} runtime update failed. Check service status pills.`);
+      setChannelSwitchStatus(`Loaded @${nextStreamer}; ${failures.length} runtime update failed. Check service status pills.`);
       return;
     }
 
-    setChannelSwitchStatus(`Chat, video frames, transcript capture, and sponsor relevance are pointed at @${streamer}.`);
+    setChannelSwitchStatus(
+      isSameStreamer
+        ? `Sponsor relevance updated for @${nextStreamer}; existing replay capture was left running.`
+        : `Chat, video frames, transcript capture, and sponsor relevance are pointed at @${nextStreamer}.`,
+    );
   }
 
   const selectedPortfolio = portfolioStreamers.find((streamer) => streamer.handle === selectedStreamer);
@@ -319,20 +359,19 @@ export default function App() {
         </header>
 
         <LiveStreamConsole
-          key={`${selectedStreamer}-${analysisRuns}`}
           streamer={selectedStreamer}
           sponsorBrand={displayBrand}
           campaignGoal={campaignGoal}
         />
 
         <section className="metrics-section" id="metrics">
-          <StreamMetricsOverview key={`analytics-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} />
+          <StreamMetricsOverview streamer={selectedStreamer} />
         </section>
 
         <section className="evidence-grid" id="evidence">
-          <SentimentPanel key={`sentiment-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
-          <SponsorPanel key={`sponsor-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
-          <RecommendationPanel key={`recommendations-${selectedStreamer}-${analysisRuns}`} streamer={selectedStreamer} hideControls />
+          <SentimentPanel streamer={selectedStreamer} hideControls />
+          <SponsorPanel streamer={selectedStreamer} hideControls />
+          <RecommendationPanel streamer={selectedStreamer} hideControls />
         </section>
 
         <section className="roster-section" id="roster">
@@ -373,7 +412,39 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
   const [liveTranscriptSentiment, setLiveTranscriptSentiment] = useState<TranscriptSentimentEvent[]>([]);
   const [liveSponsorSentiment, setLiveSponsorSentiment] = useState<SentimentEvent[]>([]);
   const [liveSponsorTranscriptSentiment, setLiveSponsorTranscriptSentiment] = useState<TranscriptSentimentEvent[]>([]);
+  const [restTranscriptState, setRestTranscriptState] = useState<RestTranscriptState>({ streamer: "", segments: [], error: null });
   const activeSponsor = sponsorProfileFromInput(streamer, sponsorBrand, campaignGoal).sponsor;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTranscriptFallback = () => {
+      fetch(`/api/sentiment/transcript/recent?streamer=${encodeURIComponent(streamer)}&limit=10`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`/api/sentiment/transcript/recent returned ${response.status}`);
+          }
+          return response.json() as Promise<TranscriptSegmentEvent[]>;
+        })
+        .then((segments) => {
+          if (!cancelled) {
+            setRestTranscriptState({ streamer, segments: Array.isArray(segments) ? segments : [], error: null });
+          }
+        })
+        .catch((error: Error) => {
+          if (!cancelled) {
+            setRestTranscriptState({ streamer, segments: [], error: error.message });
+          }
+        });
+    };
+
+    loadTranscriptFallback();
+    const intervalId = window.setInterval(loadTranscriptFallback, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [streamer]);
 
   const sponsorQuery = useQuery<{ sponsorDetections: SponsorDetectionEvent[] }>(RECENT_SPONSOR_DETECTIONS_QUERY, {
     variables: { streamer, limit: 12 },
@@ -382,6 +453,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
   const transcriptQuery = useQuery<{ recentTranscriptSegments: TranscriptSegmentEvent[] }>(RECENT_TRANSCRIPT_SEGMENTS_QUERY, {
     variables: { streamer, limit: 10 },
     fetchPolicy: "network-only",
+    pollInterval: 10000,
   });
   const sentimentQuery = useQuery<{ recentSentiment: SentimentEvent[] }>(RECENT_SENTIMENT_QUERY, {
     variables: { streamer, limit: 12 },
@@ -390,6 +462,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
   const transcriptSentimentQuery = useQuery<{ recentTranscriptSentiment: TranscriptSentimentEvent[] }>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
     variables: { streamer, limit: 10 },
     fetchPolicy: "network-only",
+    pollInterval: 10000,
   });
   const sponsorSentimentQuery = useQuery<{ recentSponsorSentiment: SentimentEvent[] }>(RECENT_SPONSOR_SENTIMENT_QUERY, {
     variables: { streamer, sponsor: activeSponsor, limit: 12 },
@@ -401,24 +474,39 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
   });
 
   const sponsorHistory = sponsorQuery.data?.sponsorDetections ?? [];
-  const transcriptHistory = transcriptQuery.data?.recentTranscriptSegments ?? [];
+  const restTranscriptHistory = restTranscriptState.streamer === streamer ? restTranscriptState.segments : [];
+  const restTranscriptError = restTranscriptState.streamer === streamer ? restTranscriptState.error : null;
+  const transcriptHistory = mergeById(
+    transcriptQuery.data?.recentTranscriptSegments ?? [],
+    restTranscriptHistory,
+    (event) => event.segmentId,
+    16,
+  );
   const sentimentHistory = sentimentQuery.data?.recentSentiment ?? [];
   const transcriptSentimentHistory = transcriptSentimentQuery.data?.recentTranscriptSentiment ?? [];
   const sponsorSentimentHistory = sponsorSentimentQuery.data?.recentSponsorSentiment ?? [];
   const sponsorTranscriptSentimentHistory = sponsorTranscriptSentimentQuery.data?.recentSponsorTranscriptSentiment ?? [];
 
-  const sponsors = mergeById(liveSponsors, sponsorHistory, (event) => event.detectionEventId, 20);
-  const transcriptSegments = mergeById(liveTranscripts, transcriptHistory, (event) => event.segmentId, 16);
-  const chatSentiments = mergeById(liveSentiment, sentimentHistory, (event) => event.sentimentEventId, 16);
+  const liveSponsorsForStreamer = liveSponsors.filter((event) => event.streamer === streamer);
+  const liveTranscriptsForStreamer = liveTranscripts.filter((event) => event.streamer === streamer);
+  const liveChatForStreamer = liveChat.filter((event) => event.streamer === streamer);
+  const liveSentimentForStreamer = liveSentiment.filter((event) => event.streamer === streamer);
+  const liveTranscriptSentimentForStreamer = liveTranscriptSentiment.filter((event) => event.streamer === streamer);
+  const liveSponsorSentimentForStreamer = liveSponsorSentiment.filter((event) => event.streamer === streamer);
+  const liveSponsorTranscriptSentimentForStreamer = liveSponsorTranscriptSentiment.filter((event) => event.streamer === streamer);
+
+  const sponsors = mergeById(liveSponsorsForStreamer, sponsorHistory, (event) => event.detectionEventId, 20);
+  const transcriptSegments = mergeById(liveTranscriptsForStreamer, transcriptHistory, (event) => event.segmentId, 16);
+  const chatSentiments = mergeById(liveSentimentForStreamer, sentimentHistory, (event) => event.sentimentEventId, 16);
   const transcriptSentiments = mergeById(
-    liveTranscriptSentiment,
+    liveTranscriptSentimentForStreamer,
     transcriptSentimentHistory,
     (event) => event.sentimentEventId,
     16,
   );
-  const sponsorSentiments = mergeById(liveSponsorSentiment, sponsorSentimentHistory, (event) => event.sentimentEventId, 12);
+  const sponsorSentiments = mergeById(liveSponsorSentimentForStreamer, sponsorSentimentHistory, (event) => event.sentimentEventId, 12);
   const sponsorTranscriptSentiments = mergeById(
-    liveSponsorTranscriptSentiment,
+    liveSponsorTranscriptSentimentForStreamer,
     sponsorTranscriptSentimentHistory,
     (event) => event.sentimentEventId,
     10,
@@ -540,9 +628,39 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     : [];
   const topSponsor = sponsors.find((event) => event.sponsor !== "UNKNOWN") ?? latestFrame;
   const latestTranscriptSentiment = transcriptSentiments[0];
-  const latestChat = liveChat[0];
+  const latestChat = liveChatForStreamer[0];
   const latestEventAt = latestFrame?.capturedAt ?? latestTranscriptSentiment?.processedAt ?? latestChat?.timestamp;
   const transcriptSentimentBySegment = new Map(transcriptSentiments.map((event) => [event.segmentId, event]));
+  const sponsorTranscriptSentimentBySegment = new Map(sponsorTranscriptSentiments.map((event) => [event.segmentId, event]));
+  const transcriptSegmentIds = new Set(transcriptSegments.map((segment) => segment.segmentId));
+  const transcriptFeed = [
+    ...transcriptSegments.map((segment) => {
+      const analysis = transcriptSentimentBySegment.get(segment.segmentId);
+      const sponsorAnalysis = sponsorTranscriptSentimentBySegment.get(segment.segmentId) ?? (analysis?.sponsorRelevant ? analysis : undefined);
+      return {
+        id: segment.segmentId,
+        text: analysis?.text || segment.text,
+        at: segment.startedAt,
+        sequence: segment.transcriptSequence,
+        source: segment.source,
+        analysis,
+        sponsorAnalysis,
+      };
+    }),
+    ...transcriptSentiments.filter((event) => !transcriptSegmentIds.has(event.segmentId)).map((event) => {
+      const sponsorAnalysis = sponsorTranscriptSentimentBySegment.get(event.segmentId) ?? (event.sponsorRelevant ? event : undefined);
+      return {
+        id: event.segmentId,
+        text: event.text,
+        at: event.segmentStartedAt,
+        sequence: event.transcriptSequence,
+        source: undefined,
+        analysis: event,
+        sponsorAnalysis,
+      };
+    }),
+  ].sort((left, right) => right.at - left.at).slice(0, 16);
+  const sponsorTranscriptCount = transcriptFeed.filter((line) => line.sponsorAnalysis).length;
 
   return (
     <section className="stream-console" aria-label="Live stream analysis console">
@@ -604,24 +722,37 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
           <div className="sidecar-heading">
             <div>
               <span className="eyebrow">Streamer audio</span>
-              <h2>Transcript</h2>
+              <h2>All transcript</h2>
             </div>
-            <span className="status-pill">{transcriptSegments.length} segments</span>
+            <span className="status-pill">{transcriptFeed.length} lines · {sponsorTranscriptCount} sponsor</span>
           </div>
 
           <div className="feed-stack">
-            {transcriptQuery.loading && transcriptSegments.length === 0 && <div className="empty-state">Loading transcript...</div>}
-            {!transcriptQuery.loading && transcriptSegments.length === 0 && <div className="empty-state">No transcript segments yet.</div>}
-            {transcriptSegments.map((segment) => {
-              const analysis = transcriptSentimentBySegment.get(segment.segmentId);
+            {(transcriptQuery.error || transcriptSentimentQuery.error) && transcriptFeed.length === 0 && (
+              <div className="error-state">
+                Failed to load transcript: {transcriptQuery.error?.message || transcriptSentimentQuery.error?.message}{restTranscriptError ? `; ${restTranscriptError}` : ""}
+              </div>
+            )}
+            {(transcriptQuery.loading || transcriptSentimentQuery.loading) && transcriptFeed.length === 0 && <div className="empty-state">Loading transcript...</div>}
+            {!transcriptQuery.loading && !transcriptSentimentQuery.loading && !transcriptQuery.error && !transcriptSentimentQuery.error && transcriptFeed.length === 0 && (
+              <div className="empty-state">No transcript yet.</div>
+            )}
+            {transcriptFeed.map((line) => {
+              const analysis = line.analysis;
+              const sponsorAnalysis = line.sponsorAnalysis;
               return (
-                <article className="transcript-line" key={segment.segmentId}>
+                <article className={`transcript-line${sponsorAnalysis ? " transcript-line-sponsor" : ""}`} key={line.id}>
                   <div className="line-meta">
-                    <span>{formatTime(segment.startedAt)}</span>
-                    <span>seq {segment.transcriptSequence}</span>
+                    <span>{formatTime(line.at)}</span>
+                    <span>seq {line.sequence}</span>
+                    {line.source && <span>{line.source}</span>}
                     <span className={`analysis-chip ${sentimentClass(analysis?.label)}`}>{analysis?.label ?? "pending"}</span>
+                    {sponsorAnalysis && <span className="analysis-chip analysis-live">sponsor {formatScore(sponsorAnalysis.relevanceScore)}</span>}
                   </div>
-                  <p>{segment.text}</p>
+                  <p>{line.text}</p>
+                  {sponsorAnalysis && (
+                    <div className="line-meta">Matched {matchedContext(sponsorAnalysis, activeSponsor)}</div>
+                  )}
                 </article>
               );
             })}
@@ -643,11 +774,11 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
                 <div className="line-meta">
                   <span>{formatTime(event.chatTimestamp)}</span>
                   <span>{event.user}</span>
-                  <span className={`analysis-chip ${sentimentClass(event.label)}`}>{event.label} {event.score.toFixed(2)}</span>
-                  <span className="analysis-chip analysis-live">{event.relevanceScore.toFixed(2)} match</span>
+                  <span className={`analysis-chip ${sentimentClass(event.label)}`}>{event.label} {formatScore(event.score)}</span>
+                  <span className="analysis-chip analysis-live">{formatScore(event.relevanceScore)} match</span>
                 </div>
                 <p>{event.message}</p>
-                <div className="line-meta">Matched {event.matchedTerms.join(", ") || event.matchedSponsor || "sponsor context"}</div>
+                <div className="line-meta">Matched {matchedContext(event, activeSponsor)}</div>
               </article>
             ))}
 
@@ -656,11 +787,11 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
                 <div className="line-meta">
                   <span>{formatTime(event.segmentEndedAt)}</span>
                   <span>transcript</span>
-                  <span className={`analysis-chip ${sentimentClass(event.label)}`}>{event.label} {event.score.toFixed(2)}</span>
-                  <span className="analysis-chip analysis-live">{event.relevanceScore.toFixed(2)} match</span>
+                  <span className={`analysis-chip ${sentimentClass(event.label)}`}>{event.label} {formatScore(event.score)}</span>
+                  <span className="analysis-chip analysis-live">{formatScore(event.relevanceScore)} match</span>
                 </div>
                 <p>{event.text}</p>
-                <div className="line-meta">Matched {event.matchedTerms.join(", ") || event.matchedSponsor || "sponsor context"}</div>
+                <div className="line-meta">Matched {matchedContext(event, activeSponsor)}</div>
               </article>
             ))}
 
@@ -676,11 +807,11 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
               <span className="eyebrow">Audience layer</span>
               <h2>Chat + sentiment</h2>
             </div>
-            <span className="status-pill">{liveChat.length + chatSentiments.length} signals</span>
+            <span className="status-pill">{liveChatForStreamer.length + chatSentiments.length} signals</span>
           </div>
 
           <div className="feed-stack compact-feed">
-            {liveChat.slice(0, 5).map((event) => (
+            {liveChatForStreamer.slice(0, 5).map((event) => (
               <article className="chat-line" key={event.eventId}>
                 <div className="line-meta">
                   <span>{formatTime(event.timestamp)}</span>
@@ -696,13 +827,13 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
                 <div className="line-meta">
                   <span>{formatTime(event.chatTimestamp)}</span>
                   <span>{event.user}</span>
-                  <span className={`analysis-chip ${sentimentClass(event.label)}`}>{event.label} {event.score.toFixed(2)}</span>
+                  <span className={`analysis-chip ${sentimentClass(event.label)}`}>{event.label} {formatScore(event.score)}</span>
                 </div>
                 <p>{event.message}</p>
               </article>
             ))}
 
-            {!sentimentQuery.loading && liveChat.length === 0 && chatSentiments.length === 0 && (
+            {!sentimentQuery.loading && liveChatForStreamer.length === 0 && chatSentiments.length === 0 && (
               <div className="empty-state">No chat signals yet.</div>
             )}
           </div>
