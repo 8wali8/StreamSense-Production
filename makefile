@@ -43,6 +43,7 @@ help:
 	@echo "  make logs          Follow logs for all services"
 	@echo "  make ps            Show running containers"
 	@echo "  make smoke-e2e     Run final API-level Compose smoke path"
+	@echo "  make replay-smoke  Verify VOD replay alias path against a running stack"
 	@echo "  make demo-seed     Seed demo chat and video-frame data"
 	@echo "  make demo-open     Print/open demo URLs"
 	@echo "  make twitch-up     Start stack with .env.twitch.local loaded"
@@ -197,6 +198,10 @@ demo-open:
 .PHONY: smoke-e2e
 smoke-e2e:
 	@python tools/smoke/compose_smoke.py --start-compose --teardown
+
+.PHONY: replay-smoke
+replay-smoke:
+	@python tools/smoke/replay_smoke.py
 
 .PHONY: twitch-up
 twitch-up:
