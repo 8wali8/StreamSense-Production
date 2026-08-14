@@ -10,6 +10,7 @@ public class StreamSenseProperties {
     private History history = new History();
     private Cache cache = new Cache();
     private Payload payload = new Payload();
+    private Processing processing = new Processing();
 
     public Topics getTopics() {
         return topics;
@@ -51,8 +52,17 @@ public class StreamSenseProperties {
         this.payload = payload;
     }
 
+    public Processing getProcessing() {
+        return processing;
+    }
+
+    public void setProcessing(Processing processing) {
+        this.processing = processing;
+    }
+
     public static class Topics {
         private String videoFrames;
+        private String videoFramesDlt;
         private String sponsorDetections;
 
         public String getVideoFrames() {
@@ -61,6 +71,14 @@ public class StreamSenseProperties {
 
         public void setVideoFrames(String videoFrames) {
             this.videoFrames = videoFrames;
+        }
+
+        public String getVideoFramesDlt() {
+            return videoFramesDlt;
+        }
+
+        public void setVideoFramesDlt(String videoFramesDlt) {
+            this.videoFramesDlt = videoFramesDlt;
         }
 
         public String getSponsorDetections() {
@@ -153,6 +171,27 @@ public class StreamSenseProperties {
 
         public void setMaxFrameRefLength(int maxFrameRefLength) {
             this.maxFrameRefLength = maxFrameRefLength;
+        }
+    }
+
+    public static class Processing {
+        private long retryBackoffMs = 1000;
+        private long maxRetries = 2;
+
+        public long getRetryBackoffMs() {
+            return retryBackoffMs;
+        }
+
+        public void setRetryBackoffMs(long retryBackoffMs) {
+            this.retryBackoffMs = retryBackoffMs;
+        }
+
+        public long getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(long maxRetries) {
+            this.maxRetries = maxRetries;
         }
     }
 }

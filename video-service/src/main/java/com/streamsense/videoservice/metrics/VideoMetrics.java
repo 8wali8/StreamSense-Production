@@ -95,6 +95,20 @@ public class VideoMetrics {
                 .increment();
     }
 
+    public void incrementDeadLetter() {
+        Counter.builder("streamsense_video_dead_letter_total")
+                .description("Total number of dead-lettered video frame events")
+                .register(meterRegistry)
+                .increment();
+    }
+
+    public void incrementRetry() {
+        Counter.builder("streamsense_video_retry_total")
+                .description("Total number of video frame processing retries")
+                .register(meterRegistry)
+                .increment();
+    }
+
     public void incrementCacheHit(String cache) {
         Counter.builder("streamsense_cache_hits_total")
                 .description("Total number of cache hits")

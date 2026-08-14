@@ -319,6 +319,7 @@ data:
     streamsense:
       topics:
         videoFrames: stream.video.frames
+        videoFramesDlt: stream.video.frames.dlt
         sponsorDetections: stream.sponsor.detections
       ml:
         base-url: http://ml-engine:8000
@@ -332,6 +333,9 @@ data:
         recentTtlSeconds: 60
       payload:
         maxFrameRefLength: 1024
+      processing:
+        retryBackoffMs: 1000
+        maxRetries: 2
 
     hystrix:
       command:

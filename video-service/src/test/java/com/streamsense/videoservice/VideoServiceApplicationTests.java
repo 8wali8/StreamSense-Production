@@ -7,7 +7,9 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.cloud.config.enabled=false",
         "eureka.client.enabled=false",
         "spring.kafka.listener.auto-startup=false",
+        "spring.kafka.bootstrap-servers=localhost:9092",
         "streamsense.topics.videoFrames=stream.video.frames",
+        "streamsense.topics.videoFramesDlt=stream.video.frames.dlt",
         "streamsense.topics.sponsorDetections=stream.sponsor.detections",
         "streamsense.ml.base-url=http://localhost:8000"
 })
