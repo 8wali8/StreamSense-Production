@@ -261,7 +261,6 @@ data:
       flyway:
         enabled: true
         locations: classpath:db/migration
-        table: analytics_service_flyway_history
         baseline-on-migrate: true
         baseline-version: 0
 
@@ -469,6 +468,7 @@ data:
       flyway:
         enabled: true
         locations: classpath:db/migration
+        table: analytics_service_flyway_history
         baseline-on-migrate: true
         baseline-version: 0
 
@@ -476,7 +476,7 @@ data:
       endpoints:
         web:
           exposure:
-            include: health,info,prometheus
+            include: health, info, prometheus
       endpoint:
         prometheus:
           enabled: true
