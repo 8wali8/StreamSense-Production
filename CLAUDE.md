@@ -64,7 +64,7 @@ npm run lint    # ESLint
 
 ### CI parity
 
-CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. CI's Java matrix currently omits analytics-service (which `make test` does cover) and doesn't test video-capture-service. If you touch `k8s/`, run `kubectl kustomize k8s` — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end.
+CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java matrix covers all eight Java services, and it also tests video-capture-service. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. If you touch `k8s/`, run `kubectl kustomize k8s` — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end.
 
 ### Kubernetes (kind cluster)
 
@@ -118,7 +118,7 @@ Created by the `kafka-topics-init` Compose service (auto-create is disabled):
 - `stream.sentiment.events` — chat sentiment results (now enriched with sponsor-relevance fields)
 - `stream.transcript.segments` (+ `.dlt`) — transcribed audio segments
 - `stream.transcript.sentiment.events` — transcript sentiment results
-- `stream.video.frames` — frame metadata (frame bytes live in MinIO)
+- `stream.video.frames` (+ `.dlt`) — frame metadata (frame bytes live in MinIO)
 - `stream.sponsor.detections` — ML sponsor detection results
 
 ### Configuration
@@ -138,10 +138,10 @@ Both chat-service and video-capture-service support replaying a recorded Twitch 
 ### API Gateway internals
 
 The gateway (`api-gateway/src/main/java/com/streamsense/apigateway/`) handles:
-- **GraphQL** — queries and mutations via Spring GraphQL
+- **GraphQL** — queries via Spring GraphQL (no mutations — writes go through REST routes)
 - **WebSocket subscriptions** — `graphql-transport-ws` protocol, real-time push to frontend
 - **Auth** — JWT validation filter
-- **Rate limiting** — Redis-backed token bucket
+- **Rate limiting** — in-memory fixed-window limiter (per gateway instance, not Redis-backed)
 - **Routing** — Spring Cloud Gateway routes to downstream services
 
 GraphQL schema is in `docs/schemas/` and `docs/contracts/`.
@@ -162,7 +162,7 @@ In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/gr
 
 ### Test behavior
 
-Java tests are self-contained: test configs disable config-server and Eureka; integration tests use Embedded Kafka, H2, and MockWebServer instead of the Docker stack. `sentiment-service` and `video-service` use Flyway migrations under `src/main/resources/db/migration/`; video-service uses a custom Flyway history table and baseline settings from config.
+Java tests are self-contained: test configs disable config-server and Eureka; integration tests use Embedded Kafka, H2, and MockWebServer instead of the Docker stack. `sentiment-service`, `video-service`, and `analytics-service` use Flyway migrations under `src/main/resources/db/migration/`; video-service and analytics-service use custom Flyway history tables and baseline settings from config (all three share the single `streamsense` Postgres database, so history table names must stay distinct).
 
 ## Key Docs
 
