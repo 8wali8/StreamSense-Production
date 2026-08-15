@@ -13,7 +13,7 @@ jobs:
   java-build-test:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         service:
           - eureka-server
@@ -35,6 +35,19 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+
+      - name: Resolve dependencies (retry on Maven Central throttling)
+        working-directory: ${{ matrix.service }}
+        run: |
+          for i in 1 2 3 4; do
+            mvn -B -ntp dependency:go-offline && break
+            if [ "$i" = "4" ]; then
+              echo "dependency resolution failed after 4 attempts"
+              exit 1
+            fi
+            echo "dependency resolution failed (attempt $i); retrying in $((i * 45))s..."
+            sleep $((i * 45))
+          done
 
       - name: Build and test
         working-directory: ${{ matrix.service }}
