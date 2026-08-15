@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## Start Here
+
+- Read `docs/current-state.md` before doing non-trivial work. It captures the current replay milestone, known gaps, and the recommended next task.
+- Read `docs/replay-runbook.md` before starting or debugging the Twitch VOD replay stack.
+- Read `docs/next-work.md` when choosing what to build next.
+- Current canonical demo channel is `redbull-testing`, backed by Twitch VOD `2750461300` and source marker `TWITCH_VOD_REPLAY`.
+
 ## Workflow
 
 - Root task runner is `makefile` (lowercase). Use `make help` for repo commands.
@@ -27,9 +34,26 @@
 ## Docker And Local Run
 
 - Java Dockerfiles copy `target/*jar`. After Java changes, build jars first with `make package` or `cd <service> && mvn -DskipTests package`, then rebuild images.
-- `make build` and `make up` do not package Java jars for you.
+- `make up` depends on `make package`, then builds images and starts Compose. `make build` only builds Docker images and does not package Java jars.
+- `tools/start-stack.ps1` packages Java services inside a Maven Docker container, then builds/starts Compose and can switch runtime Twitch channels. Prefer it for the current replay demo on Windows.
+- Full replay startup: `powershell -ExecutionPolicy Bypass -File "tools/start-stack.ps1" -TwitchEnv -Channels redbull-testing`.
+- Faster replay startup when jars are current: `powershell -ExecutionPolicy Bypass -File "tools/start-stack.ps1" -SkipPackage -TwitchEnv -Channels redbull-testing`.
 - Full Docker Compose serves the frontend at `http://localhost:3000`; nginx proxies `/graphql` to `api-gateway`.
 - Local frontend dev is different: `npm run dev` uses Vite defaults and there is no Vite proxy for `/graphql`. For end-to-end browser checks, prefer the Docker frontend unless you add your own proxy.
+
+## Replay Context
+
+- Replay alias config for Spring services lives in `config-server/config-repo/chat-service.yml`.
+- Kubernetes mirrors that config in `k8s/config/config-server-config-repo.yaml`.
+- `video-capture-service` does not consume Config Server, so replay aliases are mirrored as environment variables in `docker-compose.yml` and `k8s/apps/video-capture-service.yaml`.
+- Replay chat fixture: `chat-service/src/main/resources/replay/redbull-testing-chat.json`.
+- Replay events should continue through normal Kafka/service paths keyed by `streamer="redbull-testing"`; avoid adding replay-only downstream branches unless there is a concrete need.
+- Keep raw transcript/chat feeds independent from sponsor-filtered sentiment. Sponsor sentiment can be empty while raw transcript/chat is healthy.
+
+## Git Hygiene
+
+- Do not commit `.env.twitch.local`, OAuth tokens, captured media/frame artifacts, generated Java `target/**` output, or local `session-ses_*.md` notes.
+- Current generated build artifacts may appear dirty under `config-server/target/**` and `eureka-server/target/**` after packaging; leave them uncommitted unless explicitly doing a Git hygiene cleanup.
 
 ## Test Behavior
 

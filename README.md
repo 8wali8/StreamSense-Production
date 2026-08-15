@@ -125,6 +125,34 @@ flowchart TB
 - Transcript capture through `ml-engine` transcription.
 - Prometheus, Grafana, Zipkin, Kafka UI, Postgres, Redis, and MinIO in Compose.
 
+## Current Demo Path
+
+The canonical current demo is a reproducible Twitch VOD replay:
+
+- Streamer/channel input: `redbull-testing`
+- Twitch VOD: `https://www.twitch.tv/videos/2750461300`
+- VOD id: `2750461300`
+- Replay source marker: `TWITCH_VOD_REPLAY`
+
+Start it with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "tools/start-stack.ps1" -TwitchEnv -Channels redbull-testing
+```
+
+If Java jars are already packaged, use the faster path:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "tools/start-stack.ps1" -SkipPackage -TwitchEnv -Channels redbull-testing
+```
+
+Key docs for new contributors and agents:
+
+- `docs/current-state.md`: current architecture, replay milestone, known gaps, and handoff context.
+- `docs/replay-runbook.md`: how VOD replay works, how to start it, and how to verify it.
+- `docs/next-work.md`: recommended backlog and next implementation priorities.
+- `docs/howtorun.md`: broader local runbook and historical verification notes.
+
 ## Tech Stack
 
 - Java 21, Spring Boot, Spring Cloud, Spring GraphQL, Kafka, Flyway.
@@ -154,7 +182,7 @@ make twitch-up        # start with .env.twitch.local loaded
 make twitch-video-up  # start with Twitch video env loaded
 ```
 
-For the longer runbook, see `docs/howtorun.md`.
+For the current replay workflow, prefer `tools/start-stack.ps1` and `docs/replay-runbook.md`. For the longer general runbook, see `docs/howtorun.md`.
 ## License
 
 MIT License
