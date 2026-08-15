@@ -226,6 +226,7 @@ public class StreamSenseProperties {
         private boolean enabled = true;
         private double minScore = 0.50d;
         private java.util.List<Sponsor> sponsors = new java.util.ArrayList<>();
+        private java.util.List<Seed> seeds = new java.util.ArrayList<>();
 
         public boolean isEnabled() {
             return enabled;
@@ -249,6 +250,44 @@ public class StreamSenseProperties {
 
         public void setSponsors(java.util.List<Sponsor> sponsors) {
             this.sponsors = sponsors != null ? sponsors : new java.util.ArrayList<>();
+        }
+
+        public java.util.List<Seed> getSeeds() {
+            return seeds;
+        }
+
+        public void setSeeds(java.util.List<Seed> seeds) {
+            this.seeds = seeds != null ? seeds : new java.util.ArrayList<>();
+        }
+    }
+
+    public static class Seed {
+        private String streamer;
+        private String sponsor;
+        private Double minScore;
+
+        public String getStreamer() {
+            return streamer;
+        }
+
+        public void setStreamer(String streamer) {
+            this.streamer = streamer;
+        }
+
+        public String getSponsor() {
+            return sponsor;
+        }
+
+        public void setSponsor(String sponsor) {
+            this.sponsor = sponsor;
+        }
+
+        public Double getMinScore() {
+            return minScore;
+        }
+
+        public void setMinScore(Double minScore) {
+            this.minScore = minScore;
         }
     }
 

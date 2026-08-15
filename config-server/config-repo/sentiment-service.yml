@@ -41,6 +41,12 @@ streamsense:
         - name: Razer
           aliases: [razer]
           semanticTerms: [keyboard, mouse, headset, gaming gear, peripherals]
+        - name: Red Bull
+          aliases: [red bull, redbull, rb]
+          semanticTerms: [energy drink, energy, drink, can, wings, caffeine, extreme sports, f1, formula 1, racing]
+      seeds:
+        - streamer: redbull-testing
+          sponsor: Red Bull
 
 hystrix:
   command:

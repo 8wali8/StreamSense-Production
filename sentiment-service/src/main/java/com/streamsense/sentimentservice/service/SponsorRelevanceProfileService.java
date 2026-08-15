@@ -15,6 +15,8 @@ import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
 
+import jakarta.annotation.PostConstruct;
+
 @Service
 public class SponsorRelevanceProfileService {
 
@@ -23,6 +25,20 @@ public class SponsorRelevanceProfileService {
 
     public SponsorRelevanceProfileService(StreamSenseProperties properties) {
         this.properties = properties;
+    }
+
+    @PostConstruct
+    public void seedConfiguredProfiles() {
+        for (StreamSenseProperties.Seed seed : properties.getSentiment().getRelevance().getSeeds()) {
+            if (clean(seed.getStreamer()) == null || clean(seed.getSponsor()) == null) {
+                continue;
+            }
+            SponsorRelevanceUpdateRequest request = new SponsorRelevanceUpdateRequest();
+            request.setStreamer(seed.getStreamer());
+            request.setSponsor(seed.getSponsor());
+            request.setMinScore(seed.getMinScore());
+            update(request);
+        }
     }
 
     public Optional<SponsorRelevanceProfile> findActive(String streamer) {
