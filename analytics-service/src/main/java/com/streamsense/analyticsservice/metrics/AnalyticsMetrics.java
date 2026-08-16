@@ -32,6 +32,14 @@ public class AnalyticsMetrics {
         counter("streamsense.analytics.events.failed", topic).increment();
     }
 
+    public void eventRetried(String topic) {
+        counter("streamsense.analytics.events.retry", topic).increment();
+    }
+
+    public void eventDeadLettered(String topic) {
+        counter("streamsense.analytics.events.dead_letter", topic).increment();
+    }
+
     public void bucketUpdated(String metric) {
         Counter.builder("streamsense.analytics.bucket.updates")
                 .tag("metric", metric)
