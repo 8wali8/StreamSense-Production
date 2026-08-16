@@ -9,9 +9,16 @@ eureka:
 streamsense:
   topics:
     chatMessages: stream.chat.messages
+    chatMessagesDlt: stream.chat.messages.analytics.dlt
     sentimentEvents: stream.sentiment.events
+    sentimentEventsDlt: stream.sentiment.events.analytics.dlt
     sponsorDetections: stream.sponsor.detections
+    sponsorDetectionsDlt: stream.sponsor.detections.analytics.dlt
     transcriptSentimentEvents: stream.transcript.sentiment.events
+    transcriptSentimentEventsDlt: stream.transcript.sentiment.events.analytics.dlt
+  processing:
+    retryBackoffMs: ${STREAMSENSE_ANALYTICS_RETRY_BACKOFF_MS:1000}
+    maxRetries: ${STREAMSENSE_ANALYTICS_MAX_RETRIES:2}
   analytics:
     bucket-size-seconds: ${STREAMSENSE_ANALYTICS_BUCKET_SIZE_SECONDS:60}
     default-window-minutes: ${STREAMSENSE_ANALYTICS_DEFAULT_WINDOW_MINUTES:15}
