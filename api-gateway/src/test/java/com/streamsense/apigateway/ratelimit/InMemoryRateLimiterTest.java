@@ -33,6 +33,25 @@ class InMemoryRateLimiterTest {
         assertThat(limiter.acquire("chat:127.0.0.1", 1, 60).allowed()).isTrue();
     }
 
+    @Test
+    void evictsCountersOnceTheirWindowHasClosed() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-04-11T12:00:00Z"));
+        InMemoryRateLimiter limiter = new InMemoryRateLimiter(clock);
+
+        limiter.acquire("chat:198.51.100.1", 5, 60);
+        limiter.acquire("chat:198.51.100.2", 5, 60);
+        assertThat(limiter.size()).isEqualTo(2);
+
+        clock.setInstant(Instant.parse("2026-04-11T12:00:30Z"));
+        limiter.acquire("chat:198.51.100.1", 5, 60);
+        assertThat(limiter.size()).isEqualTo(2);
+
+        clock.setInstant(Instant.parse("2026-04-11T12:01:00Z"));
+        limiter.acquire("chat:198.51.100.3", 5, 60);
+        assertThat(limiter.size()).isEqualTo(1);
+        assertThat(limiter.acquire("chat:198.51.100.1", 5, 60).remaining()).isEqualTo(4);
+    }
+
     private static final class MutableClock extends Clock {
 
         private Instant instant;
