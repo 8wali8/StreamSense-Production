@@ -11,6 +11,8 @@ public class GatewayEdgeProperties {
     private final Auth auth = new Auth();
     private final List<RateLimitRule> rateLimits = new ArrayList<>();
     private boolean rateLimitEnabled = true;
+    // How many X-Forwarded-For entries were appended by proxies we operate; 0 means the header is never trusted.
+    private int trustedProxyHops = 0;
 
     public Auth getAuth() {
         return auth;
@@ -26,6 +28,14 @@ public class GatewayEdgeProperties {
 
     public void setRateLimitEnabled(boolean rateLimitEnabled) {
         this.rateLimitEnabled = rateLimitEnabled;
+    }
+
+    public int getTrustedProxyHops() {
+        return trustedProxyHops;
+    }
+
+    public void setTrustedProxyHops(int trustedProxyHops) {
+        this.trustedProxyHops = trustedProxyHops;
     }
 
     public static class Auth {
