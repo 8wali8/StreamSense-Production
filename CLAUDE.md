@@ -130,7 +130,7 @@ Spring services load config from **config-server** at startup; each service's ow
 
 The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings).
 
-Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
+Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
 
 ### Twitch VOD replay
 
@@ -142,7 +142,7 @@ The gateway (`api-gateway/src/main/java/com/streamsense/apigateway/`) handles:
 - **GraphQL** — queries via Spring GraphQL (no mutations — writes go through REST routes)
 - **WebSocket subscriptions** — `graphql-transport-ws` protocol, real-time push to frontend
 - **Auth** — JWT validation filter
-- **Rate limiting** — in-memory fixed-window limiter (per gateway instance, not Redis-backed)
+- **Rate limiting** — in-memory fixed-window limiter (per gateway instance, not Redis-backed). Clients are keyed by socket address; `X-Forwarded-For` is only consulted when `streamsense.gateway.trusted-proxy-hops` > 0 (k8s sets 1 behind ingress-nginx, Compose 0)
 - **Routing** — Spring Cloud Gateway routes to downstream services
 
 GraphQL schema is in `docs/schemas/` and `docs/contracts/`.

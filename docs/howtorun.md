@@ -907,14 +907,13 @@ curl -X POST http://localhost:8080/graphql \
 
 ### Verify rate limiting
 
-The default chat-ingest limiter allows 30 requests per minute per client key. Reusing the same `X-Forwarded-For` value should eventually return `429`:
+The default chat-ingest limiter allows 30 requests per minute per client key. The client key is the caller's socket address; `X-Forwarded-For` is only honoured when `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS` is greater than `0`. The Kubernetes manifests set it to `1` because the gateway sits behind ingress-nginx, while Compose leaves it at `0` because port 8080 is published directly and anything sent on that port could forge the header. Repeating the request from one host should eventually return `429`:
 
 ```bash
 for i in $(seq 1 31); do
   curl -s -o /dev/null -w "%{http_code}\n" \
     -X POST http://localhost:8080/api/chat/ingest \
     -H "Content-Type: application/json" \
-    -H "X-Forwarded-For: 198.51.100.77" \
     -d '{"streamer":"gateway-limit-demo","user":"u1","message":"limit test","timestamp":1710000032000}'
 done
 ```
@@ -923,6 +922,7 @@ Expected behavior:
 
 - the first 30 responses return `200`
 - the next response returns `429`
+- adding or changing an `X-Forwarded-For` header does not reset the count unless a trusted proxy hop is configured
 
 ### Verify auth toggle
 
