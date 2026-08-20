@@ -1,17 +1,25 @@
 package com.streamsense.chatservice.kafka;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
 import com.streamsense.chatservice.events.ChatMessageEvent;
 import com.streamsense.chatservice.metrics.ChatMetrics;
 
+import io.micrometer.core.instrument.Timer;
+
 @Component
 public class ChatKafkaProducer {
+
+    private static final Logger log = LoggerFactory.getLogger(ChatKafkaProducer.class);
 
     private final KafkaTemplate<String, ChatMessageEvent> kafkaTemplate;
     private final String chatTopic;
@@ -37,6 +45,22 @@ public class ChatKafkaProducer {
             record.headers().add("traceparent", traceparent.getBytes(StandardCharsets.UTF_8));
         }
 
-        chatMetrics.recordKafkaProduce(() -> kafkaTemplate.send(record));
+        // send() returns as soon as the record is buffered; the broker round-trip only completes the future,
+        // so the timer is stopped there rather than when send() returns.
+        Timer.Sample sample = chatMetrics.startKafkaProduce();
+        CompletableFuture<SendResult<String, ChatMessageEvent>> send;
+        try {
+            send = kafkaTemplate.send(record);
+        } catch (RuntimeException ex) {
+            chatMetrics.recordKafkaProduce(sample, ex);
+            throw ex;
+        }
+        send.whenComplete((result, failure) -> {
+            chatMetrics.recordKafkaProduce(sample, failure);
+            if (failure != null) {
+                log.warn("chat message publish failed topic={} streamer={} eventId={} error={}",
+                        chatTopic, event.getStreamer(), event.getEventId(), failure.toString());
+            }
+        });
     }
 }
