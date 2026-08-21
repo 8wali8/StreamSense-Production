@@ -5,9 +5,11 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -23,15 +25,19 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+// Tests default to a SimpleMeterRegistry with exporters off; the Prometheus scrape below needs the real registry.
+@AutoConfigureObservability
 @EmbeddedKafka(partitions = 3, topics = { "stream.chat.messages" })
 @TestPropertySource(properties = {
                 "spring.cloud.config.enabled=false",
                 "eureka.client.enabled=false",
+                "management.endpoints.web.exposure.include=prometheus",
                 "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
                 "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
                 "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
@@ -150,5 +156,38 @@ class ChatKafkaProducerIntegrationTest {
                 // Same key must route to same partition — this is the guarantee that enables
                 // per-streamer ordering across the 3-partition topic.
                 assertThat(second.partition()).isEqualTo(first.partition());
+        }
+
+        @Test
+        void exposesKafkaProduceLatencyAsSecondsHistogram() throws Exception {
+                consumer = createConsumerAtEnd("chat-metrics-test-group");
+
+                mockMvc.perform(post("/api/chat/ingest")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {
+                                                  "streamer": "metrics-streamer",
+                                                  "user": "u1",
+                                                  "message": "measure me",
+                                                  "timestamp": 1710000003000
+                                                }
+                                                """))
+                                .andExpect(status().isOk());
+                KafkaTestUtils.getSingleRecord(consumer, "stream.chat.messages", Duration.ofSeconds(10));
+
+                // Micrometer's Prometheus registry appends the base unit to timers, so the Grafana dashboards
+                // must query the *_seconds series; the ack callback may land just after the consumer sees the record.
+                Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+                        String scrape = mockMvc.perform(get("/actuator/prometheus"))
+                                        .andExpect(status().isOk())
+                                        .andReturn().getResponse().getContentAsString();
+                        assertThat(scrape).contains("streamsense_kafka_produce_latency_ms_seconds_bucket");
+                        double count = scrape.lines()
+                                        .filter(line -> line.startsWith("streamsense_kafka_produce_latency_ms_seconds_count"))
+                                        .mapToDouble(line -> Double.parseDouble(line.substring(line.lastIndexOf(' ') + 1)))
+                                        .findFirst()
+                                        .orElseThrow(() -> new AssertionError("produce latency count series missing"));
+                        assertThat(count).isGreaterThanOrEqualTo(1.0d);
+                });
         }
 }
