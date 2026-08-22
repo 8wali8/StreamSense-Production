@@ -18,7 +18,13 @@ public class CorrelationIdPropagationConfig {
         ContextRegistry.getInstance().registerThreadLocalAccessor(
                 CorrelationIdWebFilter.CORRELATION_ID_KEY,
                 () -> MDC.get(CorrelationIdWebFilter.CORRELATION_ID_KEY),
-                value -> MDC.put(CorrelationIdWebFilter.CORRELATION_ID_KEY, value),
+                value -> {
+                    if (value == null) {
+                        MDC.remove(CorrelationIdWebFilter.CORRELATION_ID_KEY);
+                    } else {
+                        MDC.put(CorrelationIdWebFilter.CORRELATION_ID_KEY, value);
+                    }
+                },
                 () -> MDC.remove(CorrelationIdWebFilter.CORRELATION_ID_KEY));
         // Restores registered thread-locals (this one plus Micrometer's traceId/spanId) from the Reactor Context
         // around every operator, so log lines in handlers and WebClient callbacks carry the right ids.
