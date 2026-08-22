@@ -168,7 +168,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(streamsense_sponsor_inference_latency_ms_sum[5m])) / sum(rate(streamsense_sponsor_inference_latency_ms_count[5m])) * 1000",
+          "expr": "sum(rate(streamsense_sponsor_inference_latency_ms_seconds_sum[5m])) / sum(rate(streamsense_sponsor_inference_latency_ms_seconds_count[5m])) * 1000",
           "legendFormat": "avg latency",
           "refId": "A"
         }

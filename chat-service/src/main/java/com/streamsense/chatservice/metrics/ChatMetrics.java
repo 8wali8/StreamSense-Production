@@ -1,8 +1,5 @@
 package com.streamsense.chatservice.metrics;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-
 import org.springframework.stereotype.Component;
 
 import io.micrometer.core.instrument.Counter;
@@ -12,18 +9,24 @@ import io.micrometer.core.instrument.Timer;
 @Component
 public class ChatMetrics {
 
+    private final MeterRegistry meterRegistry;
     private final Counter chatIngestCounter;
     private final Timer kafkaProduceTimer;
+    private final Counter kafkaProduceFailureCounter;
 
     public ChatMetrics(MeterRegistry meterRegistry) {
-        System.out.println("ChatMetrics bean initialized");
+        this.meterRegistry = meterRegistry;
         this.chatIngestCounter = Counter.builder("streamsense_chat_ingest_total")
                 .description("Total number of accepted chat ingest requests")
                 .register(meterRegistry);
 
         this.kafkaProduceTimer = Timer.builder("streamsense_kafka_produce_latency_ms")
-                .description("Latency of producing chat messages to Kafka")
+                .description("Time from handing a chat message to the Kafka producer until the broker acknowledges it")
                 .publishPercentileHistogram()
+                .register(meterRegistry);
+
+        this.kafkaProduceFailureCounter = Counter.builder("streamsense_kafka_produce_failures_total")
+                .description("Total number of chat messages the Kafka producer failed to deliver")
                 .register(meterRegistry);
     }
 
@@ -31,23 +34,14 @@ public class ChatMetrics {
         chatIngestCounter.increment();
     }
 
-    public <T> T recordKafkaProduce(Supplier<T> supplier) {
-        long start = System.nanoTime();
-        try {
-            return supplier.get();
-        } finally {
-            long durationNs = System.nanoTime() - start;
-            kafkaProduceTimer.record(durationNs, TimeUnit.NANOSECONDS);
-        }
+    public Timer.Sample startKafkaProduce() {
+        return Timer.start(meterRegistry);
     }
 
-    public void recordKafkaProduce(Runnable runnable) {
-        long start = System.nanoTime();
-        try {
-            runnable.run();
-        } finally {
-            long durationNs = System.nanoTime() - start;
-            kafkaProduceTimer.record(durationNs, TimeUnit.NANOSECONDS);
+    public void recordKafkaProduce(Timer.Sample sample, Throwable failure) {
+        sample.stop(kafkaProduceTimer);
+        if (failure != null) {
+            kafkaProduceFailureCounter.increment();
         }
     }
 }
