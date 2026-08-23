@@ -25,7 +25,8 @@ import com.streamsense.apigateway.support.TestJwtTokens;
         "streamsense.services.video-service.base-url=http://localhost:8084",
         "spring.kafka.bootstrap-servers=localhost:9092",
         "spring.kafka.consumer.group-id=api-gateway-test-group",
-        "streamsense.gateway.auth.enabled=true"
+        "streamsense.gateway.auth.enabled=true",
+        "streamsense.gateway.auth.hmac-secret=" + TestJwtTokens.TEST_SECRET
 })
 class GatewayAuthWebFilterIntegrationTest {
 
@@ -83,6 +84,23 @@ class GatewayAuthWebFilterIntegrationTest {
                 .expectHeader().valueEquals("X-StreamSense-Auth-Subject", "demo-user")
                 .expectBody()
                 .jsonPath("$.data.health").isEqualTo("ok");
+    }
+
+    @Test
+    void rejectsTokensSignedWithAnotherKey() {
+        String forged = TestJwtTokens.tokenSignedWith("another-secret-that-is-at-least-32-bytes-long", "demo-user",
+                "streamsense-local", java.util.List.of("streamsense-clients"),
+                java.time.Instant.now().plusSeconds(600).getEpochSecond(), null, "HS256");
+
+        webTestClient().post()
+                .uri("/graphql")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + forged)
+                .bodyValue("{\"query\":\"{ health }\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.reason").isEqualTo("invalid_jwt_signature");
     }
 
     @Test
