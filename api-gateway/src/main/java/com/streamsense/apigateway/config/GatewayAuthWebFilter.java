@@ -3,6 +3,7 @@ package com.streamsense.apigateway.config;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -26,15 +27,18 @@ public class GatewayAuthWebFilter implements WebFilter {
     private final GatewayEdgeProperties properties;
     private final JwtAuthTokenValidator tokenValidator;
     private final MeterRegistry meterRegistry;
+    private final String graphqlWebSocketPath;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public GatewayAuthWebFilter(
             GatewayEdgeProperties properties,
             JwtAuthTokenValidator tokenValidator,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            @Value("${spring.graphql.websocket.path:/graphql}") String graphqlWebSocketPath) {
         this.properties = properties;
         this.tokenValidator = tokenValidator;
         this.meterRegistry = meterRegistry;
+        this.graphqlWebSocketPath = graphqlWebSocketPath;
     }
 
     @Override
@@ -43,6 +47,12 @@ public class GatewayAuthWebFilter implements WebFilter {
         String path = exchange.getRequest().getPath().value();
 
         if (!auth.isEnabled() || isExcluded(path, auth.getExcludedPaths()) || !isProtected(path, auth.getProtectedPaths())) {
+            return chain.filter(exchange);
+        }
+
+        // Browsers cannot set headers on a WebSocket handshake, so the token for subscriptions arrives in the
+        // graphql-transport-ws connection_init payload and is enforced by GatewayWebSocketAuthInterceptor instead.
+        if (isGraphqlWebSocketHandshake(exchange, path)) {
             return chain.filter(exchange);
         }
 
@@ -64,6 +74,11 @@ public class GatewayAuthWebFilter implements WebFilter {
         return exchange.getResponse().writeWith(Mono.just(exchange.getResponse()
                 .bufferFactory()
                 .wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    private boolean isGraphqlWebSocketHandshake(ServerWebExchange exchange, String path) {
+        return path.equals(graphqlWebSocketPath)
+                && "websocket".equalsIgnoreCase(exchange.getRequest().getHeaders().getUpgrade());
     }
 
     private boolean isExcluded(String path, List<String> excludedPaths) {
