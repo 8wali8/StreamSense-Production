@@ -45,6 +45,8 @@ public class GatewayEdgeProperties {
         private List<String> excludedPaths = List.of("/actuator/**", "/graphiql", "/graphiql/**");
         private String requiredIssuer = "streamsense-local";
         private String requiredAudience = "streamsense-clients";
+        // Shared HS256 key; required whenever auth is enabled (see GatewayAuthStartupCheck).
+        private String hmacSecret;
 
         public boolean isEnabled() {
             return enabled;
@@ -84,6 +86,14 @@ public class GatewayEdgeProperties {
 
         public void setRequiredAudience(String requiredAudience) {
             this.requiredAudience = requiredAudience;
+        }
+
+        public String getHmacSecret() {
+            return hmacSecret;
+        }
+
+        public void setHmacSecret(String hmacSecret) {
+            this.hmacSecret = hmacSecret;
         }
     }
 

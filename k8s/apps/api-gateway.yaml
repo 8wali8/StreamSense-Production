@@ -70,6 +70,13 @@ spec:
               value: kafka:9092
             - name: STREAMSENSE_GATEWAY_AUTH_ENABLED
               value: "false"
+            # Required once auth is enabled; the gateway refuses to start without it.
+            - name: STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: api-gateway-auth
+                  key: hmac-secret
+                  optional: true
             - name: STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED
               value: "true"
             # ingress-nginx replaces X-Forwarded-For with the real client IP, so exactly one hop is trusted.

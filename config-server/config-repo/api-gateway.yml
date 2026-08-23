@@ -35,6 +35,7 @@ streamsense:
       enabled: ${STREAMSENSE_GATEWAY_AUTH_ENABLED:false}
       required-issuer: streamsense-local
       required-audience: streamsense-clients
+      hmac-secret: ${STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET:}
       protected-paths:
         - /graphql
         - /api/**
