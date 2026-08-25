@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.AntPathMatcher;
 
 @ConfigurationProperties(prefix = "streamsense.gateway")
 public class GatewayEdgeProperties {
@@ -39,6 +40,8 @@ public class GatewayEdgeProperties {
     }
 
     public static class Auth {
+
+        private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
         private boolean enabled;
         private List<String> protectedPaths = List.of("/graphql", "/api/**");
@@ -94,6 +97,12 @@ public class GatewayEdgeProperties {
 
         public void setHmacSecret(String hmacSecret) {
             this.hmacSecret = hmacSecret;
+        }
+
+        /** Whether a request path falls under the auth gate: protected and not explicitly excluded. */
+        public boolean protects(String path) {
+            return excludedPaths.stream().noneMatch(pattern -> PATH_MATCHER.match(pattern, path))
+                    && protectedPaths.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
         }
     }
 
