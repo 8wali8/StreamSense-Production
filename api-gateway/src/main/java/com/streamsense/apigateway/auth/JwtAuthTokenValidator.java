@@ -93,7 +93,7 @@ public class JwtAuthTokenValidator {
                 return ValidationResult.invalid("token_not_yet_valid");
             }
 
-            return ValidationResult.valid(payload.path("sub").asText());
+            return ValidationResult.valid(payload.path("sub").asText(), Instant.ofEpochSecond(exp));
         } catch (JwtSignatureVerifiers.UnverifiableTokenException exception) {
             return ValidationResult.invalid(exception.reason());
         } catch (ParseException exception) {
@@ -132,14 +132,14 @@ public class JwtAuthTokenValidator {
         return value == null || value.isBlank();
     }
 
-    public record ValidationResult(boolean valid, String subject, String reason) {
+    public record ValidationResult(boolean valid, String subject, Instant expiresAt, String reason) {
 
-        public static ValidationResult valid(String subject) {
-            return new ValidationResult(true, subject, null);
+        public static ValidationResult valid(String subject, Instant expiresAt) {
+            return new ValidationResult(true, subject, expiresAt, null);
         }
 
         public static ValidationResult invalid(String reason) {
-            return new ValidationResult(false, null, reason);
+            return new ValidationResult(false, null, null, reason);
         }
     }
 }
