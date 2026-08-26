@@ -104,6 +104,22 @@ class GatewayAuthWebFilterIntegrationTest {
     }
 
     @Test
+    void doesNotTreatASpoofedUpgradeHeaderOnAPostAsAWebSocketHandshake() {
+        webTestClient().post()
+                .uri("/graphql")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.UPGRADE, "websocket")
+                .header(HttpHeaders.CONNECTION, "Upgrade")
+                .header("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+                .header("Sec-WebSocket-Version", "13")
+                .bodyValue("{\"query\":\"{ health }\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.reason").isEqualTo("missing_bearer_token");
+    }
+
+    @Test
     void keepsActuatorHealthUnauthenticated() {
         webTestClient().get()
                 .uri("/actuator/health")
