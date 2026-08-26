@@ -69,13 +69,14 @@ The sprint-by-sprint sections below are retained as historical verification deta
 
 ## Gateway Toggles
 
-Gateway auth is disabled by default for local Docker work. To restart only the gateway with auth enabled:
+Gateway auth is disabled by default for local Docker work. Enabling it requires an HS256 signing secret of at least 32 bytes; the gateway refuses to start without one. To restart only the gateway with auth enabled:
 
 ```bash
+export STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET='replace-me-with-at-least-32-bytes-of-secret'
 STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d api-gateway
 ```
 
-Restore the local bypass mode with:
+Mint a matching bearer token with `python tools/mint-jwt.py --subject demo-user` (details under "Verify auth toggle" below). Restore the local bypass mode with:
 
 ```bash
 STREAMSENSE_GATEWAY_AUTH_ENABLED=false docker compose up -d api-gateway
@@ -926,9 +927,10 @@ Expected behavior:
 
 ### Verify auth toggle
 
-Restart the gateway with auth enabled:
+Tokens are HS256 JWTs verified against a shared secret. The gateway refuses to start with auth enabled and no secret (or one shorter than 32 bytes), so export one first, then restart the gateway with auth enabled:
 
 ```bash
+export STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET='replace-me-with-at-least-32-bytes-of-secret'
 STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d api-gateway
 ```
 
@@ -940,7 +942,17 @@ curl -X POST http://localhost:8080/graphql \
   -d '{"query":"{ health }"}'
 ```
 
-To test the JWT hook locally, send a JWT-shaped bearer token with `iss=streamsense-local`, `aud=streamsense-clients`, and a future `exp` claim.
+Mint a token with the same secret (`tools/mint-jwt.py` needs only the Python standard library) and the request succeeds; a token signed with any other key is rejected with `invalid_jwt_signature`:
+
+```bash
+TOKEN=$(python tools/mint-jwt.py --subject demo-user)
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"{ health }"}'
+```
+
+Subscriptions authenticate at the graphql-transport-ws `connection_init` step rather than on the handshake: the frontend sends `connectionParams.Authorization` from `localStorage["streamsense.authToken"]`, and the same key drives the `Authorization` header on HTTP queries. Store a minted token under that key in the browser to use the dashboard with auth on.
 
 After verification, restore local bypass mode:
 

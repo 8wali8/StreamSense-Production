@@ -1,6 +1,7 @@
 package com.streamsense.apigateway.auth;
 
 import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
@@ -12,6 +13,9 @@ import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jwt.SignedJWT;
 import com.streamsense.apigateway.config.GatewayEdgeProperties;
 
 @Component
@@ -54,6 +58,13 @@ public class JwtAuthTokenValidator {
                 return ValidationResult.invalid("invalid_jwt_algorithm");
             }
 
+            // Nothing in the payload is trusted until the signature checks out against a configured key.
+            SignedJWT signedJwt = SignedJWT.parse(token);
+            JWSVerifier verifier = JwtSignatureVerifiers.resolve(signedJwt.getHeader().getAlgorithm(), authProperties);
+            if (!signedJwt.verify(verifier)) {
+                return ValidationResult.invalid("invalid_jwt_signature");
+            }
+
             if (!StringUtils.hasText(payload.path("sub").asText())) {
                 return ValidationResult.invalid("missing_subject");
             }
@@ -82,7 +93,13 @@ public class JwtAuthTokenValidator {
                 return ValidationResult.invalid("token_not_yet_valid");
             }
 
-            return ValidationResult.valid(payload.path("sub").asText());
+            return ValidationResult.valid(payload.path("sub").asText(), Instant.ofEpochSecond(exp));
+        } catch (JwtSignatureVerifiers.UnverifiableTokenException exception) {
+            return ValidationResult.invalid(exception.reason());
+        } catch (ParseException exception) {
+            return ValidationResult.invalid("invalid_jwt_shape");
+        } catch (JOSEException exception) {
+            return ValidationResult.invalid("invalid_jwt_signature");
         } catch (Exception exception) {
             return ValidationResult.invalid("invalid_jwt_payload");
         }
@@ -115,14 +132,14 @@ public class JwtAuthTokenValidator {
         return value == null || value.isBlank();
     }
 
-    public record ValidationResult(boolean valid, String subject, String reason) {
+    public record ValidationResult(boolean valid, String subject, Instant expiresAt, String reason) {
 
-        public static ValidationResult valid(String subject) {
-            return new ValidationResult(true, subject, null);
+        public static ValidationResult valid(String subject, Instant expiresAt) {
+            return new ValidationResult(true, subject, expiresAt, null);
         }
 
         public static ValidationResult invalid(String reason) {
-            return new ValidationResult(false, null, reason);
+            return new ValidationResult(false, null, null, reason);
         }
     }
 }
