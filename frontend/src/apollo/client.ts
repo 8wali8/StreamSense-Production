@@ -27,8 +27,8 @@ export function buildConnectionParams(storage: TokenStorage = window.localStorag
 }
 
 // Same token source as the WebSocket connectionParams, so both transports stay in lockstep.
-export function buildAuthHeaders(previousHeaders: Headers = {}, storage: TokenStorage = window.localStorage): Headers {
-    return { ...previousHeaders, ...buildConnectionParams(storage) };
+export function buildAuthHeaders(previousHeaders?: Headers, storage: TokenStorage = window.localStorage): Headers {
+    return { ...(previousHeaders ?? {}), ...buildConnectionParams(storage) };
 }
 
 export function createAuthLink(storage: TokenStorage = window.localStorage): SetContextLink {
