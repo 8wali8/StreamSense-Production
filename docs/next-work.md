@@ -4,6 +4,8 @@ This is the recommended backlog for the current StreamSense replay/demo mileston
 
 ## Priority 1: Replay Smoke Test
 
+**Status: done.** Landed as `tools/smoke/replay_smoke.py` behind `make replay-smoke` (Python rather than the PowerShell script sketched below).
+
 Create:
 
 ```text
@@ -106,6 +108,8 @@ This should make it obvious whether blank UI states are caused by capture, trans
 
 ## Priority 4: Sponsor Relevance Persistence Or Seeding
 
+**Status: seeding done, persistence open.** Seeds live under `streamsense.sentiment.relevance.seeds` in `config-server/config-repo/sentiment-service.yml` (`redbull-testing` → Red Bull) and are applied at startup; the runtime update endpoint still overrides them.
+
 Current sponsor relevance profiles are runtime/in-memory. A service restart can lose the active sponsor context.
 
 First useful version:
@@ -120,6 +124,8 @@ Later version:
 - Add admin/profile management APIs.
 
 ## Priority 5: Git Hygiene For Build Artifacts
+
+**Status: done.** `config-server/target/**` and `eureka-server/target/**` are no longer tracked, `target/` is ignored at every depth, and `.opencode/` is local-only.
 
 Generated Java build outputs can show as dirty after local/Docker packaging.
 
