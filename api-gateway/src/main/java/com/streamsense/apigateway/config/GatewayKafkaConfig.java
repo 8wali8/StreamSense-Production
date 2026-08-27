@@ -37,6 +37,7 @@ public class GatewayKafkaConfig {
             ConsumerFactory<String, ChatMessageEvent> chatConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, ChatMessageEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(chatConsumerFactory);
+        factory.setRecordInterceptor(new CorrelationIdRecordInterceptor<>());
         return factory;
     }
 
@@ -55,6 +56,7 @@ public class GatewayKafkaConfig {
             ConsumerFactory<String, SentimentAnalysisEvent> sentimentConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, SentimentAnalysisEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(sentimentConsumerFactory);
+        factory.setRecordInterceptor(new CorrelationIdRecordInterceptor<>());
         return factory;
     }
 
@@ -73,6 +75,7 @@ public class GatewayKafkaConfig {
             ConsumerFactory<String, SponsorDetectionEvent> sponsorConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, SponsorDetectionEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(sponsorConsumerFactory);
+        factory.setRecordInterceptor(new CorrelationIdRecordInterceptor<>());
         return factory;
     }
 
@@ -91,6 +94,7 @@ public class GatewayKafkaConfig {
             ConsumerFactory<String, TranscriptSegmentEvent> transcriptSegmentConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, TranscriptSegmentEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(transcriptSegmentConsumerFactory);
+        factory.setRecordInterceptor(new CorrelationIdRecordInterceptor<>());
         return factory;
     }
 
@@ -109,6 +113,7 @@ public class GatewayKafkaConfig {
             ConsumerFactory<String, TranscriptSentimentEvent> transcriptSentimentConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, TranscriptSentimentEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(transcriptSentimentConsumerFactory);
+        factory.setRecordInterceptor(new CorrelationIdRecordInterceptor<>());
         return factory;
     }
 
