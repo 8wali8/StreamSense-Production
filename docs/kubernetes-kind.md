@@ -449,7 +449,7 @@ If the Job failed, delete and re-apply it:
 
 ```bash
 kubectl delete job kafka-topics-init -n streamsense
-kubectl apply -f k8s/platform/kafka.yaml
+kubectl apply -f k8s/platform/kafka.yaml  # StatefulSet + PVC; delete the PVC too if you want a clean log directory
 ```
 
 Verify topics exist:

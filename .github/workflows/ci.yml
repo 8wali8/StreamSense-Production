@@ -315,7 +315,7 @@ jobs:
       - name: Start core smoke stack
         run: |
           for attempt in 1 2; do
-            if docker compose up -d zookeeper kafka kafka-topics-init postgres redis minio eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service analytics-service video-capture-service kafka-exporter; then
+            if docker compose up -d kafka kafka-topics-init postgres redis minio eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service analytics-service video-capture-service kafka-exporter; then
               exit 0
             fi
 

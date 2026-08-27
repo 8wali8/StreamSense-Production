@@ -97,7 +97,7 @@ See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`; the
 | ml-engine | 8000 | Python | FastAPI inference: sentiment, relevance, sponsor, segmentation, transcription |
 | frontend | 3000 | React/TS | Live console (Apollo Client, GraphQL subscriptions) |
 
-Infrastructure: Kafka/Zookeeper (host access `localhost:29092`, internal `kafka:9092`), PostgreSQL 16, Redis 7, MinIO (9000/9001, frame storage), Prometheus (9090), Grafana (3001), Zipkin (9411), Kafka UI (8088), kafka-exporter (9308).
+Infrastructure: Kafka in single-node KRaft mode, no ZooKeeper (host access `localhost:29092`, internal `kafka:9092`; the broker is also the controller and its data lives on a named volume / PVC), PostgreSQL 16, Redis 7, MinIO (9000/9001, frame storage), Prometheus (9090), Grafana (3001), Zipkin (9411), Kafka UI (8088), kafka-exporter (9308).
 
 ### Data Flow
 
