@@ -116,13 +116,29 @@ public class TwitchIrcMessageParser {
         }
     }
 
-    private static String unescapeTagValue(String value) {
-        return value
-                .replace("\\s", " ")
-                .replace("\\:", ";")
-                .replace("\\r", "\r")
-                .replace("\\n", "\n")
-                .replace("\\\\", "\\");
+    // One pass so an escaped backslash is consumed before the character after it is examined; chained
+    // replaces turned "\\s" into backslash-space instead of backslash-s.
+    static String unescapeTagValue(String value) {
+        StringBuilder out = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c != '\\') {
+                out.append(c);
+                continue;
+            }
+            if (++i >= value.length()) {
+                break;
+            }
+            switch (value.charAt(i)) {
+                case 's' -> out.append(' ');
+                case ':' -> out.append(';');
+                case 'r' -> out.append('\r');
+                case 'n' -> out.append('\n');
+                case '\\' -> out.append('\\');
+                default -> out.append(value.charAt(i));
+            }
+        }
+        return out.toString();
     }
 
     private static String blankToNull(String value) {
