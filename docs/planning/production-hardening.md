@@ -5,7 +5,7 @@ This plan works the priority list from the engineering-standards research (2 Sep
 ## Ground rules
 
 - **One concern per branch.** Branch names are `hardening/NN-slug`, numbered in the order they should be reviewed. A branch never mixes a behavior change with a cleanup.
-- **Base branch is `main` unless the table says otherwise.** Where two branches must edit the same files (Compose, Kubernetes manifests, config-repo), the later branch is stacked on the earlier one and the PR description says so. PRs are opened against `main` in table order, each after the previous one has merged, so every PR shows only its own commits. The Base column records the branch each one was actually built on.
+- **Base branch is `main` unless the table says otherwise.** Where two branches must edit the same files (Compose, Kubernetes manifests, config-repo), the later branch is stacked on the earlier one and the PR description says so. Each PR is opened in table order with its Base branch as the PR base, so reviewers see only that branch's own changes; when the base PR merges and its branch is deleted, GitHub retargets the PR to `main`. The Base column records the branch each one was actually built on.
 - **Nothing is merged by the author.** Each branch is pushed to `origin` with a PR-ready description in `docs/planning/branches/NN-slug.md` (what changed, why, how it was verified, what to check by hand). Review and merge happen on GitHub.
 - **Every branch carries its own verification record.** The description lists the exact commands that were run and their results. If something could not be verified locally, the description says so and names the command the reviewer should run.
 - **Config that Kubernetes uses is mirrored in the same commit.** Any edit to `config-server/config-repo/*.yml` is mirrored in `k8s/config/config-server-config-repo.yaml` until branch 04 replaces the hand copy with a generator.
@@ -18,7 +18,7 @@ Every branch passes the rungs that apply to it, in this order.
 
 | Rung | Command | Applies when |
 |---|---|---|
-| Render | `make secrets` (from branch 01 on: copies the committed `*.example` secret files into the git-ignored locations; CI does the same copy before rendering), then `docker compose config -q` and `kubectl kustomize k8s > /dev/null` | Compose, Kubernetes, or config-repo changed |
+| Render | `docker compose config -q` and `kubectl kustomize k8s > /dev/null`. From branch 01 on, run `make secrets` first (it copies the committed `*.example` secret files into the git-ignored locations; CI does the same copy before rendering). Branches before 01 need no secret files | Compose, Kubernetes, or config-repo changed |
 | Java unit and integration | `docker run --rm -v "$PWD:/src" -w /src/<service> maven:3.9-eclipse-temurin-21 mvn -B -ntp -q clean test` | Any Java service changed |
 | Python | `docker run --rm -v "$PWD/<service>:/app" -w /app python:3.11-slim sh -c "pip install -q -r requirements.txt ruff==0.16.3 && ruff check src/main/python src/test/python && PYTHONPATH=src/main/python pytest -q src/test/python"` (or `uv run ruff check src/main/python src/test/python && uv run pytest` once branch 02c lands). The Ruff step matches the CI lint gate, so a branch cannot record a passing Python rung and still fail CI on lint | Any Python service changed |
 | Frontend | `npm ci && npm run lint && npm run test && npm run build` in `frontend/` | Frontend changed |
@@ -69,8 +69,8 @@ Each branch is complete when all of the following exist:
 - Frontend branches 11a through 11d are scheduled late so that any in-flight frontend work lands on `main` first. If such work is still pending when 11a starts, 11a is stacked on top of it.
 - Branch 08 (Boot upgrade) changes defaults that branches 03 and 04 configure explicitly. Explicit config is kept so behavior is the same on both sides of the upgrade.
 - Branch 05 (KRaft) and branch 04 (PVCs) both touch `k8s/platform/kafka.yaml`; 05 is stacked on 04 for that reason.
-- Branch 02c (Python packaging) changes how Python images are built; 06a and 06b are stacked on 05, which merged 02c, so their Dockerfile edits are made once.
-- Branches 02b, 03, and 04 all edit the Kubernetes manifests and the config-repo mirror. 02b and 03 are stacked on 01, 04 on 03, and 05 brings 02a and 02c in on top of 04 (as merge commits, so each branch keeps its own history and its own PR), so from 05 onward every branch carries the full set of earlier edits.
+- Branch 02c (Python packaging) changes how Python images are built; 06a and 06b are stacked on 05, which already includes 02c, so their Dockerfile edits are made once.
+- Branches 02b, 03, and 04 all edit the Kubernetes manifests and the config-repo mirror. 02b and 03 are stacked on 01, 04 on 03, and 05 is 04 plus 02a and 02c (brought in as two merge commits so those branches keep their own history and their own PRs), so from 05 onward every branch carries the full set of earlier edits. The PR for 05 therefore also shows the 02a and 02c changes against its base 04; its description says which parts are reviewed in PRs 02a and 02c.
 
 ## Out of scope for this plan
 
