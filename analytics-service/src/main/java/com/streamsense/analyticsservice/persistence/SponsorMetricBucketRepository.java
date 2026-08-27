@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import com.streamsense.analyticsservice.model.SponsorBucketMetric;
+import com.streamsense.analyticsservice.model.SponsorBucketTotals;
 
 @Repository
 public class SponsorMetricBucketRepository {
@@ -69,34 +70,22 @@ public class SponsorMetricBucketRepository {
                 args, this::mapSponsor);
     }
 
-    public long countSponsorDetections(String streamer, String sessionKey, long bucketStart, int bucketSizeSeconds) {
+    public List<SponsorBucketTotals> findSponsorTotalsByBucket(String streamer, String sessionKey, long windowStart,
+            long windowEnd, int bucketSizeSeconds) {
         String sessionClause = sessionKey == null ? "" : " and session_key = ?";
         Object[] args = sessionKey == null
-                ? new Object[] { streamer, bucketSizeSeconds, bucketStart }
-                : new Object[] { streamer, bucketSizeSeconds, bucketStart, sessionKey };
-        Long count = jdbcTemplate.queryForObject("""
-                select coalesce(sum(detection_count), 0)
+                ? new Object[] { streamer, bucketSizeSeconds, windowStart, windowEnd }
+                : new Object[] { streamer, bucketSizeSeconds, windowStart, windowEnd, sessionKey };
+        return jdbcTemplate.query("""
+                select bucket_start,
+                       sum(detection_count) as detection_count,
+                       sum(estimated_exposure_ms) as estimated_exposure_ms
                 from sponsor_metric_buckets
                 where streamer = ?
                   and bucket_size_seconds = ?
-                  and bucket_start = ?
-                """ + sessionClause, Long.class, args);
-        return count == null ? 0 : count;
-    }
-
-    public long sumSponsorExposure(String streamer, String sessionKey, long bucketStart, int bucketSizeSeconds) {
-        String sessionClause = sessionKey == null ? "" : " and session_key = ?";
-        Object[] args = sessionKey == null
-                ? new Object[] { streamer, bucketSizeSeconds, bucketStart }
-                : new Object[] { streamer, bucketSizeSeconds, bucketStart, sessionKey };
-        Long count = jdbcTemplate.queryForObject("""
-                select coalesce(sum(estimated_exposure_ms), 0)
-                from sponsor_metric_buckets
-                where streamer = ?
-                  and bucket_size_seconds = ?
-                  and bucket_start = ?
-                """ + sessionClause, Long.class, args);
-        return count == null ? 0 : count;
+                  and bucket_start >= ?
+                  and bucket_start < ?
+                """ + sessionClause + " group by bucket_start order by bucket_start asc", this::mapTotals, args);
     }
 
     private void ensureBucket(String streamer, String channelLogin, String streamSessionId, String sessionKey,
@@ -161,6 +150,13 @@ public class SponsorMetricBucketRepository {
                 rs.getLong("estimated_exposure_ms"),
                 rs.getDouble("confidence_sum"),
                 rs.getObject("max_confidence", Double.class));
+    }
+
+    private SponsorBucketTotals mapTotals(ResultSet rs, int rowNum) throws SQLException {
+        return new SponsorBucketTotals(
+                rs.getLong("bucket_start"),
+                rs.getLong("detection_count"),
+                rs.getLong("estimated_exposure_ms"));
     }
 
     private String normalizeSponsor(String sponsor) {
