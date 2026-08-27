@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { buildConnectionParams, buildWsClientOptions, makeWsUrl } from "./client"
+import { buildAuthHeaders, buildConnectionParams, buildWsClientOptions, makeWsUrl } from "./client"
 
 describe("apollo client websocket configuration", () => {
   beforeEach(() => {
@@ -24,6 +24,20 @@ describe("apollo client websocket configuration", () => {
     const storage = { getItem: vi.fn().mockReturnValue("demo-token") }
 
     expect(buildConnectionParams(storage)).toEqual({ Authorization: "Bearer demo-token" })
+  })
+
+  it("adds the bearer token to http request headers from the same storage key", () => {
+    const storage = { getItem: vi.fn().mockReturnValue("demo-token") }
+
+    expect(buildAuthHeaders({ "x-existing": "1" }, storage)).toEqual({ "x-existing": "1", Authorization: "Bearer demo-token" })
+    expect(storage.getItem).toHaveBeenCalledWith("streamsense.authToken")
+  })
+
+  it("leaves http request headers untouched when no token exists", () => {
+    const storage = { getItem: vi.fn().mockReturnValue(null) }
+
+    expect(buildAuthHeaders({ "x-existing": "1" }, storage)).toEqual({ "x-existing": "1" })
+    expect(buildAuthHeaders(undefined, storage)).toEqual({})
   })
 
   it("uses keepalive and infinite retries for reconnect behavior", async () => {
