@@ -12,6 +12,8 @@ streamsense:
       base-url: http://sentiment-service:8083
     video-service:
       base-url: http://video-service:8084
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000
   recommendations:
     defaultLimit: 3
     maxLimit: 6

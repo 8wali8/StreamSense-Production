@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import com.streamsense.apigateway.config.DownstreamServicesProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -30,9 +30,8 @@ public class AnalyticsServiceClient {
 
     private final WebClient webClient;
 
-    public AnalyticsServiceClient(WebClient.Builder webClientBuilder,
-            @Value("${streamsense.services.analytics-service.base-url:http://localhost:8085}") String baseUrl) {
-        this.webClient = webClientBuilder.baseUrl(baseUrl).build();
+    public AnalyticsServiceClient(WebClient.Builder webClientBuilder, DownstreamServicesProperties services) {
+        this.webClient = webClientBuilder.baseUrl(services.getAnalyticsService().getBaseUrl()).build();
     }
 
     public Mono<StreamMetricsSummary> summary(String streamer, String streamSessionId, int windowMinutes) {
