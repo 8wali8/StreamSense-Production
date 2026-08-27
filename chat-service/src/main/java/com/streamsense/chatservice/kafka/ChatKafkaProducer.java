@@ -58,8 +58,8 @@ public class ChatKafkaProducer {
         send.whenComplete((result, failure) -> {
             chatMetrics.recordKafkaProduce(sample, failure);
             if (failure != null) {
-                log.warn("chat message publish failed topic={} streamer={} eventId={} error={}",
-                        chatTopic, event.getStreamer(), event.getEventId(), failure.toString());
+                log.warn("chat message publish failed topic={} streamer={} eventId={}",
+                        chatTopic, event.getStreamer(), event.getEventId(), failure);
             }
         });
     }
