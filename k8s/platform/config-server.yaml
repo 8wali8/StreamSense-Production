@@ -29,6 +29,20 @@ spec:
       initContainers:
         - name: wait-for-eureka
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
           command:
             - sh
             - -c
@@ -36,8 +50,24 @@ spec:
       containers:
         - name: config-server
           image: streamsense/config-server:sprint9
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
           imagePullPolicy: IfNotPresent
           env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=75.0"
             - name: CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS
               value: file:/config-repo
           ports:
@@ -47,21 +77,21 @@ spec:
               mountPath: /config-repo
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: 8888
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: 8888
             initialDelaySeconds: 40
             periodSeconds: 20
             timeoutSeconds: 5
           startupProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: 8888
             failureThreshold: 60
             periodSeconds: 10

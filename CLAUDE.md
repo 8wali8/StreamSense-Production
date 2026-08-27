@@ -64,11 +64,11 @@ npm run lint    # ESLint
 
 ### CI parity
 
-CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java matrix covers all eight Java services, and it also tests video-capture-service. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. If you touch `k8s/`, run `kubectl kustomize k8s` — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end.
+CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java matrix covers all eight Java services, and it also tests video-capture-service. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. If you touch `k8s/` or `config-server/config-repo/`, run `kubectl kustomize .` from the repo root — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end.
 
 ### Kubernetes (kind cluster)
 
-See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`.
+See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`; the entry point is the root `kustomization.yaml` (`kubectl kustomize .`). Every container declares `resources` (requests and a memory limit) and a non-root `securityContext` that drops all capabilities; Spring services probe `/actuator/health/liveness` and `/readiness` (readiness includes the datastore checks, liveness never does); stateful data lives on PersistentVolumeClaims in `k8s/platform/storage.yaml`, never `emptyDir`. New workloads follow the same shape or the namespace's Pod Security admission will warn.
 
 ## Architecture
 
@@ -128,7 +128,7 @@ Spring services load config from **config-server** at startup; each service's ow
 
 **Downstream URLs are required and every outbound call is bounded.** The gateway binds `streamsense.services.*` into a validated `DownstreamServicesProperties` (all six base URLs `@NotBlank`, plus `connect-timeout` and `response-timeout` applied to every `WebClient` through a `WebClientCustomizer`); proxied routes use `spring.cloud.gateway.httpclient.*`. recommendation-service validates its two base URLs the same way and applies `connect-timeout-ms` and `read-timeout-ms` to `RestClient` through a `RestClientCustomizer`; sentiment-service and video-service already bound their `RestTemplate` from `streamsense.ml.*`. Never add a `localhost` default to a service URL and never build an HTTP client without a timeout.
 
-**If you change config that Kubernetes uses, mirror it in `k8s/config/config-server-config-repo.yaml`** — it duplicates the config-repo as a ConfigMap.
+Kubernetes reads the same files: the root `kustomization.yaml` generates the config-server ConfigMap from `config-server/config-repo/*.yml`, so there is no copy to keep in sync. Apply with `kubectl apply -k .` from the repository root.
 
 **Secrets are never literal in committed files.** Compose mounts git-ignored `secrets/<NAME>` files at `/run/secrets/<NAME>` (`make secrets` creates them from the `*.example` files; `make up` and `start-stack.ps1` do this automatically). Spring services import `optional:configtree:/run/secrets/`, so a placeholder like `${POSTGRES_PASSWORD}` in config-repo resolves from the file or from an env var of the same name. Python services accept `<NAME>_FILE`. Kubernetes builds the `streamsense-secrets` Secret from git-ignored `k8s/secrets/streamsense.env` via `secretGenerator`, and manifests use `secretKeyRef`. New credentials follow the same three paths.
 

@@ -124,14 +124,16 @@ Every credential in the manifests (Postgres, MinIO, Grafana admin, the gateway H
 Render validation:
 
 ```bash
-kubectl kustomize k8s >/tmp/streamsense-k8s-rendered.yaml
+kubectl kustomize . >/tmp/streamsense-k8s-rendered.yaml
 ```
 
 Apply the stack:
 
 ```bash
-kubectl apply -k k8s
+kubectl apply -k .
 ```
+
+Apply from the repository root, not from `k8s/`: the root `kustomization.yaml` generates the config-server ConfigMap from `config-server/config-repo/*.yml`, which `k8s/` cannot reference on its own. Every workload now carries resource requests and limits, a non-root `securityContext`, and split liveness and readiness probes; Postgres, MinIO, and the ml-engine model caches use PersistentVolumeClaims (kind's default StorageClass provisions them). The namespace enforces the `baseline` Pod Security Standard and warns on anything below `restricted`.
 
 If ingress creation races the admission webhook on a fresh cluster, re-apply ingress after the controller is ready:
 

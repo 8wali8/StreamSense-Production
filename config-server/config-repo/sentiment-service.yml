@@ -133,6 +133,12 @@ resilience4j:
         maxWaitDuration: 0ms
 
 management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          # Not ready until the datastore checks pass; liveness stays independent of them.
+          include: readinessState,db,redis
   health:
     circuitbreakers:
       enabled: true

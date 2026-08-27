@@ -20,12 +20,13 @@
 - ML checks: `cd ml-engine && pip install -r requirements.txt ruff==0.16.3 && ruff check src/main/python src/test/python && PYTHONPATH=src/main/python pytest src/test/python`
 - Frontend CI check: `cd frontend && npm ci && npm run lint && npm run test && npm run build`
 - `make test` is not identical to CI: it runs Java tests and ML tests, but for `frontend` it only runs `npm run lint && npm run build` and skips Vitest.
-- If you touch `k8s/`, run `kubectl kustomize k8s`. CI also validates the JSON embedded in `k8s/config/grafana-config.yaml`.
+- If you touch `k8s/` or `config-server/config-repo/`, run `kubectl kustomize .` from the repo root. CI also validates the JSON embedded in `k8s/config/grafana-config.yaml`.
 
 ## Config And Wiring
 
 - The Spring services' `src/main/resources/application.yml` files are bootstrap-only. Real runtime config lives in `config-server/config-repo/*.yml`.
-- If you change config that Kubernetes uses, mirror the same change in `k8s/config/config-server-config-repo.yaml`; it duplicates the config-server repo as a ConfigMap.
+- Kubernetes generates the config-server ConfigMap from `config-server/config-repo/*.yml` (root `kustomization.yaml`); there is no mirrored copy. Apply and render from the repo root: `kubectl kustomize .`, `kubectl apply -k .`.
+- Every Kubernetes container has `resources` and a non-root `securityContext`; Spring probes use `/actuator/health/liveness` and `/readiness`; stateful volumes are PVCs.
 - Never write a credential into a committed file. Compose reads `secrets/<NAME>` (git-ignored, created by `make secrets`), Spring resolves `${NAME}` placeholders through `configtree:/run/secrets/`, Python services accept `<NAME>_FILE`, and Kubernetes builds `streamsense-secrets` from `k8s/secrets/streamsense.env`. See `secrets/README.md`.
 - Downstream service URLs have no defaults; a missing `streamsense.services.<name>.base-url` fails startup. Every HTTP client (WebClient, RestClient, RestTemplate) carries connect and read/response timeouts from properties; never construct one without them.
 - The config-server import is required and retried. Tests stay self-contained because every Java service ships `src/test/resources/application.yml` with config-server and Eureka disabled; a service without that file cannot run its tests.
@@ -47,7 +48,7 @@
 ## Replay Context
 
 - Replay alias config for Spring services lives in `config-server/config-repo/chat-service.yml`.
-- Kubernetes mirrors that config in `k8s/config/config-server-config-repo.yaml`.
+- Kubernetes reads the same file through the generated config-server ConfigMap (root `kustomization.yaml`).
 - `video-capture-service` does not consume Config Server, so replay aliases are mirrored as environment variables in `docker-compose.yml` and `k8s/apps/video-capture-service.yaml`.
 - Replay chat fixture: `chat-service/src/main/resources/replay/redbull-testing-chat.json`.
 - Replay events should continue through normal Kafka/service paths keyed by `streamer="redbull-testing"`; avoid adding replay-only downstream branches unless there is a concrete need.

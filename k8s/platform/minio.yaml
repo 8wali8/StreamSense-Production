@@ -21,6 +21,8 @@ metadata:
   namespace: streamsense
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: minio
@@ -29,9 +31,25 @@ spec:
       labels:
         app: minio
     spec:
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: minio
           image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
           args:
             - server
             - /data
@@ -56,4 +74,5 @@ spec:
               mountPath: /data
       volumes:
         - name: minio-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: minio-data

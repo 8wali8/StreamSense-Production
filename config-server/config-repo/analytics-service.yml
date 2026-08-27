@@ -55,6 +55,12 @@ spring:
     baseline-version: 0
 
 management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          # Not ready until the datastore checks pass; liveness stays independent of them.
+          include: readinessState,db
   endpoints:
     web:
       exposure:
