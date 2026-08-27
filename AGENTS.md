@@ -10,7 +10,7 @@
 ## Workflow
 
 - Root task runner is `makefile` (lowercase). Use `make help` for repo commands.
-- This is not a Maven monorepo. Each Java service has its own `pom.xml`; run Maven in the service directory or with `mvn -f <service>/pom.xml ...`.
+- The Java services are modules of the root `pom.xml` (`streamsense-parent`). Run `mvn ... package` at the root for a single reactor build, or `mvn -f <service>/pom.xml ...` for one service. Never add a dependency version to a service POM; versions belong in the parent (BOM imports or `dependencyManagement`).
 - CI uses Java 21, Python 3.11, and Node 20.
 
 ## Build And Verify

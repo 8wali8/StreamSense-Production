@@ -9,17 +9,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$javaServices = @(
-    "eureka-server",
-    "config-server",
-    "api-gateway",
-    "chat-service",
-    "sentiment-service",
-    "video-service",
-    "recommendation-service",
-    "analytics-service"
-)
-
 function Run-Step {
     param(
         [string]$Name,
@@ -99,10 +88,8 @@ if ($Channels.Count -eq 0) {
 }
 
 if (-not $SkipPackage) {
-    foreach ($service in $javaServices) {
-        Run-Step "Package $service" {
-            docker run --rm -v "${PWD}:/workspace" -w "/workspace/$service" maven:3.9.9-eclipse-temurin-21 mvn -B -ntp -DskipTests package
-        }
+    Run-Step "Package Java services (one reactor build)" {
+        docker run --rm -v "${PWD}:/workspace" -w "/workspace" maven:3.9.9-eclipse-temurin-21 mvn -B -ntp -DskipTests package
     }
 }
 
