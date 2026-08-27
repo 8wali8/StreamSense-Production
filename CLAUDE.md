@@ -141,7 +141,7 @@ Kubernetes reads the same files: the root `kustomization.yaml` generates the con
 
 **Secrets are never literal in committed files.** Compose mounts git-ignored `secrets/<NAME>` files at `/run/secrets/<NAME>` (`make secrets` creates them from the `*.example` files; `make up` and `start-stack.ps1` do this automatically). Spring services import `optional:configtree:/run/secrets/`, so a placeholder like `${POSTGRES_PASSWORD}` in config-repo resolves from the file or from an env var of the same name. Python services accept `<NAME>_FILE`. Kubernetes builds the `streamsense-secrets` Secret from git-ignored `k8s/secrets/streamsense.env` via `secretGenerator`, and manifests use `secretKeyRef`. New credentials follow the same three paths.
 
-The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings).
+The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings). In ml-engine every env read lives in `app/settings.py` (pydantic-settings, one class per `STREAMSENSE_<BACKEND>_` prefix, validated at start-up); routes receive settings and the `BackendRegistry` through FastAPI dependencies, so add config as a settings field, never as an `os.getenv` in a handler, and swap backends in tests with `app.dependency_overrides`, never by monkeypatching module globals.
 
 Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires the `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` secret file or key, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
 
@@ -170,7 +170,7 @@ In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/gr
 
 - Package root: `com.streamsense.<servicename>`
 - All Java services register with Eureka and pull from config-server
-- Health endpoint: `GET /actuator/health` (Python services: ml-engine `GET /ml/health`, video-capture-service `GET /health`)
+- Health endpoint: `GET /actuator/health` (Python services: ml-engine `GET /ml/live`, `/ml/ready`, `/ml/info`, `/ml/health` (legacy); video-capture-service `GET /health`)
 - Tracing: Micrometer + Zipkin
 - Kafka: Spring Kafka; consumers use `@KafkaListener`, producers use `KafkaTemplate`
 

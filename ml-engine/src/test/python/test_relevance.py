@@ -1,7 +1,3 @@
-from fastapi.testclient import TestClient
-
-import app.main as main_module
-from app.main import app
 from app.relevance import (
     SponsorRelevanceInput,
     SponsorRelevanceResult,
@@ -9,22 +5,13 @@ from app.relevance import (
     direct_match,
     normalize_text,
 )
+from conftest import FakeRelevance
 
-client = TestClient(app)
 
-
-def test_relevance_endpoint_returns_valid_shape(monkeypatch):
-    monkeypatch.setattr(
-        main_module,
-        "analyze_relevance",
-        lambda request: SponsorRelevanceResult(
-            True,
-            "Nike",
-            ["shoes"],
-            0.74,
-            "semantic-similarity",
-            "test-relevance-v1",
-        ),
+def test_relevance_endpoint_returns_valid_shape(make_client):
+    client, registry = make_client()
+    registry.relevance = FakeRelevance(
+        SponsorRelevanceResult(True, "Nike", ["shoes"], 0.74, "semantic-similarity", "test-relevance-v1")
     )
 
     response = client.post(
@@ -41,8 +28,7 @@ def test_relevance_endpoint_returns_valid_shape(monkeypatch):
     )
 
     assert response.status_code == 200
-    body = response.json()
-    assert body == {
+    assert response.json() == {
         "sponsorRelevant": True,
         "matchedSponsor": "Nike",
         "matchedTerms": ["shoes"],
@@ -50,16 +36,24 @@ def test_relevance_endpoint_returns_valid_shape(monkeypatch):
         "relevanceReason": "semantic-similarity",
         "modelVersion": "test-relevance-v1",
     }
+    sent = registry.relevance.calls[0]
+    assert sent.aliases == ["swoosh"] and sent.semantic_terms == ["shoes"] and sent.min_score == 0.5
+
+
+def test_direct_backend_end_to_end(real_lightweight_client):
+    body = real_lightweight_client.post(
+        "/ml/relevance",
+        json={"streamer": "t", "text": "That NikePartner segment was good", "sponsor": "Nike"},
+    ).json()
+
+    assert body["sponsorRelevant"] is True
+    assert body["relevanceReason"] == "direct-match"
+    assert body["modelVersion"] == "direct-relevance-v1"
 
 
 def test_direct_match_handles_aliases_and_suffixes():
     result = direct_match(
-        SponsorRelevanceInput(
-            text="That NikePartner segment was actually good",
-            sponsor="Nike",
-            aliases=["swoosh"],
-            semantic_terms=[],
-        ),
+        SponsorRelevanceInput(text="That NikePartner segment was actually good", sponsor="Nike", aliases=["swoosh"], semantic_terms=[]),
         0.5,
     )
 
@@ -71,10 +65,7 @@ def test_direct_match_handles_aliases_and_suffixes():
 def test_semantic_term_direct_match_is_relevant():
     result = direct_match(
         SponsorRelevanceInput(
-            text="Those running shoes look comfortable",
-            sponsor="Nike",
-            aliases=[],
-            semantic_terms=["running shoes", "apparel"],
+            text="Those running shoes look comfortable", sponsor="Nike", aliases=[], semantic_terms=["running shoes", "apparel"]
         ),
         0.5,
     )
@@ -87,12 +78,7 @@ def test_semantic_term_direct_match_is_relevant():
 
 def test_unrelated_text_is_not_directly_relevant():
     result = direct_match(
-        SponsorRelevanceInput(
-            text="the map rotation is weird today",
-            sponsor="Nike",
-            aliases=["swoosh"],
-            semantic_terms=["shoes"],
-        ),
+        SponsorRelevanceInput(text="the map rotation is weird today", sponsor="Nike", aliases=["swoosh"], semantic_terms=["shoes"]),
         0.5,
     )
 
