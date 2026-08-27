@@ -1,9 +1,15 @@
 package com.streamsense.analyticsservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +25,8 @@ import com.streamsense.analyticsservice.events.SponsorDetectionEvent;
 import com.streamsense.analyticsservice.events.TranscriptSentimentEvent;
 import com.streamsense.analyticsservice.service.MetricAggregationService;
 import com.streamsense.analyticsservice.service.MetricQueryService;
+import com.streamsense.analyticsservice.web.RiskFactor;
+import com.streamsense.analyticsservice.web.StreamMetricBucket;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -131,5 +139,78 @@ class MetricAggregationServiceTest {
                 .andExpect(jsonPath("$.chat.totalMessages").value(0))
                 .andExpect(jsonPath("$.risk.level").value("LOW_DATA"))
                 .andExpect(jsonPath("$.dataQuality.lowData").value(true));
+    }
+
+    @Test
+    void sponsorQualityRiskCountsEverySponsorNotJustTheDisplayedTopFive() {
+        long now = System.currentTimeMillis();
+        String sessionId = "quality-" + now;
+        String topic = properties.getTopics().getSponsorDetections();
+
+        for (String sponsor : new String[] { "Alpha", "Bravo", "Charlie", "Delta", "Echo" }) {
+            aggregationService.aggregateSponsorDetection(topic,
+                    sponsorDetection("quality-" + sponsor, "quality-streamer", sessionId, sponsor, 0.90, now));
+        }
+        // Foxtrot only has rejected (low-confidence) detections, so it sorts last and falls outside the top five.
+        aggregationService.aggregateSponsorDetection(topic,
+                sponsorDetection("quality-foxtrot-1", "quality-streamer", sessionId, "Foxtrot", 0.20, now));
+        aggregationService.aggregateSponsorDetection(topic,
+                sponsorDetection("quality-foxtrot-2", "quality-streamer", sessionId, "Foxtrot", 0.25, now));
+
+        var summary = queryService.summary("quality-streamer", sessionId, 15);
+        assertThat(summary.sponsorExposure().totalDetections()).isEqualTo(7);
+        assertThat(summary.sponsorExposure().acceptedDetections()).isEqualTo(5);
+        assertThat(summary.sponsorExposure().topSponsors()).hasSize(5).extracting("sponsor").doesNotContain("Foxtrot");
+
+        RiskFactor sponsorQuality = summary.risk().factors().stream()
+                .filter(factor -> factor.name().equals("sponsorQualityRisk"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(sponsorQuality.value()).isCloseTo(2.0d / 7.0d, within(1e-9));
+    }
+
+    @Test
+    void timeseriesCarriesSponsorTotalsForEachBucket() {
+        long now = System.currentTimeMillis();
+        String sessionId = "timeseries-" + now;
+        String topic = properties.getTopics().getSponsorDetections();
+        long threeMinutesAgo = now - 3 * 60_000L;
+
+        aggregationService.aggregateSponsorDetection(topic,
+                sponsorDetection("ts-1", "timeseries-streamer", sessionId, "Nike", 0.80, now));
+        aggregationService.aggregateSponsorDetection(topic,
+                sponsorDetection("ts-2", "timeseries-streamer", sessionId, "Adidas", 0.85, now));
+        aggregationService.aggregateSponsorDetection(topic,
+                sponsorDetection("ts-3", "timeseries-streamer", sessionId, "Nike", 0.30, threeMinutesAgo));
+
+        List<StreamMetricBucket> buckets = queryService.timeseries("timeseries-streamer", sessionId, 15, null);
+        Map<Long, StreamMetricBucket> byStart = buckets.stream()
+                .collect(Collectors.toMap(StreamMetricBucket::bucketStart, Function.identity()));
+        long currentBucket = Math.floorDiv(now, 60_000L) * 60_000L;
+        long earlierBucket = Math.floorDiv(threeMinutesAgo, 60_000L) * 60_000L;
+
+        assertThat(buckets).hasSize(15);
+        assertThat(byStart.get(currentBucket).sponsorDetectionCount()).isEqualTo(2);
+        assertThat(byStart.get(currentBucket).estimatedSponsorExposureMs()).isEqualTo(20000);
+        assertThat(byStart.get(earlierBucket).sponsorDetectionCount()).isEqualTo(1);
+        assertThat(byStart.get(earlierBucket).estimatedSponsorExposureMs()).isZero();
+        assertThat(buckets.stream()
+                .filter(bucket -> bucket.bucketStart() != currentBucket && bucket.bucketStart() != earlierBucket)
+                .mapToLong(StreamMetricBucket::sponsorDetectionCount)
+                .sum()).isZero();
+    }
+
+    private static SponsorDetectionEvent sponsorDetection(String detectionEventId, String streamer, String sessionId,
+            String sponsor, double confidence, long capturedAt) {
+        SponsorDetectionEvent event = new SponsorDetectionEvent();
+        event.setDetectionEventId(detectionEventId);
+        event.setSourceFrameId("frame-" + detectionEventId);
+        event.setStreamer(streamer);
+        event.setSponsor(sponsor);
+        event.setConfidence(confidence);
+        event.setCapturedAt(capturedAt);
+        event.setStreamSessionId(sessionId);
+        event.setChannelLogin(streamer);
+        return event;
     }
 }
