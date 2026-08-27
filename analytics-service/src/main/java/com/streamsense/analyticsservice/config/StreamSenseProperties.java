@@ -7,6 +7,7 @@ public class StreamSenseProperties {
 
     private final Topics topics = new Topics();
     private final Analytics analytics = new Analytics();
+    private final Processing processing = new Processing();
 
     public Topics getTopics() {
         return topics;
@@ -16,11 +17,19 @@ public class StreamSenseProperties {
         return analytics;
     }
 
+    public Processing getProcessing() {
+        return processing;
+    }
+
     public static class Topics {
         private String chatMessages = "stream.chat.messages";
         private String sentimentEvents = "stream.sentiment.events";
         private String sponsorDetections = "stream.sponsor.detections";
         private String transcriptSentimentEvents = "stream.transcript.sentiment.events";
+        private String chatMessagesDlt = "stream.chat.messages.analytics.dlt";
+        private String sentimentEventsDlt = "stream.sentiment.events.analytics.dlt";
+        private String sponsorDetectionsDlt = "stream.sponsor.detections.analytics.dlt";
+        private String transcriptSentimentEventsDlt = "stream.transcript.sentiment.events.analytics.dlt";
 
         public String getChatMessages() {
             return chatMessages;
@@ -52,6 +61,38 @@ public class StreamSenseProperties {
 
         public void setTranscriptSentimentEvents(String transcriptSentimentEvents) {
             this.transcriptSentimentEvents = transcriptSentimentEvents;
+        }
+
+        public String getChatMessagesDlt() {
+            return chatMessagesDlt;
+        }
+
+        public void setChatMessagesDlt(String chatMessagesDlt) {
+            this.chatMessagesDlt = chatMessagesDlt;
+        }
+
+        public String getSentimentEventsDlt() {
+            return sentimentEventsDlt;
+        }
+
+        public void setSentimentEventsDlt(String sentimentEventsDlt) {
+            this.sentimentEventsDlt = sentimentEventsDlt;
+        }
+
+        public String getSponsorDetectionsDlt() {
+            return sponsorDetectionsDlt;
+        }
+
+        public void setSponsorDetectionsDlt(String sponsorDetectionsDlt) {
+            this.sponsorDetectionsDlt = sponsorDetectionsDlt;
+        }
+
+        public String getTranscriptSentimentEventsDlt() {
+            return transcriptSentimentEventsDlt;
+        }
+
+        public void setTranscriptSentimentEventsDlt(String transcriptSentimentEventsDlt) {
+            this.transcriptSentimentEventsDlt = transcriptSentimentEventsDlt;
         }
     }
 
@@ -154,6 +195,27 @@ public class StreamSenseProperties {
 
         public void setLowDataMinimumEvents(long lowDataMinimumEvents) {
             this.lowDataMinimumEvents = lowDataMinimumEvents;
+        }
+    }
+
+    public static class Processing {
+        private long retryBackoffMs = 1000;
+        private long maxRetries = 2;
+
+        public long getRetryBackoffMs() {
+            return retryBackoffMs;
+        }
+
+        public void setRetryBackoffMs(long retryBackoffMs) {
+            this.retryBackoffMs = retryBackoffMs;
+        }
+
+        public long getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(long maxRetries) {
+            this.maxRetries = maxRetries;
         }
     }
 }

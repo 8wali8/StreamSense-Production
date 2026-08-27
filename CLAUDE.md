@@ -120,6 +120,7 @@ Created by the `kafka-topics-init` Compose service (auto-create is disabled):
 - `stream.transcript.sentiment.events` — transcript sentiment results
 - `stream.video.frames` (+ `.dlt`) — frame metadata (frame bytes live in MinIO)
 - `stream.sponsor.detections` — ML sponsor detection results
+- `<source>.analytics.dlt` — analytics-service dead letters, one per input it consumes (`stream.chat.messages.analytics.dlt`, `stream.sentiment.events.analytics.dlt`, `stream.transcript.sentiment.events.analytics.dlt`, `stream.sponsor.detections.analytics.dlt`). Distinct from the `<source>.dlt` topics, which belong to each source's primary consumer.
 
 ### Configuration
 
