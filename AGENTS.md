@@ -53,7 +53,7 @@
 ## Git Hygiene
 
 - Do not commit `.env.twitch.local`, OAuth tokens, captured media/frame artifacts, generated Java `target/**` output, or local `session-ses_*.md` notes.
-- Current generated build artifacts may appear dirty under `config-server/target/**` and `eureka-server/target/**` after packaging; leave them uncommitted unless explicitly doing a Git hygiene cleanup.
+- Generated `target/**` output is ignored and no longer tracked; if `git status` ever shows build artifacts, fix `.gitignore` rather than committing them.
 
 ## Test Behavior
 
