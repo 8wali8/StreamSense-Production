@@ -1,6 +1,0 @@
-#just pulls config files from config server
-spring:
-  application:
-    name: chat-service
-  config:
-    import: optional:configserver:${CONFIG_SERVER_URL:http://config-server:8888}
