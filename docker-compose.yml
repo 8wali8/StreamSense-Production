@@ -340,6 +340,10 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.video.frames --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.video.frames.dlt --partitions 3 --replication-factor 1;
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sponsor.detections --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.chat.messages.analytics.dlt --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sentiment.events.analytics.dlt --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.sentiment.events.analytics.dlt --partitions 3 --replication-factor 1;
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sponsor.detections.analytics.dlt --partitions 3 --replication-factor 1;
         echo 'Topics now:';
         kafka-topics --bootstrap-server kafka:9092 --list;
         echo 'Done.';

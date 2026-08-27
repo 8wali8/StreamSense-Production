@@ -1,36 +1,30 @@
 package com.streamsense.analyticsservice.kafka;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.events.ChatMessageEvent;
 import com.streamsense.analyticsservice.events.SentimentAnalysisEvent;
 import com.streamsense.analyticsservice.events.SponsorDetectionEvent;
 import com.streamsense.analyticsservice.events.TranscriptSentimentEvent;
-import com.streamsense.analyticsservice.metrics.AnalyticsMetrics;
 import com.streamsense.analyticsservice.service.MetricAggregationService;
 
 @Component
 public class AnalyticsKafkaConsumer {
 
-    private static final Logger log = LoggerFactory.getLogger(AnalyticsKafkaConsumer.class);
-
     private final ObjectMapper objectMapper;
     private final StreamSenseProperties properties;
     private final MetricAggregationService aggregationService;
-    private final AnalyticsMetrics metrics;
 
     public AnalyticsKafkaConsumer(ObjectMapper objectMapper, StreamSenseProperties properties,
-            MetricAggregationService aggregationService, AnalyticsMetrics metrics) {
+            MetricAggregationService aggregationService) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.aggregationService = aggregationService;
-        this.metrics = metrics;
     }
 
     @KafkaListener(topics = "${streamsense.topics.chatMessages:stream.chat.messages}", groupId = "analytics-service-chat")
@@ -57,15 +51,17 @@ public class AnalyticsKafkaConsumer {
                 event -> aggregationService.aggregateSponsorDetection(properties.getTopics().getSponsorDetections(), event));
     }
 
+    // Failures propagate to the container's CommonErrorHandler (KafkaProcessingConfig): malformed or invalid
+    // events are dead-lettered immediately, anything else (e.g. a transient JDBC failure) is retried first.
     private <T> void process(ConsumerRecord<String, String> record, Class<T> eventType, Processor<T> processor) {
+        T event;
         try {
-            T event = objectMapper.readValue(record.value(), eventType);
-            processor.process(event);
-        } catch (Exception ex) {
-            metrics.eventFailed(record.topic());
-            log.warn("analytics event processing failed topic={} partition={} offset={} type={} error={}",
-                    record.topic(), record.partition(), record.offset(), eventType.getSimpleName(), ex.toString());
+            event = objectMapper.readValue(record.value(), eventType);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException(
+                    "malformed " + eventType.getSimpleName() + " payload: " + ex.getOriginalMessage(), ex);
         }
+        processor.process(event);
     }
 
     @FunctionalInterface
