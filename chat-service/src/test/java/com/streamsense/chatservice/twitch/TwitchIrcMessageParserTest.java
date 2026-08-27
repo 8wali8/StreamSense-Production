@@ -46,6 +46,19 @@ class TwitchIrcMessageParserTest {
     }
 
     @Test
+    void unescapeTagValue_decodesEscapesInASinglePass() {
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("a\\sb")).isEqualTo("a b");
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("x\\:y")).isEqualTo("x;y");
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("line\\r\\nbreak")).isEqualTo("line\r\nbreak");
+        // An escaped backslash followed by 's' is backslash + 's', not a space.
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("back\\\\slash")).isEqualTo("back\\slash");
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("a\\\\\\sb")).isEqualTo("a\\ b");
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("trailing\\")).isEqualTo("trailing");
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("unknown\\q")).isEqualTo("unknownq");
+        assertThat(TwitchIrcMessageParser.unescapeTagValue("plain")).isEqualTo("plain");
+    }
+
+    @Test
     void isPing_detectsTwitchPing() {
         assertThat(parser.isPing("PING :tmi.twitch.tv")).isTrue();
         assertThat(parser.isPing(":user PRIVMSG #channel :PING text")).isFalse();
