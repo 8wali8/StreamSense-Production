@@ -30,6 +30,7 @@ streamsense:
       base-url: http://analytics-service:8085
   gateway:
     rate-limit-enabled: ${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:true}
+    trusted-proxy-hops: ${STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS:0}
     auth:
       enabled: ${STREAMSENSE_GATEWAY_AUTH_ENABLED:false}
       required-issuer: streamsense-local

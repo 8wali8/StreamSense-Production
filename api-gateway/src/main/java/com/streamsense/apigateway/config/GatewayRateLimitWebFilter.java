@@ -1,8 +1,11 @@
 package com.streamsense.apigateway.config;
 
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.springframework.cloud.gateway.support.ipresolver.RemoteAddressResolver;
+import org.springframework.cloud.gateway.support.ipresolver.XForwardedRemoteAddressResolver;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -22,9 +25,12 @@ import reactor.core.publisher.Mono;
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class GatewayRateLimitWebFilter implements WebFilter {
 
+    private static final int MAX_CLIENT_KEY_LENGTH = 128;
+
     private final GatewayEdgeProperties properties;
     private final InMemoryRateLimiter rateLimiter;
     private final MeterRegistry meterRegistry;
+    private final RemoteAddressResolver addressResolver;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public GatewayRateLimitWebFilter(
@@ -34,6 +40,11 @@ public class GatewayRateLimitWebFilter implements WebFilter {
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.meterRegistry = meterRegistry;
+        // X-Forwarded-For is client-controlled unless a proxy we operate appended it, so it is only consulted when
+        // trusted hops are configured, and then only the entry the nearest trusted proxy added (read from the right).
+        this.addressResolver = properties.getTrustedProxyHops() > 0
+                ? XForwardedRemoteAddressResolver.maxTrustedIndex(properties.getTrustedProxyHops())
+                : new RemoteAddressResolver() { };
     }
 
     @Override
@@ -90,13 +101,14 @@ public class GatewayRateLimitWebFilter implements WebFilter {
     }
 
     private String resolveClientKey(ServerWebExchange exchange) {
-        String forwardedFor = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
+        InetSocketAddress address = addressResolver.resolve(exchange);
+        if (address == null) {
+            return "anonymous";
         }
-        if (exchange.getRequest().getRemoteAddress() != null && exchange.getRequest().getRemoteAddress().getAddress() != null) {
-            return exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
+        String host = address.getAddress() != null ? address.getAddress().getHostAddress() : address.getHostString();
+        if (host == null || host.isBlank()) {
+            return "anonymous";
         }
-        return "anonymous";
+        return host.length() > MAX_CLIENT_KEY_LENGTH ? host.substring(0, MAX_CLIENT_KEY_LENGTH) : host;
     }
 }
