@@ -38,6 +38,7 @@ help:
 	@echo "Common:"
 	@echo "  make up            Package Java, build images, start everything"
 	@echo "  make up-fast       Start existing images/containers without packaging"
+	@echo "  make secrets       Create git-ignored local secret files from the *.example files"
 	@echo "  make down          Stop everything"
 	@echo "  make restart       down then up"
 	@echo "  make logs          Follow logs for all services"
@@ -82,13 +83,27 @@ build:
 		$(COMPOSE) $(COMPOSE_FILE) build; \
 	fi
 
+# ---- Local secrets ----
+# Compose mounts ./secrets/<NAME> at /run/secrets/<NAME>; kustomize builds the
+# streamsense-secrets Secret from k8s/secrets/streamsense.env. Both are git-ignored.
+.PHONY: secrets
+secrets:
+	@for example in secrets/*.example; do \
+		target="$${example%.example}"; \
+		if [[ ! -f "$$target" ]]; then cp "$$example" "$$target"; echo "created $$target from example"; fi; \
+	done
+	@if [[ ! -f k8s/secrets/streamsense.env ]]; then \
+		cp k8s/secrets/streamsense.env.example k8s/secrets/streamsense.env; \
+		echo "created k8s/secrets/streamsense.env from example"; \
+	fi
+
 .PHONY: up
-up: package
+up: package secrets
 	@echo "Building images and starting system (detached)..."
 	@$(COMPOSE) $(COMPOSE_FILE) up -d --build
 
 .PHONY: up-fast
-up-fast:
+up-fast: secrets
 	@echo "Starting existing system (detached, no package/build)..."
 	@$(COMPOSE) $(COMPOSE_FILE) up -d
 
@@ -196,7 +211,7 @@ demo-open:
 	@python tools/demo/open_demo.py
 
 .PHONY: smoke-e2e
-smoke-e2e:
+smoke-e2e: secrets
 	@python tools/smoke/compose_smoke.py --start-compose --teardown
 
 .PHONY: replay-smoke

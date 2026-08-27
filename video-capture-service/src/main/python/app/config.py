@@ -28,6 +28,26 @@ def _csv_env(name: str) -> list[str]:
     return [item.strip().lower() for item in raw.split(",") if item.strip()]
 
 
+def _secret_env(name: str, default: str | None = None) -> str | None:
+    """Read a credential from ``<name>_FILE`` (a Docker/Kubernetes secret mount) or ``<name>``.
+
+    The file form wins when both are set so that a mounted secret cannot be shadowed by a
+    stale environment default. Values are stripped; an empty value counts as unset.
+    """
+    path = os.getenv(f"{name}_FILE")
+    if path:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                value = handle.read().strip()
+        except OSError as exc:
+            raise ValueError(f"{name}_FILE points to a missing or unreadable file: {path}") from exc
+        return value or None
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip() or None
+
+
 def _env_key(value: str) -> str:
     return "".join(char.upper() if char.isalnum() else "_" for char in value.strip())
 
@@ -96,8 +116,8 @@ class CaptureConfig:
             bucket=os.getenv("STREAMSENSE_FRAME_STORAGE_BUCKET", "streamsense-frames").strip(),
             endpoint=os.getenv("STREAMSENSE_FRAME_STORAGE_ENDPOINT", "http://minio:9000").strip() or None,
             region=os.getenv("STREAMSENSE_FRAME_STORAGE_REGION", "us-east-1").strip(),
-            access_key=os.getenv("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY", "streamsense").strip() or None,
-            secret_key=os.getenv("STREAMSENSE_FRAME_STORAGE_SECRET_KEY", "streamsense").strip() or None,
+            access_key=_secret_env("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY"),
+            secret_key=_secret_env("STREAMSENSE_FRAME_STORAGE_SECRET_KEY"),
             path_prefix=os.getenv("STREAMSENSE_FRAME_STORAGE_PATH_PREFIX", "twitch").strip().strip("/"),
             filesystem_root=os.getenv("STREAMSENSE_FRAME_STORAGE_FILESYSTEM_ROOT", "/tmp/streamsense-frames").strip(),
         )

@@ -22,6 +22,16 @@ npm install -g wscat
 
 ---
 
+# Local Secrets
+
+Credentials are never committed. Docker Compose reads them from git-ignored files under `secrets/` and mounts each one at `/run/secrets/<NAME>`; Kubernetes builds a `streamsense-secrets` Secret from the git-ignored `k8s/secrets/streamsense.env`. Create both sets from the committed examples once:
+
+```bash
+make secrets
+```
+
+`make up`, `make up-fast`, and `tools/start-stack.ps1` run this step automatically, so a fresh clone starts without extra setup. The example values are the historical development defaults; change them for any stack other people can reach. `secrets/README.md` lists every file and which container consumes it. Postgres and MinIO persist the credentials they were first started with, so changing those files later needs `make nuke`.
+
 # Final Quickstart (Docker Compose)
 
 This repo is Docker-first. Spring services talk to `config-server`, `eureka-server`, `kafka`, and the other containers through Docker DNS.
@@ -69,11 +79,11 @@ The sprint-by-sprint sections below are retained as historical verification deta
 
 ## Gateway Toggles
 
-Gateway auth is disabled by default for local Docker work. Enabling it requires an HS256 signing secret of at least 32 bytes; the gateway refuses to start without one. To restart only the gateway with auth enabled:
+Gateway auth is disabled by default for local Docker work. Enabling it requires an HS256 signing secret of at least 32 bytes; the gateway refuses to start without one. The secret is read from the file `secrets/STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` (empty by default). Write one, then restart only the gateway with auth enabled:
 
 ```bash
-export STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET='replace-me-with-at-least-32-bytes-of-secret'
-STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d api-gateway
+printf '%s' 'replace-me-with-at-least-32-bytes-of-secret' > secrets/STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
+STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d --force-recreate api-gateway
 ```
 
 Mint a matching bearer token with `python tools/mint-jwt.py --subject demo-user` (details under "Verify auth toggle" below). Restore the local bypass mode with:
@@ -178,10 +188,10 @@ TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS=10
 STREAMSENSE_FRAME_STORAGE_BACKEND=s3
 STREAMSENSE_FRAME_STORAGE_BUCKET=streamsense-frames
 STREAMSENSE_FRAME_STORAGE_ENDPOINT=http://minio:9000
-STREAMSENSE_FRAME_STORAGE_ACCESS_KEY=streamsense
-STREAMSENSE_FRAME_STORAGE_SECRET_KEY=streamsense
 STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ=true
 ```
+
+The frame storage access key and secret key are not environment variables any more. They come from `secrets/STREAMSENSE_FRAME_STORAGE_ACCESS_KEY` and `secrets/STREAMSENSE_FRAME_STORAGE_SECRET_KEY`, which also seed the MinIO root credentials (see "Local Secrets" above).
 
 Public Twitch streams do not need a video OAuth token. If your target stream requires authenticated playback, add `TWITCH_VIDEO_OAUTH_TOKEN` through `.env.twitch.local` only.
 
@@ -927,12 +937,14 @@ Expected behavior:
 
 ### Verify auth toggle
 
-Tokens are HS256 JWTs verified against a shared secret. The gateway refuses to start with auth enabled and no secret (or one shorter than 32 bytes), so export one first, then restart the gateway with auth enabled:
+Tokens are HS256 JWTs verified against a shared secret. The gateway refuses to start with auth enabled and no secret (or one shorter than 32 bytes), so write one to the secret file first, then restart the gateway with auth enabled:
 
 ```bash
-export STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET='replace-me-with-at-least-32-bytes-of-secret'
-STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d api-gateway
+printf '%s' 'replace-me-with-at-least-32-bytes-of-secret' > secrets/STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
+STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d --force-recreate api-gateway
 ```
+
+Pass the same value to `tools/mint-jwt.py` (for example `--secret "$(cat secrets/STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET)"`).
 
 Without a bearer token, GraphQL should return `401`:
 

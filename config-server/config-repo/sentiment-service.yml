@@ -77,7 +77,7 @@ spring:
   datasource:
     url: jdbc:postgresql://postgres:5432/streamsense
     username: streamsense
-    password: streamsense
+    password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:

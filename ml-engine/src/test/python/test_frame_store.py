@@ -1,4 +1,6 @@
-from app.frame_store import load_frame_artifact, load_frame_image
+import pytest
+
+from app.frame_store import _secret_env, load_frame_artifact, load_frame_image
 
 
 def test_load_frame_image_decodes_rgb_frame(tmp_path):
@@ -27,3 +29,30 @@ def test_load_frame_artifact_remains_metadata_only_compatible(tmp_path):
     assert artifact is not None
     assert frame_image is not None
     assert artifact.signature == frame_image.signature
+
+
+def test_secret_env_prefers_file_over_env(monkeypatch, tmp_path):
+    secret_file = tmp_path / "secret"
+    secret_file.write_text("from-file\n", encoding="utf-8")
+    monkeypatch.setenv("STREAMSENSE_TEST_SECRET", "from-env")
+    monkeypatch.setenv("STREAMSENSE_TEST_SECRET_FILE", str(secret_file))
+
+    assert _secret_env("STREAMSENSE_TEST_SECRET") == "from-file"
+
+
+def test_secret_env_falls_back_to_env_then_default(monkeypatch):
+    monkeypatch.delenv("STREAMSENSE_TEST_SECRET_FILE", raising=False)
+    monkeypatch.setenv("STREAMSENSE_TEST_SECRET", " from-env ")
+
+    assert _secret_env("STREAMSENSE_TEST_SECRET") == "from-env"
+
+    monkeypatch.delenv("STREAMSENSE_TEST_SECRET")
+    assert _secret_env("STREAMSENSE_TEST_SECRET") is None
+    assert _secret_env("STREAMSENSE_TEST_SECRET", "fallback") == "fallback"
+
+
+def test_secret_env_missing_file_is_a_clear_error(monkeypatch, tmp_path):
+    monkeypatch.setenv("STREAMSENSE_TEST_SECRET_FILE", str(tmp_path / "missing"))
+
+    with pytest.raises(ValueError, match="STREAMSENSE_TEST_SECRET_FILE"):
+        _secret_env("STREAMSENSE_TEST_SECRET")

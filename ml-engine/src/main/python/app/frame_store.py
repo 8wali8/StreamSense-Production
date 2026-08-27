@@ -60,6 +60,26 @@ def load_frame_image(frame_ref: str) -> FrameImage | None:
     return None
 
 
+def _secret_env(name: str, default: str | None = None) -> str | None:
+    """Read a credential from ``<name>_FILE`` (a Docker/Kubernetes secret mount) or ``<name>``.
+
+    The file form wins when both are set so that a mounted secret cannot be shadowed by a
+    stale environment default. Values are stripped; an empty value counts as unset.
+    """
+    path = os.getenv(f"{name}_FILE")
+    if path:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                value = handle.read().strip()
+        except OSError as exc:
+            raise ValueError(f"{name}_FILE points to a missing or unreadable file: {path}") from exc
+        return value or None
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip() or None
+
+
 def _read_file(path: str) -> bytes:
     try:
         with open(path, "rb") as handle:
@@ -80,8 +100,8 @@ def _read_s3(bucket: str, key: str) -> bytes:
         "s3",
         endpoint_url=os.getenv("STREAMSENSE_FRAME_STORAGE_ENDPOINT"),
         region_name=os.getenv("STREAMSENSE_FRAME_STORAGE_REGION", "us-east-1"),
-        aws_access_key_id=os.getenv("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("STREAMSENSE_FRAME_STORAGE_SECRET_KEY"),
+        aws_access_key_id=_secret_env("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY"),
+        aws_secret_access_key=_secret_env("STREAMSENSE_FRAME_STORAGE_SECRET_KEY"),
         config=Config(signature_version="s3v4"),
     )
     try:

@@ -8,6 +8,10 @@ target/
 
 # Local secrets
 .env*.local
+secrets/*
+!secrets/README.md
+!secrets/*.example
+k8s/secrets/*.env
 
 # Node / frontend
 **/node_modules/

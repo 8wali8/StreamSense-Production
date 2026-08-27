@@ -113,6 +113,14 @@ kubectl wait --namespace ingress-nginx --for=condition=Available deployment/ingr
 
 ## 6. Validate And Apply StreamSense
 
+Create the git-ignored secret env file that kustomize turns into the `streamsense-secrets` Secret, and change the values:
+
+```bash
+cp k8s/secrets/streamsense.env.example k8s/secrets/streamsense.env
+```
+
+Every credential in the manifests (Postgres, MinIO, Grafana admin, the gateway HMAC secret) comes from that Secret through `secretKeyRef`; nothing is inlined in YAML.
+
 Render validation:
 
 ```bash

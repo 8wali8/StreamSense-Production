@@ -24,3 +24,13 @@ resources:
   - monitoring/zipkin.yaml
   - monitoring/kafka-exporter.yaml
   - ingress/streamsense-ingress.yaml
+
+# Credentials are generated from a git-ignored env file; copy secrets/streamsense.env.example
+# to secrets/streamsense.env and change the values before applying.
+secretGenerator:
+  - name: streamsense-secrets
+    namespace: streamsense
+    envs:
+      - secrets/streamsense.env
+generatorOptions:
+  disableNameSuffixHash: true

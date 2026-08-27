@@ -72,6 +72,17 @@ Run-Step "Check Docker" {
     docker compose version
 }
 
+Run-Step "Ensure local secrets" {
+    Get-ChildItem -Path "secrets" -Filter "*.example" | ForEach-Object {
+        $target = Join-Path $_.DirectoryName ($_.Name -replace "\.example$", "")
+        if (-not (Test-Path -LiteralPath $target)) {
+            Copy-Item -LiteralPath $_.FullName -Destination $target
+            "created $target from example"
+        }
+    }
+    "secrets present under ./secrets"
+}
+
 if ($TwitchEnv) {
     Run-Step "Load Twitch env" {
         Load-EnvFile $EnvFile
