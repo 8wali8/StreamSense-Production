@@ -65,8 +65,13 @@ public class MetricQueryService {
         SentimentMetricSummary chatSentiment = chatSentimentSummary(buckets);
         SentimentMetricSummary transcriptSentiment = transcriptSentimentSummary(buckets);
         SponsorExposureSummary sponsorSummary = sponsorSummary(sponsorMetrics);
+        // Summed over every sponsor in the window; the summary only keeps the top five for display.
+        long lowConfidenceDetections = sponsorMetrics.stream()
+                .mapToLong(SponsorExposureMetric::lowConfidenceDetectionCount)
+                .sum();
         EngagementMetrics engagement = engagementSummary(buckets);
-        BrandSafetyMetrics risk = risk(chatSentiment, transcriptSentiment, sponsorSummary, engagement,
+        BrandSafetyMetrics risk = risk(chatSentiment, transcriptSentiment, sponsorSummary, lowConfidenceDetections,
+                engagement,
                 totalMessages + chatSentiment.positive() + chatSentiment.neutral() + chatSentiment.negative()
                         + transcriptSentiment.positive() + transcriptSentiment.neutral() + transcriptSentiment.negative()
                         + sponsorSummary.totalDetections());
@@ -200,7 +205,8 @@ public class MetricQueryService {
     }
 
     private BrandSafetyMetrics risk(SentimentMetricSummary chat, SentimentMetricSummary transcript,
-            SponsorExposureSummary sponsors, EngagementMetrics engagement, long totalSignals) {
+            SponsorExposureSummary sponsors, long lowConfidenceDetections, EngagementMetrics engagement,
+            long totalSignals) {
         if (totalSignals < properties.getAnalytics().getLowDataMinimumEvents()) {
             return new BrandSafetyMetrics("LOW_DATA", null, List.of());
         }
@@ -208,8 +214,7 @@ public class MetricQueryService {
         double transcriptNegativeRatio = value(transcript.negativeRatio());
         double negativeSpikeScore = Math.min(1.0d, engagement.spikeCount() / 5.0d);
         double sponsorQualityRisk = sponsors.totalDetections() == 0 ? 0.0d
-                : sponsors.topSponsors().stream().mapToLong(SponsorExposureMetric::lowConfidenceDetectionCount).sum()
-                        / (double) sponsors.totalDetections();
+                : lowConfidenceDetections / (double) sponsors.totalDetections();
         double negativeEngagementSpikeRisk = chatNegativeRatio >= 0.50d ? negativeSpikeScore : 0.0d;
         List<RiskFactor> factors = List.of(
                 new RiskFactor("chatNegativeRatio", chatNegativeRatio, 0.35d),
