@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.model.SponsorBucketMetric;
+import com.streamsense.analyticsservice.model.SponsorBucketTotals;
 import com.streamsense.analyticsservice.model.StreamBucketMetric;
 import com.streamsense.analyticsservice.persistence.MetricBucketRepository;
 import com.streamsense.analyticsservice.persistence.SponsorMetricBucketRepository;
@@ -101,15 +102,17 @@ public class MetricQueryService {
                 window.windowStart(), window.windowEnd(), window.bucketSizeSeconds());
         Map<Long, StreamBucketMetric> byStart = storedBuckets.stream()
                 .collect(Collectors.toMap(StreamBucketMetric::bucketStart, Function.identity(), this::mergeBuckets));
+        Map<Long, SponsorBucketTotals> sponsorByStart = sponsorBuckets.findSponsorTotalsByBucket(window.streamer(),
+                window.sessionKey(), window.windowStart(), window.windowEnd(), window.bucketSizeSeconds()).stream()
+                .collect(Collectors.toMap(SponsorBucketTotals::bucketStart, Function.identity()));
         List<StreamMetricBucket> response = new ArrayList<>();
         long bucketMs = window.bucketSizeSeconds() * 1000L;
         for (long bucketStart = window.windowStart(); bucketStart < window.windowEnd(); bucketStart += bucketMs) {
             StreamBucketMetric bucket = byStart.get(bucketStart);
-            long sponsorDetectionCount = sponsorBuckets.countSponsorDetections(window.streamer(), window.sessionKey(),
-                    bucketStart, window.bucketSizeSeconds());
-            long sponsorExposureMs = sponsorBuckets.sumSponsorExposure(window.streamer(), window.sessionKey(),
-                    bucketStart, window.bucketSizeSeconds());
-            response.add(toResponseBucket(bucketStart, bucketMs, bucket, sponsorDetectionCount, sponsorExposureMs));
+            SponsorBucketTotals sponsor = sponsorByStart.get(bucketStart);
+            response.add(toResponseBucket(bucketStart, bucketMs, bucket,
+                    sponsor == null ? 0 : sponsor.detectionCount(),
+                    sponsor == null ? 0 : sponsor.estimatedExposureMs()));
         }
         return response;
     }
