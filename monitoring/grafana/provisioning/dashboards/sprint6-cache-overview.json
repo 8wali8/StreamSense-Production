@@ -173,7 +173,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (cache, source) (rate(streamsense_history_lookup_latency_ms_sum[5m])) / sum by (cache, source) (rate(streamsense_history_lookup_latency_ms_count[5m])) * 1000",
+          "expr": "sum by (cache, source) (rate(streamsense_history_lookup_latency_ms_seconds_sum[5m])) / sum by (cache, source) (rate(streamsense_history_lookup_latency_ms_seconds_count[5m])) * 1000",
           "legendFormat": "{{cache}} {{source}}",
           "refId": "A"
         }

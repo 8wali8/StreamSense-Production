@@ -910,12 +910,12 @@ data:
           },
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sentiment_end_to_end_latency_ms_bucket[5m])) by (le)) * 1000",
+              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sentiment_end_to_end_latency_ms_seconds_bucket[5m])) by (le)) * 1000",
               "legendFormat": "sentiment p95",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sponsor_end_to_end_latency_ms_bucket[5m])) by (le)) * 1000",
+              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sponsor_end_to_end_latency_ms_seconds_bucket[5m])) by (le)) * 1000",
               "legendFormat": "sponsor p95",
               "refId": "B"
             }
@@ -948,12 +948,12 @@ data:
           },
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sentiment_persistence_latency_ms_bucket[5m])) by (le)) * 1000",
+              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sentiment_persistence_latency_ms_seconds_bucket[5m])) by (le)) * 1000",
               "legendFormat": "sentiment p95",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sponsor_persistence_latency_ms_bucket[5m])) by (le)) * 1000",
+              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sponsor_persistence_latency_ms_seconds_bucket[5m])) by (le)) * 1000",
               "legendFormat": "sponsor p95",
               "refId": "B"
             }
@@ -986,12 +986,12 @@ data:
           },
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, sum(rate(streamsense_ml_sentiment_latency_ms_bucket[5m])) by (le)) * 1000",
+              "expr": "histogram_quantile(0.95, sum(rate(streamsense_ml_sentiment_latency_ms_seconds_bucket[5m])) by (le)) * 1000",
               "legendFormat": "sentiment ml p95",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sponsor_inference_latency_ms_bucket[5m])) by (le)) * 1000",
+              "expr": "histogram_quantile(0.95, sum(rate(streamsense_sponsor_inference_latency_ms_seconds_bucket[5m])) by (le)) * 1000",
               "legendFormat": "sponsor ml p95",
               "refId": "B"
             }
