@@ -31,6 +31,8 @@ make nuke            # docker compose down -v (removes volumes/data)
 
 Java Dockerfiles copy `target/*.jar` — after Java changes you must package jars before rebuilding images. `make up` does this for you; `make build` alone does not.
 
+Third-party images are pinned as `name:tag@sha256:<digest>` in `docker-compose.yml`, `k8s/**`, and every `Dockerfile`; never add a floating tag such as `:latest` or `:16`. To bump one, pick the new tag, take the digest from `docker buildx imagetools inspect name:tag`, and update every occurrence (Renovate will do this once enabled).
+
 Twitch verification targets (`make twitch-up`, `twitch-video-up`, `twitch-transcript-up`, `twitch-analytics-up`, and matching `*-status` targets) load credentials from `.env.twitch.local` (not committed).
 
 ### Java Services
@@ -45,12 +47,19 @@ mvn clean test -Dtest=MyTest       # Run a single test class
 
 ### Python services (ml-engine, video-capture-service)
 
+Each Python service has a `pyproject.toml` and a committed `uv.lock`; dependencies are installed with [uv](https://docs.astral.sh/uv/), never from a requirements file. Test and lint tooling live in the `dev` dependency group, which the Docker images do not install.
+
 ```bash
 # From ml-engine/ or video-capture-service/
-PYTHONPATH=src/main/python pytest src/test/python            # All tests
-PYTHONPATH=src/main/python pytest src/test/python/test_X.py  # Single file
-ruff check src/main/python src/test/python                   # Lint (CI runs this for ml-engine)
+uv sync --locked                                   # Create .venv from uv.lock (includes the dev group)
+uv run pytest                                      # All tests (pytest picks up src/main/python from pyproject)
+uv run pytest src/test/python/test_X.py            # Single file
+uv run ruff check src/main/python src/test/python  # Lint (CI runs this for both services)
+uv add <package>            # Add a runtime dependency (updates pyproject.toml and uv.lock)
+uv add --group dev <package> # Add a test/lint dependency
 ```
+
+Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` change that produced it. CI installs with `uv sync --locked`, which fails if the lock is stale.
 
 ### Frontend
 

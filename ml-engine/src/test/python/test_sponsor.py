@@ -1,7 +1,8 @@
-import app.main as main_module
-from app.main import app
 from fastapi.testclient import TestClient
 from PIL import Image
+
+import app.main as main_module
+from app.main import app
 
 client = TestClient(app)
 
