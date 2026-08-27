@@ -64,7 +64,7 @@ npm run lint    # ESLint
 
 ### CI parity
 
-CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java matrix covers all eight Java services, and it also tests video-capture-service. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. If you touch `k8s/`, run `kubectl kustomize k8s` — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end.
+CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java matrix covers all eight Java services, and it also tests video-capture-service. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. If you touch `k8s/`, run `kubectl kustomize k8s` — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end. CI runs on pull requests and on pushes to `main` only, and a `changes` job path-filters the rest: only the Java services whose directories changed are built, and a change under `.github/workflows/` or `config-server/config-repo/` runs everything. Actions are pinned by commit SHA with the version in a comment; bump the SHA and the comment together.
 
 ### Kubernetes (kind cluster)
 
