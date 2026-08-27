@@ -1,0 +1,27 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MlSentimentResponse",
+    "type": "object",
+    "required": [
+        "label",
+        "score",
+        "modelVersion"
+    ],
+    "properties": {
+        "label": {
+            "type": "string",
+            "enum": [
+                "POSITIVE",
+                "NEUTRAL",
+                "NEGATIVE"
+            ]
+        },
+        "score": {
+            "type": "number",
+            "description": "Sentiment polarity score in range [-1.0, 1.0]"
+        },
+        "modelVersion": {
+            "type": "string"
+        }
+    }
+}

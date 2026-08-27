@@ -1,0 +1,64 @@
+{
+  "comments": [
+    {
+      "id": "fixture-001",
+      "user": "PitLaneFan",
+      "message": "Red Bull Racing is flying today, the car looks planted through every corner.",
+      "offsetSeconds": 1802
+    },
+    {
+      "id": "fixture-002",
+      "user": "EnergyDrinkEnjoyer",
+      "message": "That Red Bull livery is clean, sponsor placement is impossible to miss.",
+      "offsetSeconds": 1805
+    },
+    {
+      "id": "fixture-003",
+      "user": "ApexWatcher",
+      "message": "Huge overtake, chat is going wild for this replay.",
+      "offsetSeconds": 1808
+    },
+    {
+      "id": "fixture-004",
+      "user": "BrandSpotter",
+      "message": "The Red Bull logo gets so much screen time during these highlights.",
+      "offsetSeconds": 1812
+    },
+    {
+      "id": "fixture-005",
+      "user": "RaceDayChat",
+      "message": "This is exactly the kind of stream where sponsor sentiment should show up.",
+      "offsetSeconds": 1816
+    },
+    {
+      "id": "fixture-006",
+      "user": "PodiumPush",
+      "message": "Red Bull fans are eating well with this performance.",
+      "offsetSeconds": 1821
+    },
+    {
+      "id": "fixture-007",
+      "user": "ClipThat",
+      "message": "Replay mode feels live, this is perfect for testing the dashboard.",
+      "offsetSeconds": 1827
+    },
+    {
+      "id": "fixture-008",
+      "user": "CornerExit",
+      "message": "The energy around Red Bull in chat is super positive right now.",
+      "offsetSeconds": 1833
+    },
+    {
+      "id": "fixture-009",
+      "user": "TelemetryNerd",
+      "message": "Great camera angle, easy to see the sponsor branding during the action.",
+      "offsetSeconds": 1840
+    },
+    {
+      "id": "fixture-010",
+      "user": "FinalLap",
+      "message": "If this was a campaign, Red Bull would get a ton of clean mentions.",
+      "offsetSeconds": 1848
+    }
+  ]
+}

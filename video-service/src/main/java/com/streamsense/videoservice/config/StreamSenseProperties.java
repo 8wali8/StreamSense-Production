@@ -1,0 +1,197 @@
+package com.streamsense.videoservice.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix = "streamsense")
+public class StreamSenseProperties {
+
+    private Topics topics = new Topics();
+    private Ml ml = new Ml();
+    private History history = new History();
+    private Cache cache = new Cache();
+    private Payload payload = new Payload();
+    private Processing processing = new Processing();
+
+    public Topics getTopics() {
+        return topics;
+    }
+
+    public void setTopics(Topics topics) {
+        this.topics = topics;
+    }
+
+    public Ml getMl() {
+        return ml;
+    }
+
+    public void setMl(Ml ml) {
+        this.ml = ml;
+    }
+
+    public History getHistory() {
+        return history;
+    }
+
+    public void setHistory(History history) {
+        this.history = history;
+    }
+
+    public Cache getCache() {
+        return cache;
+    }
+
+    public void setCache(Cache cache) {
+        this.cache = cache;
+    }
+
+    public Payload getPayload() {
+        return payload;
+    }
+
+    public void setPayload(Payload payload) {
+        this.payload = payload;
+    }
+
+    public Processing getProcessing() {
+        return processing;
+    }
+
+    public void setProcessing(Processing processing) {
+        this.processing = processing;
+    }
+
+    public static class Topics {
+        private String videoFrames;
+        private String videoFramesDlt;
+        private String sponsorDetections;
+
+        public String getVideoFrames() {
+            return videoFrames;
+        }
+
+        public void setVideoFrames(String videoFrames) {
+            this.videoFrames = videoFrames;
+        }
+
+        public String getVideoFramesDlt() {
+            return videoFramesDlt;
+        }
+
+        public void setVideoFramesDlt(String videoFramesDlt) {
+            this.videoFramesDlt = videoFramesDlt;
+        }
+
+        public String getSponsorDetections() {
+            return sponsorDetections;
+        }
+
+        public void setSponsorDetections(String sponsorDetections) {
+            this.sponsorDetections = sponsorDetections;
+        }
+    }
+
+    public static class Ml {
+        private String baseUrl;
+        private int connectTimeoutMs = 2000;
+        private int readTimeoutMs = 3000;
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
+    }
+
+    public static class History {
+        private int defaultLimit = 20;
+        private int maxLimit = 100;
+
+        public int getDefaultLimit() {
+            return defaultLimit;
+        }
+
+        public void setDefaultLimit(int defaultLimit) {
+            this.defaultLimit = defaultLimit;
+        }
+
+        public int getMaxLimit() {
+            return maxLimit;
+        }
+
+        public void setMaxLimit(int maxLimit) {
+            this.maxLimit = maxLimit;
+        }
+    }
+
+    public static class Cache {
+        private String recentPrefix = "sponsor:recent";
+        private long recentTtlSeconds = 60;
+
+        public String getRecentPrefix() {
+            return recentPrefix;
+        }
+
+        public void setRecentPrefix(String recentPrefix) {
+            this.recentPrefix = recentPrefix;
+        }
+
+        public long getRecentTtlSeconds() {
+            return recentTtlSeconds;
+        }
+
+        public void setRecentTtlSeconds(long recentTtlSeconds) {
+            this.recentTtlSeconds = recentTtlSeconds;
+        }
+    }
+
+    public static class Payload {
+        private int maxFrameRefLength = 1024;
+
+        public int getMaxFrameRefLength() {
+            return maxFrameRefLength;
+        }
+
+        public void setMaxFrameRefLength(int maxFrameRefLength) {
+            this.maxFrameRefLength = maxFrameRefLength;
+        }
+    }
+
+    public static class Processing {
+        private long retryBackoffMs = 1000;
+        private long maxRetries = 2;
+
+        public long getRetryBackoffMs() {
+            return retryBackoffMs;
+        }
+
+        public void setRetryBackoffMs(long retryBackoffMs) {
+            this.retryBackoffMs = retryBackoffMs;
+        }
+
+        public long getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(long maxRetries) {
+            this.maxRetries = maxRetries;
+        }
+    }
+}

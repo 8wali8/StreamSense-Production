@@ -1,0 +1,6 @@
+#bootstrap to pull config files from config server
+spring:
+  application:
+    name: recommendation-service
+  config:
+    import: optional:configserver:${CONFIG_SERVER_URL:http://config-server:8888}

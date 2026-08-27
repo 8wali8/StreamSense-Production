@@ -1,0 +1,9 @@
+type Subscription {
+  onChatMessage(streamer: String!): ChatMessageEvent!
+  onSentiment(streamer: String!): SentimentAnalysisEvent!
+  onSponsorSentiment(streamer: String!, sponsor: String): SentimentAnalysisEvent!
+  onTranscriptSegment(streamer: String!): TranscriptSegmentEvent!
+  onTranscriptSentiment(streamer: String!): TranscriptSentimentEvent!
+  onSponsorTranscriptSentiment(streamer: String!, sponsor: String): TranscriptSentimentEvent!
+  onSponsorDetection(streamer: String!): SponsorDetectionEvent!
+}

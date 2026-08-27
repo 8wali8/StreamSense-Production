@@ -1,0 +1,94 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "SentimentAnalysisEvent",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "sentimentEventId",
+        "sourceEventId",
+        "streamer",
+        "user",
+        "message",
+        "chatTimestamp",
+        "processedAt",
+        "label",
+        "score",
+        "modelVersion",
+        "sponsorRelevant",
+        "matchedSponsor",
+        "matchedTerms",
+        "relevanceScore",
+        "relevanceReason",
+        "relevanceVersion"
+    ],
+    "properties": {
+        "sentimentEventId": {
+            "type": "string",
+            "description": "Unique identifier for this sentiment event"
+        },
+        "sourceEventId": {
+            "type": "string",
+            "description": "Original ChatMessageEvent.eventId"
+        },
+        "streamer": {
+            "type": "string"
+        },
+        "user": {
+            "type": "string"
+        },
+        "message": {
+            "type": "string"
+        },
+        "chatTimestamp": {
+            "type": "integer",
+            "description": "Original chat message timestamp (epoch millis)"
+        },
+        "processedAt": {
+            "type": "integer",
+            "description": "Time sentiment was generated (epoch millis)"
+        },
+        "label": {
+            "type": "string",
+            "enum": [
+                "POSITIVE",
+                "NEUTRAL",
+                "NEGATIVE"
+            ]
+        },
+        "score": {
+            "type": "number",
+            "description": "Sentiment polarity score in range [-1.0, 1.0]"
+        },
+        "modelVersion": {
+            "type": "string",
+            "description": "Version of ML model used for inference"
+        },
+        "sponsorRelevant": {
+            "type": "boolean",
+            "description": "Whether this sentiment text is relevant to the active sponsor profile"
+        },
+        "matchedSponsor": {
+            "type": ["string", "null"],
+            "description": "Sponsor matched by the relevance model"
+        },
+        "matchedTerms": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Terms or semantic seeds that made the text sponsor-relevant"
+        },
+        "relevanceScore": {
+            "type": "number",
+            "description": "Sponsor relevance confidence in range [0.0, 1.0]"
+        },
+        "relevanceReason": {
+            "type": ["string", "null"],
+            "description": "Reason returned by the relevance model"
+        },
+        "relevanceVersion": {
+            "type": ["string", "null"],
+            "description": "Version of sponsor relevance model used for inference"
+        }
+    }
+}

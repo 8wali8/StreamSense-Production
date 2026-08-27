@@ -1,0 +1,7 @@
+type ChatMessageEvent {
+  eventId: ID!
+  streamer: String!
+  user: String!
+  message: String!
+  timestamp: Float!
+}

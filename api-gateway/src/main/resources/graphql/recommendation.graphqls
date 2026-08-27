@@ -1,0 +1,12 @@
+type Recommendation {
+  recommendationId: ID!
+  streamer: String!
+  title: String!
+  category: String!
+  score: Float!
+  reasonSummary: String!
+  reasons: [String!]!
+  experimentName: String!
+  variantId: String!
+  generatedAt: Float!
+}
