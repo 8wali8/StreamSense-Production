@@ -58,7 +58,10 @@ public class TwitchVodCommentClient {
     }
 
     public List<TwitchVodChatComment> fetchComments(String vodId, double startOffsetSeconds) {
-        return cache.computeIfAbsent(vodId, ignored -> downloadComments(vodId, startOffsetSeconds));
+        // Twitch is asked for comments from this offset onwards, so a cached list only serves the same offset.
+        int offsetSeconds = Math.max(0, (int) Math.floor(startOffsetSeconds));
+        return cache.computeIfAbsent("vod:" + vodId + "@" + offsetSeconds,
+                ignored -> downloadComments(vodId, startOffsetSeconds));
     }
 
     public List<TwitchVodChatComment> fetchComments(StreamSenseProperties.ReplayAlias alias) {
@@ -109,7 +112,7 @@ public class TwitchVodCommentClient {
         return Files.newInputStream(Path.of(fixturePath));
     }
 
-    private List<TwitchVodChatComment> downloadComments(String vodId, double startOffsetSeconds) {
+    List<TwitchVodChatComment> downloadComments(String vodId, double startOffsetSeconds) {
         List<TwitchVodChatComment> comments = new ArrayList<>();
         String cursor = null;
         for (int page = 0; page < Math.max(1, properties.getMaxPages()); page++) {
