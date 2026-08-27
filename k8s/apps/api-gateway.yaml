@@ -72,6 +72,10 @@ spec:
               value: "false"
             - name: STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED
               value: "true"
+            # ingress-nginx replaces X-Forwarded-For with the real client IP, so exactly one hop is trusted.
+            # Set back to "0" if the controller is ever switched to use-forwarded-headers.
+            - name: STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS
+              value: "1"
             - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
               value: "true"
           ports:
