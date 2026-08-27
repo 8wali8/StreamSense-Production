@@ -154,14 +154,14 @@ spec:
             - containerPort: 8090
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8090
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
-              path: /health
+              path: /live
               port: 8090
             initialDelaySeconds: 15
             periodSeconds: 20

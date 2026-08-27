@@ -6,6 +6,9 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 
+from botocore.exceptions import BotoCoreError, ClientError
+from kafka.errors import KafkaError
+
 from app import metrics
 from app.audio_sampler import AudioCaptureError, AudioSampler
 from app.config import CaptureConfig, ReplayAliasConfig
@@ -40,8 +43,8 @@ class CaptureManager:
         self.publisher = publisher
         self.transcription_client = transcription_client
         self.transcript_publisher = transcript_publisher
-        self.stop_event = threading.Event()
-        self.threads: list[threading.Thread] = []
+        # One stop event per worker, so switching channels never races a still-running loop.
+        self.workers: list[tuple[threading.Thread, threading.Event]] = []
 
     def start(self) -> None:
         metrics.capture_enabled.set(1 if self.config.enabled else 0)
@@ -55,9 +58,12 @@ class CaptureManager:
             status = self.status_store.statuses[channel]
             status.state = CaptureState.STARTING
             status.capture_session_id = self._session_id(channel)
-            thread = threading.Thread(target=self._capture_channel, args=(channel,), daemon=True)
+            stop_event = threading.Event()
+            thread = threading.Thread(
+                target=self._capture_channel, args=(channel, stop_event), name=f"capture-{channel}", daemon=True
+            )
             thread.start()
-            self.threads.append(thread)
+            self.workers.append((thread, stop_event))
             logger.info("started Twitch video capture loop channel=%s session=%s", channel, status.capture_session_id)
 
     def stop(self) -> None:
@@ -77,7 +83,6 @@ class CaptureManager:
             raise RuntimeError("storage and publisher are required when capture is enabled")
 
         self._stop_threads()
-        self.stop_event = threading.Event()
         self.config = replace(self.config, channels=normalized)
         self.status_store.statuses.clear()
         for channel in normalized:
@@ -85,16 +90,20 @@ class CaptureManager:
         self.start()
         return self.status_store.snapshot()
 
+    def workers_alive(self) -> int:
+        return sum(1 for thread, _ in self.workers if thread.is_alive())
+
     def _stop_threads(self) -> None:
-        self.stop_event.set()
-        for thread in self.threads:
+        for _, stop_event in self.workers:
+            stop_event.set()
+        for thread, _ in self.workers:
             thread.join(timeout=5)
-        self.threads.clear()
+        self.workers.clear()
         for status in self.status_store.statuses.values():
             if status.state != CaptureState.DISABLED:
                 status.state = CaptureState.STOPPED
 
-    def _capture_channel(self, channel: str) -> None:
+    def _capture_channel(self, channel: str, stop_event: threading.Event) -> None:
         status = self.status_store.statuses[channel]
         replay_alias = self.config.replay_aliases.get(channel)
         resolver = TwitchSourceResolver(
@@ -115,17 +124,17 @@ class CaptureManager:
         transcript_sequence = 0
         replay_started_at = time.monotonic()
 
-        while not self.stop_event.is_set():
+        while not stop_event.is_set():
             self._set_state(channel, CaptureState.RESOLVING_STREAM)
             try:
                 hls_url = resolver.resolve_url(replay_alias.vod_url, channel) if replay_alias else resolver.resolve(channel)
             except TwitchStreamOffline as exc:
                 self._record_failure(channel, CaptureState.IDLE_OFFLINE, str(exc), "resolve", reconnect=False)
-                self._sleep(self.config.reconnect_delay_seconds)
+                self._sleep(stop_event, self.config.reconnect_delay_seconds)
                 continue
             except TwitchStreamResolutionError as exc:
                 self._record_failure(channel, CaptureState.RECONNECTING, str(exc), "resolve", reconnect=True)
-                self._sleep(self._backoff(status.consecutive_failures))
+                self._sleep(stop_event, self._backoff(status.consecutive_failures))
                 continue
 
             sequence += 1
@@ -195,18 +204,22 @@ class CaptureManager:
                 status.frames_skipped += 1
                 metrics.frames_skipped.labels(channel=channel, reason="capture_error").inc()
                 self._record_failure(channel, CaptureState.RECONNECTING, str(exc), "capture", reconnect=True)
-            except Exception as exc:
-                stage = "storage_or_publish"
-                if "Kafka" in exc.__class__.__name__:
-                    stage = "kafka"
-                    metrics.kafka_publish_errors.labels(channel=channel).inc()
-                    next_state = CaptureState.DEGRADED_KAFKA
-                else:
-                    metrics.storage_errors.labels(channel=channel).inc()
-                    next_state = CaptureState.DEGRADED_STORAGE
+            except KafkaError as exc:
                 status.frames_skipped += 1
-                metrics.frames_skipped.labels(channel=channel, reason=stage).inc()
-                self._record_failure(channel, next_state, str(exc), stage, reconnect=True)
+                metrics.kafka_publish_errors.labels(channel=channel).inc()
+                metrics.frames_skipped.labels(channel=channel, reason="kafka").inc()
+                self._record_failure(channel, CaptureState.DEGRADED_KAFKA, str(exc), "kafka", reconnect=True)
+            except (BotoCoreError, ClientError, OSError) as exc:
+                status.frames_skipped += 1
+                metrics.storage_errors.labels(channel=channel).inc()
+                metrics.frames_skipped.labels(channel=channel, reason="storage").inc()
+                self._record_failure(channel, CaptureState.DEGRADED_STORAGE, str(exc), "storage", reconnect=True)
+            except Exception as exc:
+                # Isolation boundary: the worker must survive, but an unclassified failure is a bug to fix.
+                logger.exception("unexpected capture failure channel=%s sequence=%s", channel, sequence)
+                status.frames_skipped += 1
+                metrics.frames_skipped.labels(channel=channel, reason="unexpected").inc()
+                self._record_failure(channel, CaptureState.RECONNECTING, str(exc), "unexpected", reconnect=True)
             finally:
                 try:
                     temp_path.unlink(missing_ok=True)
@@ -216,7 +229,7 @@ class CaptureManager:
             if status.consecutive_failures >= self.config.max_consecutive_failures:
                 status.state = CaptureState.FAILED
                 self._set_state(channel, CaptureState.FAILED)
-            self._sleep(self.config.sample_interval_seconds)
+            self._sleep(stop_event, self.config.sample_interval_seconds)
 
     def _record_failure(self, channel: str, state: CaptureState, error: str, stage: str, reconnect: bool) -> None:
         status = self.status_store.statuses[channel]
@@ -307,11 +320,16 @@ class CaptureManager:
             metrics.transcript_errors.labels(channel=channel, stage="transcription").inc()
             metrics.transcript_segments_skipped.labels(channel=channel, reason="transcription").inc()
             logger.warning("Twitch transcription failed channel=%s error=%s", channel, exc)
-        except Exception as exc:
+        except KafkaError as exc:
             status.transcript_segments_skipped += 1
             metrics.transcript_errors.labels(channel=channel, stage="publish").inc()
             metrics.transcript_segments_skipped.labels(channel=channel, reason="publish").inc()
             logger.warning("Twitch transcript publish failed channel=%s error=%s", channel, exc)
+        except Exception:
+            status.transcript_segments_skipped += 1
+            metrics.transcript_errors.labels(channel=channel, stage="unexpected").inc()
+            metrics.transcript_segments_skipped.labels(channel=channel, reason="unexpected").inc()
+            logger.exception("unexpected transcript failure channel=%s sequence=%s", channel, sequence)
         finally:
             try:
                 temp_path.unlink(missing_ok=True)
@@ -322,8 +340,8 @@ class CaptureManager:
         for candidate in CaptureState:
             metrics.capture_state.labels(channel=channel, state=candidate.value).set(1 if candidate == state else 0)
 
-    def _sleep(self, seconds: int) -> None:
-        self.stop_event.wait(seconds)
+    def _sleep(self, stop_event: threading.Event, seconds: int) -> None:
+        stop_event.wait(seconds)
 
     def _backoff(self, failures: int) -> int:
         delay = self.config.reconnect_delay_seconds * max(1, failures)
