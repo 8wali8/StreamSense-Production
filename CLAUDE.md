@@ -130,7 +130,7 @@ Spring services load config from **config-server** at startup; each service's ow
 
 The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings).
 
-Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
+Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET`, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
 
 ### Twitch VOD replay
 
