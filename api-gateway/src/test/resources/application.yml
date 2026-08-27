@@ -1,0 +1,18 @@
+spring:
+  cloud:
+    config:
+      enabled: false
+    gateway:
+      metrics:
+        enabled: true
+
+eureka:
+  client:
+    enabled: false
+
+streamsense:
+  gateway:
+    auth:
+      enabled: false
+      required-issuer: streamsense-local
+      required-audience: streamsense-clients

@@ -1,0 +1,27 @@
+# Java / Maven
+**/target/
+target/
+
+# Python
+**/__pycache__/
+**/.pytest_cache/
+.venv/
+
+# Local secrets
+.env*.local
+
+# Node / frontend
+**/node_modules/
+**/dist/
+coverage/
+
+# IDE
+.classpath
+.project
+.settings/
+.idea/
+.vscode/
+.opencode/
+
+# OS
+.DS_Store

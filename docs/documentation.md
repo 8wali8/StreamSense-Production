@@ -1,0 +1,1 @@
+in-depth documentation on creation process can be found at: https://www.notion.so/streamsense-2e4cd554d83d801d8159d8f149912c26?source=copy_link (private link for personal reference)

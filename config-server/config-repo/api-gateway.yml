@@ -1,0 +1,105 @@
+# config-server/config-repo/api-gateway.yml
+
+server:
+  port: 8080
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+streamsense:
+  topics:
+    chatMessages: stream.chat.messages
+    sentimentEvents: stream.sentiment.events
+    transcriptSegments: stream.transcript.segments
+    transcriptSentimentEvents: stream.transcript.sentiment.events
+    sponsorDetections: stream.sponsor.detections
+  services:
+    chat-service:
+      base-url: http://chat-service:8081
+    recommendation-service:
+      base-url: http://recommendation-service:8082
+    sentiment-service:
+      base-url: http://sentiment-service:8083
+    video-service:
+      base-url: http://video-service:8084
+    video-capture-service:
+      base-url: http://video-capture-service:8090
+    analytics-service:
+      base-url: http://analytics-service:8085
+  gateway:
+    rate-limit-enabled: ${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:true}
+    auth:
+      enabled: ${STREAMSENSE_GATEWAY_AUTH_ENABLED:false}
+      required-issuer: streamsense-local
+      required-audience: streamsense-clients
+      protected-paths:
+        - /graphql
+        - /api/**
+      excluded-paths:
+        - /actuator/**
+        - /graphiql
+        - /graphiql/**
+    rate-limits:
+      - id: chat-ingest
+        path: /api/chat/ingest
+        method: POST
+        requests: 30
+        window-seconds: 60
+      - id: video-upload
+        path: /api/video/upload-frame
+        method: POST
+        requests: 20
+        window-seconds: 60
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: api-gateway-subscriptions
+      client-id: api-gateway-subscriptions
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+        spring.json.trusted.packages: com.streamsense.apigateway.events
+        spring.json.value.default.type: com.streamsense.apigateway.events.ChatMessageEvent
+        spring.json.use.type.headers: false
+
+  cloud:
+    gateway:
+      metrics:
+        enabled: true
+      routes:
+        - id: chat-service-api
+          uri: ${streamsense.services.chat-service.base-url}
+          predicates:
+            - Path=/api/chat/**
+        - id: sentiment-service-api
+          uri: ${streamsense.services.sentiment-service.base-url}
+          predicates:
+            - Path=/api/sentiment/**
+        - id: recommendation-service-api
+          uri: ${streamsense.services.recommendation-service.base-url}
+          predicates:
+            - Path=/api/recommendations/**
+        - id: video-capture-service-api
+          uri: ${streamsense.services.video-capture-service.base-url}
+          predicates:
+            - Path=/api/video/capture/**
+        - id: video-service-api
+          uri: ${streamsense.services.video-service.base-url}
+          predicates:
+            - Path=/api/video/**
+        - id: analytics-service-api
+          uri: ${streamsense.services.analytics-service.base-url}
+          predicates:
+            - Path=/api/analytics/**
+
+  graphql:
+    graphiql:
+      enabled: true
+    websocket:
+      path: /graphql

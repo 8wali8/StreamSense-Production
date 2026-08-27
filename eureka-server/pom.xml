@@ -1,0 +1,61 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>  <!-- format version, almost always 4.0.0 -->
+
+  <groupId>com.streamsense</groupId> <!-- reversed domain convention -->
+  <artifactId>eureka-server</artifactId> <!-- service name -->
+  <version>0.0.1-SNAPSHOT</version> <!-- build version (snapshot because in dev) -->
+  <name>eureka-server</name> <!-- human readable name -->
+
+  <properties> <!-- versions -->
+    <java.version>21</java.version>
+    <spring-cloud.version>2023.0.4</spring-cloud.version>
+  </properties>
+
+  <parent> <!-- uses springboot parent POM -->
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.12</version>
+    <relativePath/>
+  </parent>
+
+  <dependencyManagement> <!-- imports BOM that will work together -->
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies> <!-- libraries that will be used -->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-eureka-server</artifactId> <!-- eureka core -->
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId> <!-- actuator w health checks, metrics, operational endpoints -->
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId> <!-- test starter -->
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId> <!-- creates executable -->
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

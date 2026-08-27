@@ -1,0 +1,120 @@
+# config-server/config-repo/video-service.yml
+
+server:
+  port: 8084
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://eureka-server:8761/eureka}
+
+streamsense:
+  topics:
+    videoFrames: stream.video.frames
+    videoFramesDlt: stream.video.frames.dlt
+    sponsorDetections: stream.sponsor.detections
+  ml:
+    base-url: http://ml-engine:8000
+    connectTimeoutMs: 2000
+    readTimeoutMs: 3000
+  history:
+    defaultLimit: 20
+    maxLimit: 100
+  cache:
+    recentPrefix: sponsor:recent
+    recentTtlSeconds: 60
+  payload:
+    maxFrameRefLength: 1024
+  processing:
+    retryBackoffMs: 1000
+    maxRetries: 2
+
+hystrix:
+  command:
+    mlSponsor:
+      executionTimeoutMs: 3000
+      requestVolumeThreshold: 10
+      errorThresholdPercentage: 50
+      sleepWindowMs: 15000
+      maxConcurrentCalls: 4
+      maxRetries: 2
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      mlSponsor:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - com.streamsense.videoservice.client.MlDependencyException
+  retry:
+    instances:
+      mlSponsor:
+        maxAttempts: 3
+        waitDuration: 1s
+        retryExceptions:
+          - com.streamsense.videoservice.client.MlDependencyException
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+        ignoreExceptions:
+          - java.lang.IllegalStateException
+          - java.lang.IllegalArgumentException
+  bulkhead:
+    instances:
+      mlSponsor:
+        maxConcurrentCalls: 4
+        maxWaitDuration: 0ms
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: video-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.streamsense.videoservice.events.FrameData
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/streamsense
+    username: streamsense
+    password: streamsense
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    table: video_service_flyway_history
+    baseline-on-migrate: true
+    baseline-version: 0
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+      repositories:
+        enabled: false
+      timeout: 2s
+
+management:
+  health:
+    circuitbreakers:
+      enabled: true

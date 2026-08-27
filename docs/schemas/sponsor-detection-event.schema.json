@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streamsense.local/schemas/sponsor-detection-event.schema.json",
+  "title": "SponsorDetectionEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "detectionEventId",
+    "sourceFrameId",
+    "streamer",
+    "frameRef",
+    "frameSequence",
+    "capturedAt",
+    "processedAt",
+    "sponsor",
+    "confidence",
+    "modelVersion",
+    "x",
+    "y",
+    "width",
+    "height"
+  ],
+  "properties": {
+    "detectionEventId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "sourceFrameId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "streamer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "frameRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "frameSequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "capturedAt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "processedAt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sponsor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "modelVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "x": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "y": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "width": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "height": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "source": {
+      "type": ["string", "null"],
+      "maxLength": 32
+    },
+    "channelLogin": {
+      "type": ["string", "null"],
+      "maxLength": 255
+    },
+    "streamSessionId": {
+      "type": ["string", "null"],
+      "maxLength": 255
+    },
+    "twitchStreamId": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "videoTimestampMs": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    }
+  }
+}

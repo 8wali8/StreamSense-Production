@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TranscriptSentimentEvent",
+  "type": "object",
+  "required": [
+    "sentimentEventId",
+    "segmentId",
+    "streamer",
+    "text",
+    "segmentStartedAt",
+    "segmentEndedAt",
+    "processedAt",
+    "label",
+    "score",
+    "modelVersion",
+    "transcriptModelVersion",
+    "streamSessionId",
+    "transcriptSequence"
+  ],
+  "properties": {
+    "sentimentEventId": { "type": "string" },
+    "segmentId": { "type": "string" },
+    "streamer": { "type": "string" },
+    "text": { "type": "string", "maxLength": 4000 },
+    "segmentStartedAt": { "type": "integer" },
+    "segmentEndedAt": { "type": "integer" },
+    "processedAt": { "type": "integer" },
+    "label": { "enum": ["POSITIVE", "NEUTRAL", "NEGATIVE"] },
+    "score": { "type": "number", "minimum": -1, "maximum": 1 },
+    "modelVersion": { "type": "string" },
+    "transcriptModelVersion": { "type": "string" },
+    "streamSessionId": { "type": "string" },
+    "transcriptSequence": { "type": "integer" }
+  }
+}
