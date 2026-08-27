@@ -8,7 +8,7 @@
 #   make build SERVICE=config-server
 #
 # Requires: docker + docker compose + Java 21 + Maven
-# Optional: Node/Python for local tests and demo tooling
+# Optional: Node for the frontend, uv (https://docs.astral.sh/uv/) for the Python services, Python for demo tooling
 
 SHELL := /bin/bash
 
@@ -147,10 +147,10 @@ test:
 		done; \
 		echo ""; \
 		echo "===== TEST ml-engine ====="; \
-		( cd ml-engine && PYTHONPATH=src/main/python python3 -m pytest src/test/python ); \
+		( cd ml-engine && uv run --locked pytest ); \
 		echo ""; \
 		echo "===== TEST video-capture-service ====="; \
-		( cd video-capture-service && PYTHONPATH=src/main/python python3 -m pytest src/test/python ); \
+		( cd video-capture-service && uv run --locked pytest ); \
 		echo ""; \
 		echo "===== CHECK frontend ====="; \
 		( cd frontend && npm run lint && npm run build ); \
@@ -166,7 +166,7 @@ test-one:
 		cd $(SERVICE) && mvn -q -DskipTests=false test; \
 	elif [[ "$(SERVICE)" == "ml-engine" || "$(SERVICE)" == "video-capture-service" ]]; then \
 		echo "Running pytest for $(SERVICE)..."; \
-		cd $(SERVICE) && PYTHONPATH=src/main/python python3 -m pytest src/test/python; \
+		cd $(SERVICE) && uv run --locked pytest; \
 	elif [[ "$(SERVICE)" == "frontend" ]]; then \
 		echo "Running frontend lint/build..."; \
 		cd frontend && npm run lint && npm run build; \

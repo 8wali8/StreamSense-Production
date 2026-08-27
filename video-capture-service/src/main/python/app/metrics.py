@@ -1,6 +1,5 @@
 from prometheus_client import Counter, Gauge, Histogram
 
-
 capture_enabled = Gauge(
     "streamsense_twitch_video_capture_enabled",
     "Whether Twitch video capture is enabled",
