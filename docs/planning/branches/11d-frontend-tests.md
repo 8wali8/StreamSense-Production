@@ -36,7 +36,7 @@ Priority 10 (last frontend branch) from `docs/planning/production-hardening.md`:
 | Tests with coverage floors | `npm run test:coverage` | 16 files, 61 tests passed; statements 94.4 %, branches 84.9 %, functions 84.4 %, lines 94.4 %, all floors met |
 | No module mocks left | `grep -rl "vi.mock(\"@apollo" src` | none (`api-client.test.ts` is the only `fetch` stub) |
 | Workflow syntax | `actionlint .github/workflows/ci.yml` | OK |
-| Docker image | `docker build frontend/` | DOCKER_PLACEHOLDER |
+| Docker image | `docker build frontend/` | builds |
 
 ## Manual checks for the reviewer
 
