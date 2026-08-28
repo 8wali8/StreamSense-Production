@@ -4,29 +4,21 @@ import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { getMainDefinition } from "@apollo/client/utilities";
 import { createClient } from "graphql-ws";
 import type { ClientOptions } from "graphql-ws";
+import { graphqlHttpUrl, graphqlWsUrl } from "../config/env";
+import { authHeaders, type TokenStorage } from "../lib/auth-token";
 
 type BrowserLocation = Pick<Location, "protocol" | "host">;
-type TokenStorage = Pick<Storage, "getItem">;
 type Headers = Record<string, string>;
 
 export function makeWsUrl(location: BrowserLocation = window.location): string {
-    const isHttps = location.protocol === "https:";
-    const wsProtocol = isHttps ? "wss" : "ws";
-    return `${wsProtocol}://${location.host}/graphql`;
+    return graphqlWsUrl(location);
 }
 
+// Same token source as the REST client (src/lib/api-client.ts), so every transport stays in lockstep.
 export function buildConnectionParams(storage: TokenStorage = window.localStorage): Headers {
-    const token = storage.getItem("streamsense.authToken");
-    if (!token) {
-        return {};
-    }
-
-    return {
-        Authorization: `Bearer ${token}`,
-    };
+    return authHeaders(storage);
 }
 
-// Same token source as the WebSocket connectionParams, so both transports stay in lockstep.
 export function buildAuthHeaders(previousHeaders?: Headers, storage: TokenStorage = window.localStorage): Headers {
     return { ...(previousHeaders ?? {}), ...buildConnectionParams(storage) };
 }
@@ -56,7 +48,7 @@ export function buildWsClientOptions(
 
 const httpLink = createAuthLink().concat(
     new HttpLink({
-        uri: "/graphql",
+        uri: graphqlHttpUrl(),
     })
 );
 

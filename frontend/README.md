@@ -1,73 +1,35 @@
-# React + TypeScript + Vite
+# StreamSense frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript + Vite, Apollo Client 4 for GraphQL queries and `graphql-ws` subscriptions, Vitest + Testing Library for tests.
 
-Currently, two official plugins are available:
+## Commands
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci               # Install exactly what package-lock.json says
+npm run dev          # Dev server on http://localhost:3000, proxying to the Compose backend
+npm run build        # tsc -b && vite build
+npm run test         # Vitest (vitest run)
+npm run lint         # ESLint
+npm run codegen      # Regenerate src/graphql/generated.ts from the gateway SDL
+npm run codegen:check  # Fail if generated.ts is stale (CI runs this)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Running against the backend
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+`npm run dev` proxies `/graphql` (HTTP and WebSocket) and `/api` to the API gateway and `/ml` to ml-engine, so `make up` (or `make up-fast`) in the repository root is all the backend you need. The targets default to `http://localhost:8080` and `http://localhost:8000`; override them with `VITE_DEV_API_TARGET` / `VITE_DEV_ML_TARGET` in a git-ignored `.env.local` (see `.env.example`). In Docker, nginx serves `dist/` and proxies the same three routes.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Set `VITE_API_BASE_URL` only when the built app is served from a different origin than the gateway; it is inlined at build time.
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `src/config/env.ts` | Every environment read; nothing else touches `import.meta.env` |
+| `src/lib/api-client.ts` | The only `fetch` caller: base URL, bearer token, JSON, timeout, `ApiError` with RFC 9457 problem details |
+| `src/api/*.ts` | One module per backend feature (`chat`, `video`, `sentiment`, `ml`) with typed request functions |
+| `src/graphql/` | `queries.ts`, `subscriptions.ts`, and the generated `generated.ts` |
+| `src/apollo/client.ts` | Apollo Client with the HTTP/WebSocket split link and the same auth token as REST |
+| `src/hooks/usePolledResource.ts` | Load now and every N ms, keyed by streamer |
+| `src/components/`, `src/pages/` | Panels and pages |
+
+Rules: components never call `fetch` or read `import.meta.env` directly; GraphQL result types come from `generated.ts`; new REST endpoints get a function in `src/api/` and a test.

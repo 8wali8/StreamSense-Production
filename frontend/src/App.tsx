@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { Health } from "./components/Health";
 import { RecommendationPanel } from "./components/RecommendationPanel";
@@ -8,6 +8,10 @@ import { SponsorPanel } from "./components/SponsorPanel";
 import { StreamMetricsOverview } from "./components/StreamMetricsOverview";
 import { TwitchIngestionStatus } from "./components/TwitchIngestionStatus";
 import { VideoCaptureStatus } from "./components/VideoCaptureStatus";
+import { switchTwitchChannels } from "./api/chat";
+import { getRecentTranscriptSegments, updateSponsorProfile } from "./api/sentiment";
+import { switchCaptureChannels } from "./api/video";
+import { usePolledResource } from "./hooks/usePolledResource";
 import {
   RECENT_SENTIMENT_QUERY,
   RECENT_SPONSOR_SENTIMENT_QUERY,
@@ -52,12 +56,6 @@ type PortfolioStreamer = {
   brand: string;
   owner: string;
   risk: string;
-};
-
-type RestTranscriptState = {
-  streamer: string;
-  segments: TranscriptSegmentEvent[];
-  error: string | null;
 };
 
 const portfolioStreamers: PortfolioStreamer[] = [
@@ -127,18 +125,6 @@ function normalizeStreamerHandle(streamer: string): string {
   return streamer.trim().toLowerCase().replace(/^[@#]+/, "");
 }
 
-async function switchRuntimeChannels(path: string, streamer: string): Promise<void> {
-  const normalizedStreamer = normalizeStreamerHandle(streamer);
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channels: [normalizedStreamer] }),
-  });
-  if (!response.ok) {
-    throw new Error(`${path} returned ${response.status}`);
-  }
-}
-
 function sponsorProfileFromInput(streamer: string, sponsorInput: string, campaignGoal: string) {
   const normalizedStreamer = normalizeStreamerHandle(streamer);
   const parts = sponsorInput.split(",").map((part) => part.trim()).filter(Boolean);
@@ -156,14 +142,7 @@ function sponsorProfileFromInput(streamer: string, sponsorInput: string, campaig
 async function updateSponsorRelevance(streamer: string, sponsorInput: string, campaignGoal: string): Promise<void> {
   const profile = sponsorProfileFromInput(streamer, sponsorInput, campaignGoal);
   if (!profile.sponsor) return;
-  const response = await fetch("/api/sentiment/relevance/sponsors", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(profile),
-  });
-  if (!response.ok) {
-    throw new Error(`/api/sentiment/relevance/sponsors returned ${response.status}`);
-  }
+  await updateSponsorProfile(profile);
 }
 
 export default function App() {
@@ -197,8 +176,8 @@ export default function App() {
     const runtimeUpdates = isSameStreamer
       ? [updateSponsorRelevance(nextStreamer, brand, campaignGoal)]
       : [
-          switchRuntimeChannels("/api/chat/twitch/channels", nextStreamer),
-          switchRuntimeChannels("/api/video/capture/channels", nextStreamer),
+          switchTwitchChannels([nextStreamer]),
+          switchCaptureChannels([nextStreamer]),
           updateSponsorRelevance(nextStreamer, brand, campaignGoal),
         ];
     const results = await Promise.allSettled(runtimeUpdates);
@@ -345,39 +324,9 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
   const [liveTranscriptSentiment, setLiveTranscriptSentiment] = useState<TranscriptSentimentEvent[]>([]);
   const [liveSponsorSentiment, setLiveSponsorSentiment] = useState<SentimentEvent[]>([]);
   const [liveSponsorTranscriptSentiment, setLiveSponsorTranscriptSentiment] = useState<TranscriptSentimentEvent[]>([]);
-  const [restTranscriptState, setRestTranscriptState] = useState<RestTranscriptState>({ streamer: "", segments: [], error: null });
   const activeSponsor = sponsorProfileFromInput(streamer, sponsorBrand, campaignGoal).sponsor;
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadTranscriptFallback = () => {
-      fetch(`/api/sentiment/transcript/recent?streamer=${encodeURIComponent(streamer)}&limit=10`)
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(`/api/sentiment/transcript/recent returned ${response.status}`);
-          }
-          return response.json() as Promise<TranscriptSegmentEvent[]>;
-        })
-        .then((segments) => {
-          if (!cancelled) {
-            setRestTranscriptState({ streamer, segments: Array.isArray(segments) ? segments : [], error: null });
-          }
-        })
-        .catch((error: Error) => {
-          if (!cancelled) {
-            setRestTranscriptState({ streamer, segments: [], error: error.message });
-          }
-        });
-    };
-
-    loadTranscriptFallback();
-    const intervalId = window.setInterval(loadTranscriptFallback, 10000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [streamer]);
+  const restTranscript = usePolledResource(() => getRecentTranscriptSegments(streamer, 10), 10000, streamer);
 
   const sponsorQuery = useQuery<SponsorDetectionsQuery>(RECENT_SPONSOR_DETECTIONS_QUERY, {
     variables: { streamer, limit: 12 },
@@ -407,8 +356,8 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
   });
 
   const sponsorHistory = sponsorQuery.data?.sponsorDetections ?? [];
-  const restTranscriptHistory = restTranscriptState.streamer === streamer ? restTranscriptState.segments : [];
-  const restTranscriptError = restTranscriptState.streamer === streamer ? restTranscriptState.error : null;
+  const restTranscriptHistory = restTranscript.data ?? [];
+  const restTranscriptError = restTranscript.error;
   const transcriptHistory = mergeById(
     transcriptQuery.data?.recentTranscriptSegments ?? [],
     restTranscriptHistory,
