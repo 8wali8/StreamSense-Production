@@ -65,6 +65,7 @@ docker build -t streamsense/video-service:sprint9 ./video-service
 docker build -t streamsense/recommendation-service:sprint9 ./recommendation-service
 docker build -t streamsense/api-gateway:sprint9 ./api-gateway
 docker build -t streamsense/ml-engine:sprint9 ./ml-engine
+docker build -t streamsense/frontend:sprint9 ./frontend
 ```
 
 ## 3. Create The `kind` Cluster
@@ -99,7 +100,7 @@ kind load docker-image \
   streamsense/recommendation-service:sprint9 \
   streamsense/api-gateway:sprint9 \
   streamsense/ml-engine:sprint9 \
-  --name streamsense
+  streamsense/frontend:sprint9 \n  --name streamsense
 ```
 
 ## 5. Install Ingress NGINX
@@ -163,6 +164,7 @@ Note:
 
 Ingress hosts are:
 
+- `streamsense.local` (the console)
 - `gateway.streamsense.local`
 - `grafana.streamsense.local`
 - `zipkin.streamsense.local`
