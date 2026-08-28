@@ -25,94 +25,27 @@ import {
   ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION,
   ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION,
 } from "./graphql/subscriptions";
+import type {
+  OnChatMessageSubscription,
+  OnSentimentSubscription,
+  OnSponsorDetectionSubscription,
+  OnSponsorSentimentSubscription,
+  OnSponsorTranscriptSentimentSubscription,
+  OnTranscriptSegmentSubscription,
+  OnTranscriptSentimentSubscription,
+  RecentSentimentQuery,
+  RecentSponsorSentimentQuery,
+  RecentSponsorTranscriptSentimentQuery,
+  RecentTranscriptSegmentsQuery,
+  RecentTranscriptSentimentQuery,
+  SponsorDetectionsQuery,
+} from "./graphql/generated";
 
-type SponsorDetectionEvent = {
-  detectionEventId: string;
-  sourceFrameId: string;
-  streamer: string;
-  frameRef: string;
-  frameSequence: number;
-  capturedAt: number;
-  processedAt: number;
-  sponsor: string;
-  confidence: number;
-  modelVersion: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  source?: string | null;
-  channelLogin?: string | null;
-  streamSessionId?: string | null;
-  twitchStreamId?: string | null;
-  videoTimestampMs?: number | null;
-};
-
-type TranscriptSegmentEvent = {
-  segmentId: string;
-  streamer: string;
-  text: string;
-  startedAt: number;
-  endedAt: number;
-  language?: string | null;
-  confidence?: number | null;
-  modelVersion: string;
-  source?: string | null;
-  channelLogin?: string | null;
-  streamSessionId?: string | null;
-  videoTimestampMs: number;
-  transcriptSequence: number;
-  captureWorkerId?: string | null;
-};
-
-type ChatMessageEvent = {
-  eventId: string;
-  streamer: string;
-  user: string;
-  message: string;
-  timestamp: number;
-};
-
-type SentimentEvent = {
-  sentimentEventId: string;
-  sourceEventId: string;
-  streamer: string;
-  user: string;
-  message: string;
-  chatTimestamp: number;
-  processedAt: number;
-  label: string;
-  score: number;
-  modelVersion: string;
-  sponsorRelevant: boolean;
-  matchedSponsor?: string | null;
-  matchedTerms: string[];
-  relevanceScore: number;
-  relevanceReason?: string | null;
-  relevanceVersion?: string | null;
-};
-
-type TranscriptSentimentEvent = {
-  sentimentEventId: string;
-  segmentId: string;
-  streamer: string;
-  text: string;
-  segmentStartedAt: number;
-  segmentEndedAt: number;
-  processedAt: number;
-  label: string;
-  score: number;
-  modelVersion: string;
-  transcriptModelVersion: string;
-  streamSessionId?: string | null;
-  transcriptSequence: number;
-  sponsorRelevant: boolean;
-  matchedSponsor?: string | null;
-  matchedTerms: string[];
-  relevanceScore: number;
-  relevanceReason?: string | null;
-  relevanceVersion?: string | null;
-};
+type SponsorDetectionEvent = SponsorDetectionsQuery["sponsorDetections"][number];
+type TranscriptSegmentEvent = RecentTranscriptSegmentsQuery["recentTranscriptSegments"][number];
+type ChatMessageEvent = OnChatMessageSubscription["onChatMessage"];
+type SentimentEvent = RecentSentimentQuery["recentSentiment"][number];
+type TranscriptSentimentEvent = RecentTranscriptSentimentQuery["recentTranscriptSentiment"][number];
 
 type PortfolioStreamer = {
   handle: string;
@@ -446,29 +379,29 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     };
   }, [streamer]);
 
-  const sponsorQuery = useQuery<{ sponsorDetections: SponsorDetectionEvent[] }>(RECENT_SPONSOR_DETECTIONS_QUERY, {
+  const sponsorQuery = useQuery<SponsorDetectionsQuery>(RECENT_SPONSOR_DETECTIONS_QUERY, {
     variables: { streamer, limit: 12 },
     fetchPolicy: "network-only",
   });
-  const transcriptQuery = useQuery<{ recentTranscriptSegments: TranscriptSegmentEvent[] }>(RECENT_TRANSCRIPT_SEGMENTS_QUERY, {
+  const transcriptQuery = useQuery<RecentTranscriptSegmentsQuery>(RECENT_TRANSCRIPT_SEGMENTS_QUERY, {
     variables: { streamer, limit: 10 },
     fetchPolicy: "network-only",
     pollInterval: 10000,
   });
-  const sentimentQuery = useQuery<{ recentSentiment: SentimentEvent[] }>(RECENT_SENTIMENT_QUERY, {
+  const sentimentQuery = useQuery<RecentSentimentQuery>(RECENT_SENTIMENT_QUERY, {
     variables: { streamer, limit: 12 },
     fetchPolicy: "network-only",
   });
-  const transcriptSentimentQuery = useQuery<{ recentTranscriptSentiment: TranscriptSentimentEvent[] }>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
+  const transcriptSentimentQuery = useQuery<RecentTranscriptSentimentQuery>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
     variables: { streamer, limit: 10 },
     fetchPolicy: "network-only",
     pollInterval: 10000,
   });
-  const sponsorSentimentQuery = useQuery<{ recentSponsorSentiment: SentimentEvent[] }>(RECENT_SPONSOR_SENTIMENT_QUERY, {
+  const sponsorSentimentQuery = useQuery<RecentSponsorSentimentQuery>(RECENT_SPONSOR_SENTIMENT_QUERY, {
     variables: { streamer, sponsor: activeSponsor, limit: 12 },
     fetchPolicy: "network-only",
   });
-  const sponsorTranscriptSentimentQuery = useQuery<{ recentSponsorTranscriptSentiment: TranscriptSentimentEvent[] }>(RECENT_SPONSOR_TRANSCRIPT_SENTIMENT_QUERY, {
+  const sponsorTranscriptSentimentQuery = useQuery<RecentSponsorTranscriptSentimentQuery>(RECENT_SPONSOR_TRANSCRIPT_SENTIMENT_QUERY, {
     variables: { streamer, sponsor: activeSponsor, limit: 10 },
     fetchPolicy: "network-only",
   });
@@ -519,7 +452,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
   const sponsorSentimentHistoryIds = new Set(sponsorSentimentHistory.map((event) => event.sentimentEventId));
   const sponsorTranscriptSentimentHistoryIds = new Set(sponsorTranscriptSentimentHistory.map((event) => event.sentimentEventId));
 
-  useSubscription<{ onSponsorDetection: SponsorDetectionEvent }>(ON_SPONSOR_DETECTION_SUBSCRIPTION, {
+  useSubscription<OnSponsorDetectionSubscription>(ON_SPONSOR_DETECTION_SUBSCRIPTION, {
     variables: { streamer },
     onData: ({ data }) => {
       const event = data.data?.onSponsorDetection;
@@ -533,7 +466,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     },
   });
 
-  useSubscription<{ onTranscriptSegment: TranscriptSegmentEvent }>(ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION, {
+  useSubscription<OnTranscriptSegmentSubscription>(ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION, {
     variables: { streamer },
     onData: ({ data }) => {
       const event = data.data?.onTranscriptSegment;
@@ -547,7 +480,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     },
   });
 
-  useSubscription<{ onChatMessage: ChatMessageEvent }>(ON_CHAT_MESSAGE_SUBSCRIPTION, {
+  useSubscription<OnChatMessageSubscription>(ON_CHAT_MESSAGE_SUBSCRIPTION, {
     variables: { streamer },
     onData: ({ data }) => {
       const event = data.data?.onChatMessage;
@@ -559,7 +492,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     },
   });
 
-  useSubscription<{ onSentiment: SentimentEvent }>(ON_SENTIMENT_SUBSCRIPTION, {
+  useSubscription<OnSentimentSubscription>(ON_SENTIMENT_SUBSCRIPTION, {
     variables: { streamer },
     onData: ({ data }) => {
       const event = data.data?.onSentiment;
@@ -573,7 +506,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     },
   });
 
-  useSubscription<{ onTranscriptSentiment: TranscriptSentimentEvent }>(ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
+  useSubscription<OnTranscriptSentimentSubscription>(ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
     variables: { streamer },
     onData: ({ data }) => {
       const event = data.data?.onTranscriptSentiment;
@@ -590,7 +523,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     },
   });
 
-  useSubscription<{ onSponsorSentiment: SentimentEvent }>(ON_SPONSOR_SENTIMENT_SUBSCRIPTION, {
+  useSubscription<OnSponsorSentimentSubscription>(ON_SPONSOR_SENTIMENT_SUBSCRIPTION, {
     variables: { streamer, sponsor: activeSponsor },
     onData: ({ data }) => {
       const event = data.data?.onSponsorSentiment;
@@ -604,7 +537,7 @@ function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: { streamer:
     },
   });
 
-  useSubscription<{ onSponsorTranscriptSentiment: TranscriptSentimentEvent }>(ON_SPONSOR_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
+  useSubscription<OnSponsorTranscriptSentimentSubscription>(ON_SPONSOR_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
     variables: { streamer, sponsor: activeSponsor },
     onData: ({ data }) => {
       const event = data.data?.onSponsorTranscriptSentiment;

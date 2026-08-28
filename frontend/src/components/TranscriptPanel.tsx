@@ -2,31 +2,9 @@ import { useState } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { RECENT_TRANSCRIPT_SEGMENTS_QUERY } from "../graphql/queries";
 import { ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION } from "../graphql/subscriptions";
+import type { OnTranscriptSegmentSubscription, RecentTranscriptSegmentsQuery } from "../graphql/generated";
 
-type TranscriptSegmentEvent = {
-  segmentId: string;
-  streamer: string;
-  text: string;
-  startedAt: number;
-  endedAt: number;
-  language: string | null;
-  confidence: number | null;
-  modelVersion: string;
-  source: string;
-  channelLogin: string | null;
-  streamSessionId: string;
-  videoTimestampMs: number;
-  transcriptSequence: number;
-  captureWorkerId: string | null;
-};
-
-type RecentTranscriptData = {
-  recentTranscriptSegments: TranscriptSegmentEvent[];
-};
-
-type OnTranscriptData = {
-  onTranscriptSegment: TranscriptSegmentEvent;
-};
+type TranscriptSegmentEvent = RecentTranscriptSegmentsQuery["recentTranscriptSegments"][number];
 
 type TranscriptPanelProps = {
   streamer?: string;
@@ -43,7 +21,7 @@ export function TranscriptPanel({ streamer, hideControls = false }: TranscriptPa
   const [liveSegments, setLiveSegments] = useState<TranscriptSegmentEvent[]>([]);
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecentTranscriptData>(RECENT_TRANSCRIPT_SEGMENTS_QUERY, {
+  const { data, loading, error } = useQuery<RecentTranscriptSegmentsQuery>(RECENT_TRANSCRIPT_SEGMENTS_QUERY, {
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
     fetchPolicy: "network-only",
@@ -53,7 +31,7 @@ export function TranscriptPanel({ streamer, hideControls = false }: TranscriptPa
   const historyIds = new Set(historySegments.map((event) => event.segmentId));
   const segments = [...liveSegments.filter((event) => !historyIds.has(event.segmentId)), ...historySegments].slice(0, 50);
 
-  const { error: subscriptionError } = useSubscription<OnTranscriptData>(ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION, {
+  const { error: subscriptionError } = useSubscription<OnTranscriptSegmentSubscription>(ON_TRANSCRIPT_SEGMENT_SUBSCRIPTION, {
     variables: { streamer: activeStreamer },
     skip: !activeStreamer,
     onData: ({ data: subscriptionData }) => {

@@ -1,18 +1,9 @@
-import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-
-type HealthQueryData = {
-    health: string;
-};
-
-const HEALTH_QUERY = gql`
-  query Health {
-    health
-  }
-`;
+import type { HealthQuery } from "../graphql/generated";
+import { HEALTH_QUERY } from "../graphql/queries";
 
 export function Health() {
-    const { data, loading, error } = useQuery<HealthQueryData>(HEALTH_QUERY, {
+    const { data, loading, error } = useQuery<HealthQuery>(HEALTH_QUERY, {
         fetchPolicy: "no-cache",
     });
 

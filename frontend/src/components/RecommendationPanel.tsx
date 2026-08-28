@@ -1,23 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@apollo/client/react";
+import type { RecommendationsQuery } from "../graphql/generated";
 import { RECOMMENDATIONS_QUERY } from "../graphql/queries";
-
-type Recommendation = {
-  recommendationId: string;
-  streamer: string;
-  title: string;
-  category: string;
-  score: number;
-  reasonSummary: string;
-  reasons: string[];
-  experimentName: string;
-  variantId: string;
-  generatedAt: number;
-};
-
-type RecommendationsData = {
-  recommendations: Recommendation[];
-};
 
 function categoryTone(category: string): string {
   if (category === "SPONSOR_ALIGNMENT") return "#7c3aed";
@@ -47,7 +31,7 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
   const [localStreamer, setLocalStreamer] = useState("test");
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecommendationsData>(RECOMMENDATIONS_QUERY, {
+  const { data, loading, error } = useQuery<RecommendationsQuery>(RECOMMENDATIONS_QUERY, {
     variables: { streamer: activeStreamer, limit: 4 },
     skip: !activeStreamer,
     fetchPolicy: "network-only",
