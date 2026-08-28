@@ -1,16 +1,16 @@
 package com.streamsense.apigateway.config;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -28,7 +28,6 @@ public class GatewayAuthWebFilter implements WebFilter {
     private final JwtAuthTokenValidator tokenValidator;
     private final MeterRegistry meterRegistry;
     private final String graphqlWebSocketPath;
-    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public GatewayAuthWebFilter(
             GatewayEdgeProperties properties,
@@ -46,13 +45,13 @@ public class GatewayAuthWebFilter implements WebFilter {
         GatewayEdgeProperties.Auth auth = properties.getAuth();
         String path = exchange.getRequest().getPath().value();
 
-        if (!auth.isEnabled() || isExcluded(path, auth.getExcludedPaths()) || !isProtected(path, auth.getProtectedPaths())) {
+        if (!auth.isEnabled() || !auth.protects(path)) {
             return chain.filter(exchange);
         }
 
         // Browsers cannot set headers on a WebSocket handshake, so the token for subscriptions arrives in the
         // graphql-transport-ws connection_init payload and is enforced by GatewayWebSocketAuthInterceptor instead.
-        if (isGraphqlWebSocketHandshake(exchange, path)) {
+        if (isGraphqlWebSocketHandshake(exchange.getRequest(), path)) {
             return chain.filter(exchange);
         }
 
@@ -76,16 +75,14 @@ public class GatewayAuthWebFilter implements WebFilter {
                 .wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
     }
 
-    private boolean isGraphqlWebSocketHandshake(ServerWebExchange exchange, String path) {
+    // Only a GET with the RFC 6455 upgrade headers is a handshake. The HTTP GraphQL endpoint is POST-only and a GET
+    // on the websocket path reaches nothing but the handshake handler, so a spoofed Upgrade header on a POST still
+    // has to present a valid token here.
+    private boolean isGraphqlWebSocketHandshake(ServerHttpRequest request, String path) {
+        HttpHeaders headers = request.getHeaders();
         return path.equals(graphqlWebSocketPath)
-                && "websocket".equalsIgnoreCase(exchange.getRequest().getHeaders().getUpgrade());
-    }
-
-    private boolean isExcluded(String path, List<String> excludedPaths) {
-        return excludedPaths.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
-    }
-
-    private boolean isProtected(String path, List<String> protectedPaths) {
-        return protectedPaths.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
+                && HttpMethod.GET.equals(request.getMethod())
+                && "websocket".equalsIgnoreCase(headers.getUpgrade())
+                && headers.containsKey("Sec-WebSocket-Key");
     }
 }
