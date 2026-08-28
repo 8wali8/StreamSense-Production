@@ -69,13 +69,14 @@ The sprint-by-sprint sections below are retained as historical verification deta
 
 ## Gateway Toggles
 
-Gateway auth is disabled by default for local Docker work. To restart only the gateway with auth enabled:
+Gateway auth is disabled by default for local Docker work. Enabling it requires an HS256 signing secret of at least 32 bytes; the gateway refuses to start without one. To restart only the gateway with auth enabled:
 
 ```bash
+export STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET='replace-me-with-at-least-32-bytes-of-secret'
 STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d api-gateway
 ```
 
-Restore the local bypass mode with:
+Mint a matching bearer token with `python tools/mint-jwt.py --subject demo-user` (details under "Verify auth toggle" below). Restore the local bypass mode with:
 
 ```bash
 STREAMSENSE_GATEWAY_AUTH_ENABLED=false docker compose up -d api-gateway
