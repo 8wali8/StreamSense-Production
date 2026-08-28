@@ -5,6 +5,13 @@ server:
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  # RFC 9457 problem+json for framework-raised errors (MVC services and the WebFlux gateway).
+  mvc:
+    problemdetails:
+      enabled: true
+  webflux:
+    problemdetails:
+      enabled: true
 
 logging:
   # One JSON object per line (Elastic Common Schema); MDC keys such as correlationId and the

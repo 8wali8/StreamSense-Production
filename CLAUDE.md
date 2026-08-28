@@ -173,6 +173,7 @@ In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/gr
 - Health endpoint: `GET /actuator/health` (Python services: ml-engine `GET /ml/live`, `/ml/ready`, `/ml/info`, `/ml/health` (legacy); video-capture-service `GET /live`, `/ready`, `/health` (legacy))
 - Tracing: Micrometer + Zipkin
 - Kafka: Spring Kafka; consumers use `@KafkaListener`, producers use `KafkaTemplate`
+- Errors: every REST service has one `web/GlobalExceptionHandler` (`@RestControllerAdvice` extending `ResponseEntityExceptionHandler`) that returns RFC 9457 `application/problem+json` with `type` (`https://streamsense.dev/problems/<slug>`), `title`, `status`, `detail`, `instance`, `service`, `timestamp`, and `correlationId`. Throw `IllegalArgumentException` for bad client input (400) and `IllegalStateException` for a conflict with current state (409); validation failures carry an `errors[]` list; anything else is a 500 that never leaks the exception message. Never catch and translate to `ResponseStatusException` in a controller. The gateway maps resolver failures in `graphql/GraphQlErrorAdvice` to GraphQL errors with `extensions.code` (`DOWNSTREAM_UNAVAILABLE`, `DOWNSTREAM_ERROR` with `status`, `BAD_REQUEST`).
 
 ### Test behavior
 
