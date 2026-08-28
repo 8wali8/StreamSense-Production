@@ -21,6 +21,7 @@ public class SponsorDetectionEvent {
     private String streamSessionId;
     private String twitchStreamId;
     private Long videoTimestampMs;
+    private Boolean fallback;
 
     public String getDetectionEventId() {
         return detectionEventId;
@@ -172,5 +173,13 @@ public class SponsorDetectionEvent {
 
     public void setVideoTimestampMs(Long videoTimestampMs) {
         this.videoTimestampMs = videoTimestampMs;
+    }
+
+    public Boolean getFallback() {
+        return fallback;
+    }
+
+    public void setFallback(Boolean fallback) {
+        this.fallback = fallback;
     }
 }

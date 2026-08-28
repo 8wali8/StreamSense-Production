@@ -148,6 +148,9 @@ public class TwitchVodChatReplayService {
                         comment.user(),
                         comment.message(),
                         Instant.now().toEpochMilli());
+                event.setSource("TWITCH_VOD_REPLAY");
+                event.setChannelLogin(channel);
+                event.setTwitchStreamId(alias.getVodId());
                 ingestService.ingestTwitch(event);
                 metrics.recordMessage();
             }

@@ -158,7 +158,7 @@ The gateway (`api-gateway/src/main/java/com/streamsense/apigateway/`) handles:
 - **Rate limiting** — in-memory fixed-window limiter (per gateway instance, not Redis-backed). Clients are keyed by socket address; `X-Forwarded-For` is only consulted when `streamsense.gateway.trusted-proxy-hops` > 0 (k8s sets 1 behind ingress-nginx, Compose 0)
 - **Routing** — Spring Cloud Gateway routes to downstream services
 
-GraphQL schema is in `docs/schemas/` and `docs/contracts/`.
+The GraphQL schema lives in `api-gateway/src/main/resources/graphql/`; `docs/contracts/` describes the pipelines behind it.
 
 ### Frontend internals
 
@@ -173,6 +173,7 @@ In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/gr
 - Health endpoint: `GET /actuator/health` (Python services: ml-engine `GET /ml/live`, `/ml/ready`, `/ml/info`, `/ml/health` (legacy); video-capture-service `GET /live`, `/ready`, `/health` (legacy))
 - Tracing: Micrometer + Zipkin
 - Kafka: Spring Kafka; consumers use `@KafkaListener`, producers use `KafkaTemplate`
+- Events: every Kafka event and ml-engine payload has a JSON Schema in `docs/schemas/<subject>.schema.json` (`additionalProperties: false`, epoch-millis integers). Each producer's and consumer's `events/EventContractTest` validates a sample with networknt `json-schema-validator` (Python: `jsonschema`), so a field added to an event class must be added to the schema in the same commit, and only backward-compatible changes are allowed: add an optional property, widen a type to allow `null`, add an enum value. `tools/schema/check_compat.py` enforces that in CI. The optional session fields (`source`, `channelLogin`, `streamSessionId`, `twitchStreamId`) are carried by chat, sentiment, frame, transcript, and detection events and pass through unchanged from producer to consumer.
 - Errors: every REST service has one `web/GlobalExceptionHandler` (`@RestControllerAdvice` extending `ResponseEntityExceptionHandler`) that returns RFC 9457 `application/problem+json` with `type` (`https://streamsense.dev/problems/<slug>`), `title`, `status`, `detail`, `instance`, `service`, `timestamp`, and `correlationId`. Throw `IllegalArgumentException` for bad client input (400) and `IllegalStateException` for a conflict with current state (409); validation failures carry an `errors[]` list; anything else is a 500 that never leaks the exception message. Never catch and translate to `ResponseStatusException` in a controller. The gateway maps resolver failures in `graphql/GraphQlErrorAdvice` to GraphQL errors with `extensions.code` (`DOWNSTREAM_UNAVAILABLE`, `DOWNSTREAM_ERROR` with `status`, `BAD_REQUEST`).
 
 ### Test behavior
@@ -185,6 +186,6 @@ Java tests are self-contained: test configs disable config-server and Eureka; in
 - `docs/architecture.md` — architecture diagram (README.md has a mermaid version)
 - `docs/kubernetes-kind.md` — Kubernetes/kind deployment guide
 - `docs/contracts/` — GraphQL API contracts
-- `docs/schemas/` — DB and GraphQL schemas
+- `docs/schemas/` — one JSON Schema per Kafka event and ml-engine payload, with an index and the compatibility rules in its README
 - `plans/vod-replay-testing-plan.md` — Twitch VOD replay workflow
 - `plan.md` — full 12-week production roadmap

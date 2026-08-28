@@ -44,6 +44,8 @@ public class TwitchChatMessageHandler {
                 message.user(),
                 message.message(),
                 message.timestamp());
+        event.setSource("TWITCH");
+        event.setChannelLogin(message.channel());
 
         ingestService.ingestTwitch(event);
         metrics.recordMessage();
