@@ -100,6 +100,7 @@ class JwtAuthTokenValidatorTest {
 
         assertThat(result.valid()).isTrue();
         assertThat(result.subject()).isEqualTo("demo-user");
+        assertThat(result.expiresAt()).isEqualTo(Instant.parse("2026-04-11T12:10:00Z"));
     }
 
     @Test
