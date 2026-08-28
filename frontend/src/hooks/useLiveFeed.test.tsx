@@ -1,21 +1,15 @@
-import { act, render, screen } from "@testing-library/react";
-import { useQuery, useSubscription } from "@apollo/client/react";
+import { act, screen } from "@testing-library/react";
 import { gql } from "@apollo/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { emitSubscription, renderWithApollo } from "../test/apollo";
+import { graphqlResolver, HttpResponse, server } from "../test/msw";
 import { useLiveFeed } from "./useLiveFeed";
-
-vi.mock("@apollo/client/react", () => ({
-  useQuery: vi.fn(),
-  useSubscription: vi.fn(),
-}));
-
-const useQueryMock = vi.mocked(useQuery);
-const useSubscriptionMock = vi.mocked(useSubscription);
 
 const QUERY = gql`
   query Items($streamer: String!) {
     items(streamer: $streamer) {
       id
+      streamer
     }
   }
 `;
@@ -23,14 +17,16 @@ const SUBSCRIPTION = gql`
   subscription OnItem($streamer: String!) {
     onItem(streamer: $streamer) {
       id
+      streamer
     }
   }
 `;
 
-type Item = { id: string; streamer: string };
+type Item = { __typename: "Item"; id: string; streamer: string };
 type ItemsQuery = { items: Item[] };
 type OnItemSubscription = { onItem: Item };
-type OnData = (value: { data: { data?: OnItemSubscription } }) => void;
+
+const item = (id: string, streamer = "test"): Item => ({ __typename: "Item", id, streamer });
 
 function Probe({ streamer }: { streamer: string }) {
   const feed = useLiveFeed<ItemsQuery, OnItemSubscription, { streamer: string }, Item>({
@@ -39,80 +35,82 @@ function Probe({ streamer }: { streamer: string }) {
     selectHistory: (data) => data.items,
     subscription: SUBSCRIPTION,
     selectEvent: (data) => data.onItem,
-    getId: (item) => item.id,
+    getId: (entry) => entry.id,
     limit: 3,
-    accept: (item) => item.streamer === streamer,
+    accept: (entry) => entry.streamer === streamer,
     resetKey: streamer,
   });
   return (
     <div>
-      <span data-testid="items">{feed.items.map((item) => item.id).join(",")}</span>
+      <span data-testid="items">{feed.items.map((entry) => entry.id).join(",")}</span>
       <span data-testid="live">{feed.live.length}</span>
       <span data-testid="loading">{String(feed.loading)}</span>
     </div>
   );
 }
 
+function historyFor(streamer: string): Item[] {
+  return streamer === "test" ? [item("h1"), item("h2")] : [item("other-h1", streamer)];
+}
+
 describe("useLiveFeed", () => {
-  let onData: OnData | undefined;
-
-  beforeEach(() => {
-    onData = undefined;
-    useSubscriptionMock.mockImplementation((_, options) => {
-      onData = (options as { onData?: OnData } | undefined)?.onData;
-      return { error: undefined } as never;
-    });
-    useQueryMock.mockReturnValue({
-      loading: false,
-      error: undefined,
-      data: { items: [{ id: "h1", streamer: "test" }, { id: "h2", streamer: "test" }] },
-    } as never);
-  });
-
-  it("shows live events newest-first on top of history, de-duplicated and capped", () => {
-    render(<Probe streamer="test" />);
-    expect(screen.getByTestId("items")).toHaveTextContent("h1,h2");
-
-    act(() => {
-      onData?.({ data: { data: { onItem: { id: "l1", streamer: "test" } } } });
-      onData?.({ data: { data: { onItem: { id: "h1", streamer: "test" } } } });
-      onData?.({ data: { data: { onItem: { id: "l1", streamer: "test" } } } });
-      onData?.({ data: { data: { onItem: { id: "l2", streamer: "test" } } } });
-    });
-
-    expect(screen.getByTestId("live")).toHaveTextContent("2");
-    expect(screen.getByTestId("items")).toHaveTextContent("l2,l1,h1");
-  });
-
-  it("drops events that fail the accept filter", () => {
-    render(<Probe streamer="test" />);
-
-    act(() => {
-      onData?.({ data: { data: { onItem: { id: "other", streamer: "someone-else" } } } });
-    });
-
-    expect(screen.getByTestId("live")).toHaveTextContent("0");
-  });
-
-  it("starts with an empty live buffer when the reset key changes", () => {
-    const { rerender } = render(<Probe streamer="test" />);
-    act(() => {
-      onData?.({ data: { data: { onItem: { id: "l1", streamer: "test" } } } });
-    });
-    expect(screen.getByTestId("live")).toHaveTextContent("1");
-
-    rerender(<Probe streamer="next" />);
-
-    expect(screen.getByTestId("live")).toHaveTextContent("0");
-  });
-
-  it("passes the query options through to Apollo", () => {
-    render(<Probe streamer="test" />);
-
-    expect(useQueryMock).toHaveBeenCalledWith(
-      QUERY,
-      expect.objectContaining({ variables: { streamer: "test" }, fetchPolicy: "network-only" }),
+  it("shows live events newest-first on top of history, de-duplicated and capped", async () => {
+    server.use(
+      graphqlResolver("Items", ({ variables }) =>
+        HttpResponse.json({ data: { items: historyFor(String(variables.streamer)) } }),
+      ),
     );
-    expect(useSubscriptionMock).toHaveBeenCalledWith(SUBSCRIPTION, expect.objectContaining({ variables: { streamer: "test" } }));
+
+    const apollo = renderWithApollo(<Probe streamer="test" />);
+    expect(screen.getByTestId("loading")).toHaveTextContent("true");
+    await screen.findByText("h1,h2");
+
+    act(() => {
+      emitSubscription(apollo, { onItem: item("l1") });
+      emitSubscription(apollo, { onItem: item("h1") });
+      emitSubscription(apollo, { onItem: item("l1") });
+      emitSubscription(apollo, { onItem: item("l2") });
+    });
+
+    expect(await screen.findByText("l2,l1,h1")).toBeInTheDocument();
+    expect(screen.getByTestId("live")).toHaveTextContent("2");
+  });
+
+  it("drops events that fail the accept filter", async () => {
+    server.use(
+      graphqlResolver("Items", ({ variables }) =>
+        HttpResponse.json({ data: { items: historyFor(String(variables.streamer)) } }),
+      ),
+    );
+
+    const apollo = renderWithApollo(<Probe streamer="test" />);
+    await screen.findByText("h1,h2");
+
+    act(() => {
+      emitSubscription(apollo, { onItem: item("other", "someone-else") });
+    });
+
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
+    expect(screen.getByTestId("items")).toHaveTextContent("h1,h2");
+  });
+
+  it("starts with an empty live buffer and new history when the reset key changes", async () => {
+    server.use(
+      graphqlResolver("Items", ({ variables }) =>
+        HttpResponse.json({ data: { items: historyFor(String(variables.streamer)) } }),
+      ),
+    );
+
+    const apollo = renderWithApollo(<Probe streamer="test" />);
+    await screen.findByText("h1,h2");
+    act(() => {
+      emitSubscription(apollo, { onItem: item("l1") });
+    });
+    await screen.findByText("l1,h1,h2");
+
+    apollo.rerender(<Probe streamer="next" />);
+
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
+    expect(await screen.findByText("other-h1")).toBeInTheDocument();
   });
 });

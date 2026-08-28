@@ -1,52 +1,32 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useQuery, useSubscription } from "@apollo/client/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
 import App from "./App";
+import { renderWithApollo } from "./test/apollo";
 import {
-  RECENT_SENTIMENT_QUERY,
-  RECENT_SPONSOR_DETECTIONS_QUERY,
-  RECENT_SPONSOR_SENTIMENT_QUERY,
-  RECENT_SPONSOR_TRANSCRIPT_SENTIMENT_QUERY,
-  RECENT_TRANSCRIPT_SEGMENTS_QUERY,
-  RECENT_TRANSCRIPT_SENTIMENT_QUERY,
-} from "./graphql/queries";
+  recommendation,
+  streamAnalytics,
+  transcriptSegment,
+  transcriptSentiment,
+  twitchStatusConnected,
+  videoStatusCapturing,
+} from "./test/fixtures";
+import { HttpResponse, graphqlData, graphqlResolver, restJson, restProblem, restResolver, server } from "./test/msw";
 
-vi.mock("@apollo/client/react", () => ({
-  useQuery: vi.fn(),
-  useSubscription: vi.fn(),
-}));
-
-vi.mock("./components/Health", () => ({ Health: () => <div>Health: ok</div> }));
-vi.mock("./components/RecommendationPanel", () => ({ RecommendationPanel: () => <section>Recommendations</section> }));
-vi.mock("./components/SegmentationPreview", () => ({ SegmentationPreview: () => <section>Segmentation</section> }));
-vi.mock("./components/SentimentPanel", () => ({ SentimentPanel: () => <section>Sentiment</section> }));
-vi.mock("./components/SponsorPanel", () => ({ SponsorPanel: () => <section>Sponsors</section> }));
-vi.mock("./components/StreamMetricsOverview", () => ({ StreamMetricsOverview: () => <section>Metrics</section> }));
-vi.mock("./components/TwitchIngestionStatus", () => ({ TwitchIngestionStatus: () => <div>Twitch status</div> }));
-vi.mock("./components/VideoCaptureStatus", () => ({ VideoCaptureStatus: () => <div>Video status</div> }));
-
-const useQueryMock = vi.mocked(useQuery);
-const useSubscriptionMock = vi.mocked(useSubscription);
-
-const redbullSegment = {
+const redbullSegment = transcriptSegment({
   segmentId: "segment-redbull-1",
   streamer: "redbull-testing",
   text: "Red Bull replay transcript stays visible after load.",
   startedAt: 1778734101283,
   endedAt: 1778734103736,
-  language: "en",
-  confidence: 0.72,
-  modelVersion: "faster-whisper-small.en-int8",
   source: "TWITCH_VOD_REPLAY",
   channelLogin: "redbull-testing",
   streamSessionId: "redbull-testing-2750461300",
-  twitchStreamId: "2750461300",
   videoTimestampMs: 2436268,
   transcriptSequence: 30,
-  captureWorkerId: "video-capture-service-1",
-};
+});
 
-const redbullTranscriptSentiment = {
+const redbullTranscriptSentiment = transcriptSentiment({
   sentimentEventId: "sentiment-redbull-1",
   segmentId: redbullSegment.segmentId,
   streamer: "redbull-testing",
@@ -54,81 +34,118 @@ const redbullTranscriptSentiment = {
   segmentStartedAt: redbullSegment.startedAt,
   segmentEndedAt: redbullSegment.endedAt,
   processedAt: redbullSegment.endedAt + 500,
-  label: "POSITIVE",
-  score: 0.61,
-  modelVersion: "stub-v1",
-  transcriptModelVersion: redbullSegment.modelVersion,
   streamSessionId: redbullSegment.streamSessionId,
   transcriptSequence: redbullSegment.transcriptSequence,
   sponsorRelevant: true,
   matchedSponsor: "Red Bull",
-};
+  relevanceScore: 0.8,
+});
+
+/** Every request the whole console makes, with data only for the redbull replay streamer. */
+function stackHandlers() {
+  const forRedbull = <T,>(variables: Record<string, unknown>, value: T[]): T[] =>
+    variables.streamer === "redbull-testing" ? value : [];
+  return [
+    graphqlData("Health", { health: "ok" }),
+    graphqlData("StreamAnalytics", streamAnalytics()),
+    graphqlData("Recommendations", { recommendations: [recommendation()] }),
+    graphqlData("SponsorDetections", { sponsorDetections: [] }),
+    graphqlData("RecentSentiment", { recentSentiment: [] }),
+    graphqlData("RecentSponsorSentiment", { recentSponsorSentiment: [] }),
+    graphqlResolver("RecentTranscriptSegments", ({ variables }) =>
+      HttpResponse.json({ data: { recentTranscriptSegments: forRedbull(variables, [redbullSegment]) } }),
+    ),
+    graphqlResolver("RecentTranscriptSentiment", ({ variables }) =>
+      HttpResponse.json({ data: { recentTranscriptSentiment: forRedbull(variables, [redbullTranscriptSentiment]) } }),
+    ),
+    graphqlResolver("RecentSponsorTranscriptSentiment", ({ variables }) =>
+      HttpResponse.json({
+        data: { recentSponsorTranscriptSentiment: forRedbull(variables, [redbullTranscriptSentiment]) },
+      }),
+    ),
+    restJson("get", "/api/chat/twitch/status", twitchStatusConnected),
+    restJson("get", "/api/video/capture/status", videoStatusCapturing),
+    restResolver("get", "/api/sentiment/transcript/recent", ({ request }) =>
+      HttpResponse.json(
+        new URL(request.url).searchParams.get("streamer") === "redbull-testing" ? [redbullSegment] : [],
+      ),
+    ),
+    restJson("post", "/api/chat/twitch/channels", ["redbull-testing"]),
+    restJson("post", "/api/video/capture/channels", { channels: ["redbull-testing"] }),
+    restJson("post", "/api/sentiment/relevance/sponsors", {}),
+  ];
+}
+
+async function loadRedbullConsole() {
+  const user = userEvent.setup();
+  const streamerInput = screen.getByDisplayValue("test");
+  await user.clear(streamerInput);
+  await user.type(streamerInput, "redbull-testing");
+  const sponsorInput = screen.getByDisplayValue("Nike");
+  await user.clear(sponsorInput);
+  await user.type(sponsorInput, "Red Bull");
+  await user.click(screen.getByRole("button", { name: /load console/i }));
+}
 
 describe("App live console", () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-    vi.unstubAllGlobals();
-  });
-
   beforeEach(() => {
-    useSubscriptionMock.mockReturnValue({ error: undefined } as never);
-    useQueryMock.mockImplementation((query, options) => {
-      const streamer = (options as { variables?: { streamer?: string } } | undefined)?.variables?.streamer;
-      const isRedbull = streamer === "redbull-testing";
-
-      if (query === RECENT_SPONSOR_DETECTIONS_QUERY) {
-        return { loading: false, error: undefined, data: { sponsorDetections: [] } } as never;
-      }
-      if (query === RECENT_TRANSCRIPT_SEGMENTS_QUERY) {
-        return { loading: false, error: undefined, data: { recentTranscriptSegments: isRedbull ? [redbullSegment] : [] } } as never;
-      }
-      if (query === RECENT_SENTIMENT_QUERY) {
-        return { loading: false, error: undefined, data: { recentSentiment: [] } } as never;
-      }
-      if (query === RECENT_TRANSCRIPT_SENTIMENT_QUERY) {
-        return {
-          loading: false,
-          error: undefined,
-          data: { recentTranscriptSentiment: isRedbull ? [redbullTranscriptSentiment] : [] },
-        } as never;
-      }
-      if (query === RECENT_SPONSOR_SENTIMENT_QUERY) {
-        return { loading: false, error: undefined, data: { recentSponsorSentiment: [] } } as never;
-      }
-      if (query === RECENT_SPONSOR_TRANSCRIPT_SENTIMENT_QUERY) {
-        return {
-          loading: false,
-          error: undefined,
-          data: { recentSponsorTranscriptSentiment: isRedbull ? [redbullTranscriptSentiment] : [] },
-        } as never;
-      }
-
-      return { loading: false, error: undefined, data: {} } as never;
-    });
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => ({
-        ok: true,
-        status: 200,
-        json: async () => (String(input).includes("/api/sentiment/transcript/recent") ? [redbullSegment] : {}),
-      })) as never,
-    );
+    server.use(...stackHandlers());
   });
 
-  it("keeps all transcript visible after loading redbull replay", async () => {
-    render(<App />);
+  it("keeps all transcript visible after loading the redbull replay and points the runtime at it", async () => {
+    renderWithApollo(<App />);
+    expect(await screen.findByText("Health: ok")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByDisplayValue("test"), { target: { value: "redbull-testing" } });
-    fireEvent.change(screen.getByDisplayValue("Nike"), { target: { value: "Red Bull" } });
-    fireEvent.click(screen.getByRole("button", { name: /load console/i }));
+    await loadRedbullConsole();
 
-    expect(await screen.findByRole("heading", { name: "All transcript" })).toBeInTheDocument();
+    const transcript = await screen.findByRole("heading", { name: "All transcript" });
+    expect(transcript).toBeInTheDocument();
     expect((await screen.findAllByText(redbullSegment.text)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Matched Red Bull/).length).toBeGreaterThan(0);
-
     await waitFor(() => {
-      expect(screen.getByText(/Chat, video frames, transcript capture, and sponsor relevance are pointed at @redbull-testing/)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Chat, video frames, transcript capture, and sponsor relevance are pointed at @redbull-testing/,
+        ),
+      ).toBeInTheDocument();
     });
+    expect(screen.getByText("Twitch: connected @testchannel")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Primary navigation")).getByText("@redbull-testing")).toBeInTheDocument();
+  });
+
+  it("reports a failed runtime update without losing the loaded console", async () => {
+    server.use(restProblem("post", "/api/chat/twitch/channels", 409, "Twitch chat ingestion is disabled"));
+    renderWithApollo(<App />);
+    await screen.findByText("Health: ok");
+
+    await loadRedbullConsole();
+
+    expect(await screen.findByText(/Loaded @redbull-testing; 1 runtime update failed/)).toBeInTheDocument();
+    expect((await screen.findAllByText(redbullSegment.text)).length).toBeGreaterThan(0);
+  });
+
+  it("switches streamer from the roster and only updates sponsor relevance when the streamer is unchanged", async () => {
+    const posted: string[] = [];
+    server.use(
+      restResolver("post", "/api/chat/twitch/channels", () => {
+        posted.push("chat");
+        return HttpResponse.json([]);
+      }),
+      restResolver("post", "/api/sentiment/relevance/sponsors", () => {
+        posted.push("relevance");
+        return HttpResponse.json({});
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithApollo(<App />);
+    await screen.findByText("Health: ok");
+
+    await user.click(screen.getByRole("button", { name: /@speedrun-lab/ }));
+    expect(await screen.findByText(/pointed at @speedrun-lab/)).toBeInTheDocument();
+    expect(posted).toEqual(["chat", "relevance"]);
+
+    await user.click(screen.getByRole("button", { name: /load console/i }));
+    expect(await screen.findByText(/Sponsor relevance updated for @speedrun-lab/)).toBeInTheDocument();
+    expect(posted).toEqual(["chat", "relevance", "relevance"]);
   });
 });

@@ -2,7 +2,12 @@ import { useState } from "react";
 import { switchTwitchChannels } from "../../api/chat";
 import { updateSponsorProfile } from "../../api/sentiment";
 import { switchCaptureChannels } from "../../api/video";
-import { normalizeStreamerHandle, portfolioStreamers, sponsorProfileFromInput, type PortfolioStreamer } from "./streamer";
+import {
+  normalizeStreamerHandle,
+  portfolioStreamers,
+  sponsorProfileFromInput,
+  type PortfolioStreamer,
+} from "./streamer";
 
 export type StreamerSelection = {
   streamerInput: string;
@@ -37,7 +42,9 @@ export function useStreamerSelection(): StreamerSelection {
     setSelectedStreamer(nextStreamer);
     setSponsorBrand(brand);
     setChannelSwitchStatus(
-      isSameStreamer ? `Updating sponsor relevance for @${nextStreamer}...` : `Switching Twitch ingest to @${nextStreamer}...`,
+      isSameStreamer
+        ? `Updating sponsor relevance for @${nextStreamer}...`
+        : `Switching Twitch ingest to @${nextStreamer}...`,
     );
 
     const profile = sponsorProfileFromInput(nextStreamer, brand, campaignGoal);
@@ -49,7 +56,9 @@ export function useStreamerSelection(): StreamerSelection {
     const results = await Promise.allSettled(runtimeUpdates);
     const failures = results.filter((result) => result.status === "rejected");
     if (failures.length > 0) {
-      setChannelSwitchStatus(`Loaded @${nextStreamer}; ${failures.length} runtime update failed. Check service status pills.`);
+      setChannelSwitchStatus(
+        `Loaded @${nextStreamer}; ${failures.length} runtime update failed. Check service status pills.`,
+      );
       return;
     }
 

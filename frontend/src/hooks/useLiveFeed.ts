@@ -29,7 +29,9 @@ type Buffer<TItem> = { key: string; items: TItem[] };
  * Keeps the newest events from a GraphQL subscription, newest first, de-duplicated by id and
  * against `knownIds`. The buffer is keyed by `resetKey`, so switching streamer starts empty.
  */
-export function useLiveEvents<TSubscription, TItem>(options: LiveEventsOptions<TSubscription, TItem>): {
+export function useLiveEvents<TSubscription, TItem>(
+  options: LiveEventsOptions<TSubscription, TItem>,
+): {
   live: TItem[];
   error: ErrorLike;
 } {

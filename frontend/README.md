@@ -9,7 +9,9 @@ npm ci               # Install exactly what package-lock.json says
 npm run dev          # Dev server on http://localhost:3000, proxying to the Compose backend
 npm run build        # tsc -b && vite build
 npm run test         # Vitest (vitest run)
-npm run lint         # ESLint
+npm run lint         # ESLint (type-aware, react-hooks, jsx-a11y)
+npm run format       # Prettier --write; format:check in CI
+npm run test:coverage  # Tests plus the coverage floors CI enforces
 npm run codegen      # Regenerate src/graphql/generated.ts from the gateway SDL
 npm run codegen:check  # Fail if generated.ts is stale (CI runs this)
 ```
@@ -22,18 +24,22 @@ Set `VITE_API_BASE_URL` only when the built app is served from a different origi
 
 ## Layout
 
-| Path | Role |
-|---|---|
-| `src/config/env.ts` | Every environment read; nothing else touches `import.meta.env` |
-| `src/lib/api-client.ts` | The only `fetch` caller: base URL, bearer token, JSON, timeout, `ApiError` with RFC 9457 problem details |
-| `src/api/*.ts` | One module per backend feature (`chat`, `video`, `sentiment`, `ml`) with typed request functions |
-| `src/graphql/` | `queries.ts`, `subscriptions.ts`, and the generated `generated.ts` |
-| `src/apollo/client.ts` | Apollo Client with the HTTP/WebSocket split link and the same auth token as REST |
-| `src/hooks/usePolledResource.ts` | Load now and every N ms, keyed by streamer |
-| `src/hooks/useLiveFeed.ts` | History query plus live subscription events, de-duplicated and capped (`useLiveEvents` for subscription-only) |
-| `src/features/console/` | The live player with detections, and the transcript, sponsor sentiment, and chat feeds |
-| `src/features/streamer/` | Streamer and sponsor selection, runtime switching, the roster |
-| `src/components/` | Reusable panels, `MetricCard`, `ErrorBoundary` |
-| `src/lib/format.ts` | Pure display helpers shared by the console and panels |
+| Path                             | Role                                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `src/config/env.ts`              | Every environment read; nothing else touches `import.meta.env`                                                |
+| `src/lib/api-client.ts`          | The only `fetch` caller: base URL, bearer token, JSON, timeout, `ApiError` with RFC 9457 problem details      |
+| `src/api/*.ts`                   | One module per backend feature (`chat`, `video`, `sentiment`, `ml`) with typed request functions              |
+| `src/graphql/`                   | `queries.ts`, `subscriptions.ts`, and the generated `generated.ts`                                            |
+| `src/apollo/client.ts`           | Apollo Client with the HTTP/WebSocket split link and the same auth token as REST                              |
+| `src/hooks/usePolledResource.ts` | Load now and every N ms, keyed by streamer                                                                    |
+| `src/hooks/useLiveFeed.ts`       | History query plus live subscription events, de-duplicated and capped (`useLiveEvents` for subscription-only) |
+| `src/features/console/`          | The live player with detections, and the transcript, sponsor sentiment, and chat feeds                        |
+| `src/features/streamer/`         | Streamer and sponsor selection, runtime switching, the roster                                                 |
+| `src/components/`                | Reusable panels, `MetricCard`, `ErrorBoundary`                                                                |
+| `src/lib/format.ts`              | Pure display helpers shared by the console and panels                                                         |
+
+## Tests
+
+Component tests render with a real Apollo client (`src/test/apollo.tsx`) and answer the network with MSW (`src/test/msw.ts`); subscriptions are pushed with `emitSubscription`. Nothing in `@apollo/client/react` is mocked and no sibling component is stubbed; an unhandled request fails the test. Fixtures live in `src/test/fixtures.ts`.
 
 Rules: components never call `fetch` or read `import.meta.env` directly; GraphQL result types come from `generated.ts`; new REST endpoints get a function in `src/api/` and a test; live panels use `useLiveFeed` instead of a hand-rolled subscription buffer; list-building logic is a pure tested function; `App.tsx` stays a shell.

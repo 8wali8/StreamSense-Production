@@ -42,7 +42,9 @@ export function SegmentationPreview({ frame }: SegmentationPreviewProps) {
     setSegmentedFrameRef(frameRefForRequest);
 
     try {
-      setResult(await segmentFrame({ frameId: frame?.sourceFrameId ?? `preview-${Date.now()}`, frameRef: frameRefForRequest }));
+      setResult(
+        await segmentFrame({ frameId: frame?.sourceFrameId ?? `preview-${Date.now()}`, frameRef: frameRefForRequest }),
+      );
     } catch (err) {
       setResult(null);
       setSegmentedFrameRef(null);
@@ -85,13 +87,21 @@ export function SegmentationPreview({ frame }: SegmentationPreviewProps) {
         {segmentedFrameRef && ` Showing SAM output for ${segmentedFrameRef}.`}
       </div>
 
-      {error && <div className="error-state" role="alert">{error}</div>}
+      {error && (
+        <div className="error-state" role="alert">
+          {error}
+        </div>
+      )}
 
       <div className="segmentation-layout">
         <div className="segmentation-image-shell">
           {displayedFrameRef ? (
             <>
-              <img className="segmentation-image" src={frameImageUrl(displayedFrameRef)} alt="Captured stream frame for segmentation" />
+              <img
+                className="segmentation-image"
+                src={frameImageUrl(displayedFrameRef)}
+                alt="Captured stream frame for segmentation"
+              />
               {visibleProposals.map((proposal, index) => (
                 <div
                   className="segmentation-box"
@@ -116,14 +126,19 @@ export function SegmentationPreview({ frame }: SegmentationPreviewProps) {
           {result && (
             <div className="event-tags segmentation-model-tags">
               <span className="tag">model={result.modelVersion}</span>
-              <span className="tag">size={result.frameWidth}x{result.frameHeight}</span>
+              <span className="tag">
+                size={result.frameWidth}x{result.frameHeight}
+              </span>
             </div>
           )}
 
           {visibleProposals.length === 0 && <div className="empty-state">Run SAM to show proposals.</div>}
 
           {visibleProposals.map((proposal, index) => (
-            <article className="event-card segmentation-proposal" key={`${proposal.source}-card-${index}-${proposal.areaRatio}`}>
+            <article
+              className="event-card segmentation-proposal"
+              key={`${proposal.source}-card-${index}-${proposal.areaRatio}`}
+            >
               <div className="event-card-header">
                 <strong>Proposal {index + 1}</strong>
                 <span className="analysis-chip analysis-live">{proposal.source}</span>
@@ -133,7 +148,8 @@ export function SegmentationPreview({ frame }: SegmentationPreviewProps) {
                 <span className="tag">confidence={proposal.confidence.toFixed(2)}</span>
                 <span className="tag">area={(proposal.areaRatio * 100).toFixed(1)}%</span>
                 <span className="tag">
-                  box={proposal.x.toFixed(2)},{proposal.y.toFixed(2)} {proposal.width.toFixed(2)}x{proposal.height.toFixed(2)}
+                  box={proposal.x.toFixed(2)},{proposal.y.toFixed(2)} {proposal.width.toFixed(2)}x
+                  {proposal.height.toFixed(2)}
                 </span>
               </div>
             </article>

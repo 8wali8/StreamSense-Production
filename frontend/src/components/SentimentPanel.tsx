@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { OnSentimentSubscription, RecentSentimentQuery, RecentSentimentQueryVariables } from "../graphql/generated";
+import type {
+  OnSentimentSubscription,
+  RecentSentimentQuery,
+  RecentSentimentQueryVariables,
+} from "../graphql/generated";
 import { RECENT_SENTIMENT_QUERY } from "../graphql/queries";
 import { ON_SENTIMENT_SUBSCRIPTION } from "../graphql/subscriptions";
 import { useLiveFeed } from "../hooks/useLiveFeed";
@@ -18,7 +22,12 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
   const [localStreamer, setLocalStreamer] = useState("test");
   const activeStreamer = streamer ?? localStreamer;
 
-  const feed = useLiveFeed<RecentSentimentQuery, OnSentimentSubscription, RecentSentimentQueryVariables, SentimentAnalysisEvent>({
+  const feed = useLiveFeed<
+    RecentSentimentQuery,
+    OnSentimentSubscription,
+    RecentSentimentQueryVariables,
+    SentimentAnalysisEvent
+  >({
     query: RECENT_SENTIMENT_QUERY,
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
@@ -47,11 +56,10 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
       else acc.neutral += 1;
       return acc;
     },
-    { positive: 0, neutral: 0, negative: 0 }
+    { positive: 0, neutral: 0, negative: 0 },
   );
 
-  const averageScore =
-    events.length === 0 ? 0 : events.reduce((sum, event) => sum + event.score, 0) / events.length;
+  const averageScore = events.length === 0 ? 0 : events.reduce((sum, event) => sum + event.score, 0) / events.length;
 
   return (
     <section className="dashboard-panel">
@@ -75,12 +83,15 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
             />
           </label>
 
-          <button className="button-primary" onClick={onLoad}>Load sentiment</button>
+          <button className="button-primary" onClick={onLoad}>
+            Load sentiment
+          </button>
         </div>
       )}
 
       <div className="status-line">
-        Status: {subscriptionError ? `subscription error (${subscriptionError.message})` : `live (streamer=${activeStreamer})`}
+        Status:{" "}
+        {subscriptionError ? `subscription error (${subscriptionError.message})` : `live (streamer=${activeStreamer})`}
       </div>
 
       <div className="metric-grid">

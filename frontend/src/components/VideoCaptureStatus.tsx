@@ -22,7 +22,9 @@ function title(status: CaptureStatus | null, error: string | null): string | und
   if (error) return error;
   const channelError = status?.channelStatuses?.find((channel) => channel.lastError)?.lastError;
   if (channelError) return channelError;
-  const transcriptPreview = status?.channelStatuses?.find((channel) => channel.lastTranscriptPreview)?.lastTranscriptPreview;
+  const transcriptPreview = status?.channelStatuses?.find(
+    (channel) => channel.lastTranscriptPreview,
+  )?.lastTranscriptPreview;
   if (transcriptPreview) return `Latest transcript: ${transcriptPreview}`;
   if (status?.lastFrameAt) return `Last frame: ${new Date(status.lastFrameAt).toLocaleTimeString()}`;
   return undefined;

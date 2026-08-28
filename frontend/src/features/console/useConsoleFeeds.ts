@@ -67,7 +67,12 @@ export type ConsoleFeeds = {
 export function useConsoleFeeds(streamer: string, activeSponsor: string): ConsoleFeeds {
   const forStreamer = (event: { streamer: string }) => event.streamer === streamer;
 
-  const sponsors = useLiveFeed<SponsorDetectionsQuery, OnSponsorDetectionSubscription, SponsorDetectionsQueryVariables, SponsorDetectionEvent>({
+  const sponsors = useLiveFeed<
+    SponsorDetectionsQuery,
+    OnSponsorDetectionSubscription,
+    SponsorDetectionsQueryVariables,
+    SponsorDetectionEvent
+  >({
     query: RECENT_SPONSOR_DETECTIONS_QUERY,
     variables: { streamer, limit: 12 },
     selectHistory: (data) => data.sponsorDetections,
@@ -80,7 +85,12 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     resetKey: streamer,
   });
 
-  const transcripts = useLiveFeed<RecentTranscriptSegmentsQuery, OnTranscriptSegmentSubscription, RecentTranscriptSegmentsQueryVariables, TranscriptSegmentEvent>({
+  const transcripts = useLiveFeed<
+    RecentTranscriptSegmentsQuery,
+    OnTranscriptSegmentSubscription,
+    RecentTranscriptSegmentsQueryVariables,
+    TranscriptSegmentEvent
+  >({
     query: RECENT_TRANSCRIPT_SEGMENTS_QUERY,
     variables: { streamer, limit: 10 },
     pollInterval: POLL_MS,
@@ -97,7 +107,12 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
   const restTranscript = usePolledResource(() => getRecentTranscriptSegments(streamer, 10), POLL_MS, streamer);
   const transcriptSegments = mergeById(transcripts.items, restTranscript.data ?? [], (event) => event.segmentId, 16);
 
-  const chatSentiments = useLiveFeed<RecentSentimentQuery, OnSentimentSubscription, RecentSentimentQueryVariables, SentimentEvent>({
+  const chatSentiments = useLiveFeed<
+    RecentSentimentQuery,
+    OnSentimentSubscription,
+    RecentSentimentQueryVariables,
+    SentimentEvent
+  >({
     query: RECENT_SENTIMENT_QUERY,
     variables: { streamer, limit: 12 },
     selectHistory: (data) => data.recentSentiment,
@@ -110,7 +125,12 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     resetKey: streamer,
   });
 
-  const transcriptSentiments = useLiveFeed<RecentTranscriptSentimentQuery, OnTranscriptSentimentSubscription, RecentTranscriptSentimentQueryVariables, TranscriptSentimentEvent>({
+  const transcriptSentiments = useLiveFeed<
+    RecentTranscriptSentimentQuery,
+    OnTranscriptSentimentSubscription,
+    RecentTranscriptSentimentQueryVariables,
+    TranscriptSentimentEvent
+  >({
     query: RECENT_TRANSCRIPT_SENTIMENT_QUERY,
     variables: { streamer, limit: 10 },
     pollInterval: POLL_MS,
@@ -124,7 +144,12 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     resetKey: streamer,
   });
 
-  const sponsorSentiments = useLiveFeed<RecentSponsorSentimentQuery, OnSponsorSentimentSubscription, RecentSponsorSentimentQueryVariables, SentimentEvent>({
+  const sponsorSentiments = useLiveFeed<
+    RecentSponsorSentimentQuery,
+    OnSponsorSentimentSubscription,
+    RecentSponsorSentimentQueryVariables,
+    SentimentEvent
+  >({
     query: RECENT_SPONSOR_SENTIMENT_QUERY,
     variables: { streamer, sponsor: activeSponsor, limit: 12 },
     selectHistory: (data) => data.recentSponsorSentiment,
@@ -165,9 +190,15 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     resetKey: streamer,
   });
 
-  const transcriptFeed = buildTranscriptFeed(transcriptSegments, transcriptSentiments.items, sponsorTranscriptSentiments.items, 16);
+  const transcriptFeed = buildTranscriptFeed(
+    transcriptSegments,
+    transcriptSentiments.items,
+    sponsorTranscriptSentiments.items,
+    16,
+  );
   const latestFrame = sponsors.items.find((event) => event.frameRef);
-  const latestEventAt = latestFrame?.capturedAt ?? transcriptSentiments.items[0]?.processedAt ?? chat.live[0]?.timestamp;
+  const latestEventAt =
+    latestFrame?.capturedAt ?? transcriptSentiments.items[0]?.processedAt ?? chat.live[0]?.timestamp;
 
   const transcriptError = transcripts.error?.message || transcriptSentiments.error?.message;
   return {
@@ -175,7 +206,9 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     transcriptFeed,
     transcript: {
       loading: transcripts.loading || transcriptSentiments.loading,
-      error: transcriptError ? `${transcriptError}${restTranscript.error ? `; ${restTranscript.error}` : ""}` : undefined,
+      error: transcriptError
+        ? `${transcriptError}${restTranscript.error ? `; ${restTranscript.error}` : ""}`
+        : undefined,
     },
     chatSentiments: chatSentiments.items,
     chatSentimentLoading: chatSentiments.loading,

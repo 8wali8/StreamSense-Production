@@ -245,9 +245,13 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
-      - name: Run tests
+      - name: Check formatting
         working-directory: frontend
-        run: npm run test
+        run: npm run format:check
+
+      - name: Run tests with coverage thresholds
+        working-directory: frontend
+        run: npm run test:coverage
 
       - name: Run build
         working-directory: frontend

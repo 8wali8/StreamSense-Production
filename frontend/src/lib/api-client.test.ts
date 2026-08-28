@@ -6,7 +6,7 @@ function jsonResponse(status: number, body: unknown, contentType = "application/
     ok: status >= 200 && status < 300,
     status,
     headers: new Headers({ "content-type": contentType }),
-    json: async () => body,
+    json: () => Promise.resolve(body),
   } as unknown as Response;
 }
 
@@ -60,13 +60,21 @@ describe("api-client", () => {
       vi.fn().mockResolvedValue(
         jsonResponse(
           409,
-          { type: "https://streamsense.dev/problems/conflict", title: "Conflict", status: 409, detail: "Twitch chat ingestion is disabled", service: "chat-service" },
+          {
+            type: "https://streamsense.dev/problems/conflict",
+            title: "Conflict",
+            status: 409,
+            detail: "Twitch chat ingestion is disabled",
+            service: "chat-service",
+          },
           "application/problem+json",
         ),
       ),
     );
 
-    const failure = await apiSend("/api/chat/twitch/channels", { body: { channels: ["test"] }, storage: null }).catch((error: unknown) => error);
+    const failure = await apiSend("/api/chat/twitch/channels", { body: { channels: ["test"] }, storage: null }).catch(
+      (error: unknown) => error,
+    );
 
     expect(failure).toBeInstanceOf(ApiError);
     const apiError = failure as ApiError;

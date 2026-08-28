@@ -1,24 +1,24 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-import { useQuery } from '@apollo/client/react'
-import { Health } from './Health'
+import { screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { renderWithApollo } from "../test/apollo";
+import { graphqlData, graphqlError, server } from "../test/msw";
+import { Health } from "./Health";
 
-vi.mock('@apollo/client/react', () => ({
-  useQuery: vi.fn(),
-}))
+describe("Health", () => {
+  it("renders the gateway health string", async () => {
+    server.use(graphqlData("Health", { health: "ok" }));
 
-const useQueryMock = vi.mocked(useQuery)
+    renderWithApollo(<Health />);
 
-describe('Health', () => {
-  it('renders the success state', () => {
-    useQueryMock.mockReturnValue({
-      data: { health: 'ok' },
-      loading: false,
-      error: undefined,
-    } as never)
+    expect(screen.getByText("Health: loading...")).toBeInTheDocument();
+    expect(await screen.findByText("Health: ok")).toBeInTheDocument();
+  });
 
-    render(<Health />)
+  it("renders the GraphQL error", async () => {
+    server.use(graphqlError("Health", "gateway unavailable"));
 
-    expect(screen.getByText('Health: ok')).toBeInTheDocument()
-  })
-})
+    renderWithApollo(<Health />);
+
+    expect(await screen.findByText(/Health: error - .*gateway unavailable/)).toBeInTheDocument();
+  });
+});

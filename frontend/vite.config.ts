@@ -22,6 +22,20 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: "jsdom",
       setupFiles: "./src/test/setup.ts",
+      coverage: {
+        provider: "v8",
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: [
+          "src/**/*.test.{ts,tsx}",
+          "src/test/**",
+          "src/graphql/generated.ts",
+          "src/main.tsx",
+          "src/vite-env.d.ts",
+        ],
+        reporter: ["text-summary", "html"],
+        // Floors, not targets: CI fails if a change drops coverage below them.
+        thresholds: { statements: 90, branches: 80, functions: 80, lines: 90 },
+      },
     },
   };
 });
