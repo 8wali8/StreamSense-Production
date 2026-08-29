@@ -147,8 +147,8 @@ jobs:
         with:
           version: 'v1.30.0'
 
-      - name: Create Kubernetes secret env from example
-        run: cp k8s/secrets/streamsense.env.example k8s/secrets/streamsense.env
+      - name: Create local secret files
+        run: make secrets
 
       - name: Validate kustomize renders without errors
         run: kubectl kustomize . > /dev/null
@@ -200,7 +200,7 @@ jobs:
           mvn -B -ntp -f video-service/pom.xml -DskipTests package
           mvn -B -ntp -f analytics-service/pom.xml -DskipTests package
 
-      - name: Create local secret files from examples
+      - name: Create local secret files
         run: make secrets
 
       - name: Validate docker compose config

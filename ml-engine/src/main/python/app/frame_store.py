@@ -96,14 +96,19 @@ def _file_path(parsed) -> str:
 
 
 def _read_s3(bucket: str, key: str) -> bytes:
-    client = boto3.client(
-        "s3",
-        endpoint_url=os.getenv("STREAMSENSE_FRAME_STORAGE_ENDPOINT"),
-        region_name=os.getenv("STREAMSENSE_FRAME_STORAGE_REGION", "us-east-1"),
-        aws_access_key_id=_secret_env("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY"),
-        aws_secret_access_key=_secret_env("STREAMSENSE_FRAME_STORAGE_SECRET_KEY"),
-        config=Config(signature_version="s3v4"),
-    )
+    try:
+        client = boto3.client(
+            "s3",
+            endpoint_url=os.getenv("STREAMSENSE_FRAME_STORAGE_ENDPOINT"),
+            region_name=os.getenv("STREAMSENSE_FRAME_STORAGE_REGION", "us-east-1"),
+            aws_access_key_id=_secret_env("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY"),
+            aws_secret_access_key=_secret_env("STREAMSENSE_FRAME_STORAGE_SECRET_KEY"),
+            config=Config(signature_version="s3v4"),
+        )
+    except ValueError as exc:
+        # A missing or unreadable *_FILE secret mount is a frame-read failure like any other, so
+        # the endpoints degrade the same way instead of surfacing an unhandled 500.
+        raise FrameArtifactError(f"frame storage credentials unavailable: {exc}") from exc
     try:
         response = client.get_object(Bucket=bucket, Key=key)
         return response["Body"].read()

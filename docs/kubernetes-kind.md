@@ -113,11 +113,13 @@ kubectl wait --namespace ingress-nginx --for=condition=Available deployment/ingr
 
 ## 6. Validate And Apply StreamSense
 
-Create the git-ignored secret env file that kustomize turns into the `streamsense-secrets` Secret, and change the values:
+Create the git-ignored secret env file that kustomize turns into the `streamsense-secrets-<hash>` Secret. `make secrets` writes it with random values (the same ones Compose uses on this machine); to choose values yourself, copy `k8s/secrets/streamsense.env.example` and replace every placeholder:
 
 ```bash
-cp k8s/secrets/streamsense.env.example k8s/secrets/streamsense.env
+make secrets
 ```
+
+kustomize appends a hash of the contents to the Secret name and rewrites every `secretKeyRef` to match, so changing a value and running `kubectl apply -k k8s` again rolls the pods that use it.
 
 Every credential in the manifests (Postgres, MinIO, Grafana admin, the gateway HMAC secret) comes from that Secret through `secretKeyRef`; nothing is inlined in YAML.
 
