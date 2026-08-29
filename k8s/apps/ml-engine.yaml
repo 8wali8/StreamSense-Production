@@ -85,6 +85,10 @@ spec:
               value: cpu
             - name: STREAMSENSE_RELEVANCE_CACHE_DIR
               value: /models/relevance
+            - name: STREAMSENSE_SENTIMENT_CACHE_DIR
+              value: /models/sentiment
+            - name: STREAMSENSE_SAM_CACHE_DIR
+              value: /models/sam
             - name: STREAMSENSE_RELEVANCE_MIN_SCORE
               value: "0.50"
             - name: STREAMSENSE_RELEVANCE_PRELOAD
@@ -96,6 +100,10 @@ spec:
               mountPath: /models/whisper
             - name: relevance-model-cache
               mountPath: /models/relevance
+            - name: sentiment-model-cache
+              mountPath: /models/sentiment
+            - name: sam-model-cache
+              mountPath: /models/sam
           readinessProbe:
             httpGet:
               path: /ml/health
@@ -123,3 +131,9 @@ spec:
         - name: relevance-model-cache
           persistentVolumeClaim:
             claimName: ml-engine-relevance-cache
+        - name: sentiment-model-cache
+          persistentVolumeClaim:
+            claimName: ml-engine-sentiment-cache
+        - name: sam-model-cache
+          persistentVolumeClaim:
+            claimName: ml-engine-sam-cache
