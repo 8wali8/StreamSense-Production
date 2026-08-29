@@ -4,7 +4,7 @@ Priority 2 (part b) from `docs/planning/production-hardening.md`: every third-pa
 
 ## What changed
 
-28 files: `docker-compose.yml`, every manifest under `k8s/`, and all twelve `Dockerfile`s. No service code.
+`docker-compose.yml`, every manifest under `k8s/`, and every `Dockerfile` (eleven at the time of writing: eight Java services, ml-engine, video-capture-service, frontend). No service code.
 
 | Image | Before | After |
 |---|---|---|
