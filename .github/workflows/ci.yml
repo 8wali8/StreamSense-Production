@@ -71,6 +71,8 @@ jobs:
               - 'frontend/**'
             k8s:
               - 'k8s/**'
+              # The root kustomization is the canonical entry point (it generates the config-server ConfigMap).
+              - 'kustomization.yaml'
             smoke:
               - 'docker-compose.yml'
               - 'makefile'
