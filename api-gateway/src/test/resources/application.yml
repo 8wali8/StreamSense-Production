@@ -10,6 +10,11 @@ eureka:
   client:
     enabled: false
 
+management:
+  health:
+    redis:
+      enabled: false
+
 streamsense:
   services:
     chat-service:
@@ -25,6 +30,7 @@ streamsense:
     analytics-service:
       base-url: http://localhost:8085
   gateway:
+    rate-limit-store: memory
     auth:
       enabled: false
       required-issuer: streamsense-local
