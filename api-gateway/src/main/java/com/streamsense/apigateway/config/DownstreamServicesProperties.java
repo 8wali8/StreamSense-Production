@@ -14,7 +14,7 @@ import org.springframework.validation.annotation.Validated;
  * silently falling back to {@code localhost}, which only ever worked on a developer machine.
  * The timeouts apply to the {@link org.springframework.web.reactive.function.client.WebClient}
  * calls made from the GraphQL resolvers; the proxied routes use
- * {@code spring.cloud.gateway.httpclient.*} instead.
+ * {@code spring.cloud.gateway.server.webflux.httpclient.*} instead.
  */
 @Validated
 @ConfigurationProperties(prefix = "streamsense.services")

@@ -28,7 +28,7 @@ streamsense:
       base-url: http://video-capture-service:8090
     analytics-service:
       base-url: http://analytics-service:8085
-    # WebClient calls from GraphQL resolvers; proxied routes use spring.cloud.gateway.httpclient below.
+    # WebClient calls from GraphQL resolvers; proxied routes use spring.cloud.gateway.server.webflux.httpclient below.
     connect-timeout: 2s
     response-timeout: 5s
   gateway:
@@ -86,36 +86,38 @@ spring:
 
   cloud:
     gateway:
-      metrics:
-        enabled: true
-      httpclient:
-        connect-timeout: 2000
-        response-timeout: 10s
-      routes:
-        - id: chat-service-api
-          uri: ${streamsense.services.chat-service.base-url}
-          predicates:
-            - Path=/api/chat/**
-        - id: sentiment-service-api
-          uri: ${streamsense.services.sentiment-service.base-url}
-          predicates:
-            - Path=/api/sentiment/**
-        - id: recommendation-service-api
-          uri: ${streamsense.services.recommendation-service.base-url}
-          predicates:
-            - Path=/api/recommendations/**
-        - id: video-capture-service-api
-          uri: ${streamsense.services.video-capture-service.base-url}
-          predicates:
-            - Path=/api/video/capture/**
-        - id: video-service-api
-          uri: ${streamsense.services.video-service.base-url}
-          predicates:
-            - Path=/api/video/**
-        - id: analytics-service-api
-          uri: ${streamsense.services.analytics-service.base-url}
-          predicates:
-            - Path=/api/analytics/**
+      server:
+        webflux:
+          metrics:
+            enabled: true
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 10s
+          routes:
+            - id: chat-service-api
+              uri: ${streamsense.services.chat-service.base-url}
+              predicates:
+                - Path=/api/chat/**
+            - id: sentiment-service-api
+              uri: ${streamsense.services.sentiment-service.base-url}
+              predicates:
+                - Path=/api/sentiment/**
+            - id: recommendation-service-api
+              uri: ${streamsense.services.recommendation-service.base-url}
+              predicates:
+                - Path=/api/recommendations/**
+            - id: video-capture-service-api
+              uri: ${streamsense.services.video-capture-service.base-url}
+              predicates:
+                - Path=/api/video/capture/**
+            - id: video-service-api
+              uri: ${streamsense.services.video-service.base-url}
+              predicates:
+                - Path=/api/video/**
+            - id: analytics-service-api
+              uri: ${streamsense.services.analytics-service.base-url}
+              predicates:
+                - Path=/api/analytics/**
 
   graphql:
     graphiql:

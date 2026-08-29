@@ -143,7 +143,7 @@ jobs:
 
       - name: Build and test
         working-directory: ${{ matrix.service }}
-        run: mvn -B -ntp clean test
+        run: mvn -B -ntp clean verify
 
   test-ml-engine:
     runs-on: ubuntu-latest

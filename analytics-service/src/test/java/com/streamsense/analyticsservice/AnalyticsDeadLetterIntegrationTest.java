@@ -29,7 +29,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
@@ -43,6 +42,7 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @SpringBootTest
 @EmbeddedKafka(
@@ -92,7 +92,7 @@ class AnalyticsDeadLetterIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @SpyBean
+    @MockitoSpyBean
     private MetricAggregationService aggregationService;
 
     private KafkaTemplate<String, String> producer;

@@ -37,8 +37,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
@@ -53,6 +51,8 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
@@ -111,10 +111,10 @@ class VideoPipelineIntegrationTest {
     @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 
-    @SpyBean
+    @MockitoSpyBean
     private SponsorDetectionRepository repository;
 
-    @MockBean
+    @MockitoBean
     private RecentSponsorDetectionsCache recentSponsorDetectionsCache;
 
     @Autowired

@@ -42,11 +42,11 @@ class GatewayRateLimitIntegrationTest {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.cloud.gateway.routes[0].id", () -> "chat-service-api");
+        registry.add("spring.cloud.gateway.server.webflux.routes[0].id", () -> "chat-service-api");
         registry.add(
-                "spring.cloud.gateway.routes[0].uri",
+                "spring.cloud.gateway.server.webflux.routes[0].uri",
                 () -> CHAT_SERVICE.url("/").toString());
-        registry.add("spring.cloud.gateway.routes[0].predicates[0]", () -> "Path=/api/chat/**");
+        registry.add("spring.cloud.gateway.server.webflux.routes[0].predicates[0]", () -> "Path=/api/chat/**");
     }
 
     @BeforeAll

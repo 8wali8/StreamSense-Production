@@ -205,14 +205,19 @@
         </configuration>
       </plugin>
 
-      <!--
-        Formatting is configured but not yet bound to a phase: the existing sources are not
-        formatted, and reformatting them belongs in a commit of its own. Run
-        `mvn spotless:check` or `mvn spotless:apply` manually until that lands.
-      -->
+      <!-- Formatting is enforced: `verify` fails on an unformatted file; `mvn spotless:apply` fixes it. -->
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>format-check</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <phase>verify</phase>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

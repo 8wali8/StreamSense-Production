@@ -37,7 +37,7 @@ Twitch verification targets (`make twitch-up`, `twitch-video-up`, `twitch-transc
 
 ### Java Services
 
-A Maven multi-module build: the root `pom.xml` (`streamsense-parent`) inherits from `spring-boot-starter-parent`, lists the eight services as modules, imports the Spring Cloud and Resilience4j BOMs, and pins the few versions those do not manage. Service POMs declare dependencies without versions; add a version only in the parent. The parent also runs the enforcer (Java 21, Maven 3.9+), JaCoCo (report under `target/site/jacoco` at `verify`), `build-info`, and `git-commit-id` (best-effort, so builds without `.git` still work), and configures Spotless with palantir-java-format for manual `mvn spotless:check|apply` until the sources are formatted and the check is bound to `verify`.
+A Maven multi-module build: the root `pom.xml` (`streamsense-parent`) inherits from `spring-boot-starter-parent`, lists the eight services as modules, imports the Spring Cloud and Resilience4j BOMs, and pins the few versions those do not manage. Service POMs declare dependencies without versions; add a version only in the parent. The parent also runs the enforcer (Java 21, Maven 3.9+), JaCoCo (report under `target/site/jacoco` at `verify`), `build-info`, and `git-commit-id` (best-effort, so builds without `.git` still work), and enforces palantir-java-format through Spotless: `verify` fails on an unformatted file, `mvn spotless:apply` fixes it.
 
 ```bash
 mvn -q -DskipTests package         # Build every service jar in one reactor run (what `make package` does)
@@ -159,7 +159,7 @@ The gateway (`api-gateway/src/main/java/com/streamsense/apigateway/`) handles:
 - **WebSocket subscriptions** — `graphql-transport-ws` protocol, real-time push to frontend
 - **Auth** — JWT validation filter
 - **Rate limiting** — fixed-window limiter (`config/GatewayRateLimitWebFilter`, rules in `streamsense.gateway.rate-limits`) whose counters live in Redis (`ratelimit/RedisRateLimiter`, one Lua INCR+EXPIRE per request, shared by every replica; `streamsense.gateway.rate-limit-store=redis`, what Compose and Kubernetes run) or in memory per instance (`rate-limit-store=memory`, local runs and tests). If Redis is unreachable the limiter fails open by default (`rate-limit-fail-open`) and counts the outage in `streamsense_gateway_rate_limit_store_errors_total`. Clients are keyed by socket address; `X-Forwarded-For` is only consulted when `streamsense.gateway.trusted-proxy-hops` > 0 (k8s sets 1 behind ingress-nginx, Compose 0). `RedisRateLimiterTest` runs against a Redis Testcontainer and is skipped where Docker is unavailable.
-- **Routing** — Spring Cloud Gateway routes to downstream services
+- **Routing** — Spring Cloud Gateway routes to downstream services, configured under `spring.cloud.gateway.server.webflux.*` (the 4.3 namespace; the old `spring.cloud.gateway.routes` form is deprecated)
 
 The GraphQL schema lives in `api-gateway/src/main/resources/graphql/`; `docs/contracts/` describes the pipelines behind it.
 
