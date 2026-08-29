@@ -47,6 +47,9 @@ jobs:
             schemas:
               - 'docs/schemas/**'
               - 'tools/schema/**'
+            dockerfiles:
+              - '**/Dockerfile'
+              - '.hadolint.yaml'
             eureka-server:
               - 'eureka-server/**'
             config-server:
@@ -292,6 +295,99 @@ jobs:
                   print(f'INVALID: {name}: {e}', file=sys.stderr)
                   sys.exit(1)
           "
+
+  # ---------------------------------------------------------------------------------------------
+  # Supply chain: Dockerfile lint, vulnerability and misconfiguration scan, and an SBOM on main.
+  # ---------------------------------------------------------------------------------------------
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.run_all == 'true' || contains(fromJSON(needs.changes.outputs.changes), 'dockerfiles')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: hadolint every Dockerfile
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          recursive: true
+          config: .hadolint.yaml
+
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Dependencies (pom.xml, uv.lock, package-lock.json) and secrets in the tree. Fails on HIGH/CRITICAL
+      # findings that have a fix available; suppressions live in .trivyignore with a reason.
+      - name: Trivy vulnerability and secret scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: sarif
+          output: trivy-results.sarif
+          trivyignores: .trivyignore
+
+      # Dockerfiles, Compose, and Kubernetes manifests. CRITICAL misconfigurations fail the job; HIGH ones
+      # (today: readOnlyRootFilesystem and pod-level security contexts) are reported in the log and tracked
+      # as the next hardening branch.
+      - name: Trivy misconfiguration scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+          format: table
+          trivyignores: .trivyignore
+
+      - name: Trivy misconfiguration gate
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: misconfig
+          severity: CRITICAL
+          exit-code: "1"
+          format: table
+          trivyignores: .trivyignore
+
+      - name: Upload scan results to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@a45bef097606dca6eac8285c279babedd70e6dfd # v3.37.9
+        with:
+          sarif_file: trivy-results.sarif
+
+  sbom:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Generate a CycloneDX SBOM for the repository
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: cyclonedx-json
+          artifact-name: streamsense-sbom.cdx.json
+          upload-artifact: true
+          upload-release-assets: false
 
   docker-smoke:
     runs-on: ubuntu-latest

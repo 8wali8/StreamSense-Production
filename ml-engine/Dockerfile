@@ -21,4 +21,11 @@ COPY src/main/resources ./src/main/resources
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH=/app/src/main/python
 
+# Run as a dedicated non-root user. The model cache directories are created and owned here so a
+# fresh Compose volume inherits that ownership; Kubernetes sets fsGroup 10001 on the PVCs instead.
+RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home app \
+    && mkdir -p /models /tmp/app && chown -R 10001:10001 /app /models /tmp/app
+ENV HOME=/tmp/app
+USER 10001
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -13,6 +13,8 @@ FROM nginxinc/nginx-unprivileged:1.31.5-alpine@sha256:aa8c9087d36d93e9d650c5365f
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY streamsense-headers.conf /etc/nginx/streamsense-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+# The base image already runs as this user; stating it lets scanners see it.
+USER 101
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
+  CMD ["wget", "-qO-", "http://127.0.0.1:8080/healthz"]

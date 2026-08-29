@@ -1,0 +1,10 @@
+# Dockerfile lint policy (hadolint). Every image is pinned by digest, so the tag rules are enforced;
+# DL3018/DL3008 (pin apk/apt package versions) are informational because the base images are pinned by digest
+# and package pins in Alpine/Debian rot faster than the image.
+failure-threshold: warning
+ignored:
+  - DL3018
+  - DL3008
+override:
+  info:
+    - DL3059
