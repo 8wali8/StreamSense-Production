@@ -1,9 +1,10 @@
 package com.streamsense.apigateway.config;
 
+import com.streamsense.apigateway.ratelimit.RateLimiter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-
 import org.springframework.cloud.gateway.support.ipresolver.RemoteAddressResolver;
 import org.springframework.cloud.gateway.support.ipresolver.XForwardedRemoteAddressResolver;
 import org.springframework.core.Ordered;
@@ -15,10 +16,6 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
-
-import com.streamsense.apigateway.ratelimit.RateLimiter;
-
-import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -34,9 +31,7 @@ public class GatewayRateLimitWebFilter implements WebFilter {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public GatewayRateLimitWebFilter(
-            GatewayEdgeProperties properties,
-            RateLimiter rateLimiter,
-            MeterRegistry meterRegistry) {
+            GatewayEdgeProperties properties, RateLimiter rateLimiter, MeterRegistry meterRegistry) {
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.meterRegistry = meterRegistry;
@@ -44,7 +39,7 @@ public class GatewayRateLimitWebFilter implements WebFilter {
         // trusted hops are configured, and then only the entry the nearest trusted proxy added (read from the right).
         this.addressResolver = properties.getTrustedProxyHops() > 0
                 ? XForwardedRemoteAddressResolver.maxTrustedIndex(properties.getTrustedProxyHops())
-                : new RemoteAddressResolver() { };
+                : new RemoteAddressResolver() {};
     }
 
     @Override
@@ -60,11 +55,17 @@ public class GatewayRateLimitWebFilter implements WebFilter {
 
         String clientKey = resolveClientKey(exchange);
         return rateLimiter
-                .acquire(matchingRule.getId() + ":" + clientKey, matchingRule.getRequests(), matchingRule.getWindowSeconds())
+                .acquire(
+                        matchingRule.getId() + ":" + clientKey,
+                        matchingRule.getRequests(),
+                        matchingRule.getWindowSeconds())
                 .flatMap(decision -> apply(exchange, chain, matchingRule, decision));
     }
 
-    private Mono<Void> apply(ServerWebExchange exchange, WebFilterChain chain, GatewayEdgeProperties.RateLimitRule matchingRule,
+    private Mono<Void> apply(
+            ServerWebExchange exchange,
+            WebFilterChain chain,
+            GatewayEdgeProperties.RateLimitRule matchingRule,
             RateLimiter.RateLimitDecision decision) {
         exchange.getResponse().getHeaders().set("X-RateLimit-Limit", String.valueOf(matchingRule.getRequests()));
         exchange.getResponse().getHeaders().set("X-RateLimit-Remaining", String.valueOf(decision.remaining()));
@@ -72,22 +73,27 @@ public class GatewayRateLimitWebFilter implements WebFilter {
         if (decision.allowed()) {
             return chain.filter(exchange);
         }
-        meterRegistry.counter(
-                "streamsense_gateway_rate_limit_rejections_total",
-                "limit", matchingRule.getId(),
-                "path", matchingRule.getPath())
+        meterRegistry
+                .counter(
+                        "streamsense_gateway_rate_limit_rejections_total",
+                        "limit",
+                        matchingRule.getId(),
+                        "path",
+                        matchingRule.getPath())
                 .increment();
         exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(matchingRule.getWindowSeconds()));
         String responseBody = "{\"error\":\"rate_limited\",\"limit\":\"" + matchingRule.getId() + "\"}";
-        return exchange.getResponse().writeWith(Mono.just(exchange.getResponse()
-                .bufferFactory()
-                .wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
+        return exchange.getResponse()
+                .writeWith(Mono.just(
+                        exchange.getResponse().bufferFactory().wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
     }
 
     private GatewayEdgeProperties.RateLimitRule findMatchingRule(ServerWebExchange exchange) {
-        String method = exchange.getRequest().getMethod() != null ? exchange.getRequest().getMethod().name() : "GET";
+        String method = exchange.getRequest().getMethod() != null
+                ? exchange.getRequest().getMethod().name()
+                : "GET";
         String path = exchange.getRequest().getPath().value();
         List<GatewayEdgeProperties.RateLimitRule> rules = properties.getRateLimits();
         for (GatewayEdgeProperties.RateLimitRule rule : rules) {

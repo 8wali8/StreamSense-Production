@@ -1,24 +1,22 @@
 package com.streamsense.sentimentservice.client;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.MlRelevanceRequest;
 import com.streamsense.sentimentservice.dto.MlRelevanceResponse;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
 import com.streamsense.sentimentservice.metrics.SentimentMetrics;
-
 import io.github.resilience4j.bulkhead.BulkheadFullException;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
 @Component
 public class MlEngineClient {
@@ -29,7 +27,8 @@ public class MlEngineClient {
     private final StreamSenseProperties properties;
     private final SentimentMetrics sentimentMetrics;
 
-    public MlEngineClient(RestTemplate restTemplate, StreamSenseProperties properties, SentimentMetrics sentimentMetrics) {
+    public MlEngineClient(
+            RestTemplate restTemplate, StreamSenseProperties properties, SentimentMetrics sentimentMetrics) {
         this.restTemplate = restTemplate;
         this.properties = properties;
         this.sentimentMetrics = sentimentMetrics;
@@ -41,16 +40,22 @@ public class MlEngineClient {
     public MlSentimentResponse analyzeSentiment(MlSentimentRequest request) {
         String url = properties.getMl().getBaseUrl() + "/ml/sentiment";
 
-        log.info("calling ml-engine sentiment endpoint eventId={} streamer={}",
-                request.getEventId(), request.getStreamer());
+        log.info(
+                "calling ml-engine sentiment endpoint eventId={} streamer={}",
+                request.getEventId(),
+                request.getStreamer());
 
         MlSentimentResponse response;
         try {
             response = restTemplate.postForObject(url, request, MlSentimentResponse.class);
         } catch (RestClientException e) {
             sentimentMetrics.incrementProtectedCall("failure");
-            log.error("ml-engine call failed eventId={} streamer={} error={}",
-                    request.getEventId(), request.getStreamer(), e.getMessage(), e);
+            log.error(
+                    "ml-engine call failed eventId={} streamer={} error={}",
+                    request.getEventId(),
+                    request.getStreamer(),
+                    e.getMessage(),
+                    e);
             throw new MlDependencyException("ml-engine call failed for eventId=" + request.getEventId(), e);
         } catch (RuntimeException e) {
             sentimentMetrics.incrementProtectedCall("failure");
@@ -60,8 +65,11 @@ public class MlEngineClient {
         validateResponse(request, response);
         sentimentMetrics.incrementProtectedCall("success");
 
-        log.info("ml-engine response received eventId={} label={} score={}",
-                request.getEventId(), response.getLabel(), response.getScore());
+        log.info(
+                "ml-engine response received eventId={} label={} score={}",
+                request.getEventId(),
+                response.getLabel(),
+                response.getScore());
 
         return response;
     }
@@ -77,8 +85,12 @@ public class MlEngineClient {
         sentimentMetrics.incrementProtectedCall("fallback");
         sentimentMetrics.incrementFallback(throwable.getClass().getSimpleName());
 
-        log.warn("using fallback sentiment eventId={} streamer={} reason={} message={}",
-                request.getEventId(), request.getStreamer(), throwable.getClass().getSimpleName(), throwable.getMessage());
+        log.warn(
+                "using fallback sentiment eventId={} streamer={} reason={} message={}",
+                request.getEventId(),
+                request.getStreamer(),
+                throwable.getClass().getSimpleName(),
+                throwable.getMessage());
 
         MlSentimentResponse fallback = new MlSentimentResponse();
         fallback.setLabel("NEUTRAL");
@@ -90,15 +102,22 @@ public class MlEngineClient {
     public MlRelevanceResponse analyzeRelevance(MlRelevanceRequest request) {
         String url = properties.getMl().getBaseUrl() + "/ml/relevance";
 
-        log.info("calling ml-engine relevance endpoint eventId={} streamer={} sponsor={}",
-                request.getEventId(), request.getStreamer(), request.getSponsor());
+        log.info(
+                "calling ml-engine relevance endpoint eventId={} streamer={} sponsor={}",
+                request.getEventId(),
+                request.getStreamer(),
+                request.getSponsor());
 
         MlRelevanceResponse response;
         try {
             response = restTemplate.postForObject(url, request, MlRelevanceResponse.class);
         } catch (RestClientException e) {
-            log.warn("ml-engine relevance call failed eventId={} streamer={} sponsor={} error={}",
-                    request.getEventId(), request.getStreamer(), request.getSponsor(), e.getMessage());
+            log.warn(
+                    "ml-engine relevance call failed eventId={} streamer={} sponsor={} error={}",
+                    request.getEventId(),
+                    request.getStreamer(),
+                    request.getSponsor(),
+                    e.getMessage());
             return MlRelevanceResponse.notRelevant("relevance-ml-fallback", "fallback");
         }
 
@@ -133,11 +152,13 @@ public class MlEngineClient {
         }
 
         if (!StringUtils.hasText(response.getModelVersion())) {
-            throw new IllegalStateException("ml-engine returned blank modelVersion for eventId=" + request.getEventId());
+            throw new IllegalStateException(
+                    "ml-engine returned blank modelVersion for eventId=" + request.getEventId());
         }
 
         if (response.getScore() < -1.0 || response.getScore() > 1.0) {
-            throw new IllegalStateException("ml-engine returned out-of-range score for eventId=" + request.getEventId());
+            throw new IllegalStateException(
+                    "ml-engine returned out-of-range score for eventId=" + request.getEventId());
         }
     }
 }

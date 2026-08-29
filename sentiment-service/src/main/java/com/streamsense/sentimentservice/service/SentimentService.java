@@ -1,14 +1,5 @@
 package com.streamsense.sentimentservice.service;
 
-import java.util.List;
-import java.util.UUID;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.streamsense.sentimentservice.cache.RecentSentimentCache;
 import com.streamsense.sentimentservice.client.MlEngineClient;
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
@@ -29,6 +20,13 @@ import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordEntit
 import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordRepository;
 import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordEntity;
 import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordRepository;
+import java.util.List;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SentimentService {
@@ -68,36 +66,42 @@ public class SentimentService {
 
     @Transactional
     public SentimentAnalysisEvent processChatMessage(ChatMessageEvent event, String correlationId, String traceparent) {
-        log.info("processing chat event sourceEventId={} streamer={} user={}",
-                event.getEventId(), event.getStreamer(), event.getUser());
-
-        MlSentimentRequest request = new MlSentimentRequest(
+        log.info(
+                "processing chat event sourceEventId={} streamer={} user={}",
                 event.getEventId(),
                 event.getStreamer(),
-                event.getUser(),
-                event.getMessage(),
-                event.getTimestamp());
+                event.getUser());
 
-        MlSentimentResponse response = sentimentMetrics.recordMlLatency(
-                () -> mlEngineClient.analyzeSentiment(request));
+        MlSentimentRequest request = new MlSentimentRequest(
+                event.getEventId(), event.getStreamer(), event.getUser(), event.getMessage(), event.getTimestamp());
+
+        MlSentimentResponse response = sentimentMetrics.recordMlLatency(() -> mlEngineClient.analyzeSentiment(request));
 
         SentimentAnalysisEvent sentimentEvent = buildSentimentEvent(event, response);
         applyChatSponsorRelevance(sentimentEvent);
 
         if ("fallback".equalsIgnoreCase(sentimentEvent.getModelVersion())) {
-            log.warn("persisting fallback sentiment sourceEventId={} streamer={} label={} score={}",
-                    sentimentEvent.getSourceEventId(), sentimentEvent.getStreamer(), sentimentEvent.getLabel(),
+            log.warn(
+                    "persisting fallback sentiment sourceEventId={} streamer={} label={} score={}",
+                    sentimentEvent.getSourceEventId(),
+                    sentimentEvent.getStreamer(),
+                    sentimentEvent.getLabel(),
                     sentimentEvent.getScore());
         }
 
         try {
-            sentimentMetrics.recordPersistenceLatency(() -> repository.save(SentimentRecordEntity.fromEvent(sentimentEvent)));
+            sentimentMetrics.recordPersistenceLatency(
+                    () -> repository.save(SentimentRecordEntity.fromEvent(sentimentEvent)));
             sentimentMetrics.incrementPersistence("success");
             recentSentimentCache.evict(sentimentEvent.getStreamer());
         } catch (RuntimeException e) {
             sentimentMetrics.incrementPersistence("failure");
-            log.error("failed to persist sentiment event sentimentEventId={} sourceEventId={} error={}",
-                    sentimentEvent.getSentimentEventId(), sentimentEvent.getSourceEventId(), e.getMessage(), e);
+            log.error(
+                    "failed to persist sentiment event sentimentEventId={} sourceEventId={} error={}",
+                    sentimentEvent.getSentimentEventId(),
+                    sentimentEvent.getSourceEventId(),
+                    e.getMessage(),
+                    e);
             throw e;
         }
 
@@ -105,35 +109,35 @@ public class SentimentService {
         sentimentMetrics.incrementProcessed(sentimentEvent.getLabel());
         sentimentMetrics.recordEndToEndLatency(System.currentTimeMillis() - event.getTimestamp());
 
-        log.info("processed sentimentEventId={} sourceEventId={} streamer={} label={} score={}",
-                sentimentEvent.getSentimentEventId(), sentimentEvent.getSourceEventId(), sentimentEvent.getStreamer(),
-                sentimentEvent.getLabel(), sentimentEvent.getScore());
+        log.info(
+                "processed sentimentEventId={} sourceEventId={} streamer={} label={} score={}",
+                sentimentEvent.getSentimentEventId(),
+                sentimentEvent.getSourceEventId(),
+                sentimentEvent.getStreamer(),
+                sentimentEvent.getLabel(),
+                sentimentEvent.getScore());
 
         return sentimentEvent;
     }
 
     @Transactional
     public TranscriptSentimentEvent processTranscriptSegment(
-            TranscriptSegmentEvent event,
-            String correlationId,
-            String traceparent) {
+            TranscriptSegmentEvent event, String correlationId, String traceparent) {
         if (event.getText() == null || event.getText().isBlank()) {
             throw new IllegalArgumentException("transcript segment text is blank");
         }
 
         String transcriptText = event.getText().trim();
-        log.info("processing transcript segment segmentId={} streamer={} textLength={}",
-                event.getSegmentId(), event.getStreamer(), transcriptText.length());
-
-        MlSentimentRequest request = new MlSentimentRequest(
+        log.info(
+                "processing transcript segment segmentId={} streamer={} textLength={}",
                 event.getSegmentId(),
                 event.getStreamer(),
-                "streamer-transcript",
-                transcriptText,
-                event.getEndedAt());
+                transcriptText.length());
 
-        MlSentimentResponse response = sentimentMetrics.recordMlLatency(
-                () -> mlEngineClient.analyzeSentiment(request));
+        MlSentimentRequest request = new MlSentimentRequest(
+                event.getSegmentId(), event.getStreamer(), "streamer-transcript", transcriptText, event.getEndedAt());
+
+        MlSentimentResponse response = sentimentMetrics.recordMlLatency(() -> mlEngineClient.analyzeSentiment(request));
 
         TranscriptSegmentEvent normalizedSegment = normalizeTranscriptSegment(event, transcriptText);
         TranscriptSentimentEvent sentimentEvent = buildTranscriptSentimentEvent(normalizedSegment, response);
@@ -142,13 +146,17 @@ public class SentimentService {
         try {
             sentimentMetrics.recordPersistenceLatency(
                     () -> transcriptSegmentRepository.save(TranscriptSegmentRecordEntity.fromEvent(normalizedSegment)));
-            sentimentMetrics.recordPersistenceLatency(
-                    () -> transcriptSentimentRepository.save(TranscriptSentimentRecordEntity.fromEvent(sentimentEvent)));
+            sentimentMetrics.recordPersistenceLatency(() ->
+                    transcriptSentimentRepository.save(TranscriptSentimentRecordEntity.fromEvent(sentimentEvent)));
             sentimentMetrics.incrementPersistence("success");
         } catch (RuntimeException e) {
             sentimentMetrics.incrementPersistence("failure");
-            log.error("failed to persist transcript sentiment segmentId={} sentimentEventId={} error={}",
-                    event.getSegmentId(), sentimentEvent.getSentimentEventId(), e.getMessage(), e);
+            log.error(
+                    "failed to persist transcript sentiment segmentId={} sentimentEventId={} error={}",
+                    event.getSegmentId(),
+                    sentimentEvent.getSentimentEventId(),
+                    e.getMessage(),
+                    e);
             throw e;
         }
 
@@ -156,9 +164,13 @@ public class SentimentService {
         sentimentMetrics.incrementProcessed(sentimentEvent.getLabel());
         sentimentMetrics.recordEndToEndLatency(System.currentTimeMillis() - event.getEndedAt());
 
-        log.info("processed transcript sentimentEventId={} segmentId={} streamer={} label={} score={}",
-                sentimentEvent.getSentimentEventId(), sentimentEvent.getSegmentId(), sentimentEvent.getStreamer(),
-                sentimentEvent.getLabel(), sentimentEvent.getScore());
+        log.info(
+                "processed transcript sentimentEventId={} segmentId={} streamer={} label={} score={}",
+                sentimentEvent.getSentimentEventId(),
+                sentimentEvent.getSegmentId(),
+                sentimentEvent.getStreamer(),
+                sentimentEvent.getLabel(),
+                sentimentEvent.getScore());
 
         return sentimentEvent;
     }
@@ -166,15 +178,15 @@ public class SentimentService {
     @Transactional(readOnly = true)
     public List<SentimentAnalysisEvent> getRecentSentiment(String streamer, int requestedLimit) {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
-        return recentSentimentCache.find(streamer, limit)
+        return recentSentimentCache
+                .find(streamer, limit)
                 .orElseGet(() -> loadRecentSentimentFromDatabase(streamer, limit));
     }
 
     @Transactional(readOnly = true)
     public List<TranscriptSegmentEvent> getRecentTranscriptSegments(String streamer, int requestedLimit) {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
-        return transcriptSegmentRepository.findByStreamerOrderByEndedAtDesc(streamer, PageRequest.of(0, limit))
-                .stream()
+        return transcriptSegmentRepository.findByStreamerOrderByEndedAtDesc(streamer, PageRequest.of(0, limit)).stream()
                 .map(TranscriptSegmentRecordEntity::toEvent)
                 .toList();
     }
@@ -182,7 +194,8 @@ public class SentimentService {
     @Transactional(readOnly = true)
     public List<TranscriptSentimentEvent> getRecentTranscriptSentiment(String streamer, int requestedLimit) {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
-        return transcriptSentimentRepository.findByStreamerOrderBySegmentEndedAtDesc(streamer, PageRequest.of(0, limit))
+        return transcriptSentimentRepository
+                .findByStreamerOrderBySegmentEndedAtDesc(streamer, PageRequest.of(0, limit))
                 .stream()
                 .map(TranscriptSentimentRecordEntity::toEvent)
                 .toList();
@@ -196,22 +209,21 @@ public class SentimentService {
                 ? repository.findByStreamerAndSponsorRelevantTrueOrderByChatTimestampDesc(streamer, pageable)
                 : repository.findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseOrderByChatTimestampDesc(
                         streamer, sponsor.trim(), pageable);
-        return records.stream()
-                .map(SentimentRecordEntity::toEvent)
-                .toList();
+        return records.stream().map(SentimentRecordEntity::toEvent).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<TranscriptSentimentEvent> getRecentSponsorTranscriptSentiment(String streamer, String sponsor, int requestedLimit) {
+    public List<TranscriptSentimentEvent> getRecentSponsorTranscriptSentiment(
+            String streamer, String sponsor, int requestedLimit) {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
         var pageable = PageRequest.of(0, limit);
         var records = sponsor == null || sponsor.isBlank()
-                ? transcriptSentimentRepository.findByStreamerAndSponsorRelevantTrueOrderBySegmentEndedAtDesc(streamer, pageable)
-                : transcriptSentimentRepository.findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseOrderBySegmentEndedAtDesc(
-                        streamer, sponsor.trim(), pageable);
-        return records.stream()
-                .map(TranscriptSentimentRecordEntity::toEvent)
-                .toList();
+                ? transcriptSentimentRepository.findByStreamerAndSponsorRelevantTrueOrderBySegmentEndedAtDesc(
+                        streamer, pageable)
+                : transcriptSentimentRepository
+                        .findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseOrderBySegmentEndedAtDesc(
+                                streamer, sponsor.trim(), pageable);
+        return records.stream().map(TranscriptSentimentRecordEntity::toEvent).toList();
     }
 
     static SentimentAnalysisEvent buildSentimentEvent(ChatMessageEvent event, MlSentimentResponse response) {
@@ -254,8 +266,7 @@ public class SentimentService {
     }
 
     private TranscriptSentimentEvent buildTranscriptSentimentEvent(
-            TranscriptSegmentEvent event,
-            MlSentimentResponse response) {
+            TranscriptSegmentEvent event, MlSentimentResponse response) {
         TranscriptSentimentEvent sentimentEvent = new TranscriptSentimentEvent();
         sentimentEvent.setSentimentEventId(UUID.randomUUID().toString());
         sentimentEvent.setSegmentId(event.getSegmentId());
@@ -274,16 +285,20 @@ public class SentimentService {
     }
 
     private void applyChatSponsorRelevance(SentimentAnalysisEvent event) {
-        sponsorRelevanceProfileService.findActive(event.getStreamer())
+        sponsorRelevanceProfileService
+                .findActive(event.getStreamer())
                 .ifPresentOrElse(
-                        profile -> applyRelevance(event, event.getSentimentEventId(), event.getStreamer(), event.getMessage(), profile),
+                        profile -> applyRelevance(
+                                event, event.getSentimentEventId(), event.getStreamer(), event.getMessage(), profile),
                         () -> markNotRelevant(event, "no-active-sponsor", "none"));
     }
 
     private void applyTranscriptSponsorRelevance(TranscriptSentimentEvent event) {
-        sponsorRelevanceProfileService.findActive(event.getStreamer())
+        sponsorRelevanceProfileService
+                .findActive(event.getStreamer())
                 .ifPresentOrElse(
-                        profile -> applyRelevance(event, event.getSentimentEventId(), event.getStreamer(), event.getText(), profile),
+                        profile -> applyRelevance(
+                                event, event.getSentimentEventId(), event.getStreamer(), event.getText(), profile),
                         () -> markNotRelevant(event, "no-active-sponsor", "none"));
     }
 
@@ -349,10 +364,10 @@ public class SentimentService {
 
     private List<SentimentAnalysisEvent> loadRecentSentimentFromDatabase(String streamer, int limit) {
         return sentimentMetrics.recordHistoryLookup("recentSentiment", "db", () -> {
-            List<SentimentAnalysisEvent> recent = repository.findByStreamerOrderByChatTimestampDesc(streamer, PageRequest.of(0, limit))
-                    .stream()
-                    .map(SentimentRecordEntity::toEvent)
-                    .toList();
+            List<SentimentAnalysisEvent> recent =
+                    repository.findByStreamerOrderByChatTimestampDesc(streamer, PageRequest.of(0, limit)).stream()
+                            .map(SentimentRecordEntity::toEvent)
+                            .toList();
             recentSentimentCache.put(streamer, limit, recent);
             log.info("sentiment history cache miss streamer={} limit={} results={}", streamer, limit, recent.size());
             return recent;

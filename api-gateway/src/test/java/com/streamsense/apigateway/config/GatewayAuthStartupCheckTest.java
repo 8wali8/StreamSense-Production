@@ -3,9 +3,8 @@ package com.streamsense.apigateway.config;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.junit.jupiter.api.Test;
-
 import com.streamsense.apigateway.support.TestJwtTokens;
+import org.junit.jupiter.api.Test;
 
 class GatewayAuthStartupCheckTest {
 

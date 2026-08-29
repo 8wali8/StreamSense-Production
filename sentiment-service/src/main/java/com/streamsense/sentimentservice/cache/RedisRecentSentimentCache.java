@@ -1,30 +1,27 @@
 package com.streamsense.sentimentservice.cache;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.streamsense.sentimentservice.config.StreamSenseProperties;
+import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
+import com.streamsense.sentimentservice.metrics.SentimentMetrics;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.streamsense.sentimentservice.config.StreamSenseProperties;
-import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
-import com.streamsense.sentimentservice.metrics.SentimentMetrics;
 
 @Component
 public class RedisRecentSentimentCache implements RecentSentimentCache {
 
     private static final Logger log = LoggerFactory.getLogger(RedisRecentSentimentCache.class);
     private static final String CACHE_NAME = "recentSentiment";
-    private static final TypeReference<List<SentimentAnalysisEvent>> RECENT_SENTIMENT_TYPE = new TypeReference<>() {
-    };
+    private static final TypeReference<List<SentimentAnalysisEvent>> RECENT_SENTIMENT_TYPE = new TypeReference<>() {};
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -59,8 +56,12 @@ public class RedisRecentSentimentCache implements RecentSentimentCache {
                 return Optional.of(cached);
             } catch (Exception e) {
                 sentimentMetrics.incrementCacheMiss(CACHE_NAME);
-                log.warn("sentiment history cache read failed streamer={} limit={} key={} error={}",
-                        streamer, limit, cacheKey, e.getMessage());
+                log.warn(
+                        "sentiment history cache read failed streamer={} limit={} key={} error={}",
+                        streamer,
+                        limit,
+                        cacheKey,
+                        e.getMessage());
                 delete(cacheKey);
                 return Optional.empty();
             }
@@ -71,10 +72,12 @@ public class RedisRecentSentimentCache implements RecentSentimentCache {
     public void put(String streamer, int limit, List<SentimentAnalysisEvent> recent) {
         String cacheKey = cacheKey(streamer, limit);
         try {
-            redisTemplate.opsForValue().set(
-                    cacheKey,
-                    objectMapper.writeValueAsString(recent),
-                    Duration.ofSeconds(properties.getCache().getRecentTtlSeconds()));
+            redisTemplate
+                    .opsForValue()
+                    .set(
+                            cacheKey,
+                            objectMapper.writeValueAsString(recent),
+                            Duration.ofSeconds(properties.getCache().getRecentTtlSeconds()));
         } catch (Exception e) {
             log.warn("sentiment history cache write failed key={} error={}", cacheKey, e.getMessage());
         }

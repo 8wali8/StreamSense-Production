@@ -1,7 +1,6 @@
 package com.streamsense.apigateway.config;
 
 import java.nio.charset.StandardCharsets;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;

@@ -82,5 +82,4 @@ public class ChatMessageEvent {
     public void setTwitchStreamId(String twitchStreamId) {
         this.twitchStreamId = twitchStreamId;
     }
-
 }

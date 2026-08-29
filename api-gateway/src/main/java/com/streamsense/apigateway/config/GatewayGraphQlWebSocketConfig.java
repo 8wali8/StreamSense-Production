@@ -8,7 +8,6 @@ import org.springframework.graphql.server.WebGraphQlHandler;
 import org.springframework.graphql.server.webflux.GraphQlWebSocketHandler;
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.web.reactive.socket.WebSocketSession;
-
 import reactor.core.publisher.Mono;
 
 @Configuration
@@ -23,8 +22,8 @@ public class GatewayGraphQlWebSocketConfig {
             GraphQlProperties properties,
             ServerCodecConfigurer codecConfigurer,
             WebSocketSessionRegistry sessionRegistry) {
-        return new GraphQlWebSocketHandler(webGraphQlHandler, codecConfigurer,
-                properties.getWebsocket().getConnectionInitTimeout()) {
+        return new GraphQlWebSocketHandler(
+                webGraphQlHandler, codecConfigurer, properties.getWebsocket().getConnectionInitTimeout()) {
             @Override
             public Mono<Void> handle(WebSocketSession session) {
                 sessionRegistry.register(session);

@@ -1,13 +1,11 @@
 package com.streamsense.recommendationservice.metrics;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-
-import org.springframework.stereotype.Component;
-
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import org.springframework.stereotype.Component;
 
 @Component
 public class RecommendationMetrics {

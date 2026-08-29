@@ -1,7 +1,6 @@
 package com.streamsense.videoservice.persistence;
 
 import com.streamsense.videoservice.events.SponsorDetectionEvent;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

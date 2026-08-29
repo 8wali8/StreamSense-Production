@@ -1,19 +1,16 @@
 package com.streamsense.apigateway.config;
 
+import com.streamsense.apigateway.ratelimit.InMemoryRateLimiter;
+import com.streamsense.apigateway.ratelimit.RateLimiter;
+import com.streamsense.apigateway.ratelimit.RedisRateLimiter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
-
-import com.streamsense.apigateway.ratelimit.InMemoryRateLimiter;
-import com.streamsense.apigateway.ratelimit.RateLimiter;
-import com.streamsense.apigateway.ratelimit.RedisRateLimiter;
-
-import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * Picks the rate-limit counter store from {@code streamsense.gateway.rate-limit-store}: {@code redis} (shared by
@@ -26,14 +23,18 @@ public class RateLimitStoreConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "streamsense.gateway", name = "rate-limit-store", havingValue = "redis")
-    RateLimiter redisRateLimiter(ReactiveStringRedisTemplate redisTemplate, GatewayEdgeProperties properties,
-            MeterRegistry meterRegistry) {
+    RateLimiter redisRateLimiter(
+            ReactiveStringRedisTemplate redisTemplate, GatewayEdgeProperties properties, MeterRegistry meterRegistry) {
         log.info("rate limit store: redis (fail-open={})", properties.isRateLimitFailOpen());
         return new RedisRateLimiter(redisTemplate, Clock.systemUTC(), properties.isRateLimitFailOpen(), meterRegistry);
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "streamsense.gateway", name = "rate-limit-store", havingValue = "memory", matchIfMissing = true)
+    @ConditionalOnProperty(
+            prefix = "streamsense.gateway",
+            name = "rate-limit-store",
+            havingValue = "memory",
+            matchIfMissing = true)
     RateLimiter inMemoryRateLimiter() {
         log.warn("rate limit store: memory; limits are counted per gateway instance, not across replicas");
         return new InMemoryRateLimiter();

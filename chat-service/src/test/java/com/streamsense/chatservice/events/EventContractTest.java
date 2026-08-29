@@ -5,9 +5,6 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
 import com.streamsense.chatservice.api.ChatIngestRequest;
 import com.streamsense.chatservice.kafka.ChatKafkaProducer;
 import com.streamsense.chatservice.metrics.ChatMetrics;
@@ -15,6 +12,8 @@ import com.streamsense.chatservice.service.ChatEventIngestService;
 import com.streamsense.chatservice.twitch.TwitchChatMessageHandler;
 import com.streamsense.chatservice.twitch.TwitchChatMetrics;
 import com.streamsense.chatservice.twitch.TwitchIrcChatMessage;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /** Every ChatMessageEvent this service publishes conforms to docs/schemas/chat-message-event.schema.json. */
 class EventContractTest {
@@ -55,7 +54,8 @@ class EventContractTest {
         verify(ingestService).ingestTwitch(captor.capture());
         assertThat(captor.getValue().getSource()).isEqualTo("TWITCH");
         assertThat(captor.getValue().getChannelLogin()).isEqualTo("austincs");
-        assertThat(EventSchemas.violations(SCHEMA, EventSchemas.toJson(captor.getValue()))).isEmpty();
+        assertThat(EventSchemas.violations(SCHEMA, EventSchemas.toJson(captor.getValue())))
+                .isEmpty();
     }
 
     @Test
@@ -74,6 +74,7 @@ class EventContractTest {
         verify(producer).publish(captor.capture(), isNull(), isNull());
         assertThat(captor.getValue().getSource()).isEqualTo("MANUAL");
         assertThat(captor.getValue().getChannelLogin()).isEqualTo("streamer-1");
-        assertThat(EventSchemas.violations(SCHEMA, EventSchemas.toJson(captor.getValue()))).isEmpty();
+        assertThat(EventSchemas.violations(SCHEMA, EventSchemas.toJson(captor.getValue())))
+                .isEmpty();
     }
 }

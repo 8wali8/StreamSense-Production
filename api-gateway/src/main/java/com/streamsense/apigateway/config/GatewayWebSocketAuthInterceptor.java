@@ -1,10 +1,11 @@
 package com.streamsense.apigateway.config;
 
+import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,10 +14,6 @@ import org.springframework.graphql.server.WebSocketGraphQlInterceptor;
 import org.springframework.graphql.server.WebSocketSessionInfo;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.CloseStatus;
-
-import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
-
-import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 
@@ -66,16 +63,16 @@ public class GatewayWebSocketAuthInterceptor implements WebSocketGraphQlIntercep
     }
 
     @Override
-    public Mono<Object> handleConnectionInitialization(WebSocketSessionInfo sessionInfo,
-            Map<String, Object> connectionInitPayload) {
+    public Mono<Object> handleConnectionInitialization(
+            WebSocketSessionInfo sessionInfo, Map<String, Object> connectionInitPayload) {
         GatewayEdgeProperties.Auth auth = properties.getAuth();
         // Same policy as HTTP: only enforce when the websocket path itself is protected and not excluded.
         if (!auth.isEnabled() || !auth.protects(graphqlWebSocketPath)) {
             return Mono.empty();
         }
 
-        JwtAuthTokenValidator.ValidationResult result = tokenValidator.validate(
-                authorizationFrom(connectionInitPayload), auth);
+        JwtAuthTokenValidator.ValidationResult result =
+                tokenValidator.validate(authorizationFrom(connectionInitPayload), auth);
 
         if (result.valid()) {
             sessionInfo.getAttributes().put(SUBJECT_ATTRIBUTE, result.subject());
@@ -83,13 +80,15 @@ public class GatewayWebSocketAuthInterceptor implements WebSocketGraphQlIntercep
             return Mono.empty();
         }
 
-        meterRegistry.counter("streamsense_gateway_auth_rejections_total", "reason", result.reason()).increment();
+        meterRegistry
+                .counter("streamsense_gateway_auth_rejections_total", "reason", result.reason())
+                .increment();
         return Mono.error(new UnauthorizedConnectionException(result.reason()));
     }
 
     @Override
-    public void handleConnectionClosed(WebSocketSessionInfo sessionInfo, int statusCode,
-            Map<String, Object> connectionInitPayload) {
+    public void handleConnectionClosed(
+            WebSocketSessionInfo sessionInfo, int statusCode, Map<String, Object> connectionInitPayload) {
         Object timer = sessionInfo.getAttributes().remove(EXPIRY_TIMER_ATTRIBUTE);
         if (timer instanceof Disposable disposable) {
             disposable.dispose();
@@ -106,13 +105,19 @@ public class GatewayWebSocketAuthInterceptor implements WebSocketGraphQlIntercep
                     // The close must outlive this timer: the closing connection triggers handleConnectionClosed,
                     // which disposes the timer, and cancelling an in-flight sendClose would drop the close frame.
                     sessionInfo.getAttributes().remove(EXPIRY_TIMER_ATTRIBUTE);
-                    log.info("closing websocket session id={} subject={}: token expired",
-                            sessionInfo.getId(), sessionInfo.getAttributes().get(SUBJECT_ATTRIBUTE));
-                    meterRegistry.counter("streamsense_gateway_auth_rejections_total", "reason", "token_expired")
+                    log.info(
+                            "closing websocket session id={} subject={}: token expired",
+                            sessionInfo.getId(),
+                            sessionInfo.getAttributes().get(SUBJECT_ATTRIBUTE));
+                    meterRegistry
+                            .counter("streamsense_gateway_auth_rejections_total", "reason", "token_expired")
                             .increment();
-                    sessionRegistry.close(sessionInfo.getId(), TOKEN_EXPIRED)
-                            .subscribe(ignored -> { }, error -> log.debug("websocket expiry close failed id={}",
-                                    sessionInfo.getId(), error));
+                    sessionRegistry
+                            .close(sessionInfo.getId(), TOKEN_EXPIRED)
+                            .subscribe(
+                                    ignored -> {},
+                                    error -> log.debug(
+                                            "websocket expiry close failed id={}", sessionInfo.getId(), error));
                 });
         sessionInfo.getAttributes().put(EXPIRY_TIMER_ATTRIBUTE, timer);
     }

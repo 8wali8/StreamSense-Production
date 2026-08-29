@@ -3,8 +3,7 @@ package com.streamsense.chatservice.api;
 public class ChatIngestResponse {
     private String eventId;
 
-    public ChatIngestResponse() {
-    }
+    public ChatIngestResponse() {}
 
     public ChatIngestResponse(String eventId) {
         this.eventId = eventId;

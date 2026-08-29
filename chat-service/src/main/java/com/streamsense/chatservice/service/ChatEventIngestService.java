@@ -1,13 +1,11 @@
 package com.streamsense.chatservice.service;
 
-import java.util.UUID;
-
-import org.springframework.stereotype.Service;
-
 import com.streamsense.chatservice.api.ChatIngestRequest;
 import com.streamsense.chatservice.events.ChatMessageEvent;
 import com.streamsense.chatservice.kafka.ChatKafkaProducer;
 import com.streamsense.chatservice.metrics.ChatMetrics;
+import java.util.UUID;
+import org.springframework.stereotype.Service;
 
 @Service
 public class ChatEventIngestService {
@@ -23,11 +21,7 @@ public class ChatEventIngestService {
     public String ingestSynthetic(ChatIngestRequest request, String correlationId, String traceparent) {
         String eventId = UUID.randomUUID().toString();
         ChatMessageEvent event = new ChatMessageEvent(
-                eventId,
-                request.getStreamer(),
-                request.getUser(),
-                request.getMessage(),
-                request.getTimestamp());
+                eventId, request.getStreamer(), request.getUser(), request.getMessage(), request.getTimestamp());
         event.setSource("MANUAL");
         event.setChannelLogin(request.getStreamer());
 

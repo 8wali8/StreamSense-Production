@@ -1,8 +1,8 @@
 package com.streamsense.apigateway.graphql;
 
+import com.streamsense.apigateway.events.SponsorDetectionEvent;
 import java.time.Duration;
 import java.util.Map;
-
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,27 +21,27 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
-
-import com.streamsense.apigateway.events.SponsorDetectionEvent;
-
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@EmbeddedKafka(partitions = 1, topics = { "stream.sponsor.detections" })
-@TestPropertySource(properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-        "spring.kafka.consumer.group-id=api-gateway-test-group",
-        "spring.kafka.consumer.auto-offset-reset=earliest",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
-        "streamsense.services.sentiment-service.base-url=http://localhost:8083",
-        "streamsense.services.video-service.base-url=http://localhost:8084",
-        "spring.graphql.websocket.path=/graphql"
-})
+@EmbeddedKafka(
+        partitions = 1,
+        topics = {"stream.sponsor.detections"})
+@TestPropertySource(
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+            "spring.kafka.consumer.group-id=api-gateway-test-group",
+            "spring.kafka.consumer.auto-offset-reset=earliest",
+            "streamsense.topics.chatMessages=stream.chat.messages",
+            "streamsense.topics.sentimentEvents=stream.sentiment.events",
+            "streamsense.topics.sponsorDetections=stream.sponsor.detections",
+            "streamsense.services.sentiment-service.base-url=http://localhost:8083",
+            "streamsense.services.video-service.base-url=http://localhost:8084",
+            "spring.graphql.websocket.path=/graphql"
+        })
 class SponsorSubscriptionIntegrationTest {
 
     @LocalServerPort
@@ -63,10 +63,11 @@ class SponsorSubscriptionIntegrationTest {
     @Test
     void subscription_receivesSponsorDetectionPublishedToKafka() {
         WebSocketGraphQlTester tester = WebSocketGraphQlTester.builder(
-                "ws://localhost:" + port + "/graphql",
-                new ReactorNettyWebSocketClient()).build();
+                        "ws://localhost:" + port + "/graphql", new ReactorNettyWebSocketClient())
+                .build();
 
-        Flux<SponsorDetectionEvent> subscription = tester.document("""
+        Flux<SponsorDetectionEvent> subscription = tester.document(
+                        """
                         subscription($streamer: String!) {
                           onSponsorDetection(streamer: $streamer) {
                             detectionEventId
@@ -100,16 +101,22 @@ class SponsorSubscriptionIntegrationTest {
         StepVerifier.create(subscription)
                 .then(() -> {
                     try {
-                        testKafkaTemplate().send("stream.sponsor.detections", "test", event).get();
+                        testKafkaTemplate()
+                                .send("stream.sponsor.detections", "test", event)
+                                .get();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 })
                 .assertNext(received -> {
-                    org.assertj.core.api.Assertions.assertThat(received.getDetectionEventId()).isEqualTo("det-123");
-                    org.assertj.core.api.Assertions.assertThat(received.getSourceFrameId()).isEqualTo("frame-123");
-                    org.assertj.core.api.Assertions.assertThat(received.getStreamer()).isEqualTo("test");
-                    org.assertj.core.api.Assertions.assertThat(received.getSponsor()).isEqualTo("Nike");
+                    org.assertj.core.api.Assertions.assertThat(received.getDetectionEventId())
+                            .isEqualTo("det-123");
+                    org.assertj.core.api.Assertions.assertThat(received.getSourceFrameId())
+                            .isEqualTo("frame-123");
+                    org.assertj.core.api.Assertions.assertThat(received.getStreamer())
+                            .isEqualTo("test");
+                    org.assertj.core.api.Assertions.assertThat(received.getSponsor())
+                            .isEqualTo("Nike");
                 })
                 .thenCancel()
                 .verify(Duration.ofSeconds(10));

@@ -1,5 +1,8 @@
 package com.streamsense.chatservice.twitch;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.streamsense.chatservice.config.StreamSenseProperties;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -15,17 +18,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
 import org.springframework.stereotype.Component;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.streamsense.chatservice.config.StreamSenseProperties;
 
 @Component
 public class TwitchVodCommentClient {
 
-    private static final String COMMENTS_QUERY = """
+    private static final String COMMENTS_QUERY =
+            """
             query VideoCommentsByOffsetOrCursor($videoID: ID!, $contentOffsetSeconds: Int!, $cursor: Cursor) {
               video(id: $videoID) {
                 comments(contentOffsetSeconds: $contentOffsetSeconds, after: $cursor) {
@@ -60,14 +59,15 @@ public class TwitchVodCommentClient {
     public List<TwitchVodChatComment> fetchComments(String vodId, double startOffsetSeconds) {
         // Twitch is asked for comments from this offset onwards, so a cached list only serves the same offset.
         int offsetSeconds = Math.max(0, (int) Math.floor(startOffsetSeconds));
-        return cache.computeIfAbsent("vod:" + vodId + "@" + offsetSeconds,
-                ignored -> downloadComments(vodId, startOffsetSeconds));
+        return cache.computeIfAbsent(
+                "vod:" + vodId + "@" + offsetSeconds, ignored -> downloadComments(vodId, startOffsetSeconds));
     }
 
     public List<TwitchVodChatComment> fetchComments(StreamSenseProperties.ReplayAlias alias) {
         String fixturePath = alias.getChatFixturePath();
         if (fixturePath != null && !fixturePath.isBlank()) {
-            return cache.computeIfAbsent("fixture:" + fixturePath, ignored -> loadFixture(alias.getVodId(), fixturePath));
+            return cache.computeIfAbsent(
+                    "fixture:" + fixturePath, ignored -> loadFixture(alias.getVodId(), fixturePath));
         }
         return fetchComments(alias.getVodId(), alias.getStartOffsetSeconds());
     }
@@ -198,6 +198,7 @@ public class TwitchVodCommentClient {
             return null;
         }
 
-        return new TwitchVodChatComment(id, user, text, node.path("contentOffsetSeconds").asDouble(0.0));
+        return new TwitchVodChatComment(
+                id, user, text, node.path("contentOffsetSeconds").asDouble(0.0));
     }
 }

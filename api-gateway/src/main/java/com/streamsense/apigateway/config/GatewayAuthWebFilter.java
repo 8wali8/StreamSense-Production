@@ -1,7 +1,8 @@
 package com.streamsense.apigateway.config;
 
+import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -14,10 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
-
-import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
-
-import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -55,24 +52,25 @@ public class GatewayAuthWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
-        JwtAuthTokenValidator.ValidationResult result = tokenValidator.validate(
-                exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION),
-                auth);
+        JwtAuthTokenValidator.ValidationResult result =
+                tokenValidator.validate(exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION), auth);
 
         if (result.valid()) {
             exchange.getResponse().getHeaders().set("X-StreamSense-Auth-Subject", result.subject());
             return chain.filter(exchange);
         }
 
-        meterRegistry.counter("streamsense_gateway_auth_rejections_total", "reason", result.reason()).increment();
+        meterRegistry
+                .counter("streamsense_gateway_auth_rejections_total", "reason", result.reason())
+                .increment();
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
 
         String responseBody = "{\"error\":\"unauthorized\",\"reason\":\"" + result.reason() + "\"}";
-        return exchange.getResponse().writeWith(Mono.just(exchange.getResponse()
-                .bufferFactory()
-                .wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
+        return exchange.getResponse()
+                .writeWith(Mono.just(
+                        exchange.getResponse().bufferFactory().wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
     }
 
     // Only a GET with the RFC 6455 upgrade headers is a handshake. The HTTP GraphQL endpoint is POST-only and a GET

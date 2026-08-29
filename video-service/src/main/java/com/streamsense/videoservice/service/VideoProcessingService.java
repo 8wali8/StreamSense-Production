@@ -1,14 +1,5 @@
 package com.streamsense.videoservice.service;
 
-import java.util.List;
-import java.util.UUID;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.streamsense.videoservice.cache.RecentSponsorDetectionsCache;
 import com.streamsense.videoservice.client.MlEngineClient;
 import com.streamsense.videoservice.config.StreamSenseProperties;
@@ -20,6 +11,13 @@ import com.streamsense.videoservice.kafka.SponsorDetectionProducer;
 import com.streamsense.videoservice.metrics.VideoMetrics;
 import com.streamsense.videoservice.persistence.SponsorDetectionEntity;
 import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
+import java.util.List;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class VideoProcessingService {
@@ -50,8 +48,11 @@ public class VideoProcessingService {
 
     @Transactional
     public SponsorDetectionEvent processFrame(FrameData frame, String correlationId, String traceparent) {
-        log.info("processing frame event frameId={} streamer={} sequence={}",
-                frame.getFrameId(), frame.getStreamer(), frame.getFrameSequence());
+        log.info(
+                "processing frame event frameId={} streamer={} sequence={}",
+                frame.getFrameId(),
+                frame.getStreamer(),
+                frame.getFrameSequence());
 
         MlSponsorRequest request = new MlSponsorRequest(
                 frame.getFrameId(),
@@ -77,9 +78,13 @@ public class VideoProcessingService {
         videoMetrics.incrementSponsorDetection(detectionEvent.getSponsor());
         videoMetrics.recordEndToEndLatency(System.currentTimeMillis() - frame.getCapturedAt());
 
-        log.info("processed sponsor detection detectionEventId={} frameId={} sponsor={} confidence={} modelVersion={}",
-                detectionEvent.getDetectionEventId(), detectionEvent.getSourceFrameId(), detectionEvent.getSponsor(),
-                detectionEvent.getConfidence(), detectionEvent.getModelVersion());
+        log.info(
+                "processed sponsor detection detectionEventId={} frameId={} sponsor={} confidence={} modelVersion={}",
+                detectionEvent.getDetectionEventId(),
+                detectionEvent.getSourceFrameId(),
+                detectionEvent.getSponsor(),
+                detectionEvent.getConfidence(),
+                detectionEvent.getModelVersion());
 
         return detectionEvent;
     }
@@ -87,7 +92,8 @@ public class VideoProcessingService {
     @Transactional(readOnly = true)
     public List<SponsorDetectionEvent> getRecentDetections(String streamer, int requestedLimit) {
         int limit = Math.min(requestedLimit, properties.getHistory().getMaxLimit());
-        return recentSponsorDetectionsCache.find(streamer, limit)
+        return recentSponsorDetectionsCache
+                .find(streamer, limit)
                 .orElseGet(() -> loadRecentDetectionsFromDatabase(streamer, limit));
     }
 
@@ -118,10 +124,10 @@ public class VideoProcessingService {
 
     private List<SponsorDetectionEvent> loadRecentDetectionsFromDatabase(String streamer, int limit) {
         return videoMetrics.recordHistoryLookup("recentSponsorDetections", "db", () -> {
-            List<SponsorDetectionEvent> recent = repository.findByStreamerOrderByCapturedAtDesc(streamer, PageRequest.of(0, limit))
-                    .stream()
-                    .map(SponsorDetectionEntity::toEvent)
-                    .toList();
+            List<SponsorDetectionEvent> recent =
+                    repository.findByStreamerOrderByCapturedAtDesc(streamer, PageRequest.of(0, limit)).stream()
+                            .map(SponsorDetectionEntity::toEvent)
+                            .toList();
             recentSponsorDetectionsCache.put(streamer, limit, recent);
             log.info("sponsor history cache miss streamer={} limit={} results={}", streamer, limit, recent.size());
             return recent;

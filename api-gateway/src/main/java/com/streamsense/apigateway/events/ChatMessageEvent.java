@@ -11,8 +11,7 @@ public class ChatMessageEvent {
     private String streamSessionId;
     private String twitchStreamId;
 
-    public ChatMessageEvent() {
-    }
+    public ChatMessageEvent() {}
 
     public String getEventId() {
         return eventId;

@@ -2,15 +2,13 @@ package com.streamsense.sentimentservice.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.kafka.support.JacksonUtils;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.kafka.support.JacksonUtils;
 
 /**
  * The events this service consumes deserialise from schema-valid samples with the mapper Spring Kafka uses, and
@@ -21,13 +19,15 @@ class EventContractTest {
     /** The mapper Spring Kafka's JsonDeserializer builds when none is supplied. */
     private static final ObjectMapper KAFKA_MAPPER = JacksonUtils.enhancedObjectMapper();
 
-    private static final String CHAT_SAMPLE = """
+    private static final String CHAT_SAMPLE =
+            """
             {"eventId":"evt-1","streamer":"streamer-1","user":"user-1","message":"hello","timestamp":1710000000000,
              "source":"TWITCH_VOD_REPLAY","channelLogin":"streamer-1","streamSessionId":"streamer-1-1710000000000",
              "twitchStreamId":"12345"}
             """;
 
-    private static final String SEGMENT_SAMPLE = """
+    private static final String SEGMENT_SAMPLE =
+            """
             {"segmentId":"seg-1","streamer":"streamer-1","text":"welcome back","startedAt":1710000000000,
              "endedAt":1710000005000,"language":"en","confidence":0.92,"modelVersion":"faster-whisper-base",
              "source":"TWITCH_VOD_REPLAY","channelLogin":"streamer-1","streamSessionId":"streamer-1-1710000000000",
@@ -37,7 +37,8 @@ class EventContractTest {
     @Test
     void consumedChatMessageSampleIsSchemaValidAndDeserialises() throws Exception {
         JsonNode sample = EventSchemas.json(CHAT_SAMPLE);
-        assertThat(EventSchemas.violations("chat-message-event.schema.json", sample)).isEmpty();
+        assertThat(EventSchemas.violations("chat-message-event.schema.json", sample))
+                .isEmpty();
 
         ChatMessageEvent event = KAFKA_MAPPER.treeToValue(sample, ChatMessageEvent.class);
 
@@ -49,7 +50,8 @@ class EventContractTest {
     @Test
     void consumedTranscriptSegmentSampleIsSchemaValidAndDeserialises() throws Exception {
         JsonNode sample = EventSchemas.json(SEGMENT_SAMPLE);
-        assertThat(EventSchemas.violations("transcript-segment-event.schema.json", sample)).isEmpty();
+        assertThat(EventSchemas.violations("transcript-segment-event.schema.json", sample))
+                .isEmpty();
 
         TranscriptSegmentEvent event = KAFKA_MAPPER.treeToValue(sample, TranscriptSegmentEvent.class);
 
@@ -66,14 +68,16 @@ class EventContractTest {
         event.setStreamSessionId("streamer-1-1710000000000");
         event.setTwitchStreamId("12345");
 
-        assertThat(EventSchemas.violations("sentiment-analysis-event.schema.json", EventSchemas.toJson(event))).isEmpty();
+        assertThat(EventSchemas.violations("sentiment-analysis-event.schema.json", EventSchemas.toJson(event)))
+                .isEmpty();
     }
 
     @Test
     void producedSentimentEventWithoutSessionFieldsStillMatchesSchema() {
         SentimentAnalysisEvent event = fullSentimentEvent();
 
-        assertThat(EventSchemas.violations("sentiment-analysis-event.schema.json", EventSchemas.toJson(event))).isEmpty();
+        assertThat(EventSchemas.violations("sentiment-analysis-event.schema.json", EventSchemas.toJson(event)))
+                .isEmpty();
     }
 
     @Test
@@ -81,7 +85,8 @@ class EventContractTest {
         SentimentAnalysisEvent event = fullSentimentEvent();
         event.setLabel("MIXED");
 
-        assertThat(EventSchemas.violations("sentiment-analysis-event.schema.json", EventSchemas.toJson(event))).isNotEmpty();
+        assertThat(EventSchemas.violations("sentiment-analysis-event.schema.json", EventSchemas.toJson(event)))
+                .isNotEmpty();
     }
 
     @Test
@@ -104,7 +109,8 @@ class EventContractTest {
         event.setMatchedTerms(List.of());
         event.setRelevanceScore(0.0d);
 
-        assertThat(EventSchemas.violations("transcript-sentiment-event.schema.json", EventSchemas.toJson(event))).isEmpty();
+        assertThat(EventSchemas.violations("transcript-sentiment-event.schema.json", EventSchemas.toJson(event)))
+                .isEmpty();
     }
 
     @Test
@@ -115,8 +121,10 @@ class EventContractTest {
         response.setScore(-0.4d);
         response.setModelVersion("lexical-v1");
 
-        assertThat(EventSchemas.violations("ml-sentiment-request.schema.json", EventSchemas.toJson(request))).isEmpty();
-        assertThat(EventSchemas.violations("ml-sentiment-response.schema.json", EventSchemas.toJson(response))).isEmpty();
+        assertThat(EventSchemas.violations("ml-sentiment-request.schema.json", EventSchemas.toJson(request)))
+                .isEmpty();
+        assertThat(EventSchemas.violations("ml-sentiment-response.schema.json", EventSchemas.toJson(response)))
+                .isEmpty();
     }
 
     private static SentimentAnalysisEvent fullSentimentEvent() {

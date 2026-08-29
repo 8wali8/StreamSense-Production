@@ -1,11 +1,5 @@
 package com.streamsense.apigateway.support;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Base64;
-import java.util.Date;
-import java.util.List;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
@@ -15,6 +9,11 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Date;
+import java.util.List;
 
 public final class TestJwtTokens {
 
@@ -23,35 +22,35 @@ public final class TestJwtTokens {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private TestJwtTokens() {
-    }
+    private TestJwtTokens() {}
 
     public static String validToken(String subject) {
-        return token(subject, "streamsense-local", List.of("streamsense-clients"), Instant.now().plusSeconds(600).getEpochSecond(), null, "HS256");
+        return token(
+                subject,
+                "streamsense-local",
+                List.of("streamsense-clients"),
+                Instant.now().plusSeconds(600).getEpochSecond(),
+                null,
+                "HS256");
     }
 
     public static String expiredToken(String subject) {
-        return token(subject, "streamsense-local", List.of("streamsense-clients"), Instant.now().minusSeconds(30).getEpochSecond(), null, "HS256");
+        return token(
+                subject,
+                "streamsense-local",
+                List.of("streamsense-clients"),
+                Instant.now().minusSeconds(30).getEpochSecond(),
+                null,
+                "HS256");
     }
 
     public static String token(
-            String subject,
-            String issuer,
-            List<String> audience,
-            long exp,
-            Long nbf,
-            String algorithm) {
+            String subject, String issuer, List<String> audience, long exp, Long nbf, String algorithm) {
         return tokenSignedWith(TEST_SECRET, subject, issuer, audience, exp, nbf, algorithm);
     }
 
     public static String tokenSignedWith(
-            String secret,
-            String subject,
-            String issuer,
-            List<String> audience,
-            long exp,
-            Long nbf,
-            String algorithm) {
+            String secret, String subject, String issuer, List<String> audience, long exp, Long nbf, String algorithm) {
         JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(algorithm);
         if (!JWSAlgorithm.Family.HMAC_SHA.contains(jwsAlgorithm)) {
             // "none" and asymmetric algorithms cannot be signed with the shared secret; produce the shape only so
@@ -68,8 +67,7 @@ public final class TestJwtTokens {
                 claims.notBeforeTime(new Date(nbf * 1000L));
             }
             SignedJWT jwt = new SignedJWT(
-                    new JWSHeader.Builder(jwsAlgorithm).type(JOSEObjectType.JWT).build(),
-                    claims.build());
+                    new JWSHeader.Builder(jwsAlgorithm).type(JOSEObjectType.JWT).build(), claims.build());
             jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
             return jwt.serialize();
         } catch (JOSEException exception) {
@@ -82,15 +80,11 @@ public final class TestJwtTokens {
     }
 
     private static String unsignedToken(
-            String subject,
-            String issuer,
-            List<String> audience,
-            long exp,
-            Long nbf,
-            String algorithm) {
+            String subject, String issuer, List<String> audience, long exp, Long nbf, String algorithm) {
         try {
             String header = encodeJson("{\"alg\":\"" + algorithm + "\",\"typ\":\"JWT\"}");
-            String payload = encodeJson(OBJECT_MAPPER.writeValueAsString(new JwtPayload(subject, issuer, audience, exp, nbf)));
+            String payload =
+                    encodeJson(OBJECT_MAPPER.writeValueAsString(new JwtPayload(subject, issuer, audience, exp, nbf)));
             return header + "." + payload + ".signature";
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(exception);
@@ -101,6 +95,5 @@ public final class TestJwtTokens {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
-    private record JwtPayload(String sub, String iss, List<String> aud, long exp, Long nbf) {
-    }
+    private record JwtPayload(String sub, String iss, List<String> aud, long exp, Long nbf) {}
 }

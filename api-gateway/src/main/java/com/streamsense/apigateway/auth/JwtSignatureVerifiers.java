@@ -1,12 +1,11 @@
 package com.streamsense.apigateway.auth;
 
-import java.nio.charset.StandardCharsets;
-
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.streamsense.apigateway.config.GatewayEdgeProperties;
+import java.nio.charset.StandardCharsets;
 
 // Resolves the verifier for a token's algorithm from configuration. Only a shared HMAC secret is wired today; an
 // asymmetric issuer (JWKS URI resolved to an RSASSAVerifier/ECDSAVerifier by the token's kid) belongs here as well,
@@ -15,10 +14,10 @@ final class JwtSignatureVerifiers {
 
     static final int MINIMUM_HMAC_SECRET_BYTES = 32;
 
-    private JwtSignatureVerifiers() {
-    }
+    private JwtSignatureVerifiers() {}
 
-    static JWSVerifier resolve(JWSAlgorithm algorithm, GatewayEdgeProperties.Auth auth) throws UnverifiableTokenException {
+    static JWSVerifier resolve(JWSAlgorithm algorithm, GatewayEdgeProperties.Auth auth)
+            throws UnverifiableTokenException {
         String secret = auth.getHmacSecret();
         if (secret == null || secret.isBlank()) {
             throw new UnverifiableTokenException("auth_key_not_configured");

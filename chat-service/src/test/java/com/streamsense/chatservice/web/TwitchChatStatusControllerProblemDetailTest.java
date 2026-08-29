@@ -8,14 +8,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.streamsense.chatservice.controller.TwitchChatStatusController;
+import com.streamsense.chatservice.twitch.TwitchChatLifecycleService;
+import com.streamsense.chatservice.twitch.TwitchChatMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import com.streamsense.chatservice.controller.TwitchChatStatusController;
-import com.streamsense.chatservice.twitch.TwitchChatLifecycleService;
-import com.streamsense.chatservice.twitch.TwitchChatMetrics;
 
 /** The channel-switch endpoint's 400 and 409 now come from the advice, as problem+json. */
 class TwitchChatStatusControllerProblemDetailTest {
@@ -26,16 +25,20 @@ class TwitchChatStatusControllerProblemDetailTest {
     @BeforeEach
     void setUp() {
         lifecycleService = mock(TwitchChatLifecycleService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new TwitchChatStatusController(mock(TwitchChatMetrics.class), lifecycleService))
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                        new TwitchChatStatusController(mock(TwitchChatMetrics.class), lifecycleService))
                 .setControllerAdvice(new GlobalExceptionHandler("chat-service"))
                 .build();
     }
 
     @Test
     void emptyChannelListIsA400Problem() throws Exception {
-        when(lifecycleService.switchChannels(anyList())).thenThrow(new IllegalArgumentException("at least one Twitch channel is required"));
+        when(lifecycleService.switchChannels(anyList()))
+                .thenThrow(new IllegalArgumentException("at least one Twitch channel is required"));
 
-        mockMvc.perform(post("/api/chat/twitch/channels").contentType("application/json").content("{\"channels\":[]}"))
+        mockMvc.perform(post("/api/chat/twitch/channels")
+                        .contentType("application/json")
+                        .content("{\"channels\":[]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.type").value("https://streamsense.dev/problems/invalid-request"))
@@ -45,9 +48,12 @@ class TwitchChatStatusControllerProblemDetailTest {
 
     @Test
     void disabledIngestionIsA409Problem() throws Exception {
-        when(lifecycleService.switchChannels(anyList())).thenThrow(new IllegalStateException("Twitch chat ingestion is disabled"));
+        when(lifecycleService.switchChannels(anyList()))
+                .thenThrow(new IllegalStateException("Twitch chat ingestion is disabled"));
 
-        mockMvc.perform(post("/api/chat/twitch/channels").contentType("application/json").content("{\"channels\":[\"austincs\"]}"))
+        mockMvc.perform(post("/api/chat/twitch/channels")
+                        .contentType("application/json")
+                        .content("{\"channels\":[\"austincs\"]}"))
                 .andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.type").value("https://streamsense.dev/problems/conflict"))

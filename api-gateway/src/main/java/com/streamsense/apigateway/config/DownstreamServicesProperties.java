@@ -1,11 +1,9 @@
 package com.streamsense.apigateway.config;
 
-import java.time.Duration;
-
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -24,14 +22,19 @@ public class DownstreamServicesProperties {
 
     @Valid
     private final Service chatService = new Service();
+
     @Valid
     private final Service recommendationService = new Service();
+
     @Valid
     private final Service sentimentService = new Service();
+
     @Valid
     private final Service videoService = new Service();
+
     @Valid
     private final Service videoCaptureService = new Service();
+
     @Valid
     private final Service analyticsService = new Service();
 

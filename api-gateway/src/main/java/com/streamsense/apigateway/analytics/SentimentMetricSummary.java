@@ -1,4 +1,4 @@
 package com.streamsense.apigateway.analytics;
 
-public record SentimentMetricSummary(long positive, long neutral, long negative, Double averageScore, Double negativeRatio) {
-}
+public record SentimentMetricSummary(
+        long positive, long neutral, long negative, Double averageScore, Double negativeRatio) {}

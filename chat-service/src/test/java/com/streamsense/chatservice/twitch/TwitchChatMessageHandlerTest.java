@@ -4,14 +4,13 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.streamsense.chatservice.events.ChatMessageEvent;
+import com.streamsense.chatservice.service.ChatEventIngestService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import com.streamsense.chatservice.events.ChatMessageEvent;
-import com.streamsense.chatservice.service.ChatEventIngestService;
 
 @ExtendWith(MockitoExtension.class)
 class TwitchChatMessageHandlerTest {
@@ -29,12 +28,13 @@ class TwitchChatMessageHandlerTest {
     void handle_publishesTwitchMessageAsChatEvent() {
         handler.handle(new TwitchIrcChatMessage("channel", "user1", "hello", "msg-1", 1710000000000L));
 
-        verify(ingestService).ingestTwitch(argThat((ChatMessageEvent event) ->
-                event.getEventId().equals("msg-1")
-                        && event.getStreamer().equals("channel")
-                        && event.getUser().equals("user1")
-                        && event.getMessage().equals("hello")
-                        && event.getTimestamp() == 1710000000000L));
+        verify(ingestService)
+                .ingestTwitch(
+                        argThat((ChatMessageEvent event) -> event.getEventId().equals("msg-1")
+                                && event.getStreamer().equals("channel")
+                                && event.getUser().equals("user1")
+                                && event.getMessage().equals("hello")
+                                && event.getTimestamp() == 1710000000000L));
         verify(metrics).recordMessage();
     }
 
@@ -45,7 +45,8 @@ class TwitchChatMessageHandlerTest {
         handler.handle(message);
         handler.handle(message);
 
-        verify(ingestService).ingestTwitch(argThat((ChatMessageEvent event) -> event.getEventId().equals("msg-1")));
+        verify(ingestService).ingestTwitch(argThat((ChatMessageEvent event) -> event.getEventId()
+                .equals("msg-1")));
         verify(metrics).recordDuplicate();
     }
 

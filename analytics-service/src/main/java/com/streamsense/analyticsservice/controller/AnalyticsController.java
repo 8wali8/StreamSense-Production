@@ -1,23 +1,20 @@
 package com.streamsense.analyticsservice.controller;
 
+import com.streamsense.analyticsservice.service.MetricQueryService;
+import com.streamsense.analyticsservice.web.BrandSafetyMetrics;
+import com.streamsense.analyticsservice.web.SponsorExposureMetric;
+import com.streamsense.analyticsservice.web.StreamMetricBucket;
+import com.streamsense.analyticsservice.web.StreamMetricsSummary;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import java.util.List;
-
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.streamsense.analyticsservice.service.MetricQueryService;
-import com.streamsense.analyticsservice.web.BrandSafetyMetrics;
-import com.streamsense.analyticsservice.web.SponsorExposureMetric;
-import com.streamsense.analyticsservice.web.StreamMetricBucket;
-import com.streamsense.analyticsservice.web.StreamMetricsSummary;
-
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 
 @Validated
 @RestController

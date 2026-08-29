@@ -12,5 +12,4 @@ public record StreamMetricBucket(
         long sponsorDetectionCount,
         long estimatedSponsorExposureMs,
         boolean engagementSpike,
-        boolean negativeSpike) {
-}
+        boolean negativeSpike) {}

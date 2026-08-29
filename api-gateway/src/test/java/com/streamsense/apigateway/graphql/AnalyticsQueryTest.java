@@ -2,6 +2,8 @@ package com.streamsense.apigateway.graphql;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -11,30 +13,31 @@ import org.springframework.graphql.test.tester.HttpGraphQlTester;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.kafka.listener.auto-startup=false",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
-        "streamsense.topics.transcriptSegments=stream.transcript.segments",
-        "streamsense.topics.transcriptSentimentEvents=stream.transcript.sentiment.events",
-        "spring.kafka.bootstrap-servers=localhost:9092",
-        "spring.kafka.consumer.group-id=api-gateway-test-group",
-        "streamsense.services.sentiment-service.base-url=http://localhost:8083",
-        "streamsense.services.video-service.base-url=http://localhost:8084"
-})
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.kafka.listener.auto-startup=false",
+            "streamsense.topics.chatMessages=stream.chat.messages",
+            "streamsense.topics.sentimentEvents=stream.sentiment.events",
+            "streamsense.topics.sponsorDetections=stream.sponsor.detections",
+            "streamsense.topics.transcriptSegments=stream.transcript.segments",
+            "streamsense.topics.transcriptSentimentEvents=stream.transcript.sentiment.events",
+            "spring.kafka.bootstrap-servers=localhost:9092",
+            "spring.kafka.consumer.group-id=api-gateway-test-group",
+            "streamsense.services.sentiment-service.base-url=http://localhost:8083",
+            "streamsense.services.video-service.base-url=http://localhost:8084"
+        })
 class AnalyticsQueryTest {
 
     private static final MockWebServer MOCK_WEB_SERVER = new MockWebServer();
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("streamsense.services.analytics-service.base-url", () -> MOCK_WEB_SERVER.url("/").toString());
+        registry.add(
+                "streamsense.services.analytics-service.base-url",
+                () -> MOCK_WEB_SERVER.url("/").toString());
     }
 
     @BeforeAll
@@ -52,9 +55,11 @@ class AnalyticsQueryTest {
 
     @Test
     void streamMetricsSummaryQuery_returnsAnalyticsSummary() {
-        MOCK_WEB_SERVER.enqueue(new MockResponse()
-                .addHeader("Content-Type", "application/json")
-                .setBody("""
+        MOCK_WEB_SERVER.enqueue(
+                new MockResponse()
+                        .addHeader("Content-Type", "application/json")
+                        .setBody(
+                                """
                         {
                           "streamer": "test",
                           "streamSessionId": "test-session",
@@ -118,7 +123,9 @@ class AnalyticsQueryTest {
                         }
                         """));
 
-        graphQlTester.document("""
+        graphQlTester
+                .document(
+                        """
                         query Metrics($streamer: String!, $windowMinutes: Int!) {
                           streamMetricsSummary(streamer: $streamer, windowMinutes: $windowMinutes) {
                             chat { totalMessages uniqueChatters }
@@ -139,9 +146,11 @@ class AnalyticsQueryTest {
 
     @Test
     void streamMetricsTimeseriesQuery_returnsBuckets() {
-        MOCK_WEB_SERVER.enqueue(new MockResponse()
-                .addHeader("Content-Type", "application/json")
-                .setBody("""
+        MOCK_WEB_SERVER.enqueue(
+                new MockResponse()
+                        .addHeader("Content-Type", "application/json")
+                        .setBody(
+                                """
                         [
                           {
                             "bucketStart": 1710000000000,
@@ -160,7 +169,9 @@ class AnalyticsQueryTest {
                         ]
                         """));
 
-        graphQlTester.document("""
+        graphQlTester
+                .document(
+                        """
                         query Series($streamer: String!, $windowMinutes: Int!, $bucketSeconds: Int!) {
                           streamMetricsTimeseries(streamer: $streamer, windowMinutes: $windowMinutes, bucketSeconds: $bucketSeconds) {
                             bucketStart

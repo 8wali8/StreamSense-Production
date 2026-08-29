@@ -1,16 +1,14 @@
 package com.streamsense.chatservice.controller;
 
+import com.streamsense.chatservice.twitch.TwitchChatLifecycleService;
+import com.streamsense.chatservice.twitch.TwitchChatMetrics;
+import com.streamsense.chatservice.twitch.TwitchChatStatus;
 import java.util.List;
-
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.streamsense.chatservice.twitch.TwitchChatLifecycleService;
-import com.streamsense.chatservice.twitch.TwitchChatMetrics;
-import com.streamsense.chatservice.twitch.TwitchChatStatus;
 
 @RestController
 @RequestMapping("/api/chat/twitch")
@@ -35,6 +33,5 @@ public class TwitchChatStatusController {
         return lifecycleService.switchChannels(request.channels());
     }
 
-    public record TwitchChannelRequest(List<String> channels) {
-    }
+    public record TwitchChannelRequest(List<String> channels) {}
 }

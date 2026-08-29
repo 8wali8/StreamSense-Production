@@ -1,5 +1,8 @@
 package com.streamsense.chatservice.twitch;
 
+import com.streamsense.chatservice.config.StreamSenseProperties;
+import com.streamsense.chatservice.events.ChatMessageEvent;
+import com.streamsense.chatservice.service.ChatEventIngestService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -7,14 +10,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.chatservice.config.StreamSenseProperties;
-import com.streamsense.chatservice.events.ChatMessageEvent;
-import com.streamsense.chatservice.service.ChatEventIngestService;
 
 @Component
 public class TwitchVodChatReplayService {
@@ -123,7 +121,11 @@ public class TwitchVodChatReplayService {
                 } while (running.get() && alias.isLoop());
             } catch (RuntimeException e) {
                 metrics.markFailed(e.getMessage());
-                log.warn("Twitch VOD chat replay failed channel={} vodId={} error={}", channel, alias.getVodId(), e.getMessage());
+                log.warn(
+                        "Twitch VOD chat replay failed channel={} vodId={} error={}",
+                        channel,
+                        alias.getVodId(),
+                        e.getMessage());
             }
         }
 
@@ -136,8 +138,10 @@ public class TwitchVodChatReplayService {
                 if (comment.offsetSeconds() < alias.getStartOffsetSeconds()) {
                     continue;
                 }
-                long dueAt = replayStartedAt + Math.round(
-                        ((comment.offsetSeconds() - alias.getStartOffsetSeconds()) / alias.getReplaySpeed()) * 1000.0);
+                long dueAt = replayStartedAt
+                        + Math.round(
+                                ((comment.offsetSeconds() - alias.getStartOffsetSeconds()) / alias.getReplaySpeed())
+                                        * 1000.0);
                 sleepUntil(dueAt);
                 if (!running.get()) {
                     return;

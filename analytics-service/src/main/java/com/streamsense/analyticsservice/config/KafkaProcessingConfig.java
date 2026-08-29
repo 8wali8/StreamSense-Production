@@ -1,8 +1,8 @@
 package com.streamsense.analyticsservice.config;
 
+import com.streamsense.analyticsservice.metrics.AnalyticsMetrics;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
@@ -21,8 +21,6 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 
-import com.streamsense.analyticsservice.metrics.AnalyticsMetrics;
-
 @Configuration
 public class KafkaProcessingConfig {
 
@@ -38,7 +36,8 @@ public class KafkaProcessingConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, String> deadLetterKafkaTemplate(ProducerFactory<String, String> deadLetterProducerFactory) {
+    public KafkaTemplate<String, String> deadLetterKafkaTemplate(
+            ProducerFactory<String, String> deadLetterProducerFactory) {
         return new KafkaTemplate<>(deadLetterProducerFactory);
     }
 
@@ -49,7 +48,8 @@ public class KafkaProcessingConfig {
             AnalyticsMetrics analyticsMetrics) {
         DeadLetterPublishingRecoverer delegate = new DeadLetterPublishingRecoverer(
                 deadLetterKafkaTemplate,
-                (record, ex) -> new TopicPartition(deadLetterTopic(record.topic(), properties.getTopics()), record.partition()));
+                (record, ex) -> new TopicPartition(
+                        deadLetterTopic(record.topic(), properties.getTopics()), record.partition()));
 
         ConsumerRecordRecoverer recoverer = (record, ex) -> {
             String correlationId = headerAsString(record, "correlationId");
@@ -69,7 +69,9 @@ public class KafkaProcessingConfig {
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 recoverer,
-                new FixedBackOff(properties.getProcessing().getRetryBackoffMs(), properties.getProcessing().getMaxRetries()));
+                new FixedBackOff(
+                        properties.getProcessing().getRetryBackoffMs(),
+                        properties.getProcessing().getMaxRetries()));
 
         errorHandler.addNotRetryableExceptions(IllegalArgumentException.class, IllegalStateException.class);
         errorHandler.setCommitRecovered(true);

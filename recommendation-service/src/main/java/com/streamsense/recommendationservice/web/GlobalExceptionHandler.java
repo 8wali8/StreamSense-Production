@@ -1,12 +1,10 @@
 package com.streamsense.recommendationservice.web;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Map;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.ConstraintViolationException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -57,12 +55,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
-        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "validation-failed", "Request validation failed", request);
-        problem.setProperty("errors", ex.getConstraintViolations().stream()
-                .map(violation -> Map.of(
-                        "field", String.valueOf(violation.getPropertyPath()),
-                        "message", String.valueOf(violation.getMessage())))
-                .toList());
+        ProblemDetail problem =
+                problem(HttpStatus.BAD_REQUEST, "validation-failed", "Request validation failed", request);
+        problem.setProperty(
+                "errors",
+                ex.getConstraintViolations().stream()
+                        .map(violation -> Map.of(
+                                "field", String.valueOf(violation.getPropertyPath()),
+                                "message", String.valueOf(violation.getMessage())))
+                        .toList());
         return problem;
     }
 
@@ -78,11 +79,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail body = ex.getBody();
         body.setType(URI.create(PROBLEM_TYPE_BASE + "validation-failed"));
         body.setDetail("Request validation failed");
-        body.setProperty("errors", ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> Map.of(
-                        "field", error.getField(),
-                        "message", String.valueOf(error.getDefaultMessage())))
-                .toList());
+        body.setProperty(
+                "errors",
+                ex.getBindingResult().getFieldErrors().stream()
+                        .map(error -> Map.of(
+                                "field", error.getField(),
+                                "message", String.valueOf(error.getDefaultMessage())))
+                        .toList());
         return handleExceptionInternal(ex, body, headers, status, request);
     }
 

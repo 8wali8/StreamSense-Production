@@ -1,15 +1,13 @@
 package com.streamsense.apigateway.ratelimit;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
 
 /**
@@ -43,7 +41,8 @@ public class RedisRateLimiter implements RateLimiter {
     private final boolean failOpen;
     private final Counter storeErrors;
 
-    public RedisRateLimiter(ReactiveStringRedisTemplate redis, Clock clock, boolean failOpen, MeterRegistry meterRegistry) {
+    public RedisRateLimiter(
+            ReactiveStringRedisTemplate redis, Clock clock, boolean failOpen, MeterRegistry meterRegistry) {
         this.redis = redis;
         this.clock = clock;
         this.failOpen = failOpen;
@@ -62,10 +61,15 @@ public class RedisRateLimiter implements RateLimiter {
                 .map(count -> decide(count, requestLimit, resetAt))
                 .onErrorResume(error -> {
                     storeErrors.increment();
-                    log.warn("rate limit store unavailable bucket={} failOpen={} error={}", bucketId, failOpen, error.toString());
-                    return Mono.just(failOpen
-                            ? new RateLimitDecision(true, requestLimit, resetAt)
-                            : new RateLimitDecision(false, 0, resetAt));
+                    log.warn(
+                            "rate limit store unavailable bucket={} failOpen={} error={}",
+                            bucketId,
+                            failOpen,
+                            error.toString());
+                    return Mono.just(
+                            failOpen
+                                    ? new RateLimitDecision(true, requestLimit, resetAt)
+                                    : new RateLimitDecision(false, 0, resetAt));
                 });
     }
 

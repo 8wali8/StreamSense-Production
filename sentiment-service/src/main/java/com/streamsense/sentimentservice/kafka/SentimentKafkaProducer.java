@@ -1,15 +1,13 @@
 package com.streamsense.sentimentservice.kafka;
 
+import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
+import com.streamsense.sentimentservice.events.TranscriptSentimentEvent;
 import java.nio.charset.StandardCharsets;
-
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
-import com.streamsense.sentimentservice.events.TranscriptSentimentEvent;
 
 @Component
 public class SentimentKafkaProducer {
@@ -21,9 +19,11 @@ public class SentimentKafkaProducer {
 
     public SentimentKafkaProducer(
             @Qualifier("sentimentKafkaTemplate") KafkaTemplate<String, SentimentAnalysisEvent> kafkaTemplate,
-            @Qualifier("transcriptSentimentKafkaTemplate") KafkaTemplate<String, TranscriptSentimentEvent> transcriptKafkaTemplate,
+            @Qualifier("transcriptSentimentKafkaTemplate")
+                    KafkaTemplate<String, TranscriptSentimentEvent> transcriptKafkaTemplate,
             @Value("${streamsense.topics.sentimentEvents}") String sentimentTopic,
-            @Value("${streamsense.topics.transcriptSentimentEvents:stream.transcript.sentiment.events}") String transcriptSentimentTopic) {
+            @Value("${streamsense.topics.transcriptSentimentEvents:stream.transcript.sentiment.events}")
+                    String transcriptSentimentTopic) {
         this.kafkaTemplate = kafkaTemplate;
         this.transcriptKafkaTemplate = transcriptKafkaTemplate;
         this.sentimentTopic = sentimentTopic;
@@ -31,10 +31,8 @@ public class SentimentKafkaProducer {
     }
 
     public void publish(SentimentAnalysisEvent event, String correlationId, String traceparent) {
-        ProducerRecord<String, SentimentAnalysisEvent> record = new ProducerRecord<>(
-                sentimentTopic,
-                event.getStreamer(),
-                event);
+        ProducerRecord<String, SentimentAnalysisEvent> record =
+                new ProducerRecord<>(sentimentTopic, event.getStreamer(), event);
 
         if (correlationId != null && !correlationId.isBlank()) {
             record.headers().add("correlationId", correlationId.getBytes(StandardCharsets.UTF_8));
@@ -48,10 +46,8 @@ public class SentimentKafkaProducer {
     }
 
     public void publishTranscript(TranscriptSentimentEvent event, String correlationId, String traceparent) {
-        ProducerRecord<String, TranscriptSentimentEvent> record = new ProducerRecord<>(
-                transcriptSentimentTopic,
-                event.getStreamer(),
-                event);
+        ProducerRecord<String, TranscriptSentimentEvent> record =
+                new ProducerRecord<>(transcriptSentimentTopic, event.getStreamer(), event);
 
         if (correlationId != null && !correlationId.isBlank()) {
             record.headers().add("correlationId", correlationId.getBytes(StandardCharsets.UTF_8));

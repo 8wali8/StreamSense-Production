@@ -17,10 +17,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.streamsense.sentimentservice.cache.RecentSentimentCache;
+import com.streamsense.sentimentservice.events.ChatMessageEvent;
+import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
+import com.streamsense.sentimentservice.persistence.SentimentRecordEntity;
+import com.streamsense.sentimentservice.persistence.SentimentRecordRepository;
+import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordEntity;
+import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordRepository;
+import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordEntity;
+import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordRepository;
+import com.streamsense.sentimentservice.service.SponsorRelevanceProfileService;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -33,10 +43,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -53,70 +63,60 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
-import com.streamsense.sentimentservice.cache.RecentSentimentCache;
-import com.streamsense.sentimentservice.events.ChatMessageEvent;
-import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
-import com.streamsense.sentimentservice.persistence.SentimentRecordEntity;
-import com.streamsense.sentimentservice.persistence.SentimentRecordRepository;
-import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordEntity;
-import com.streamsense.sentimentservice.persistence.TranscriptSegmentRecordRepository;
-import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordEntity;
-import com.streamsense.sentimentservice.persistence.TranscriptSentimentRecordRepository;
-import com.streamsense.sentimentservice.service.SponsorRelevanceProfileService;
-
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-
 @SpringBootTest
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 3, topics = {
-        "stream.chat.messages",
-        "stream.sentiment.events",
-        "stream.chat.messages.dlt",
-        "stream.transcript.segments",
-        "stream.transcript.sentiment.events",
-        "stream.transcript.segments.dlt"
-})
-@TestPropertySource(properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.datasource.url=jdbc:h2:mem:sentiment-pipeline;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
-        "spring.jpa.hibernate.ddl-auto=validate",
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
-        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-        "spring.kafka.consumer.group-id=sentiment-service-test-group",
-        "spring.kafka.consumer.auto-offset-reset=earliest",
-        "spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
-        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
-        "spring.kafka.consumer.properties.spring.json.trusted.packages=*",
-        "spring.kafka.consumer.properties.spring.json.value.default.type=com.streamsense.sentimentservice.events.ChatMessageEvent",
-        "spring.kafka.consumer.properties.spring.json.use.type.headers=false",
-        "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
-        "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.topics.chatMessagesDlt=stream.chat.messages.dlt",
-        "streamsense.topics.transcriptSegments=stream.transcript.segments",
-        "streamsense.topics.transcriptSentimentEvents=stream.transcript.sentiment.events",
-        "streamsense.topics.transcriptSegmentsDlt=stream.transcript.segments.dlt",
-        "streamsense.ml.base-url=http://ml-engine:8000",
-        "streamsense.history.default-limit=20",
-        "streamsense.history.max-limit=100",
-        "streamsense.cache.recentPrefix=sentiment:recent",
-        "streamsense.cache.recentTtlSeconds=60",
-        "streamsense.processing.retryBackoffMs=50",
-        "streamsense.processing.maxRetries=2",
-        "resilience4j.retry.instances.mlSentiment.maxAttempts=3",
-        "resilience4j.retry.instances.mlSentiment.waitDuration=10ms",
-        "resilience4j.retry.instances.mlSentiment.ignoreExceptions[0]=java.lang.IllegalStateException",
-        "resilience4j.retry.instances.mlSentiment.ignoreExceptions[1]=java.lang.IllegalArgumentException",
-        "resilience4j.circuitbreaker.instances.mlSentiment.minimumNumberOfCalls=10",
-        "resilience4j.circuitbreaker.instances.mlSentiment.slidingWindowSize=10",
-        "resilience4j.circuitbreaker.instances.mlSentiment.waitDurationInOpenState=1s",
-        "resilience4j.bulkhead.instances.mlSentiment.maxConcurrentCalls=2"
-})
+@EmbeddedKafka(
+        partitions = 3,
+        topics = {
+            "stream.chat.messages",
+            "stream.sentiment.events",
+            "stream.chat.messages.dlt",
+            "stream.transcript.segments",
+            "stream.transcript.sentiment.events",
+            "stream.transcript.segments.dlt"
+        })
+@TestPropertySource(
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.datasource.url=jdbc:h2:mem:sentiment-pipeline;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+            "spring.datasource.driver-class-name=org.h2.Driver",
+            "spring.datasource.username=sa",
+            "spring.datasource.password=",
+            "spring.jpa.hibernate.ddl-auto=validate",
+            "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
+            "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+            "spring.kafka.consumer.group-id=sentiment-service-test-group",
+            "spring.kafka.consumer.auto-offset-reset=earliest",
+            "spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
+            "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
+            "spring.kafka.consumer.properties.spring.json.trusted.packages=*",
+            "spring.kafka.consumer.properties.spring.json.value.default.type=com.streamsense.sentimentservice.events.ChatMessageEvent",
+            "spring.kafka.consumer.properties.spring.json.use.type.headers=false",
+            "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
+            "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
+            "streamsense.topics.chatMessages=stream.chat.messages",
+            "streamsense.topics.sentimentEvents=stream.sentiment.events",
+            "streamsense.topics.chatMessagesDlt=stream.chat.messages.dlt",
+            "streamsense.topics.transcriptSegments=stream.transcript.segments",
+            "streamsense.topics.transcriptSentimentEvents=stream.transcript.sentiment.events",
+            "streamsense.topics.transcriptSegmentsDlt=stream.transcript.segments.dlt",
+            "streamsense.ml.base-url=http://ml-engine:8000",
+            "streamsense.history.default-limit=20",
+            "streamsense.history.max-limit=100",
+            "streamsense.cache.recentPrefix=sentiment:recent",
+            "streamsense.cache.recentTtlSeconds=60",
+            "streamsense.processing.retryBackoffMs=50",
+            "streamsense.processing.maxRetries=2",
+            "resilience4j.retry.instances.mlSentiment.maxAttempts=3",
+            "resilience4j.retry.instances.mlSentiment.waitDuration=10ms",
+            "resilience4j.retry.instances.mlSentiment.ignoreExceptions[0]=java.lang.IllegalStateException",
+            "resilience4j.retry.instances.mlSentiment.ignoreExceptions[1]=java.lang.IllegalArgumentException",
+            "resilience4j.circuitbreaker.instances.mlSentiment.minimumNumberOfCalls=10",
+            "resilience4j.circuitbreaker.instances.mlSentiment.slidingWindowSize=10",
+            "resilience4j.circuitbreaker.instances.mlSentiment.waitDurationInOpenState=1s",
+            "resilience4j.bulkhead.instances.mlSentiment.maxConcurrentCalls=2"
+        })
 class SentimentPipelineIntegrationTest {
 
     @Autowired
@@ -166,32 +166,32 @@ class SentimentPipelineIntegrationTest {
         circuitBreakerRegistry.circuitBreaker("mlSentiment").reset();
         mockServer = MockRestServiceServer.bindTo(restTemplate).build();
 
-        Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("sentiment-events-test-group-" + System.nanoTime(), "true",
-                embeddedKafkaBroker);
+        Map<String, Object> consumerProps = KafkaTestUtils.consumerProps(
+                "sentiment-events-test-group-" + System.nanoTime(), "true", embeddedKafkaBroker);
         consumerProps.put("auto.offset.reset", "latest");
         consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, SentimentAnalysisEvent.class.getName());
         consumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
         sentimentConsumer = new org.springframework.kafka.core.DefaultKafkaConsumerFactory<>(
-                consumerProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(SentimentAnalysisEvent.class, false))
+                        consumerProps,
+                        new StringDeserializer(),
+                        new JsonDeserializer<>(SentimentAnalysisEvent.class, false))
                 .createConsumer();
         sentimentConsumer.subscribe(Collections.singletonList("stream.sentiment.events"));
         sentimentConsumer.poll(Duration.ofMillis(100));
 
-        Map<String, Object> deadLetterConsumerProps = KafkaTestUtils.consumerProps("sentiment-dlt-test-group-" + System.nanoTime(), "true",
-                embeddedKafkaBroker);
+        Map<String, Object> deadLetterConsumerProps = KafkaTestUtils.consumerProps(
+                "sentiment-dlt-test-group-" + System.nanoTime(), "true", embeddedKafkaBroker);
         deadLetterConsumerProps.put("auto.offset.reset", "latest");
         deadLetterConsumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         deadLetterConsumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, ChatMessageEvent.class.getName());
         deadLetterConsumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
         deadLetterConsumer = new org.springframework.kafka.core.DefaultKafkaConsumerFactory<>(
-                deadLetterConsumerProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(ChatMessageEvent.class, false))
+                        deadLetterConsumerProps,
+                        new StringDeserializer(),
+                        new JsonDeserializer<>(ChatMessageEvent.class, false))
                 .createConsumer();
         deadLetterConsumer.subscribe(Collections.singletonList("stream.chat.messages.dlt"));
         deadLetterConsumer.poll(Duration.ofMillis(100));
@@ -210,7 +210,8 @@ class SentimentPipelineIntegrationTest {
 
     @Test
     void consumedChatEvent_isScoredPersistedAndPublished() throws Exception {
-        mockServer.expect(requestTo("http://ml-engine:8000/ml/sentiment"))
+        mockServer
+                .expect(requestTo("http://ml-engine:8000/ml/sentiment"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
                         "{\"label\":\"POSITIVE\",\"score\":0.87,\"modelVersion\":\"stub-v1\"}",
@@ -223,11 +224,12 @@ class SentimentPipelineIntegrationTest {
         event.setMessage("great stream");
         event.setTimestamp(1710000000000L);
 
-        testChatKafkaTemplate().send("stream.chat.messages", "test-streamer", event).get();
+        testChatKafkaTemplate()
+                .send("stream.chat.messages", "test-streamer", event)
+                .get();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(15))
-                .untilAsserted(() -> assertThat(repository.findAll()).hasSize(1));
+        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(repository.findAll())
+                .hasSize(1));
 
         SentimentRecordEntity persisted = repository.findAll().getFirst();
         assertThat(persisted.getSourceEventId()).isEqualTo("evt-123");
@@ -237,10 +239,8 @@ class SentimentPipelineIntegrationTest {
         assertThat(persisted.getScore()).isEqualTo(0.87d);
         assertThat(persisted.getModelVersion()).isEqualTo("stub-v1");
 
-        ConsumerRecord<String, SentimentAnalysisEvent> record = KafkaTestUtils.getSingleRecord(
-                sentimentConsumer,
-                "stream.sentiment.events",
-                Duration.ofSeconds(10));
+        ConsumerRecord<String, SentimentAnalysisEvent> record =
+                KafkaTestUtils.getSingleRecord(sentimentConsumer, "stream.sentiment.events", Duration.ofSeconds(10));
 
         assertThat(record.value().getSourceEventId()).isEqualTo("evt-123");
         assertThat(record.value().getStreamer()).isEqualTo("test-streamer");
@@ -252,9 +252,11 @@ class SentimentPipelineIntegrationTest {
 
     @Test
     void runtimeSponsorProfile_marksRelevantSentimentAndExposesSponsorHistory() throws Exception {
-        mockMvc.perform(post("/api/sentiment/relevance/sponsors")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
+        mockMvc.perform(
+                        post("/api/sentiment/relevance/sponsors")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
                         {
                           "streamer": "test-streamer",
                           "sponsor": "Nike",
@@ -266,12 +268,14 @@ class SentimentPipelineIntegrationTest {
                 .andExpect(jsonPath("$.streamer").value("test-streamer"))
                 .andExpect(jsonPath("$.sponsor").value("Nike"));
 
-        mockServer.expect(requestTo("http://ml-engine:8000/ml/sentiment"))
+        mockServer
+                .expect(requestTo("http://ml-engine:8000/ml/sentiment"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
                         "{\"label\":\"POSITIVE\",\"score\":0.74,\"modelVersion\":\"stub-v1\"}",
                         MediaType.APPLICATION_JSON));
-        mockServer.expect(requestTo("http://ml-engine:8000/ml/relevance"))
+        mockServer
+                .expect(requestTo("http://ml-engine:8000/ml/relevance"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
                         """
@@ -286,23 +290,23 @@ class SentimentPipelineIntegrationTest {
         event.setMessage("those shoes are clean");
         event.setTimestamp(1710000006000L);
 
-        testChatKafkaTemplate().send("stream.chat.messages", "test-streamer", event).get();
+        testChatKafkaTemplate()
+                .send("stream.chat.messages", "test-streamer", event)
+                .get();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(15))
-                .untilAsserted(() -> assertThat(repository.findAll())
-                        .anySatisfy(record -> {
-                            assertThat(record.getSourceEventId()).isEqualTo("evt-sponsor");
-                            assertThat(record.isSponsorRelevant()).isTrue();
-                            assertThat(record.getMatchedSponsor()).isEqualTo("Nike");
-                            assertThat(record.getMatchedTerms()).isEqualTo("shoes");
-                            assertThat(record.getRelevanceVersion()).isEqualTo("relevance-v1");
-                        }));
+        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(repository.findAll())
+                .anySatisfy(record -> {
+                    assertThat(record.getSourceEventId()).isEqualTo("evt-sponsor");
+                    assertThat(record.isSponsorRelevant()).isTrue();
+                    assertThat(record.getMatchedSponsor()).isEqualTo("Nike");
+                    assertThat(record.getMatchedTerms()).isEqualTo("shoes");
+                    assertThat(record.getRelevanceVersion()).isEqualTo("relevance-v1");
+                }));
 
         mockMvc.perform(get("/api/sentiment/sponsor/recent")
-                .param("streamer", "test-streamer")
-                .param("sponsor", "Nike")
-                .param("limit", "5"))
+                        .param("streamer", "test-streamer")
+                        .param("sponsor", "Nike")
+                        .param("limit", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].sourceEventId").value("evt-sponsor"))
                 .andExpect(jsonPath("$[0].sponsorRelevant").value(true))
@@ -313,7 +317,8 @@ class SentimentPipelineIntegrationTest {
 
     @Test
     void mlDependencyFailure_persistsAndPublishesFallbackSentiment() throws Exception {
-        mockServer.expect(ExpectedCount.times(3), requestTo("http://ml-engine:8000/ml/sentiment"))
+        mockServer
+                .expect(ExpectedCount.times(3), requestTo("http://ml-engine:8000/ml/sentiment"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withServerError());
 
@@ -324,19 +329,19 @@ class SentimentPipelineIntegrationTest {
         event.setMessage("ml is down");
         event.setTimestamp(1710000002000L);
 
-        testChatKafkaTemplate().send("stream.chat.messages", "fallback-streamer", event).get();
+        testChatKafkaTemplate()
+                .send("stream.chat.messages", "fallback-streamer", event)
+                .get();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(15))
-                .untilAsserted(() -> assertThat(repository.findAll())
-                        .extracting(SentimentRecordEntity::getSourceEventId, SentimentRecordEntity::getLabel,
-                                SentimentRecordEntity::getModelVersion)
-                        .contains(tuple("evt-fallback", "NEUTRAL", "fallback")));
+        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(repository.findAll())
+                .extracting(
+                        SentimentRecordEntity::getSourceEventId,
+                        SentimentRecordEntity::getLabel,
+                        SentimentRecordEntity::getModelVersion)
+                .contains(tuple("evt-fallback", "NEUTRAL", "fallback")));
 
-        ConsumerRecord<String, SentimentAnalysisEvent> record = KafkaTestUtils.getSingleRecord(
-                sentimentConsumer,
-                "stream.sentiment.events",
-                Duration.ofSeconds(10));
+        ConsumerRecord<String, SentimentAnalysisEvent> record =
+                KafkaTestUtils.getSingleRecord(sentimentConsumer, "stream.sentiment.events", Duration.ofSeconds(10));
 
         assertThat(record.value().getSourceEventId()).isEqualTo("evt-fallback");
         assertThat(record.value().getLabel()).isEqualTo("NEUTRAL");
@@ -348,10 +353,12 @@ class SentimentPipelineIntegrationTest {
 
     @Test
     void transientMlFailure_retriesAndEventuallySucceeds() throws Exception {
-        mockServer.expect(ExpectedCount.times(2), requestTo("http://ml-engine:8000/ml/sentiment"))
+        mockServer
+                .expect(ExpectedCount.times(2), requestTo("http://ml-engine:8000/ml/sentiment"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withServerError());
-        mockServer.expect(ExpectedCount.once(), requestTo("http://ml-engine:8000/ml/sentiment"))
+        mockServer
+                .expect(ExpectedCount.once(), requestTo("http://ml-engine:8000/ml/sentiment"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
                         "{\"label\":\"POSITIVE\",\"score\":0.65,\"modelVersion\":\"stub-v1\"}",
@@ -364,25 +371,27 @@ class SentimentPipelineIntegrationTest {
         event.setMessage("transient issue");
         event.setTimestamp(1710000003000L);
 
-        testChatKafkaTemplate().send("stream.chat.messages", "retry-streamer", event).get();
+        testChatKafkaTemplate()
+                .send("stream.chat.messages", "retry-streamer", event)
+                .get();
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(15))
-                .untilAsserted(() -> assertThat(repository.findAll())
-                        .extracting(SentimentRecordEntity::getSourceEventId, SentimentRecordEntity::getLabel,
-                                SentimentRecordEntity::getModelVersion)
-                        .contains(tuple("evt-retry", "POSITIVE", "stub-v1")));
+        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(repository.findAll())
+                .extracting(
+                        SentimentRecordEntity::getSourceEventId,
+                        SentimentRecordEntity::getLabel,
+                        SentimentRecordEntity::getModelVersion)
+                .contains(tuple("evt-retry", "POSITIVE", "stub-v1")));
 
         mockServer.verify();
     }
 
     @Test
     void invalidMlResponse_isDeadLetteredInsteadOfSilentlyDropped() throws Exception {
-        mockServer.expect(requestTo("http://ml-engine:8000/ml/sentiment"))
+        mockServer
+                .expect(requestTo("http://ml-engine:8000/ml/sentiment"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
-                        "{\"label\":\"\",\"score\":0.12,\"modelVersion\":\"stub-v1\"}",
-                        MediaType.APPLICATION_JSON));
+                        "{\"label\":\"\",\"score\":0.12,\"modelVersion\":\"stub-v1\"}", MediaType.APPLICATION_JSON));
 
         ChatMessageEvent event = new ChatMessageEvent();
         event.setEventId("evt-dlt");
@@ -391,36 +400,52 @@ class SentimentPipelineIntegrationTest {
         event.setMessage("bad response path");
         event.setTimestamp(1710000004000L);
 
-        testChatKafkaTemplate().send("stream.chat.messages", "dlt-streamer", event).get();
+        testChatKafkaTemplate()
+                .send("stream.chat.messages", "dlt-streamer", event)
+                .get();
 
-        ConsumerRecord<String, ChatMessageEvent> dltRecord = KafkaTestUtils.getSingleRecord(
-                deadLetterConsumer,
-                "stream.chat.messages.dlt",
-                Duration.ofSeconds(10));
+        ConsumerRecord<String, ChatMessageEvent> dltRecord =
+                KafkaTestUtils.getSingleRecord(deadLetterConsumer, "stream.chat.messages.dlt", Duration.ofSeconds(10));
 
         assertThat(dltRecord.value().getEventId()).isEqualTo("evt-dlt");
         assertThat(dltRecord.value().getStreamer()).isEqualTo("dlt-streamer");
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(10))
-                .untilAsserted(() -> assertThat(repository.findAll())
-                        .noneMatch(record -> "evt-dlt".equals(record.getSourceEventId())));
+        Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(repository.findAll())
+                .noneMatch(record -> "evt-dlt".equals(record.getSourceEventId())));
 
         mockServer.verify();
     }
 
     @Test
     void recentEndpoint_returnsPersistedResultsInDescendingRecencyOrder() throws Exception {
-        repository.save(entity("sent-1", "src-1", "test-streamer", "u1", "first", 1710000000000L, 1710000000100L,
-                "NEGATIVE", -0.7d, "stub-v1"));
-        repository.save(entity("sent-2", "src-2", "test-streamer", "u2", "second", 1710000001000L,
-                1710000001100L, "POSITIVE", 0.8d, "stub-v1"));
+        repository.save(entity(
+                "sent-1",
+                "src-1",
+                "test-streamer",
+                "u1",
+                "first",
+                1710000000000L,
+                1710000000100L,
+                "NEGATIVE",
+                -0.7d,
+                "stub-v1"));
+        repository.save(entity(
+                "sent-2",
+                "src-2",
+                "test-streamer",
+                "u2",
+                "second",
+                1710000001000L,
+                1710000001100L,
+                "POSITIVE",
+                0.8d,
+                "stub-v1"));
         clearInvocations(repository, recentSentimentCache);
         when(recentSentimentCache.find("test-streamer", 2)).thenReturn(java.util.Optional.empty());
 
         mockMvc.perform(get("/api/sentiment/recent")
-                .param("streamer", "test-streamer")
-                .param("limit", "2"))
+                        .param("streamer", "test-streamer")
+                        .param("limit", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].sentimentEventId").value("sent-2"))
                 .andExpect(jsonPath("$[0].label").value("POSITIVE"))
@@ -444,11 +469,12 @@ class SentimentPipelineIntegrationTest {
         cachedEvent.setLabel("POSITIVE");
         cachedEvent.setScore(0.9d);
         cachedEvent.setModelVersion("stub-v1");
-        when(recentSentimentCache.find("test-streamer", 2)).thenReturn(java.util.Optional.of(java.util.List.of(cachedEvent)));
+        when(recentSentimentCache.find("test-streamer", 2))
+                .thenReturn(java.util.Optional.of(java.util.List.of(cachedEvent)));
 
         mockMvc.perform(get("/api/sentiment/recent")
-                .param("streamer", "test-streamer")
-                .param("limit", "2"))
+                        .param("streamer", "test-streamer")
+                        .param("limit", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].sentimentEventId").value("cached-sent-1"))
                 .andExpect(jsonPath("$[0].label").value("POSITIVE"))
@@ -461,19 +487,9 @@ class SentimentPipelineIntegrationTest {
     @Test
     void transcriptEndpoints_returnPersistedTranscriptAndTranscriptSentiment() throws Exception {
         transcriptSegmentRepository.save(transcriptSegment(
-                "segment-1",
-                "test-streamer",
-                "first transcript",
-                1710000000000L,
-                1710000005000L,
-                1L));
+                "segment-1", "test-streamer", "first transcript", 1710000000000L, 1710000005000L, 1L));
         transcriptSegmentRepository.save(transcriptSegment(
-                "segment-2",
-                "test-streamer",
-                "second transcript",
-                1710000010000L,
-                1710000015000L,
-                2L));
+                "segment-2", "test-streamer", "second transcript", 1710000010000L, 1710000015000L, 2L));
         transcriptSentimentRepository.save(transcriptSentiment(
                 "transcript-sent-1",
                 "segment-2",
@@ -484,16 +500,16 @@ class SentimentPipelineIntegrationTest {
                 1710000015000L));
 
         mockMvc.perform(get("/api/sentiment/transcript/recent")
-                .param("streamer", "test-streamer")
-                .param("limit", "2"))
+                        .param("streamer", "test-streamer")
+                        .param("limit", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].segmentId").value("segment-2"))
                 .andExpect(jsonPath("$[0].text").value("second transcript"))
                 .andExpect(jsonPath("$[1].segmentId").value("segment-1"));
 
         mockMvc.perform(get("/api/sentiment/transcript/sentiment/recent")
-                .param("streamer", "test-streamer")
-                .param("limit", "1"))
+                        .param("streamer", "test-streamer")
+                        .param("limit", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].sentimentEventId").value("transcript-sent-1"))
                 .andExpect(jsonPath("$[0].segmentId").value("segment-2"))
@@ -535,12 +551,7 @@ class SentimentPipelineIntegrationTest {
     }
 
     private TranscriptSegmentRecordEntity transcriptSegment(
-            String segmentId,
-            String streamer,
-            String text,
-            long startedAt,
-            long endedAt,
-            long transcriptSequence) {
+            String segmentId, String streamer, String text, long startedAt, long endedAt, long transcriptSequence) {
         TranscriptSegmentRecordEntity entity = new TranscriptSegmentRecordEntity();
         entity.setSegmentId(segmentId);
         entity.setStreamer(streamer);

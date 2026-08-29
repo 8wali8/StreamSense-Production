@@ -1,13 +1,10 @@
 package com.streamsense.apigateway.subscriptions;
 
-import java.time.Duration;
-
-import org.junit.jupiter.api.Test;
-
 import com.streamsense.apigateway.events.ChatMessageEvent;
 import com.streamsense.apigateway.events.SentimentAnalysisEvent;
 import com.streamsense.apigateway.events.SponsorDetectionEvent;
-
+import java.time.Duration;
+import org.junit.jupiter.api.Test;
 import reactor.test.StepVerifier;
 
 class SubscriptionBusReplayTest {

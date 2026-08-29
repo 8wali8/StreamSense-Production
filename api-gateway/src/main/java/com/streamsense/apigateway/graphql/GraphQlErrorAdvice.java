@@ -1,12 +1,11 @@
 package com.streamsense.apigateway.graphql;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import graphql.GraphQLError;
 import graphql.GraphqlErrorBuilder;
 import graphql.schema.DataFetchingEnvironment;
 import jakarta.validation.ConstraintViolationException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.graphql.data.method.annotation.GraphQlExceptionHandler;
@@ -36,7 +35,11 @@ public class GraphQlErrorAdvice {
     @GraphQlExceptionHandler
     public GraphQLError handleDownstreamUnavailable(WebClientRequestException ex, DataFetchingEnvironment env) {
         String host = ex.getUri() != null ? ex.getUri().getHost() : "unknown";
-        log.warn("downstream unavailable field={} host={} cause={}", env.getField().getName(), host, ex.getMessage());
+        log.warn(
+                "downstream unavailable field={} host={} cause={}",
+                env.getField().getName(),
+                host,
+                ex.getMessage());
         return GraphqlErrorBuilder.newError(env)
                 .errorType(ErrorType.INTERNAL_ERROR)
                 .message("Downstream service unavailable")
@@ -49,11 +52,17 @@ public class GraphQlErrorAdvice {
         String host = ex.getRequest() != null && ex.getRequest().getURI() != null
                 ? ex.getRequest().getURI().getHost()
                 : "unknown";
-        log.warn("downstream error field={} host={} status={}", env.getField().getName(), host, ex.getStatusCode().value());
+        log.warn(
+                "downstream error field={} host={} status={}",
+                env.getField().getName(),
+                host,
+                ex.getStatusCode().value());
         return GraphqlErrorBuilder.newError(env)
                 .errorType(ErrorType.INTERNAL_ERROR)
                 .message("Downstream service returned an error")
-                .extensions(extensions("DOWNSTREAM_ERROR", Map.of("host", host, "status", ex.getStatusCode().value())))
+                .extensions(extensions(
+                        "DOWNSTREAM_ERROR",
+                        Map.of("host", host, "status", ex.getStatusCode().value())))
                 .build();
     }
 

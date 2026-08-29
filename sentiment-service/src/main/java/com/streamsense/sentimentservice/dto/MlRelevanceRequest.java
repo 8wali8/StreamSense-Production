@@ -13,11 +13,16 @@ public class MlRelevanceRequest {
     private List<String> semanticTerms = new ArrayList<>();
     private Double minScore;
 
-    public MlRelevanceRequest() {
-    }
+    public MlRelevanceRequest() {}
 
-    public MlRelevanceRequest(String eventId, String streamer, String text, String sponsor,
-            List<String> aliases, List<String> semanticTerms, Double minScore) {
+    public MlRelevanceRequest(
+            String eventId,
+            String streamer,
+            String text,
+            String sponsor,
+            List<String> aliases,
+            List<String> semanticTerms,
+            Double minScore) {
         this.eventId = eventId;
         this.streamer = streamer;
         this.text = text;

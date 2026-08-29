@@ -16,10 +16,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.streamsense.videoservice.cache.RecentSponsorDetectionsCache;
+import com.streamsense.videoservice.events.FrameData;
+import com.streamsense.videoservice.events.SponsorDetectionEvent;
+import com.streamsense.videoservice.persistence.SponsorDetectionEntity;
+import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
+import com.streamsense.videoservice.service.VideoProcessingService;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -32,10 +37,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -53,55 +58,51 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
-import com.streamsense.videoservice.cache.RecentSponsorDetectionsCache;
-import com.streamsense.videoservice.events.FrameData;
-import com.streamsense.videoservice.events.SponsorDetectionEvent;
-import com.streamsense.videoservice.persistence.SponsorDetectionEntity;
-import com.streamsense.videoservice.persistence.SponsorDetectionRepository;
-import com.streamsense.videoservice.service.VideoProcessingService;
-
 @SpringBootTest
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 3, topics = { "stream.video.frames", "stream.video.frames.dlt", "stream.sponsor.detections" })
-@TestPropertySource(properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.datasource.url=jdbc:h2:mem:video-pipeline;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
-        "spring.jpa.hibernate.ddl-auto=validate",
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
-        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-        "spring.kafka.consumer.group-id=video-service-test-group",
-        "spring.kafka.consumer.auto-offset-reset=earliest",
-        "spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
-        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
-        "spring.kafka.consumer.properties.spring.json.trusted.packages=*",
-        "spring.kafka.consumer.properties.spring.json.value.default.type=com.streamsense.videoservice.events.FrameData",
-        "spring.kafka.consumer.properties.spring.json.use.type.headers=false",
-        "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
-        "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
-        "streamsense.topics.videoFrames=stream.video.frames",
-        "streamsense.topics.videoFramesDlt=stream.video.frames.dlt",
-        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
-        "streamsense.processing.retryBackoffMs=50",
-        "streamsense.processing.maxRetries=2",
-        "streamsense.ml.base-url=http://ml-engine:8000",
-        "streamsense.history.defaultLimit=20",
-        "streamsense.history.maxLimit=100",
-        "streamsense.cache.recentPrefix=sponsor:recent",
-        "streamsense.cache.recentTtlSeconds=60",
-        "streamsense.payload.maxFrameRefLength=1024",
-        "resilience4j.retry.instances.mlSponsor.maxAttempts=3",
-        "resilience4j.retry.instances.mlSponsor.waitDuration=10ms",
-        "resilience4j.retry.instances.mlSponsor.ignoreExceptions[0]=java.lang.IllegalStateException",
-        "resilience4j.retry.instances.mlSponsor.ignoreExceptions[1]=java.lang.IllegalArgumentException",
-        "resilience4j.circuitbreaker.instances.mlSponsor.minimumNumberOfCalls=10",
-        "resilience4j.circuitbreaker.instances.mlSponsor.slidingWindowSize=10",
-        "resilience4j.circuitbreaker.instances.mlSponsor.waitDurationInOpenState=1s",
-        "resilience4j.bulkhead.instances.mlSponsor.maxConcurrentCalls=2"
-})
+@EmbeddedKafka(
+        partitions = 3,
+        topics = {"stream.video.frames", "stream.video.frames.dlt", "stream.sponsor.detections"})
+@TestPropertySource(
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.datasource.url=jdbc:h2:mem:video-pipeline;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+            "spring.datasource.driver-class-name=org.h2.Driver",
+            "spring.datasource.username=sa",
+            "spring.datasource.password=",
+            "spring.jpa.hibernate.ddl-auto=validate",
+            "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
+            "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+            "spring.kafka.consumer.group-id=video-service-test-group",
+            "spring.kafka.consumer.auto-offset-reset=earliest",
+            "spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
+            "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
+            "spring.kafka.consumer.properties.spring.json.trusted.packages=*",
+            "spring.kafka.consumer.properties.spring.json.value.default.type=com.streamsense.videoservice.events.FrameData",
+            "spring.kafka.consumer.properties.spring.json.use.type.headers=false",
+            "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
+            "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer",
+            "streamsense.topics.videoFrames=stream.video.frames",
+            "streamsense.topics.videoFramesDlt=stream.video.frames.dlt",
+            "streamsense.topics.sponsorDetections=stream.sponsor.detections",
+            "streamsense.processing.retryBackoffMs=50",
+            "streamsense.processing.maxRetries=2",
+            "streamsense.ml.base-url=http://ml-engine:8000",
+            "streamsense.history.defaultLimit=20",
+            "streamsense.history.maxLimit=100",
+            "streamsense.cache.recentPrefix=sponsor:recent",
+            "streamsense.cache.recentTtlSeconds=60",
+            "streamsense.payload.maxFrameRefLength=1024",
+            "resilience4j.retry.instances.mlSponsor.maxAttempts=3",
+            "resilience4j.retry.instances.mlSponsor.waitDuration=10ms",
+            "resilience4j.retry.instances.mlSponsor.ignoreExceptions[0]=java.lang.IllegalStateException",
+            "resilience4j.retry.instances.mlSponsor.ignoreExceptions[1]=java.lang.IllegalArgumentException",
+            "resilience4j.circuitbreaker.instances.mlSponsor.minimumNumberOfCalls=10",
+            "resilience4j.circuitbreaker.instances.mlSponsor.slidingWindowSize=10",
+            "resilience4j.circuitbreaker.instances.mlSponsor.waitDurationInOpenState=1s",
+            "resilience4j.bulkhead.instances.mlSponsor.maxConcurrentCalls=2"
+        })
 class VideoPipelineIntegrationTest {
 
     @Autowired
@@ -137,16 +138,16 @@ class VideoPipelineIntegrationTest {
         repository.deleteAll();
         mockServer = MockRestServiceServer.bindTo(restTemplate).build();
 
-        Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("sponsor-events-test-group", "true",
-                embeddedKafkaBroker);
+        Map<String, Object> consumerProps =
+                KafkaTestUtils.consumerProps("sponsor-events-test-group", "true", embeddedKafkaBroker);
         consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, SponsorDetectionEvent.class.getName());
         consumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
         sponsorConsumer = new DefaultKafkaConsumerFactory<>(
-                consumerProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(SponsorDetectionEvent.class, false))
+                        consumerProps,
+                        new StringDeserializer(),
+                        new JsonDeserializer<>(SponsorDetectionEvent.class, false))
                 .createConsumer();
         sponsorConsumer.subscribe(Collections.singletonList("stream.sponsor.detections"));
         clearInvocations(repository, recentSponsorDetectionsCache);
@@ -161,22 +162,24 @@ class VideoPipelineIntegrationTest {
 
     @Test
     void uploadedFrame_isScoredPersistedAndPublished() throws Exception {
-        mockServer.expect(requestTo("http://ml-engine:8000/ml/sponsor"))
+        mockServer
+                .expect(requestTo("http://ml-engine:8000/ml/sponsor"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
-                        "{" +
-                                "\"sponsor\":\"Nike\"," +
-                                "\"confidence\":0.91," +
-                                "\"modelVersion\":\"stub-v1\"," +
-                                "\"x\":0.12," +
-                                "\"y\":0.18," +
-                                "\"width\":0.31," +
-                                "\"height\":0.24}",
+                        "{" + "\"sponsor\":\"Nike\","
+                                + "\"confidence\":0.91,"
+                                + "\"modelVersion\":\"stub-v1\","
+                                + "\"x\":0.12,"
+                                + "\"y\":0.18,"
+                                + "\"width\":0.31,"
+                                + "\"height\":0.24}",
                         MediaType.APPLICATION_JSON));
 
-        mockMvc.perform(post("/api/video/upload-frame")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
+        mockMvc.perform(
+                        post("/api/video/upload-frame")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
                         {
                           "streamer": "test-streamer",
                           "frameRef": "frames/test-001.png",
@@ -187,19 +190,16 @@ class VideoPipelineIntegrationTest {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("accepted"));
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(15))
-                .untilAsserted(() -> assertThat(repository.findAll()).hasSize(1));
+        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(repository.findAll())
+                .hasSize(1));
 
         SponsorDetectionEntity persisted = repository.findAll().getFirst();
         assertThat(persisted.getStreamer()).isEqualTo("test-streamer");
         assertThat(persisted.getSponsor()).isEqualTo("Nike");
         assertThat(persisted.getModelVersion()).isEqualTo("stub-v1");
 
-        ConsumerRecord<String, SponsorDetectionEvent> record = KafkaTestUtils.getSingleRecord(
-                sponsorConsumer,
-                "stream.sponsor.detections",
-                Duration.ofSeconds(10));
+        ConsumerRecord<String, SponsorDetectionEvent> record =
+                KafkaTestUtils.getSingleRecord(sponsorConsumer, "stream.sponsor.detections", Duration.ofSeconds(10));
 
         assertThat(record.value().getStreamer()).isEqualTo("test-streamer");
         assertThat(record.value().getSponsor()).isEqualTo("Nike");
@@ -210,17 +210,17 @@ class VideoPipelineIntegrationTest {
 
     @Test
     void twitchFrameMetadata_isCarriedThroughPersistenceAndKafka() throws Exception {
-        mockServer.expect(requestTo("http://ml-engine:8000/ml/sponsor"))
+        mockServer
+                .expect(requestTo("http://ml-engine:8000/ml/sponsor"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
-                        "{" +
-                                "\"sponsor\":\"Prime\"," +
-                                "\"confidence\":0.84," +
-                                "\"modelVersion\":\"frame-aware-stub-v1\"," +
-                                "\"x\":0.12," +
-                                "\"y\":0.18," +
-                                "\"width\":0.31," +
-                                "\"height\":0.24}",
+                        "{" + "\"sponsor\":\"Prime\","
+                                + "\"confidence\":0.84,"
+                                + "\"modelVersion\":\"frame-aware-stub-v1\","
+                                + "\"x\":0.12,"
+                                + "\"y\":0.18,"
+                                + "\"width\":0.31,"
+                                + "\"height\":0.24}",
                         MediaType.APPLICATION_JSON));
 
         FrameData frame = new FrameData();
@@ -245,10 +245,8 @@ class VideoPipelineIntegrationTest {
         assertThat(persisted.getStreamSessionId()).isEqualTo("austincs-1710000000000");
         assertThat(persisted.getVideoTimestampMs()).isEqualTo(30000L);
 
-        ConsumerRecord<String, SponsorDetectionEvent> record = KafkaTestUtils.getSingleRecord(
-                sponsorConsumer,
-                "stream.sponsor.detections",
-                Duration.ofSeconds(10));
+        ConsumerRecord<String, SponsorDetectionEvent> record =
+                KafkaTestUtils.getSingleRecord(sponsorConsumer, "stream.sponsor.detections", Duration.ofSeconds(10));
         assertThat(record.value().getSource()).isEqualTo("TWITCH");
         assertThat(record.value().getStreamSessionId()).isEqualTo("austincs-1710000000000");
 
@@ -257,13 +255,16 @@ class VideoPipelineIntegrationTest {
 
     @Test
     void sponsorMlFailure_persistsAndPublishesFallbackDetection() throws Exception {
-        mockServer.expect(ExpectedCount.times(3), requestTo("http://ml-engine:8000/ml/sponsor"))
+        mockServer
+                .expect(ExpectedCount.times(3), requestTo("http://ml-engine:8000/ml/sponsor"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withServerError());
 
-        mockMvc.perform(post("/api/video/upload-frame")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
+        mockMvc.perform(
+                        post("/api/video/upload-frame")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
                         {
                           "streamer": "fallback-streamer",
                           "frameRef": "frames/fallback.png",
@@ -273,17 +274,15 @@ class VideoPipelineIntegrationTest {
                         """))
                 .andExpect(status().isAccepted());
 
-        Awaitility.await()
-                .atMost(Duration.ofSeconds(15))
-                .untilAsserted(() -> assertThat(repository.findAll())
-                        .extracting(SponsorDetectionEntity::getStreamer, SponsorDetectionEntity::getSponsor,
-                                SponsorDetectionEntity::getModelVersion)
-                        .containsExactly(org.assertj.core.api.Assertions.tuple("fallback-streamer", "UNKNOWN", "fallback")));
+        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(repository.findAll())
+                .extracting(
+                        SponsorDetectionEntity::getStreamer,
+                        SponsorDetectionEntity::getSponsor,
+                        SponsorDetectionEntity::getModelVersion)
+                .containsExactly(org.assertj.core.api.Assertions.tuple("fallback-streamer", "UNKNOWN", "fallback")));
 
-        ConsumerRecord<String, SponsorDetectionEvent> record = KafkaTestUtils.getSingleRecord(
-                sponsorConsumer,
-                "stream.sponsor.detections",
-                Duration.ofSeconds(10));
+        ConsumerRecord<String, SponsorDetectionEvent> record =
+                KafkaTestUtils.getSingleRecord(sponsorConsumer, "stream.sponsor.detections", Duration.ofSeconds(10));
 
         assertThat(record.value().getSponsor()).isEqualTo("UNKNOWN");
         assertThat(record.value().getConfidence()).isEqualTo(0.0d);
@@ -294,30 +293,28 @@ class VideoPipelineIntegrationTest {
 
     @Test
     void invalidMlResponse_isDeadLetteredInsteadOfSilentlyDropped() throws Exception {
-        mockServer.expect(requestTo("http://ml-engine:8000/ml/sponsor"))
+        mockServer
+                .expect(requestTo("http://ml-engine:8000/ml/sponsor"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(
-                        "{" +
-                                "\"sponsor\":\"\"," +
-                                "\"confidence\":0.42," +
-                                "\"modelVersion\":\"stub-v1\"," +
-                                "\"x\":0.1," +
-                                "\"y\":0.1," +
-                                "\"width\":0.2," +
-                                "\"height\":0.2}",
+                        "{" + "\"sponsor\":\"\","
+                                + "\"confidence\":0.42,"
+                                + "\"modelVersion\":\"stub-v1\","
+                                + "\"x\":0.1,"
+                                + "\"y\":0.1,"
+                                + "\"width\":0.2,"
+                                + "\"height\":0.2}",
                         MediaType.APPLICATION_JSON));
 
-        Map<String, Object> dltConsumerProps = KafkaTestUtils.consumerProps(
-                "video-dlt-test-group-" + System.nanoTime(), "true", embeddedKafkaBroker);
+        Map<String, Object> dltConsumerProps =
+                KafkaTestUtils.consumerProps("video-dlt-test-group-" + System.nanoTime(), "true", embeddedKafkaBroker);
         dltConsumerProps.put("auto.offset.reset", "earliest");
         dltConsumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         dltConsumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, FrameData.class.getName());
         dltConsumerProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
         Consumer<String, FrameData> deadLetterConsumer = new DefaultKafkaConsumerFactory<>(
-                dltConsumerProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(FrameData.class, false))
+                        dltConsumerProps, new StringDeserializer(), new JsonDeserializer<>(FrameData.class, false))
                 .createConsumer();
         deadLetterConsumer.subscribe(Collections.singletonList("stream.video.frames.dlt"));
 
@@ -329,20 +326,18 @@ class VideoPipelineIntegrationTest {
             frame.setFrameSequence(7L);
             frame.setCapturedAt(1710000002000L);
 
-            testFrameKafkaTemplate().send("stream.video.frames", "dlt-streamer", frame).get();
+            testFrameKafkaTemplate()
+                    .send("stream.video.frames", "dlt-streamer", frame)
+                    .get();
 
             ConsumerRecord<String, FrameData> dltRecord = KafkaTestUtils.getSingleRecord(
-                    deadLetterConsumer,
-                    "stream.video.frames.dlt",
-                    Duration.ofSeconds(10));
+                    deadLetterConsumer, "stream.video.frames.dlt", Duration.ofSeconds(10));
 
             assertThat(dltRecord.value().getFrameId()).isEqualTo("frame-dlt-1");
             assertThat(dltRecord.value().getStreamer()).isEqualTo("dlt-streamer");
 
-            Awaitility.await()
-                    .atMost(Duration.ofSeconds(10))
-                    .untilAsserted(() -> assertThat(repository.findAll())
-                            .noneMatch(record -> "frame-dlt-1".equals(record.getSourceFrameId())));
+            Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(repository.findAll())
+                    .noneMatch(record -> "frame-dlt-1".equals(record.getSourceFrameId())));
 
             mockServer.verify();
         } finally {
@@ -352,16 +347,42 @@ class VideoPipelineIntegrationTest {
 
     @Test
     void recentEndpoint_returnsPersistedResultsInDescendingRecencyOrder() throws Exception {
-        repository.save(entity("det-1", "frame-1", "test-streamer", "frames/a.png", 1, 1710000000000L,
-                1710000000100L, "Nike", 0.81d, "stub-v1", 0.1d, 0.2d, 0.3d, 0.4d));
-        repository.save(entity("det-2", "frame-2", "test-streamer", "frames/b.png", 2, 1710000001000L,
-                1710000001100L, "Prime", 0.74d, "stub-v1", 0.2d, 0.1d, 0.25d, 0.22d));
+        repository.save(entity(
+                "det-1",
+                "frame-1",
+                "test-streamer",
+                "frames/a.png",
+                1,
+                1710000000000L,
+                1710000000100L,
+                "Nike",
+                0.81d,
+                "stub-v1",
+                0.1d,
+                0.2d,
+                0.3d,
+                0.4d));
+        repository.save(entity(
+                "det-2",
+                "frame-2",
+                "test-streamer",
+                "frames/b.png",
+                2,
+                1710000001000L,
+                1710000001100L,
+                "Prime",
+                0.74d,
+                "stub-v1",
+                0.2d,
+                0.1d,
+                0.25d,
+                0.22d));
         clearInvocations(repository, recentSponsorDetectionsCache);
         when(recentSponsorDetectionsCache.find("test-streamer", 2)).thenReturn(java.util.Optional.empty());
 
         mockMvc.perform(get("/api/video/detections/recent")
-                .param("streamer", "test-streamer")
-                .param("limit", "2"))
+                        .param("streamer", "test-streamer")
+                        .param("limit", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].detectionEventId").value("det-2"))
                 .andExpect(jsonPath("$[0].sponsor").value("Prime"))
@@ -389,11 +410,12 @@ class VideoPipelineIntegrationTest {
         cachedEvent.setY(0.22d);
         cachedEvent.setWidth(0.3d);
         cachedEvent.setHeight(0.19d);
-        when(recentSponsorDetectionsCache.find("test-streamer", 2)).thenReturn(java.util.Optional.of(java.util.List.of(cachedEvent)));
+        when(recentSponsorDetectionsCache.find("test-streamer", 2))
+                .thenReturn(java.util.Optional.of(java.util.List.of(cachedEvent)));
 
         mockMvc.perform(get("/api/video/detections/recent")
-                .param("streamer", "test-streamer")
-                .param("limit", "2"))
+                        .param("streamer", "test-streamer")
+                        .param("limit", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].detectionEventId").value("cached-det-1"))
                 .andExpect(jsonPath("$[0].sponsor").value("Logitech"))

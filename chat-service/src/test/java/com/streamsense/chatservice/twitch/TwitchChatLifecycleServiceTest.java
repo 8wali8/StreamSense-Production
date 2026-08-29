@@ -4,14 +4,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.streamsense.chatservice.config.StreamSenseProperties;
 import java.util.List;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import com.streamsense.chatservice.config.StreamSenseProperties;
 
 @ExtendWith(MockitoExtension.class)
 class TwitchChatLifecycleServiceTest {
@@ -33,7 +31,8 @@ class TwitchChatLifecycleServiceTest {
         StreamSenseProperties properties = new StreamSenseProperties();
         properties.getTwitch().getChat().setEnabled(false);
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
+        TwitchChatLifecycleService service =
+                new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         service.start();
 
@@ -45,7 +44,8 @@ class TwitchChatLifecycleServiceTest {
         StreamSenseProperties properties = enabledProperties();
         properties.getTwitch().getChat().setUsername("");
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
+        TwitchChatLifecycleService service =
+                new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         assertThatThrownBy(service::start)
                 .isInstanceOf(IllegalStateException.class)
@@ -57,7 +57,8 @@ class TwitchChatLifecycleServiceTest {
         StreamSenseProperties properties = enabledProperties();
         properties.getTwitch().getChat().setOauthToken("");
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
+        TwitchChatLifecycleService service =
+                new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         assertThatThrownBy(service::start)
                 .isInstanceOf(IllegalStateException.class)
@@ -69,7 +70,8 @@ class TwitchChatLifecycleServiceTest {
         StreamSenseProperties properties = enabledProperties();
         properties.getTwitch().getChat().setChannels(List.of());
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
+        TwitchChatLifecycleService service =
+                new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         service.start();
 
@@ -85,7 +87,8 @@ class TwitchChatLifecycleServiceTest {
         when(replayService.isReplayChannel("redbull-testing")).thenReturn(true);
         when(replayService.start(List.of("redbull-testing"))).thenReturn(List.of("redbull-testing"));
 
-        TwitchChatLifecycleService service = new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
+        TwitchChatLifecycleService service =
+                new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
 
         service.start();
 

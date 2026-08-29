@@ -13,5 +13,4 @@ public record SentimentSignal(
         long processedAt,
         String label,
         double score,
-        String modelVersion) {
-}
+        String modelVersion) {}

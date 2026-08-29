@@ -8,8 +8,7 @@ public class MlSentimentRequest {
     private String message;
     private long timestamp;
 
-    public MlSentimentRequest() {
-    }
+    public MlSentimentRequest() {}
 
     public MlSentimentRequest(String eventId, String streamer, String user, String message, long timestamp) {
         this.eventId = eventId;

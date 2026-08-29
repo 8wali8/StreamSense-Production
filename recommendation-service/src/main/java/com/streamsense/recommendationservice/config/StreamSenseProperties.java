@@ -1,13 +1,10 @@
 package com.streamsense.recommendationservice.config;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-
-
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -17,6 +14,7 @@ public class StreamSenseProperties {
 
     @Valid
     private final Services services = new Services();
+
     private final Recommendations recommendations = new Recommendations();
 
     public Services getServices() {
@@ -31,6 +29,7 @@ public class StreamSenseProperties {
 
         @Valid
         private final DownstreamService sentimentService = new DownstreamService();
+
         @Valid
         private final DownstreamService videoService = new DownstreamService();
         /** Time allowed to open a connection to sentiment-service or video-service. */

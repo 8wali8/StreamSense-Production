@@ -2,6 +2,8 @@ package com.streamsense.apigateway.graphql;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -11,28 +13,29 @@ import org.springframework.graphql.test.tester.HttpGraphQlTester;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.kafka.listener.auto-startup=false",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
-        "spring.kafka.bootstrap-servers=localhost:9092",
-        "spring.kafka.consumer.group-id=api-gateway-test-group",
-        "streamsense.services.video-service.base-url=http://localhost:8084",
-        "streamsense.services.analytics-service.base-url=http://localhost:8085"
-})
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.kafka.listener.auto-startup=false",
+            "streamsense.topics.chatMessages=stream.chat.messages",
+            "streamsense.topics.sentimentEvents=stream.sentiment.events",
+            "streamsense.topics.sponsorDetections=stream.sponsor.detections",
+            "spring.kafka.bootstrap-servers=localhost:9092",
+            "spring.kafka.consumer.group-id=api-gateway-test-group",
+            "streamsense.services.video-service.base-url=http://localhost:8084",
+            "streamsense.services.analytics-service.base-url=http://localhost:8085"
+        })
 class SentimentHistoryQueryTest {
 
     private static final MockWebServer MOCK_WEB_SERVER = new MockWebServer();
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("streamsense.services.sentiment-service.base-url", () -> MOCK_WEB_SERVER.url("/").toString());
+        registry.add(
+                "streamsense.services.sentiment-service.base-url",
+                () -> MOCK_WEB_SERVER.url("/").toString());
     }
 
     @BeforeAll
@@ -50,9 +53,11 @@ class SentimentHistoryQueryTest {
 
     @Test
     void recentSentimentQuery_returnsHistoryFromSentimentService() {
-        MOCK_WEB_SERVER.enqueue(new MockResponse()
-                .addHeader("Content-Type", "application/json")
-                .setBody("""
+        MOCK_WEB_SERVER.enqueue(
+                new MockResponse()
+                        .addHeader("Content-Type", "application/json")
+                        .setBody(
+                                """
                         [
                           {
                             "sentimentEventId": "sent-1",
@@ -69,7 +74,9 @@ class SentimentHistoryQueryTest {
                         ]
                         """));
 
-        graphQlTester.document("""
+        graphQlTester
+                .document(
+                        """
                         query RecentSentiment($streamer: String!, $limit: Int!) {
                           recentSentiment(streamer: $streamer, limit: $limit) {
                             sentimentEventId
@@ -90,9 +97,11 @@ class SentimentHistoryQueryTest {
 
     @Test
     void recentSentimentQuery_returnsFallbackHistoryWithoutErrors() {
-        MOCK_WEB_SERVER.enqueue(new MockResponse()
-                .addHeader("Content-Type", "application/json")
-                .setBody("""
+        MOCK_WEB_SERVER.enqueue(
+                new MockResponse()
+                        .addHeader("Content-Type", "application/json")
+                        .setBody(
+                                """
                         [
                           {
                             "sentimentEventId": "sent-fallback",
@@ -109,7 +118,9 @@ class SentimentHistoryQueryTest {
                         ]
                         """));
 
-        graphQlTester.document("""
+        graphQlTester
+                .document(
+                        """
                         query RecentSentiment($streamer: String!, $limit: Int!) {
                           recentSentiment(streamer: $streamer, limit: $limit) {
                             sentimentEventId
@@ -130,9 +141,11 @@ class SentimentHistoryQueryTest {
 
     @Test
     void transcriptQueries_returnTranscriptHistoryFromSentimentService() {
-        MOCK_WEB_SERVER.enqueue(new MockResponse()
-                .addHeader("Content-Type", "application/json")
-                .setBody("""
+        MOCK_WEB_SERVER.enqueue(
+                new MockResponse()
+                        .addHeader("Content-Type", "application/json")
+                        .setBody(
+                                """
                         [
                           {
                             "segmentId": "segment-1",
@@ -153,9 +166,11 @@ class SentimentHistoryQueryTest {
                           }
                         ]
                         """));
-        MOCK_WEB_SERVER.enqueue(new MockResponse()
-                .addHeader("Content-Type", "application/json")
-                .setBody("""
+        MOCK_WEB_SERVER.enqueue(
+                new MockResponse()
+                        .addHeader("Content-Type", "application/json")
+                        .setBody(
+                                """
                         [
                           {
                             "sentimentEventId": "transcript-sent-1",
@@ -175,7 +190,9 @@ class SentimentHistoryQueryTest {
                         ]
                         """));
 
-        graphQlTester.document("""
+        graphQlTester
+                .document(
+                        """
                         query RecentTranscript($streamer: String!, $limit: Int!) {
                           recentTranscriptSegments(streamer: $streamer, limit: $limit) {
                             segmentId
@@ -193,7 +210,9 @@ class SentimentHistoryQueryTest {
                 .entity(String.class)
                 .isEqualTo("segment-1");
 
-        graphQlTester.document("""
+        graphQlTester
+                .document(
+                        """
                         query RecentTranscriptSentiment($streamer: String!, $limit: Int!) {
                           recentTranscriptSentiment(streamer: $streamer, limit: $limit) {
                             sentimentEventId

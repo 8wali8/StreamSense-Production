@@ -2,14 +2,12 @@ package com.streamsense.sentimentservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
-import java.util.Optional;
-
-import org.junit.jupiter.api.Test;
-
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
 
 class SponsorRelevanceProfileServiceTest {
 
@@ -32,8 +30,7 @@ class SponsorRelevanceProfileServiceTest {
 
     @Test
     void seedConfiguredProfiles_activatesConfiguredStreamerProfile() {
-        SponsorRelevanceProfileService service =
-                new SponsorRelevanceProfileService(propertiesWithRedBullSeed());
+        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(propertiesWithRedBullSeed());
 
         service.seedConfiguredProfiles();
 
@@ -43,7 +40,10 @@ class SponsorRelevanceProfileServiceTest {
         assertThat(active.get().getAliases()).contains("red bull", "redbull");
         assertThat(active.get().getSemanticTerms()).contains("energy drink", "wings");
         assertThat(active.get().getMinScore())
-                .isEqualTo(propertiesWithRedBullSeed().getSentiment().getRelevance().getMinScore());
+                .isEqualTo(propertiesWithRedBullSeed()
+                        .getSentiment()
+                        .getRelevance()
+                        .getMinScore());
     }
 
     @Test
@@ -78,8 +78,7 @@ class SponsorRelevanceProfileServiceTest {
 
     @Test
     void update_overridesSeededProfileForSameStreamer() {
-        SponsorRelevanceProfileService service =
-                new SponsorRelevanceProfileService(propertiesWithRedBullSeed());
+        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(propertiesWithRedBullSeed());
         service.seedConfiguredProfiles();
 
         SponsorRelevanceUpdateRequest request = new SponsorRelevanceUpdateRequest();

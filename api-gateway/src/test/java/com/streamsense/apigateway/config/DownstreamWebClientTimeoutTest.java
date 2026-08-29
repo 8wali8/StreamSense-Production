@@ -2,11 +2,10 @@ package com.streamsense.apigateway.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.netty.handler.timeout.ReadTimeoutException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-
-import io.netty.handler.timeout.ReadTimeoutException;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
@@ -37,7 +36,9 @@ class DownstreamWebClientTimeoutTest {
         DownstreamServicesProperties properties = new DownstreamServicesProperties();
         properties.setResponseTimeout(Duration.ofMillis(200));
 
-        WebClient client = customizedBuilder(properties).baseUrl(server.url("/").toString()).build();
+        WebClient client = customizedBuilder(properties)
+                .baseUrl(server.url("/").toString())
+                .build();
 
         StepVerifier.create(client.get().uri("/api/recommendations").retrieve().bodyToMono(String.class))
                 .expectErrorSatisfies(error -> {
@@ -52,7 +53,9 @@ class DownstreamWebClientTimeoutTest {
         server.enqueue(new MockResponse().setBody("[]").addHeader("Content-Type", "application/json"));
         DownstreamServicesProperties properties = new DownstreamServicesProperties();
 
-        WebClient client = customizedBuilder(properties).baseUrl(server.url("/").toString()).build();
+        WebClient client = customizedBuilder(properties)
+                .baseUrl(server.url("/").toString())
+                .build();
 
         StepVerifier.create(client.get().uri("/api/recommendations").retrieve().bodyToMono(String.class))
                 .expectNext("[]")
@@ -61,7 +64,9 @@ class DownstreamWebClientTimeoutTest {
 
     private static WebClient.Builder customizedBuilder(DownstreamServicesProperties properties) {
         WebClient.Builder builder = WebClient.builder();
-        new DownstreamWebClientConfig().downstreamTimeoutWebClientCustomizer(properties).customize(builder);
+        new DownstreamWebClientConfig()
+                .downstreamTimeoutWebClientCustomizer(properties)
+                .customize(builder);
         return builder;
     }
 }

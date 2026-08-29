@@ -1,8 +1,19 @@
 package com.streamsense.videoservice.controller;
 
+import com.streamsense.videoservice.api.FrameUploadRequest;
+import com.streamsense.videoservice.api.FrameUploadResponse;
+import com.streamsense.videoservice.config.CorrelationIdFilter;
+import com.streamsense.videoservice.config.StreamSenseProperties;
+import com.streamsense.videoservice.events.FrameData;
+import com.streamsense.videoservice.events.SponsorDetectionEvent;
+import com.streamsense.videoservice.kafka.VideoFrameProducer;
+import com.streamsense.videoservice.service.VideoProcessingService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import java.util.UUID;
-
 import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -13,20 +24,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.streamsense.videoservice.api.FrameUploadRequest;
-import com.streamsense.videoservice.api.FrameUploadResponse;
-import com.streamsense.videoservice.config.CorrelationIdFilter;
-import com.streamsense.videoservice.config.StreamSenseProperties;
-import com.streamsense.videoservice.events.FrameData;
-import com.streamsense.videoservice.events.SponsorDetectionEvent;
-import com.streamsense.videoservice.kafka.VideoFrameProducer;
-import com.streamsense.videoservice.service.VideoProcessingService;
-
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 
 @Validated
 @RestController
@@ -65,7 +62,8 @@ public class VideoController {
         frameData.setFrameSequence(request.getFrameSequence());
         frameData.setCapturedAt(request.getCapturedAt());
 
-        videoFrameProducer.publish(frameData,
+        videoFrameProducer.publish(
+                frameData,
                 firstNonBlank(correlationId, legacyCorrelationId, MDC.get(CorrelationIdFilter.CORRELATION_ID_KEY)),
                 traceparent);
         return ResponseEntity.accepted().body(new FrameUploadResponse(frameId, "accepted"));

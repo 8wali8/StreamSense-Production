@@ -8,5 +8,4 @@ public record TwitchChatStatus(
         List<String> channels,
         long lastMessageAt,
         String lastError,
-        long reconnectAttempts) {
-}
+        long reconnectAttempts) {}

@@ -1,22 +1,20 @@
 package com.streamsense.apigateway.auth;
 
-import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
-import java.time.Clock;
-import java.time.Instant;
-import java.util.Base64;
-import java.util.Iterator;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jwt.SignedJWT;
 import com.streamsense.apigateway.config.GatewayEdgeProperties;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Iterator;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 public class JwtAuthTokenValidator {
@@ -60,7 +58,8 @@ public class JwtAuthTokenValidator {
 
             // Nothing in the payload is trusted until the signature checks out against a configured key.
             SignedJWT signedJwt = SignedJWT.parse(token);
-            JWSVerifier verifier = JwtSignatureVerifiers.resolve(signedJwt.getHeader().getAlgorithm(), authProperties);
+            JWSVerifier verifier =
+                    JwtSignatureVerifiers.resolve(signedJwt.getHeader().getAlgorithm(), authProperties);
             if (!signedJwt.verify(verifier)) {
                 return ValidationResult.invalid("invalid_jwt_signature");
             }
@@ -70,7 +69,9 @@ public class JwtAuthTokenValidator {
             }
 
             if (StringUtils.hasText(authProperties.getRequiredIssuer())
-                    && !authProperties.getRequiredIssuer().equals(payload.path("iss").asText())) {
+                    && !authProperties
+                            .getRequiredIssuer()
+                            .equals(payload.path("iss").asText())) {
                 return ValidationResult.invalid("invalid_issuer");
             }
 

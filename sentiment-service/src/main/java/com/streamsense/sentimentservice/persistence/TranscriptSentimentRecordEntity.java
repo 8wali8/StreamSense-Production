@@ -1,14 +1,12 @@
 package com.streamsense.sentimentservice.persistence;
 
-import java.util.Arrays;
-import java.util.List;
-
 import com.streamsense.sentimentservice.events.TranscriptSentimentEvent;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Arrays;
+import java.util.List;
 
 @Entity
 @Table(name = "transcript_sentiment_events")

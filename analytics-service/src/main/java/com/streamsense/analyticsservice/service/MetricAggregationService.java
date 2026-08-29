@@ -1,11 +1,5 @@
 package com.streamsense.analyticsservice.service;
 
-import java.time.Clock;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.events.ChatMessageEvent;
 import com.streamsense.analyticsservice.events.SentimentAnalysisEvent;
@@ -15,6 +9,10 @@ import com.streamsense.analyticsservice.metrics.AnalyticsMetrics;
 import com.streamsense.analyticsservice.persistence.MetricBucketRepository;
 import com.streamsense.analyticsservice.persistence.ProcessedEventRepository;
 import com.streamsense.analyticsservice.persistence.SponsorMetricBucketRepository;
+import java.time.Clock;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MetricAggregationService {
@@ -27,13 +25,21 @@ public class MetricAggregationService {
     private final Clock clock;
 
     @Autowired
-    public MetricAggregationService(StreamSenseProperties properties, ProcessedEventRepository processedEvents,
-            MetricBucketRepository metricBuckets, SponsorMetricBucketRepository sponsorBuckets, AnalyticsMetrics metrics) {
+    public MetricAggregationService(
+            StreamSenseProperties properties,
+            ProcessedEventRepository processedEvents,
+            MetricBucketRepository metricBuckets,
+            SponsorMetricBucketRepository sponsorBuckets,
+            AnalyticsMetrics metrics) {
         this(properties, processedEvents, metricBuckets, sponsorBuckets, metrics, Clock.systemUTC());
     }
 
-    MetricAggregationService(StreamSenseProperties properties, ProcessedEventRepository processedEvents,
-            MetricBucketRepository metricBuckets, SponsorMetricBucketRepository sponsorBuckets, AnalyticsMetrics metrics,
+    MetricAggregationService(
+            StreamSenseProperties properties,
+            ProcessedEventRepository processedEvents,
+            MetricBucketRepository metricBuckets,
+            SponsorMetricBucketRepository sponsorBuckets,
+            AnalyticsMetrics metrics,
             Clock clock) {
         this.properties = properties;
         this.processedEvents = processedEvents;
@@ -49,16 +55,24 @@ public class MetricAggregationService {
         String streamer = normalize(event.getStreamer());
         String sessionKey = sessionKey(event.getStreamSessionId(), streamer);
         long now = clock.millis();
-        if (!processedEvents.tryMarkProcessed(topic, event.getEventId(), streamer, clean(event.getStreamSessionId()),
-                event.getTimestamp(), now)) {
+        if (!processedEvents.tryMarkProcessed(
+                topic, event.getEventId(), streamer, clean(event.getStreamSessionId()), event.getTimestamp(), now)) {
             metrics.eventDuplicate(topic);
             return false;
         }
 
         long bucketStart = bucketStart(event.getTimestamp());
-        metricBuckets.incrementChatMessage(streamer, clean(event.getChannelLogin()), clean(event.getStreamSessionId()),
-                sessionKey, clean(event.getTwitchStreamId()), bucketStart, bucketSizeSeconds(), now);
-        metricBuckets.insertChatter(streamer, sessionKey, bucketStart, bucketSizeSeconds(), event.getUser(), event.getTimestamp());
+        metricBuckets.incrementChatMessage(
+                streamer,
+                clean(event.getChannelLogin()),
+                clean(event.getStreamSessionId()),
+                sessionKey,
+                clean(event.getTwitchStreamId()),
+                bucketStart,
+                bucketSizeSeconds(),
+                now);
+        metricBuckets.insertChatter(
+                streamer, sessionKey, bucketStart, bucketSizeSeconds(), event.getUser(), event.getTimestamp());
         recomputeSpikeFlags(streamer, sessionKey, bucketStart, now);
         metrics.bucketUpdated("chat");
         metrics.eventProcessed(topic);
@@ -72,16 +86,29 @@ public class MetricAggregationService {
         String streamer = normalize(event.getStreamer());
         String sessionKey = sessionKey(event.getStreamSessionId(), streamer);
         long now = clock.millis();
-        if (!processedEvents.tryMarkProcessed(topic, event.getSentimentEventId(), streamer, clean(event.getStreamSessionId()),
-                event.getChatTimestamp(), now)) {
+        if (!processedEvents.tryMarkProcessed(
+                topic,
+                event.getSentimentEventId(),
+                streamer,
+                clean(event.getStreamSessionId()),
+                event.getChatTimestamp(),
+                now)) {
             metrics.eventDuplicate(topic);
             return false;
         }
 
         long bucketStart = bucketStart(event.getChatTimestamp());
-        metricBuckets.incrementChatSentiment(streamer, clean(event.getChannelLogin()), clean(event.getStreamSessionId()),
-                sessionKey, clean(event.getTwitchStreamId()), bucketStart, bucketSizeSeconds(), event.getLabel(),
-                event.getScore(), now);
+        metricBuckets.incrementChatSentiment(
+                streamer,
+                clean(event.getChannelLogin()),
+                clean(event.getStreamSessionId()),
+                sessionKey,
+                clean(event.getTwitchStreamId()),
+                bucketStart,
+                bucketSizeSeconds(),
+                event.getLabel(),
+                event.getScore(),
+                now);
         recomputeSpikeFlags(streamer, sessionKey, bucketStart, now);
         metrics.bucketUpdated("chat_sentiment");
         metrics.eventProcessed(topic);
@@ -95,15 +122,27 @@ public class MetricAggregationService {
         String streamer = normalize(event.getStreamer());
         String sessionKey = sessionKey(event.getStreamSessionId(), streamer);
         long now = clock.millis();
-        if (!processedEvents.tryMarkProcessed(topic, event.getSentimentEventId(), streamer, clean(event.getStreamSessionId()),
-                event.getSegmentStartedAt(), now)) {
+        if (!processedEvents.tryMarkProcessed(
+                topic,
+                event.getSentimentEventId(),
+                streamer,
+                clean(event.getStreamSessionId()),
+                event.getSegmentStartedAt(),
+                now)) {
             metrics.eventDuplicate(topic);
             return false;
         }
 
         long bucketStart = bucketStart(event.getSegmentStartedAt());
-        metricBuckets.incrementTranscriptSentiment(streamer, clean(event.getStreamSessionId()), sessionKey, bucketStart,
-                bucketSizeSeconds(), event.getLabel(), event.getScore(), now);
+        metricBuckets.incrementTranscriptSentiment(
+                streamer,
+                clean(event.getStreamSessionId()),
+                sessionKey,
+                bucketStart,
+                bucketSizeSeconds(),
+                event.getLabel(),
+                event.getScore(),
+                now);
         metrics.bucketUpdated("transcript_sentiment");
         metrics.eventProcessed(topic);
         metrics.recordLag(topic, now - event.getSegmentStartedAt());
@@ -116,19 +155,35 @@ public class MetricAggregationService {
         String streamer = normalize(event.getStreamer());
         String sessionKey = sessionKey(event.getStreamSessionId(), streamer);
         long now = clock.millis();
-        if (!processedEvents.tryMarkProcessed(topic, event.getDetectionEventId(), streamer, clean(event.getStreamSessionId()),
-                event.getCapturedAt(), now)) {
+        if (!processedEvents.tryMarkProcessed(
+                topic,
+                event.getDetectionEventId(),
+                streamer,
+                clean(event.getStreamSessionId()),
+                event.getCapturedAt(),
+                now)) {
             metrics.eventDuplicate(topic);
             return false;
         }
 
         long bucketStart = bucketStart(event.getCapturedAt());
         boolean accepted = event.getConfidence() >= properties.getAnalytics().getMinimumSponsorConfidence();
-        boolean fallback = Boolean.TRUE.equals(event.getFallback()) || "fallback".equalsIgnoreCase(event.getModelVersion());
-        sponsorBuckets.incrementSponsor(streamer, clean(event.getChannelLogin()), clean(event.getStreamSessionId()),
-                sessionKey, clean(event.getTwitchStreamId()), bucketStart, bucketSizeSeconds(), event.getSponsor(),
-                event.getConfidence(), accepted, fallback,
-                properties.getAnalytics().getEstimatedSponsorExposureMsPerDetection(), now);
+        boolean fallback =
+                Boolean.TRUE.equals(event.getFallback()) || "fallback".equalsIgnoreCase(event.getModelVersion());
+        sponsorBuckets.incrementSponsor(
+                streamer,
+                clean(event.getChannelLogin()),
+                clean(event.getStreamSessionId()),
+                sessionKey,
+                clean(event.getTwitchStreamId()),
+                bucketStart,
+                bucketSizeSeconds(),
+                event.getSponsor(),
+                event.getConfidence(),
+                accepted,
+                fallback,
+                properties.getAnalytics().getEstimatedSponsorExposureMsPerDetection(),
+                now);
         metrics.bucketUpdated("sponsor");
         metrics.eventProcessed(topic);
         metrics.recordLag(topic, now - event.getCapturedAt());
@@ -136,10 +191,15 @@ public class MetricAggregationService {
     }
 
     private void recomputeSpikeFlags(String streamer, String sessionKey, long bucketStart, long now) {
-        var buckets = metricBuckets.findBuckets(streamer, sessionKey,
+        var buckets = metricBuckets.findBuckets(
+                streamer,
+                sessionKey,
                 bucketStart - properties.getAnalytics().getEngagementSpikeTrailingWindowMinutes() * 60_000L,
-                bucketStart + bucketSizeSeconds() * 1000L, bucketSizeSeconds());
-        var current = buckets.stream().filter(bucket -> bucket.bucketStart() == bucketStart).findFirst();
+                bucketStart + bucketSizeSeconds() * 1000L,
+                bucketSizeSeconds());
+        var current = buckets.stream()
+                .filter(bucket -> bucket.bucketStart() == bucketStart)
+                .findFirst();
         if (current.isEmpty()) {
             return;
         }
@@ -147,17 +207,21 @@ public class MetricAggregationService {
         long sentimentCount = current.get().chatSentimentCount();
         boolean negativeSpike = sentimentCount >= properties.getAnalytics().getNegativeSpikeMinimumEvents()
                 && sentimentCount > 0
-                && (double) negativeCount / sentimentCount >= properties.getAnalytics().getNegativeSpikeRatioThreshold();
+                && (double) negativeCount / sentimentCount
+                        >= properties.getAnalytics().getNegativeSpikeRatioThreshold();
 
         double trailingAverage = buckets.stream()
                 .filter(bucket -> bucket.bucketStart() < bucketStart)
                 .mapToLong(bucket -> bucket.chatMessageCount())
                 .average()
                 .orElse(0.0d);
-        boolean engagementSpike = current.get().chatMessageCount() >= properties.getAnalytics().getEngagementSpikeMinimumMessages()
+        boolean engagementSpike = current.get().chatMessageCount()
+                        >= properties.getAnalytics().getEngagementSpikeMinimumMessages()
                 && (trailingAverage == 0.0d
-                        || current.get().chatMessageCount() >= trailingAverage * properties.getAnalytics().getEngagementSpikeMultiplier());
-        metricBuckets.setSpikeFlags(streamer, sessionKey, bucketStart, bucketSizeSeconds(), negativeSpike, engagementSpike, now);
+                        || current.get().chatMessageCount()
+                                >= trailingAverage * properties.getAnalytics().getEngagementSpikeMultiplier());
+        metricBuckets.setSpikeFlags(
+                streamer, sessionKey, bucketStart, bucketSizeSeconds(), negativeSpike, engagementSpike, now);
     }
 
     private long bucketStart(long timestamp) {

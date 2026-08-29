@@ -8,5 +8,4 @@ public record SponsorBucketMetric(
         long fallbackDetectionCount,
         long estimatedExposureMs,
         double confidenceSum,
-        Double maxConfidence) {
-}
+        Double maxConfidence) {}

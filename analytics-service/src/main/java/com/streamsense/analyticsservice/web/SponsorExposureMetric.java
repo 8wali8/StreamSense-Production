@@ -8,5 +8,4 @@ public record SponsorExposureMetric(
         Double averageConfidence,
         Double maxConfidence,
         long fallbackDetectionCount,
-        long lowConfidenceDetectionCount) {
-}
+        long lowConfidenceDetectionCount) {}

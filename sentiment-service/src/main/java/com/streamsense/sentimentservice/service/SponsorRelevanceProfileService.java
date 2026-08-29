@@ -1,5 +1,9 @@
 package com.streamsense.sentimentservice.service;
 
+import com.streamsense.sentimentservice.config.StreamSenseProperties;
+import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
+import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
+import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -7,15 +11,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-
-import com.streamsense.sentimentservice.config.StreamSenseProperties;
-import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
-import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
-
-import jakarta.annotation.PostConstruct;
 
 @Service
 public class SponsorRelevanceProfileService {
@@ -29,7 +26,8 @@ public class SponsorRelevanceProfileService {
 
     @PostConstruct
     public void seedConfiguredProfiles() {
-        for (StreamSenseProperties.Seed seed : properties.getSentiment().getRelevance().getSeeds()) {
+        for (StreamSenseProperties.Seed seed :
+                properties.getSentiment().getRelevance().getSeeds()) {
             if (clean(seed.getStreamer()) == null || clean(seed.getSponsor()) == null) {
                 continue;
             }
@@ -57,7 +55,10 @@ public class SponsorRelevanceProfileService {
                 configuredSemanticTerms(profile.getSponsor()),
                 request.getSemanticTerms(),
                 campaignGoalTerms(request.getCampaignGoal())));
-        profile.setMinScore(request.getMinScore() != null ? request.getMinScore() : properties.getSentiment().getRelevance().getMinScore());
+        profile.setMinScore(
+                request.getMinScore() != null
+                        ? request.getMinScore()
+                        : properties.getSentiment().getRelevance().getMinScore());
         activeProfiles.put(normalize(profile.getStreamer()), profile);
         return profile;
     }

@@ -17,6 +17,5 @@ public interface RateLimiter {
      */
     Mono<RateLimitDecision> acquire(String bucketId, int requestLimit, int windowSeconds);
 
-    record RateLimitDecision(boolean allowed, int remaining, long resetAtEpochSeconds) {
-    }
+    record RateLimitDecision(boolean allowed, int remaining, long resetAtEpochSeconds) {}
 }

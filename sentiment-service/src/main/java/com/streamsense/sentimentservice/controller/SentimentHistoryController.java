@@ -1,15 +1,5 @@
 package com.streamsense.sentimentservice.controller;
 
-import java.util.List;
-
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
@@ -18,10 +8,17 @@ import com.streamsense.sentimentservice.events.TranscriptSegmentEvent;
 import com.streamsense.sentimentservice.events.TranscriptSentimentEvent;
 import com.streamsense.sentimentservice.service.SentimentService;
 import com.streamsense.sentimentservice.service.SponsorRelevanceProfileService;
-
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @Validated
 @RestController
@@ -84,7 +81,8 @@ public class SentimentHistoryController {
     }
 
     @PostMapping("/relevance/sponsors")
-    public SponsorRelevanceProfile updateSponsorRelevance(@RequestBody @jakarta.validation.Valid SponsorRelevanceUpdateRequest request) {
+    public SponsorRelevanceProfile updateSponsorRelevance(
+            @RequestBody @jakarta.validation.Valid SponsorRelevanceUpdateRequest request) {
         return sponsorRelevanceProfileService.update(request);
     }
 }

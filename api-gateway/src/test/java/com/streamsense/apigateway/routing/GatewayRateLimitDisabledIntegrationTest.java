@@ -1,5 +1,7 @@
 package com.streamsense.apigateway.routing;
 
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -10,27 +12,26 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.kafka.listener.auto-startup=false",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
-        "spring.kafka.bootstrap-servers=localhost:9092",
-        "spring.kafka.consumer.group-id=api-gateway-test-group-disabled",
-        "streamsense.services.sentiment-service.base-url=http://localhost:8083",
-        "streamsense.services.video-service.base-url=http://localhost:8084",
-        "streamsense.gateway.rate-limit-enabled=false",
-        "streamsense.gateway.rate-limits[0].id=chat-ingest",
-        "streamsense.gateway.rate-limits[0].path=/api/chat/ingest",
-        "streamsense.gateway.rate-limits[0].method=POST",
-        "streamsense.gateway.rate-limits[0].requests=1",
-        "streamsense.gateway.rate-limits[0].window-seconds=60"
-})
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.kafka.listener.auto-startup=false",
+            "streamsense.topics.chatMessages=stream.chat.messages",
+            "streamsense.topics.sentimentEvents=stream.sentiment.events",
+            "streamsense.topics.sponsorDetections=stream.sponsor.detections",
+            "spring.kafka.bootstrap-servers=localhost:9092",
+            "spring.kafka.consumer.group-id=api-gateway-test-group-disabled",
+            "streamsense.services.sentiment-service.base-url=http://localhost:8083",
+            "streamsense.services.video-service.base-url=http://localhost:8084",
+            "streamsense.gateway.rate-limit-enabled=false",
+            "streamsense.gateway.rate-limits[0].id=chat-ingest",
+            "streamsense.gateway.rate-limits[0].path=/api/chat/ingest",
+            "streamsense.gateway.rate-limits[0].method=POST",
+            "streamsense.gateway.rate-limits[0].requests=1",
+            "streamsense.gateway.rate-limits[0].window-seconds=60"
+        })
 class GatewayRateLimitDisabledIntegrationTest {
 
     private static final MockWebServer CHAT_SERVICE = new MockWebServer();
@@ -38,7 +39,9 @@ class GatewayRateLimitDisabledIntegrationTest {
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.cloud.gateway.routes[0].id", () -> "chat-service-api");
-        registry.add("spring.cloud.gateway.routes[0].uri", () -> CHAT_SERVICE.url("/").toString());
+        registry.add(
+                "spring.cloud.gateway.routes[0].uri",
+                () -> CHAT_SERVICE.url("/").toString());
         registry.add("spring.cloud.gateway.routes[0].predicates[0]", () -> "Path=/api/chat/**");
     }
 
@@ -57,15 +60,20 @@ class GatewayRateLimitDisabledIntegrationTest {
 
     @Test
     void bypassesConfiguredRulesWhenDisabled() {
-        CHAT_SERVICE.enqueue(new MockResponse().addHeader("Content-Type", "application/json").setBody("{\"eventId\":\"evt-1\"}"));
-        CHAT_SERVICE.enqueue(new MockResponse().addHeader("Content-Type", "application/json").setBody("{\"eventId\":\"evt-2\"}"));
+        CHAT_SERVICE.enqueue(
+                new MockResponse().addHeader("Content-Type", "application/json").setBody("{\"eventId\":\"evt-1\"}"));
+        CHAT_SERVICE.enqueue(
+                new MockResponse().addHeader("Content-Type", "application/json").setBody("{\"eventId\":\"evt-2\"}"));
 
         postIngest("203.0.113.99").expectStatus().isOk();
         postIngest("203.0.113.99").expectStatus().isOk();
     }
 
     private WebTestClient.ResponseSpec postIngest(String clientIp) {
-        return WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build().post()
+        return WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build()
+                .post()
                 .uri("/api/chat/ingest")
                 .header("X-Forwarded-For", clientIp)
                 .contentType(MediaType.APPLICATION_JSON)

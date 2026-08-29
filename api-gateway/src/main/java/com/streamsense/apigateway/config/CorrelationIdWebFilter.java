@@ -1,7 +1,6 @@
 package com.streamsense.apigateway.config;
 
 import java.util.UUID;
-
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -9,7 +8,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
-
 import reactor.core.publisher.Mono;
 
 // Ordered first so every later filter (auth, rate limiting) and the handler run inside the correlation context.
@@ -28,7 +26,8 @@ public class CorrelationIdWebFilter implements WebFilter {
                 exchange.getRequest().getHeaders().getFirst(LEGACY_CORRELATION_ID_HEADER),
                 UUID.randomUUID().toString());
 
-        ServerHttpRequest request = exchange.getRequest().mutate()
+        ServerHttpRequest request = exchange.getRequest()
+                .mutate()
                 .header(CORRELATION_ID_HEADER, correlationId)
                 .build();
 

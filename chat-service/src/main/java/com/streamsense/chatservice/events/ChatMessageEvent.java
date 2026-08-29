@@ -11,8 +11,7 @@ public class ChatMessageEvent {
     private String twitchStreamId;
     private long timestamp; // epoch millis (UTC)
 
-    public ChatMessageEvent() {
-    }
+    public ChatMessageEvent() {}
 
     public ChatMessageEvent(String eventId, String streamer, String user, String message, long timestamp) {
         this.eventId = eventId;

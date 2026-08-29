@@ -1,22 +1,20 @@
 package com.streamsense.videoservice.client;
 
+import com.streamsense.videoservice.config.StreamSenseProperties;
+import com.streamsense.videoservice.dto.MlSponsorRequest;
+import com.streamsense.videoservice.dto.MlSponsorResponse;
+import com.streamsense.videoservice.metrics.VideoMetrics;
+import io.github.resilience4j.bulkhead.BulkheadFullException;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-
-import com.streamsense.videoservice.config.StreamSenseProperties;
-import com.streamsense.videoservice.dto.MlSponsorRequest;
-import com.streamsense.videoservice.dto.MlSponsorResponse;
-import com.streamsense.videoservice.metrics.VideoMetrics;
-
-import io.github.resilience4j.bulkhead.BulkheadFullException;
-import io.github.resilience4j.bulkhead.annotation.Bulkhead;
-import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
 
 @Component
 public class MlEngineClient {
@@ -39,22 +37,28 @@ public class MlEngineClient {
     public MlSponsorResponse analyzeSponsor(MlSponsorRequest request) {
         String url = properties.getMl().getBaseUrl() + "/ml/sponsor";
 
-        log.info("calling ml-engine sponsor endpoint frameId={} streamer={}",
-                request.frameId(), request.streamer());
+        log.info("calling ml-engine sponsor endpoint frameId={} streamer={}", request.frameId(), request.streamer());
 
         MlSponsorResponse response;
         try {
             response = restTemplate.postForObject(url, request, MlSponsorResponse.class);
         } catch (RestClientException e) {
-            log.error("ml-engine sponsor call failed frameId={} streamer={} error={}",
-                    request.frameId(), request.streamer(), e.getMessage(), e);
+            log.error(
+                    "ml-engine sponsor call failed frameId={} streamer={} error={}",
+                    request.frameId(),
+                    request.streamer(),
+                    e.getMessage(),
+                    e);
             throw new MlDependencyException("ml-engine sponsor call failed for frameId=" + request.frameId(), e);
         }
 
         validateResponse(request, response);
 
-        log.info("ml-engine sponsor response received frameId={} sponsor={} confidence={}",
-                request.frameId(), response.getSponsor(), response.getConfidence());
+        log.info(
+                "ml-engine sponsor response received frameId={} sponsor={} confidence={}",
+                request.frameId(),
+                response.getSponsor(),
+                response.getConfidence());
 
         return response;
     }
@@ -64,13 +68,18 @@ public class MlEngineClient {
             if (throwable instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new IllegalStateException("unexpected sponsor fallback path for frameId=" + request.frameId(), throwable);
+            throw new IllegalStateException(
+                    "unexpected sponsor fallback path for frameId=" + request.frameId(), throwable);
         }
 
         videoMetrics.incrementSponsorFallback(throwable.getClass().getSimpleName());
 
-        log.warn("using fallback sponsor detection frameId={} streamer={} reason={} message={}",
-                request.frameId(), request.streamer(), throwable.getClass().getSimpleName(), throwable.getMessage());
+        log.warn(
+                "using fallback sponsor detection frameId={} streamer={} reason={} message={}",
+                request.frameId(),
+                request.streamer(),
+                throwable.getClass().getSimpleName(),
+                throwable.getMessage());
 
         MlSponsorResponse fallback = new MlSponsorResponse();
         fallback.setSponsor("UNKNOWN");
@@ -91,7 +100,8 @@ public class MlEngineClient {
 
     private void validateResponse(MlSponsorRequest request, MlSponsorResponse response) {
         if (response == null) {
-            throw new IllegalStateException("ml-engine returned null sponsor response for frameId=" + request.frameId());
+            throw new IllegalStateException(
+                    "ml-engine returned null sponsor response for frameId=" + request.frameId());
         }
 
         if (!StringUtils.hasText(response.getSponsor())) {
@@ -109,7 +119,8 @@ public class MlEngineClient {
         requireRange("height", response.getHeight(), request.frameId());
 
         if (response.getX() + response.getWidth() > 1.001d || response.getY() + response.getHeight() > 1.001d) {
-            throw new IllegalStateException("ml-engine returned out-of-bounds sponsor box for frameId=" + request.frameId());
+            throw new IllegalStateException(
+                    "ml-engine returned out-of-bounds sponsor box for frameId=" + request.frameId());
         }
     }
 

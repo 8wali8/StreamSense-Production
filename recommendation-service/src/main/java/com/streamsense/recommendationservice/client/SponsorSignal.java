@@ -14,5 +14,4 @@ public record SponsorSignal(
         double x,
         double y,
         double width,
-        double height) {
-}
+        double height) {}

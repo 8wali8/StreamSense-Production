@@ -1,13 +1,11 @@
 package com.streamsense.chatservice.twitch;
 
+import com.streamsense.chatservice.events.ChatMessageEvent;
+import com.streamsense.chatservice.service.ChatEventIngestService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
-
 import org.springframework.stereotype.Component;
-
-import com.streamsense.chatservice.events.ChatMessageEvent;
-import com.streamsense.chatservice.service.ChatEventIngestService;
 
 @Component
 public class TwitchChatMessageHandler {
@@ -39,11 +37,7 @@ public class TwitchChatMessageHandler {
                 : message.messageId();
 
         ChatMessageEvent event = new ChatMessageEvent(
-                eventId,
-                message.channel(),
-                message.user(),
-                message.message(),
-                message.timestamp());
+                eventId, message.channel(), message.user(), message.message(), message.timestamp());
         event.setSource("TWITCH");
         event.setChannelLogin(message.channel());
 

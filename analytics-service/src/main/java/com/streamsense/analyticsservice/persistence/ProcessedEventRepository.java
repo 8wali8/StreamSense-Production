@@ -17,23 +17,42 @@ public class ProcessedEventRepository {
         this.postgres = isPostgres(jdbcTemplate);
     }
 
-    public boolean tryMarkProcessed(String topic, String eventId, String streamer, String streamSessionId,
-            long eventTimestamp, long processedAt) {
+    public boolean tryMarkProcessed(
+            String topic,
+            String eventId,
+            String streamer,
+            String streamSessionId,
+            long eventTimestamp,
+            long processedAt) {
         if (postgres) {
-            int inserted = jdbcTemplate.update("""
+            int inserted = jdbcTemplate.update(
+                    """
                     insert into analytics_processed_events
                         (source_topic, source_event_id, streamer, stream_session_id, event_timestamp, processed_at)
                     values (?, ?, ?, ?, ?, ?)
                     on conflict (source_topic, source_event_id) do nothing
-                    """, topic, eventId, streamer, streamSessionId, eventTimestamp, processedAt);
+                    """,
+                    topic,
+                    eventId,
+                    streamer,
+                    streamSessionId,
+                    eventTimestamp,
+                    processedAt);
             return inserted == 1;
         }
         try {
-            jdbcTemplate.update("""
+            jdbcTemplate.update(
+                    """
                     insert into analytics_processed_events
                         (source_topic, source_event_id, streamer, stream_session_id, event_timestamp, processed_at)
                     values (?, ?, ?, ?, ?, ?)
-                    """, topic, eventId, streamer, streamSessionId, eventTimestamp, processedAt);
+                    """,
+                    topic,
+                    eventId,
+                    streamer,
+                    streamSessionId,
+                    eventTimestamp,
+                    processedAt);
             return true;
         } catch (DuplicateKeyException ex) {
             return false;
@@ -42,8 +61,11 @@ public class ProcessedEventRepository {
 
     private boolean isPostgres(JdbcTemplate jdbcTemplate) {
         try {
-            Boolean result = jdbcTemplate.execute((ConnectionCallback<Boolean>) connection -> connection.getMetaData()
-                    .getDatabaseProductName().toLowerCase().contains("postgresql"));
+            Boolean result = jdbcTemplate.execute((ConnectionCallback<Boolean>) connection -> connection
+                    .getMetaData()
+                    .getDatabaseProductName()
+                    .toLowerCase()
+                    .contains("postgresql"));
             return Boolean.TRUE.equals(result);
         } catch (DataAccessException ex) {
             return false;

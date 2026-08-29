@@ -6,12 +6,10 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.streamsense.chatservice.config.StreamSenseProperties;
+import java.util.List;
+import org.junit.jupiter.api.Test;
 
 class TwitchVodCommentClientTest {
 
@@ -19,7 +17,8 @@ class TwitchVodCommentClientTest {
 
     @Test
     void cachesDownloadsPerVodAndStartOffset() {
-        TwitchVodCommentClient client = spy(new TwitchVodCommentClient(new StreamSenseProperties(), new ObjectMapper()));
+        TwitchVodCommentClient client =
+                spy(new TwitchVodCommentClient(new StreamSenseProperties(), new ObjectMapper()));
         List<TwitchVodChatComment> fromFifty = List.of(new TwitchVodChatComment("c-50", "viewer", "early", 50.0));
         List<TwitchVodChatComment> fromHundred = List.of(new TwitchVodChatComment("c-100", "viewer", "late", 100.0));
         doReturn(fromFifty).when(client).downloadComments(VOD_ID, 50.0);
@@ -36,7 +35,8 @@ class TwitchVodCommentClientTest {
 
     @Test
     void keysTheCacheOnWholeSecondsSoTheKeyMatchesWhatTwitchIsAsked() {
-        TwitchVodCommentClient client = spy(new TwitchVodCommentClient(new StreamSenseProperties(), new ObjectMapper()));
+        TwitchVodCommentClient client =
+                spy(new TwitchVodCommentClient(new StreamSenseProperties(), new ObjectMapper()));
         List<TwitchVodChatComment> comments = List.of(new TwitchVodChatComment("c-30", "viewer", "text", 30.0));
         doReturn(comments).when(client).downloadComments(VOD_ID, 30.2);
 

@@ -2,15 +2,13 @@ package com.streamsense.videoservice.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestTemplate;
-
 import com.streamsense.videoservice.config.StreamSenseProperties;
 import com.streamsense.videoservice.dto.MlSponsorRequest;
 import com.streamsense.videoservice.dto.MlSponsorResponse;
 import com.streamsense.videoservice.metrics.VideoMetrics;
-
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestTemplate;
 
 class MlEngineClientTest {
 

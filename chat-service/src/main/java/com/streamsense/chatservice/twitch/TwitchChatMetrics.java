@@ -1,18 +1,15 @@
 package com.streamsense.chatservice.twitch;
 
+import com.streamsense.chatservice.config.StreamSenseProperties;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.springframework.stereotype.Component;
-
-import com.streamsense.chatservice.config.StreamSenseProperties;
-
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.MeterRegistry;
 
 @Component
 public class TwitchChatMetrics {
@@ -53,7 +50,10 @@ public class TwitchChatMetrics {
         Gauge.builder("streamsense_twitch_chat_connected", this, metrics -> metrics.isConnected() ? 1.0 : 0.0)
                 .description("Whether Twitch chat ingestion is currently connected")
                 .register(meterRegistry);
-        Gauge.builder("streamsense_twitch_chat_last_message_age_seconds", this, TwitchChatMetrics::lastMessageAgeSeconds)
+        Gauge.builder(
+                        "streamsense_twitch_chat_last_message_age_seconds",
+                        this,
+                        TwitchChatMetrics::lastMessageAgeSeconds)
                 .description("Seconds since the last accepted Twitch chat message, or -1 when none has been received")
                 .register(meterRegistry);
     }
@@ -103,12 +103,7 @@ public class TwitchChatMetrics {
 
     public TwitchChatStatus snapshot() {
         return new TwitchChatStatus(
-                enabled,
-                state.get(),
-                channels.get(),
-                lastMessageAt.get(),
-                lastError.get(),
-                reconnectAttempts.get());
+                enabled, state.get(), channels.get(), lastMessageAt.get(), lastError.get(), reconnectAttempts.get());
     }
 
     public void setChannels(List<String> channels) {
