@@ -32,7 +32,7 @@ Priority 6 (part a) from `docs/planning/production-hardening.md`: ml-engine gets
 | Tests | `uv run pytest` (full suite, no model downloads) | 67 passed, 1 skipped (the opt-in real-model test), up from 45 |
 | Compose renders | `docker compose config -q` | OK |
 | Kubernetes renders | `kubectl kustomize .` | OK |
-| Image smoke | `docker build ml-engine`, run with lexical/direct backends, hit `/ml/ready`, `/ml/info`, `/ml/sentiment`, `/metrics` | IMAGE_PLACEHOLDER |
+| Image smoke | `docker build ml-engine`, run with lexical/direct backends, hit `/ml/ready`, `/ml/info`, `/ml/sentiment`, `/metrics` | image builds (2547ac2b…); container reaches `/ml/ready` = `ready`, `/ml/info` lists sentiment=lexical, relevance=direct, segmentation=heuristic (loaded), transcription (not loaded), sponsor stub; `/ml/sentiment` returns `POSITIVE 0.25 lexical-v1`; `/metrics` shows `http_request_duration_seconds_count{handler="/ml/sentiment"}` and `streamsense_ml_inference_seconds_count{backend="sentiment"}` |
 
 ## Manual checks for the reviewer
 
