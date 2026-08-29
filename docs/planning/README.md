@@ -1,6 +1,7 @@
 # Planning
 
 - `production-hardening.md` (on `hardening/00-plan`): the hardening plan, verification ladder, and branch sequence.
+- `production-hardening-followups.md`: the second series (branches 21 onward), collected from the follow-ups the first fourteen branches recorded.
 - `branches/`: one note per hardening branch with what changed, what was left alone, how it was verified, and what the reviewer should check by hand.
 - `history/`: earlier planning and hand-off documents kept for context, not maintained:
   - `roadmap-12-week.md`, `production-gap-plan.md`: the original roadmap and gap plan.
