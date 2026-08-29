@@ -1,6 +1,10 @@
 import pytest
-
-from app.frame_store import _secret_env, load_frame_artifact, load_frame_image
+from app.frame_store import (
+    FrameArtifactError,
+    _secret_env,
+    load_frame_artifact,
+    load_frame_image,
+)
 
 
 def test_load_frame_image_decodes_rgb_frame(tmp_path):
@@ -56,3 +60,11 @@ def test_secret_env_missing_file_is_a_clear_error(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError, match="STREAMSENSE_TEST_SECRET_FILE"):
         _secret_env("STREAMSENSE_TEST_SECRET")
+
+
+def test_s3_frame_with_missing_secret_file_is_a_frame_artifact_error(monkeypatch, tmp_path):
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY_FILE", str(tmp_path / "missing"))
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_SECRET_KEY_FILE", str(tmp_path / "missing"))
+
+    with pytest.raises(FrameArtifactError, match="credentials unavailable"):
+        load_frame_image("s3://frames/stream/frame.jpg")
