@@ -100,7 +100,8 @@ kind load docker-image \
   streamsense/recommendation-service:sprint9 \
   streamsense/api-gateway:sprint9 \
   streamsense/ml-engine:sprint9 \
-  streamsense/frontend:sprint9 \n  --name streamsense
+  streamsense/frontend:sprint9 \
+  --name streamsense
 ```
 
 ## 5. Install Ingress NGINX
