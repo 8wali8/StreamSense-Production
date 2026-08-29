@@ -24,13 +24,13 @@ npm install -g wscat
 
 # Local Secrets
 
-Credentials are never committed. Docker Compose reads them from git-ignored files under `secrets/` and mounts each one at `/run/secrets/<NAME>`; Kubernetes builds a `streamsense-secrets` Secret from the git-ignored `k8s/secrets/streamsense.env`. Create both sets from the committed examples once:
+Credentials are never committed. Docker Compose reads them from git-ignored files under `secrets/` and mounts each one at `/run/secrets/<NAME>`; Kubernetes builds a `streamsense-secrets-<hash>` Secret from the git-ignored `k8s/secrets/streamsense.env`. Create both sets once:
 
 ```bash
 make secrets
 ```
 
-`make up`, `make up-fast`, and `tools/start-stack.ps1` run this step automatically, so a fresh clone starts without extra setup. The example values are the historical development defaults; change them for any stack other people can reach. `secrets/README.md` lists every file and which container consumes it. Postgres and MinIO persist the credentials they were first started with, so changing those files later needs `make nuke`.
+Every missing file gets a fresh random value with mode `0600`; existing files are kept. `make up`, `make up-fast`, and `tools/start-stack.ps1` run this step automatically, so a fresh clone starts without extra setup and without credentials anyone else knows. The committed `*.example` files are placeholders that document the file names. `secrets/README.md` lists every file and which container consumes it. Postgres and MinIO persist the credentials they were first started with, so changing those files later needs `make nuke`.
 
 # Final Quickstart (Docker Compose)
 
