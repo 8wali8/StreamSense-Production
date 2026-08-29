@@ -92,7 +92,18 @@ build:
 # were first started with, so rotating those also needs `make nuke`).
 .PHONY: secrets
 secrets:
-	@umask 077; \
+	@set -euo pipefail; umask 077; \
+	command -v openssl >/dev/null || { echo "make secrets needs openssl on PATH"; exit 1; }; \
+	project="$${COMPOSE_PROJECT_NAME:-$$(basename "$$PWD" | tr 'A-Z' 'a-z')}"; \
+	legacy_volume() { docker volume ls -q --filter "label=com.docker.compose.project=$$project" --filter "label=com.docker.compose.volume=$$1" 2>/dev/null | grep -q .; }; \
+	for pair in POSTGRES_PASSWORD:postgres-data STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:minio-data STREAMSENSE_FRAME_STORAGE_SECRET_KEY:minio-data; do \
+		name="$${pair%%:*}"; volume="$${pair##*:}"; \
+		if [[ ! -f "secrets/$$name" ]] && legacy_volume "$$volume"; then \
+			echo "secrets/$$name is missing, but the Compose volume '$$volume' already exists and was initialised with an older credential."; \
+			echo "Write that credential into secrets/$$name to keep the data, or run 'make nuke' to discard the volume; then rerun make secrets."; \
+			exit 1; \
+		fi; \
+	done; \
 	for example in secrets/*.example; do \
 		name="$$(basename "$${example%.example}")"; target="secrets/$$name"; \
 		if [[ ! -f "$$target" ]]; then \
@@ -101,7 +112,8 @@ secrets:
 				STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET) bytes=32 ;; \
 				*) bytes=16 ;; \
 			esac; \
-			openssl rand -hex "$$bytes" > "$$target" && chmod 600 "$$target"; \
+			value="$$(openssl rand -hex "$$bytes")"; \
+			printf '%s\n' "$$value" > "$$target" && chmod 600 "$$target"; \
 			echo "created $$target with a random value"; \
 		fi; \
 	done; \

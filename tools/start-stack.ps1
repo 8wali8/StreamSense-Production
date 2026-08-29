@@ -73,7 +73,18 @@ Run-Step "Check Docker" {
 }
 
 Run-Step "Ensure local secrets" {
-    # Same rule as `make secrets`: every missing file gets a fresh random value; existing files are kept.
+    # Same rules as `make secrets`: a missing file whose Compose volume already exists means the volume
+    # holds an older credential, so stop and say so; every other missing file gets a fresh random value.
+    $project = if ($env:COMPOSE_PROJECT_NAME) { $env:COMPOSE_PROJECT_NAME } else { (Split-Path -Leaf (Get-Location)).ToLowerInvariant() }
+    foreach ($pair in @(@("POSTGRES_PASSWORD", "postgres-data"), @("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY", "minio-data"), @("STREAMSENSE_FRAME_STORAGE_SECRET_KEY", "minio-data"))) {
+        $name, $volume = $pair
+        if (-not (Test-Path -LiteralPath "secrets/$name")) {
+            $existing = docker volume ls -q --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.volume=$volume" 2>$null
+            if ($existing) {
+                throw "secrets/$name is missing, but the Compose volume '$volume' already exists and was initialised with an older credential. Write that credential into secrets/$name to keep the data, or run 'make nuke' to discard the volume; then rerun."
+            }
+        }
+    }
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
     Get-ChildItem -Path "secrets" -Filter "*.example" | ForEach-Object {
         $name = $_.Name -replace "\.example$", ""

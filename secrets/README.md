@@ -8,7 +8,7 @@ Create the real files once:
 make secrets
 ```
 
-Every missing file gets a fresh random value (hex from `openssl rand`) with mode `0600`, so a clone never runs on credentials that are known outside the machine. Existing files are left alone. `make up`, `make up-fast`, `make smoke-e2e`, and `tools/start-stack.ps1` run this step automatically; the PowerShell script generates values the same way. To pick a value yourself, write it into the file before the first start.
+Every missing file gets a fresh random value (hex from `openssl rand`) with mode `0600`, so a clone never runs on credentials that are known outside the machine. Existing files are left alone. The target refuses to run without `openssl`, never leaves a partially written file behind, and stops with instructions if a Postgres or MinIO file is missing while the matching Compose volume already exists (that volume was initialised with an older credential, so a new random one would lock the services out). `make up`, `make up-fast`, `make smoke-e2e`, and `tools/start-stack.ps1` run this step automatically; the PowerShell script generates values the same way. To pick a value yourself, write it into the file before the first start.
 
 | File | Used by | Notes |
 |---|---|---|
@@ -20,6 +20,6 @@ Every missing file gets a fresh random value (hex from `openssl rand`) with mode
 
 Values are read verbatim and trailing whitespace is trimmed, so a file may end with or without a newline.
 
-To rotate a value, delete its file and rerun `make secrets` (or write the new value). Postgres and MinIO persist the credentials they were first started with, so rotating those also needs `make nuke` (or `docker compose down -v`). If you want to keep an existing data volume, write its original password into the file before running `make secrets`.
+To rotate a value, delete its file and rerun `make secrets` (or write the new value). Postgres and MinIO persist the credentials they were first started with, so rotating those also needs `make nuke` (or `docker compose down -v`). Upgrading a checkout that already has data volumes: write the volume's existing credential into the file (the historical development default was `streamsense` for all three) to keep the data, or `make nuke` to start clean; `make secrets` and `start-stack.ps1` detect this case and stop with the same instructions.
 
 Kubernetes uses a separate file, `k8s/secrets/streamsense.env`, because kustomize can only read files below its own directory. `make secrets` writes it with the same values; see `k8s/secrets/streamsense.env.example`.

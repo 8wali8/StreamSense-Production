@@ -35,7 +35,8 @@ Run on the branch at the commit under review, from a checkout with no `secrets/`
 | Check | Command | Result |
 |---|---|---|
 | Local secret files | `make secrets` in a copy with no secret files | five files plus `k8s/secrets/streamsense.env` created, mode 0600, lengths 32/16/32/32/64 hex chars; a second run creates nothing; `git check-ignore` confirms both locations are ignored |
-| PowerShell generator | the `Ensure local secrets` step of `tools/start-stack.ps1` run against an empty `secrets/` copy in Windows PowerShell 5.1 | five files created with the same lengths |
+| Generation failures | same copy with `openssl` removed from `PATH`; then with `COMPOSE_PROJECT_NAME` pointing at a project whose `postgres-data` volume exists and `secrets/POSTGRES_PASSWORD` deleted | both exit 1 with a one-line explanation and create no file (no zero-byte leftovers) |
+| PowerShell generator | the `Ensure local secrets` step of `tools/start-stack.ps1` run against an empty `secrets/` copy in Windows PowerShell 5.1 | five files created with the same lengths; with an existing `postgres-data` volume for the project it throws the same legacy-volume message and creates nothing |
 | Compose renders | `docker compose config -q` | OK; rendered output shows every credential as a `/run/secrets/<NAME>` mount and no inline values |
 | kustomize renders | `kubectl kustomize k8s` | OK, 3251 lines; the only surviving `value: streamsense` and `value: admin` lines are `POSTGRES_DB`, `POSTGRES_USER`, and `GF_SECURITY_ADMIN_USER` |
 | Generated Secret | grep of the rendered output | `streamsense-secrets-<hash>` in namespace `streamsense`, 5 keys; all 13 references carry the same hashed name and no unhashed reference remains |
