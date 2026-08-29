@@ -26,7 +26,7 @@
 
 - The Spring services' `src/main/resources/application.yml` files are bootstrap-only. Real runtime config lives in `config-server/config-repo/*.yml`.
 - If you change config that Kubernetes uses, mirror the same change in `k8s/config/config-server-config-repo.yaml`; it duplicates the config-server repo as a ConfigMap.
-- Never write a credential into a committed file. Compose reads `secrets/<NAME>` (git-ignored, created by `make secrets`), Spring resolves `${NAME}` placeholders through `configtree:/run/secrets/`, Python services accept `<NAME>_FILE`, and Kubernetes builds `streamsense-secrets` from `k8s/secrets/streamsense.env`. See `secrets/README.md`.
+- Never write a credential into a committed file. Compose reads `secrets/<NAME>` (git-ignored, created with random values by `make secrets`), Spring resolves `${NAME}` placeholders through `configtree:/run/secrets/`, Python services accept `<NAME>_FILE`, and Kubernetes builds `streamsense-secrets` from `k8s/secrets/streamsense.env`. See `secrets/README.md`.
 - Useful env toggles:
   - `CONFIG_SERVER_URL`
   - `STREAMSENSE_GATEWAY_AUTH_ENABLED`
