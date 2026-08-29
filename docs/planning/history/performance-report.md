@@ -2,7 +2,7 @@
 
 ## Status
 
-This report includes the first live Compose benchmark captured in `opencodeCommandHistory/2026-04-23-sprint-11-live-compose-benchmark-and-metrics.md` and the first rate-limit-relaxed benchmark captured in `opencodeCommandHistory/2026-04-28-rate-limit-relaxed-benchmark.md`.
+This report includes the first live Compose benchmark captured in `session-logs/2026-04-23-sprint-11-live-compose-benchmark-and-metrics.md` and the first rate-limit-relaxed benchmark captured in `session-logs/2026-04-28-rate-limit-relaxed-benchmark.md`.
 
 The measured numbers are local-demo measurements, not cloud production claims. Gateway rate limiting was active during the recorded run, so `429` responses are part of the current-system result.
 
