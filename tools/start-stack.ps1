@@ -73,13 +73,25 @@ Run-Step "Check Docker" {
 }
 
 Run-Step "Ensure local secrets" {
+    # Same rule as `make secrets`: every missing file gets a fresh random value; existing files are kept.
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
     Get-ChildItem -Path "secrets" -Filter "*.example" | ForEach-Object {
-        $target = Join-Path $_.DirectoryName ($_.Name -replace "\.example$", "")
+        $name = $_.Name -replace "\.example$", ""
+        $target = Join-Path $_.DirectoryName $name
         if (-not (Test-Path -LiteralPath $target)) {
-            Copy-Item -LiteralPath $_.FullName -Destination $target
-            "created $target from example"
+            $byteCount = switch ($name) {
+                "STREAMSENSE_FRAME_STORAGE_ACCESS_KEY" { 8 }
+                "STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET" { 32 }
+                default { 16 }
+            }
+            $buffer = New-Object byte[] $byteCount
+            $rng.GetBytes($buffer)
+            $value = ($buffer | ForEach-Object { $_.ToString("x2") }) -join ""
+            [System.IO.File]::WriteAllText($target, "$value`n")
+            "created $target with a random value"
         }
     }
+    $rng.Dispose()
     "secrets present under ./secrets"
 }
 

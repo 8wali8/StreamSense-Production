@@ -1,0 +1,100 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------< com.streamsense:recommendation-service >---------------
+[INFO] Building recommendation-service 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.3.2:clean (default-clean) @ recommendation-service ---
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ recommendation-service ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 0 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ recommendation-service ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 12 source files with javac [debug release 21] to target/classes
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ recommendation-service ---
+[INFO] Copying 1 resource from src/test/resources to target/test-classes
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ recommendation-service ---
+[INFO] Changes detected - recompiling the module! :dependency
+[INFO] Compiling 3 source files with javac [debug release 21] to target/test-classes
+[INFO] 
+[INFO] --- surefire:3.1.2:test (default-test) @ recommendation-service ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.streamsense.recommendationservice.api.RecommendationControllerIntegrationTest
+23:50:01.358 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.streamsense.recommendationservice.api.RecommendationControllerIntegrationTest]: RecommendationControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+23:50:03.316 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.streamsense.recommendationservice.RecommendationServiceApplication for test class com.streamsense.recommendationservice.api.RecommendationControllerIntegrationTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::               (v3.2.12)
+
+2026-09-02T23:50:09.807Z  INFO 167 --- [           main] [                                                 ] .RecommendationControllerIntegrationTest : Starting RecommendationControllerIntegrationTest using Java 21.0.11 with PID 167 (started by root in /src/recommendation-service)
+2026-09-02T23:50:09.815Z  INFO 167 --- [           main] [                                                 ] .RecommendationControllerIntegrationTest : No active profile set, falling back to 1 default profile: "default"
+2026-09-02T23:50:21.565Z  INFO 167 --- [           main] [                                                 ] o.s.cloud.context.scope.GenericScope     : BeanFactory id=88a5950c-1e74-36d5-92a8-8f9422d2e016
+2026-09-02T23:50:24.929Z  INFO 167 --- [           main] [                                                 ] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 0 (http)
+2026-09-02T23:50:25.048Z  INFO 167 --- [           main] [                                                 ] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-02T23:50:25.049Z  INFO 167 --- [           main] [                                                 ] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.33]
+2026-09-02T23:50:26.111Z  INFO 167 --- [           main] [                                                 ] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-02T23:50:26.114Z  INFO 167 --- [           main] [                                                 ] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 16092 ms
+2026-09-02T23:50:37.337Z  INFO 167 --- [           main] [                                                 ] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-09-02T23:50:37.913Z  WARN 167 --- [           main] [                                                 ] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-09-02T23:50:37.940Z  INFO 167 --- [           main] [                                                 ] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2026-09-02T23:50:38.435Z  INFO 167 --- [           main] [                                                 ] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 41795 (http) with context path ''
+2026-09-02T23:50:38.477Z  INFO 167 --- [           main] [                                                 ] .RecommendationControllerIntegrationTest : Started RecommendationControllerIntegrationTest in 32.211 seconds (process running for 45.164)
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (/root/.m2/repository/net/bytebuddy/byte-buddy-agent/1.14.19/byte-buddy-agent-1.14.19.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+2026-09-02T23:50:47.947Z  INFO 167 --- [o-auto-1-exec-1] [                                                 ] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-09-02T23:50:47.948Z  INFO 167 --- [o-auto-1-exec-1] [                                                 ] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-09-02T23:50:47.952Z  INFO 167 --- [o-auto-1-exec-1] [                                                 ] o.s.web.servlet.DispatcherServlet        : Completed initialization in 4 ms
+2026-09-02T23:50:49.350Z  INFO 167 --- [o-auto-1-exec-1] [6a98b658e14873f16952b8354edb5c2b-6952b8354edb5c2b] c.s.r.client.SentimentHistoryClient      : fetching recent sentiment history streamer=test limit=5
+2026-09-02T23:50:50.672Z  INFO 167 --- [o-auto-1-exec-1] [6a98b658e14873f16952b8354edb5c2b-6952b8354edb5c2b] c.s.r.client.SponsorHistoryClient        : fetching recent sponsor detections streamer=test limit=5
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 52.36 s -- in com.streamsense.recommendationservice.api.RecommendationControllerIntegrationTest
+[INFO] Running com.streamsense.recommendationservice.RecommendationServiceApplicationTests
+2026-09-02T23:50:51.933Z  INFO 167 --- [           main] [                                                 ] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.streamsense.recommendationservice.RecommendationServiceApplicationTests]: RecommendationServiceApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-02T23:50:52.179Z  INFO 167 --- [           main] [                                                 ] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.streamsense.recommendationservice.RecommendationServiceApplication for test class com.streamsense.recommendationservice.RecommendationServiceApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::               (v3.2.12)
+
+2026-09-02T23:50:52.626Z  INFO 167 --- [           main] [                                                 ] .r.RecommendationServiceApplicationTests : Starting RecommendationServiceApplicationTests using Java 21.0.11 with PID 167 (started by root in /src/recommendation-service)
+2026-09-02T23:50:52.627Z  INFO 167 --- [           main] [                                                 ] .r.RecommendationServiceApplicationTests : No active profile set, falling back to 1 default profile: "default"
+2026-09-02T23:50:58.157Z  INFO 167 --- [           main] [                                                 ] o.s.cloud.context.scope.GenericScope     : BeanFactory id=fd279af9-936f-383e-b57c-6aad886f702c
+2026-09-02T23:50:59.989Z  INFO 167 --- [           main] [                                                 ] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-09-02T23:51:00.064Z  WARN 167 --- [           main] [                                                 ] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-09-02T23:51:00.071Z  INFO 167 --- [           main] [                                                 ] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2026-09-02T23:51:00.126Z  INFO 167 --- [           main] [                                                 ] .r.RecommendationServiceApplicationTests : Started RecommendationServiceApplicationTests in 7.865 seconds (process running for 66.854)
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.329 s -- in com.streamsense.recommendationservice.RecommendationServiceApplicationTests
+[INFO] Running com.streamsense.recommendationservice.service.RecommendationGeneratorTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.178 s -- in com.streamsense.recommendationservice.service.RecommendationGeneratorTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  02:41 min
+[INFO] Finished at: 2026-09-02T23:51:03Z
+[INFO] ------------------------------------------------------------------------
+exit=0
