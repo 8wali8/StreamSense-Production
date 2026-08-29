@@ -21,7 +21,7 @@ Newer majors exist for all of these (checkout v7, setup-java v6, setup-node v7, 
 
 **One run per change.** Triggers are now `pull_request` plus `push` to `main`. Previously `push: branches: ["**"]` plus `pull_request` ran every PR twice. Concurrency is keyed by PR number (or ref on main) and cancels superseded PR runs; runs on `main` are never cancelled.
 
-**Change detection.** A new `changes` job uses `dorny/paths-filter` to classify the diff into areas (each Java service, `ml-engine`, `video-capture-service`, `frontend`, `k8s`, `smoke`, plus `workflow` and `java-shared` for `config-server/config-repo/**`). A small planning step turns that into:
+**Change detection.** A new `changes` job uses `dorny/paths-filter` to classify the diff into areas (each Java service, `ml-engine`, `video-capture-service`, `frontend`, `k8s`, `smoke`, plus `workflow`, and `java-shared` for `config-server/config-repo/**` and `docs/schemas/**`, which the schema contract tests in chat-service, sentiment-service, and video-service read from `../docs/schemas`). A small planning step turns that into:
 
 - `java_services`: a JSON list feeding the Java job's matrix, so only changed services build. A workflow or config-repo change selects all eight.
 - `run_all`: true when the workflow or shared config changed; every job runs.

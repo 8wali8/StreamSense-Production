@@ -45,6 +45,8 @@ jobs:
               - '.github/workflows/**'
             java-shared:
               - 'config-server/config-repo/**'
+              # The schema contract tests in chat-, sentiment-, and video-service read ../docs/schemas.
+              - 'docs/schemas/**'
             eureka-server:
               - 'eureka-server/**'
             config-server:
