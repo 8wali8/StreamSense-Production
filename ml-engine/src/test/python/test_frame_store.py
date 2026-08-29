@@ -1,5 +1,4 @@
 import pytest
-
 from app.frame_store import _secret_env, load_frame_artifact, load_frame_image
 
 
