@@ -39,6 +39,14 @@ class FrameImage:
         return self.artifact.signature
 
 
+READABLE_SCHEMES = frozenset({"file", "s3"})
+
+
+def readable_frame_ref(frame_ref: str) -> bool:
+    """True when ``frame_ref`` names something this store can read (``file://`` or ``s3://``)."""
+    return urlparse(frame_ref).scheme in READABLE_SCHEMES
+
+
 class S3Settings(Protocol):
     """The subset of frame-storage settings the store needs (see ``app.settings.FrameStorageSettings``)."""
 

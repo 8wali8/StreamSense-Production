@@ -28,3 +28,6 @@ coverage/
 
 # OS
 .DS_Store
+
+# Local test logs written by tools/start-stack.ps1 and make test
+.testlogs/

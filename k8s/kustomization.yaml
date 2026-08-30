@@ -28,12 +28,12 @@ resources:
   - monitoring/kafka-exporter.yaml
   - ingress/streamsense-ingress.yaml
 
-# Credentials are generated from a git-ignored env file; copy secrets/streamsense.env.example
-# to secrets/streamsense.env and change the values before applying.
+# Credentials come from a git-ignored env file that `make secrets` writes with random values
+# (see secrets/streamsense.env.example). kustomize appends a content hash to the Secret name and
+# rewrites every secretKeyRef to match, so changing a value and re-applying rolls the pods that
+# use it instead of leaving them on the old credentials.
 secretGenerator:
   - name: streamsense-secrets
     namespace: streamsense
     envs:
       - secrets/streamsense.env
-generatorOptions:
-  disableNameSuffixHash: true
