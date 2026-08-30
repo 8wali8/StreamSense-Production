@@ -27,7 +27,7 @@
 - The Spring services' `src/main/resources/application.yml` files are bootstrap-only. Real runtime config lives in `config-server/config-repo/*.yml`.
 - Kubernetes generates the config-server ConfigMap from `config-server/config-repo/*.yml` (root `kustomization.yaml`); there is no mirrored copy. Apply and render from the repo root: `kubectl kustomize .`, `kubectl apply -k .`.
 - Every Kubernetes container has `resources` and a non-root `securityContext`; Spring probes use `/actuator/health/liveness` and `/readiness`; stateful volumes are PVCs.
-- Never write a credential into a committed file. Compose reads `secrets/<NAME>` (git-ignored, created by `make secrets`), Spring resolves `${NAME}` placeholders through `configtree:/run/secrets/`, Python services accept `<NAME>_FILE`, and Kubernetes builds `streamsense-secrets` from `k8s/secrets/streamsense.env`. See `secrets/README.md`.
+- Never write a credential into a committed file. Compose reads `secrets/<NAME>` (git-ignored, created with random values by `make secrets`), Spring resolves `${NAME}` placeholders through `configtree:/run/secrets/`, Python services accept `<NAME>_FILE`, and Kubernetes builds `streamsense-secrets` from `k8s/secrets/streamsense.env`. See `secrets/README.md`.
 - Downstream service URLs have no defaults; a missing `streamsense.services.<name>.base-url` fails startup. Every HTTP client (WebClient, RestClient, RestTemplate) carries connect and read/response timeouts from properties; never construct one without them.
 - The config-server import is required and retried. Tests stay self-contained because every Java service ships `src/test/resources/application.yml` with config-server and Eureka disabled; a service without that file cannot run its tests.
 - Useful env toggles:

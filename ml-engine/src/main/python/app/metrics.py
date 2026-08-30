@@ -84,5 +84,5 @@ def install_http_metrics(app: FastAPI) -> None:
             http_requests_total.labels(request.method, handler, status).inc()
 
     @app.get("/metrics", include_in_schema=False)
-    def metrics_endpoint() -> Response:
+    async def metrics_endpoint() -> Response:
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

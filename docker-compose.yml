@@ -1,6 +1,11 @@
 services:
   eureka-server:
     build: ./eureka-server
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
+    environment:
+      # Passed through so `STREAMSENSE_LOG_FORMAT= docker compose up` (explicitly empty) restores plain text.
+      STREAMSENSE_LOG_FORMAT: ${STREAMSENSE_LOG_FORMAT-ecs}
     ports:
     - "8761:8761" #default port for eureka server
 
@@ -13,11 +18,14 @@ services:
 
   config-server:
     build: ./config-server
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
     ports:
       - "8888:8888" # port for config server
     volumes:
       - ./config-server/config-repo:/config-repo
     environment:
+      - STREAMSENSE_LOG_FORMAT=${STREAMSENSE_LOG_FORMAT-ecs}
       - SPRING_PROFILES_ACTIVE=native
       - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:/config-repo
     depends_on:
@@ -32,9 +40,12 @@ services:
 
   api-gateway:
     build: ./api-gateway
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
     ports:
       - "8080:8080" # port for api-gateway
     environment:
+      - STREAMSENSE_LOG_FORMAT=${STREAMSENSE_LOG_FORMAT-ecs}
       - STREAMSENSE_GATEWAY_AUTH_ENABLED=${STREAMSENSE_GATEWAY_AUTH_ENABLED:-false}
       - STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:-true}
       - STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS=${STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS:-0}
@@ -69,9 +80,12 @@ services:
   
   chat-service:
     build: ./chat-service
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
     ports: 
     - "8081:8081" # port for chat-service following pattern
     environment:
+      - STREAMSENSE_LOG_FORMAT=${STREAMSENSE_LOG_FORMAT-ecs}
       - STREAMSENSE_TWITCH_CHAT_ENABLED=${STREAMSENSE_TWITCH_CHAT_ENABLED:-false}
       - TWITCH_CHAT_HOST=${TWITCH_CHAT_HOST:-irc.chat.twitch.tv}
       - TWITCH_CHAT_PORT=${TWITCH_CHAT_PORT:-6697}
@@ -100,6 +114,10 @@ services:
   
   recommendation-service:
     build: ./recommendation-service
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
+    environment:
+      STREAMSENSE_LOG_FORMAT: ${STREAMSENSE_LOG_FORMAT-ecs}
     ports:
     - "8082:8082" # following port pattern
     depends_on:
@@ -116,6 +134,10 @@ services:
   
   sentiment-service:
     build: ./sentiment-service
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
+    environment:
+      STREAMSENSE_LOG_FORMAT: ${STREAMSENSE_LOG_FORMAT-ecs}
     ports:
     - "8083:8083"
     secrets:
@@ -144,6 +166,10 @@ services:
 
   video-service:
     build: ./video-service
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
+    environment:
+      STREAMSENSE_LOG_FORMAT: ${STREAMSENSE_LOG_FORMAT-ecs}
     ports:
     - "8084:8084"
     secrets:
@@ -227,6 +253,10 @@ services:
 
   analytics-service:
     build: ./analytics-service
+    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
+    stop_grace_period: 30s
+    environment:
+      STREAMSENSE_LOG_FORMAT: ${STREAMSENSE_LOG_FORMAT-ecs}
     ports:
       - "8085:8085"
     secrets:
