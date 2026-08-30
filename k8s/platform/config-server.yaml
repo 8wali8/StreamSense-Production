@@ -66,8 +66,6 @@ spec:
               memory: 768Mi
           imagePullPolicy: IfNotPresent
           env:
-            - name: JAVA_TOOL_OPTIONS
-              value: "-XX:MaxRAMPercentage=75.0"
             - name: CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS
               value: file:/config-repo
           ports:

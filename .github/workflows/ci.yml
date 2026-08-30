@@ -7,10 +7,12 @@ on:
     branches: [main]
   pull_request:
 
-# Least privilege: the default token can only read the repository. Jobs that
-# ever need more must request it explicitly at job level.
+# Least privilege: the default token can only read the repository and, for the
+# change-detection job, the pull request's file list. Jobs that ever need more
+# must request it explicitly at job level.
 permissions:
   contents: read
+  pull-requests: read
 
 # One run per pull request (newer pushes cancel the older run); runs on main
 # are never cancelled so every merge gets a complete result.
@@ -43,6 +45,9 @@ jobs:
               - '.github/workflows/**'
             java-shared:
               - 'config-server/config-repo/**'
+              # The parent POM manages every version; a change there must rebuild every service.
+              - 'pom.xml'
+              # The schema contract tests in chat-, sentiment-, and video-service read ../docs/schemas.
               - 'docs/schemas/**'
             schemas:
               - 'docs/schemas/**'
@@ -72,8 +77,11 @@ jobs:
               - 'api-gateway/src/main/resources/graphql/**'
             k8s:
               - 'k8s/**'
+              # The root kustomization is the canonical entry point (it generates the config-server ConfigMap).
+              - 'kustomization.yaml'
             smoke:
               - 'docker-compose.yml'
+              - 'pom.xml'
               - 'makefile'
               - 'tools/**'
               - 'secrets/**'
@@ -267,8 +275,8 @@ jobs:
         with:
           version: 'v1.30.0'
 
-      - name: Create Kubernetes secret env from example
-        run: cp k8s/secrets/streamsense.env.example k8s/secrets/streamsense.env
+      - name: Create local secret files
+        run: make secrets
 
       - name: Validate kustomize renders without errors
         run: kubectl kustomize . > /dev/null
@@ -326,7 +334,7 @@ jobs:
           mvn -B -ntp -f video-service/pom.xml -DskipTests package
           mvn -B -ntp -f analytics-service/pom.xml -DskipTests package
 
-      - name: Create local secret files from examples
+      - name: Create local secret files
         run: make secrets
 
       - name: Validate docker compose config
@@ -440,3 +448,29 @@ jobs:
       - name: Stop stack
         if: always()
         run: docker compose down -v
+
+  # Stable aggregate check for branch protection. Every other job can be skipped
+  # by the path filter, so requiring them by name would leave a PR pending when
+  # they never run. Require this job instead: it always runs last and fails only
+  # when some job actually failed or was cancelled.
+  ci-ok:
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - java-build-test
+      - test-ml-engine
+      - test-video-capture-service
+      - frontend-checks
+      - validate-k8s-manifests
+      - docker-smoke
+    if: always()
+    steps:
+      - name: Fail if any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "A job failed or was cancelled:"
+          echo '${{ toJSON(needs) }}'
+          exit 1
+
+      - name: Report success
+        run: echo "every job passed or was skipped by the path filter"
