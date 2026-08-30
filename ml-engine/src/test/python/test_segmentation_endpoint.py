@@ -34,8 +34,8 @@ def test_segment_endpoint_missing_frame_returns_503(client, tmp_path):
 def test_segment_endpoint_rejects_unreadable_scheme(client):
     response = client.post("/ml/segment", json={"frameRef": "frames/relative.png"})
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "frame artifact read failed"
+    assert response.status_code == 400
+    assert response.json()["detail"] == "segmentation requires readable frameRef"
 
 
 def test_segment_endpoint_honours_force_failure(make_client, tmp_path):
