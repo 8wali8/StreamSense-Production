@@ -84,7 +84,9 @@ class CaptureRuntime:
         if not self.config.enabled:
             return True, {"status": "ready", "capture": "disabled"}
         alive = self.manager.workers_alive()
-        expected = len(self.config.channels)
+        # The manager's config is the active one: a channel switch replaces it, while the
+        # runtime keeps the start-up configuration.
+        expected = len(self.manager.config.channels)
         detail = {"status": "ready" if alive == expected else "degraded", "workersAlive": alive, "workersExpected": expected}
         return alive == expected, detail
 
