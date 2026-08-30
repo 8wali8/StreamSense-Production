@@ -10,7 +10,7 @@ Priority 5 from `docs/planning/production-hardening.md`: Kafka runs in KRaft mod
 
 **Kubernetes**: `k8s/platform/kafka.yaml` is rewritten. The ZooKeeper Service and Deployment and the Kafka `wait-for-zookeeper` init container are gone. Kafka is a `StatefulSet` behind the existing `kafka` ClusterIP Service plus a new headless `kafka-headless` Service that gives the broker the stable name the quorum voter list needs (`1@kafka-0.kafka-headless.streamsense.svc.cluster.local:29093`). Its data is a `volumeClaimTemplate` (5 Gi). The container keeps the hardening from branch 04 (uid 1000, dropped capabilities, seccomp, requests and a 2 Gi limit, `fsGroup` for the claim) and the digest-pinned image from branch 02b. The topics Job is unchanged.
 
-**CI and docs**: the smoke job no longer starts `zookeeper`; CLAUDE.md describes the KRaft layout; the kind runbook notes that a clean Kafka now also means deleting its PVC.
+**CI and docs**: the smoke job no longer starts `zookeeper`; the `k8s` path filter includes the root `kustomization.yaml` so a change to the canonical entry point still renders in CI; `docs/kubernetes-kind.md` uses `statefulset/kafka` in every broker command and its upgrade section tells an existing cluster to delete the old `Deployment/kafka` and ZooKeeper before applying, because `kubectl apply` never removes what a manifest no longer lists and the two workloads would share the `kafka` Service; CLAUDE.md describes the KRaft layout; the kind runbook notes that a clean Kafka now also means deleting its PVC.
 
 ## Deliberately left alone
 

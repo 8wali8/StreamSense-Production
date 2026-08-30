@@ -17,18 +17,18 @@ Priority 2 (part a) from `docs/planning/production-hardening.md`: make the CI wo
 
 Newer majors exist for all of these (checkout v7, setup-java v6, setup-node v7, setup-python v7, setup-kubectl v5). Upgrading majors is a behaviour change and is left to the dependency-bot branch (14), which will also keep the SHAs fresh.
 
-**Least-privilege token.** `permissions: contents: read` at workflow level. No job needs more today; any future job that publishes images or comments on PRs must request its scope at job level.
+**Least-privilege token.** `permissions: contents: read` plus `pull-requests: read` at workflow level. The second scope is what `dorny/paths-filter` uses to list a pull request's changed files; nothing else needs more today, and any future job that publishes images or comments on PRs must request its scope at job level. Dependency caches do not need `actions: write`: `actions/cache` and the `setup-*` caches use the runner's own token, not `GITHUB_TOKEN`.
 
 **One run per change.** Triggers are now `pull_request` plus `push` to `main`. Previously `push: branches: ["**"]` plus `pull_request` ran every PR twice. Concurrency is keyed by PR number (or ref on main) and cancels superseded PR runs; runs on `main` are never cancelled.
 
-**Change detection.** A new `changes` job uses `dorny/paths-filter` to classify the diff into areas (each Java service, `ml-engine`, `video-capture-service`, `frontend`, `k8s`, `smoke`, plus `workflow` and `java-shared` for `config-server/config-repo/**`). A small planning step turns that into:
+**Change detection.** A new `changes` job uses `dorny/paths-filter` to classify the diff into areas (each Java service, `ml-engine`, `video-capture-service`, `frontend`, `k8s`, `smoke`, plus `workflow`, and `java-shared` for `config-server/config-repo/**` and `docs/schemas/**`, which the schema contract tests in chat-service, sentiment-service, and video-service read from `../docs/schemas`). A small planning step turns that into:
 
 - `java_services`: a JSON list feeding the Java job's matrix, so only changed services build. A workflow or config-repo change selects all eight.
 - `run_all`: true when the workflow or shared config changed; every job runs.
 
 The Python, frontend, and kustomize jobs carry an `if:` on their area. `docker-smoke` runs when anything that goes into the Compose stack changed, and tolerates skipped upstream jobs (`!cancelled() && !contains(needs.*.result, 'failure')`) so a frontend-only PR does not trigger a full stack boot, while a Java or ML change still does.
 
-Skipped jobs report as `skipped`, which GitHub branch protection treats as passing. That is different from workflow-level `paths:` filters, where a required check that never runs stays pending forever. Nothing in this branch uses workflow-level path filters for that reason.
+A final `ci-ok` job runs with `if: always()` after every other job and fails only when one of them failed or was cancelled. It is the one check to require in branch protection: the per-service Java checks only exist for services that changed, so requiring them by name would leave a docs-only PR pending forever. Skipped jobs report as `skipped`, which `ci-ok` treats as passing. That is different from workflow-level `paths:` filters, where a required check that never runs stays pending forever. Nothing in this branch uses workflow-level path filters for that reason.
 
 ## Deliberately left alone
 
@@ -51,7 +51,7 @@ GitHub Actions cannot run locally, so the first real proof is the PR for this br
 1. Open the PR and confirm a single workflow run appears (not two).
 2. In the `changes` job log, the `Plan jobs` step prints `run_all=true` and all eight services.
 3. After merge, push a docs-only change on a branch and open a PR: only `changes` should run; the others show as skipped and the PR is mergeable.
-4. If branch protection lists required checks by job name, keep the same names; they are unchanged.
+4. `main` has no branch protection today. When it gets some, require only `ci-ok`; the other job names are unchanged, but the Java ones are per-service and only appear when that service changed.
 
 ## Follow-ups (not in this branch)
 

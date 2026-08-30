@@ -1,3 +1,6 @@
+import inspect
+import logging
+
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -13,6 +16,41 @@ def test_health_reports_ok_and_ready(client):
 
 def test_live_is_always_alive(client):
     assert client.get("/ml/live").json() == {"status": "alive"}
+
+
+def test_operational_handlers_run_on_the_event_loop():
+    app = create_app(make_settings())
+    operational = {"/ml/health", "/ml/live", "/ml/ready", "/ml/info", "/metrics"}
+    seen = set()
+
+    def walk(routes):
+        for route in routes:
+            # FastAPI nests an included APIRouter either as the router itself or, from 0.141,
+            # behind an object that keeps it as `original_router`.
+            nested = getattr(route, "routes", None)
+            if nested is None and getattr(route, "original_router", None) is not None:
+                nested = route.original_router.routes
+            if nested is not None:
+                walk(nested)
+                continue
+            path = getattr(route, "path", None)
+            if path in operational:
+                seen.add(path)
+                assert inspect.iscoroutinefunction(route.endpoint), f"{path} must not use the inference thread pool"
+
+    walk(app.routes)
+    assert seen == operational
+
+
+def test_create_app_configures_a_root_log_handler(monkeypatch):
+    root = logging.getLogger()
+    monkeypatch.setattr(root, "handlers", [])
+    monkeypatch.setattr(root, "level", logging.WARNING)
+
+    create_app(make_settings())
+
+    assert root.handlers, "lifecycle and inference logs need a handler under uvicorn"
+    assert root.level <= logging.INFO
 
 
 def test_ready_is_503_before_the_lifespan_has_run():
