@@ -4,7 +4,7 @@ Priority 2 (part b) from `docs/planning/production-hardening.md`: every third-pa
 
 ## What changed
 
-28 files: `docker-compose.yml`, every manifest under `k8s/`, and all twelve `Dockerfile`s. No service code.
+`docker-compose.yml`, every manifest under `k8s/`, and every `Dockerfile` (eleven at the time of writing: eight Java services, ml-engine, video-capture-service, frontend). No service code.
 
 | Image | Before | After |
 |---|---|---|
@@ -52,7 +52,7 @@ The Java Dockerfiles copy a prebuilt jar, so they were not built here; the base 
 2. Grafana at `http://localhost:3001` (now 13.2.1) still provisions the four dashboards and the Prometheus datasource; Prometheus v3 scrapes all targets (`http://localhost:9090/targets`).
 3. Kafka UI at `http://localhost:8088` still shows the cluster and topics.
 4. `make replay-smoke` passes.
-5. On kind, `kubectl apply -k k8s` pulls the digest-pinned infra images (`kind load` is still needed for the `streamsense/*` app images).
+5. On kind, `kubectl apply -k .` from the repository root (branch 04 moved the entry point there; `kubectl apply -k k8s` on its own leaves config-server without its generated ConfigMap) pulls the digest-pinned infra images (`kind load` is still needed for the `streamsense/*` app images).
 
 ## Follow-ups (not in this branch)
 

@@ -61,10 +61,9 @@ management:
         readiness:
           # Not ready until the datastore checks pass; liveness stays independent of them.
           include: readinessState,db
+    prometheus:
+      enabled: true
   endpoints:
     web:
       exposure:
         include: health, info, prometheus
-  endpoint:
-    prometheus:
-      enabled: true

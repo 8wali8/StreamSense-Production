@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Requ
 from fastapi.responses import JSONResponse
 
 from app import metrics
-from app.frame_store import FrameArtifactError
+from app.frame_store import FrameArtifactError, readable_frame_ref
 from app.models import (
     RegionProposalResponse,
     SegmentationRequest,
@@ -67,7 +67,21 @@ def reject_when_forced(request: Request, settings: SettingsDep) -> None:
 
 
 # ---------------------------------------------------------------------- app factory
+def _configure_logging() -> None:
+    """Attach a root handler when nothing has (uvicorn only configures its own loggers).
+
+    Without this the lifecycle and inference ``logger.info`` lines are dropped in the container,
+    where the process is started by ``uvicorn app.main:app``.
+    """
+    root = logging.getLogger()
+    if not root.handlers:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [ml-engine] %(message)s")
+    elif root.level > logging.INFO or root.level == logging.NOTSET:
+        root.setLevel(logging.INFO)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
+    _configure_logging()
     resolved_settings = settings or get_settings()
 
     @asynccontextmanager
@@ -95,25 +109,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 def _operations_router() -> APIRouter:
     router = APIRouter(prefix="/ml", tags=["operations"])
 
+    # The operational handlers are coroutines on purpose: they do no blocking work, and a
+    # plain `def` would queue behind slow inference calls in the thread pool, so a busy but
+    # healthy pod could miss its liveness probe.
     @router.get("/health")
-    def health(request: Request, settings: SettingsDep):
+    async def health(request: Request, settings: SettingsDep):
         # Kept for existing callers: healthy means alive; readiness is reported separately.
         registry: BackendRegistry | None = getattr(request.app.state, "registry", None)
         return {"status": "ok", "service": settings.service_name, "ready": bool(registry and registry.ready)}
 
     @router.get("/live")
-    def live():
+    async def live():
         return {"status": "alive"}
 
     @router.get("/ready")
-    def ready(request: Request):
+    async def ready(request: Request):
         registry: BackendRegistry | None = getattr(request.app.state, "registry", None)
         if registry is None or not registry.ready:
             return JSONResponse(status_code=503, content={"status": "starting"})
         return {"status": "ready"}
 
     @router.get("/info")
-    def info(request: Request, settings: SettingsDep):
+    async def info(request: Request, settings: SettingsDep):
         registry: BackendRegistry | None = getattr(request.app.state, "registry", None)
         return {
             "service": settings.service_name,
@@ -215,6 +232,10 @@ def _inference_router() -> APIRouter:
 
     @router.post("/segment", response_model=SegmentationResponse)
     def segment(request: SegmentationRequest, registry: RegistryDep, settings: SettingsDep):
+        # A reference this service cannot read is a client error (400), not an outage (503):
+        # only a real read failure of a readable reference goes through FrameArtifactError.
+        if not readable_frame_ref(request.frameRef):
+            raise HTTPException(status_code=400, detail="segmentation requires readable frameRef")
         frame_image = registry.frame_store.load_frame_image(request.frameRef, required=True)
         if frame_image is None:
             raise HTTPException(status_code=400, detail="segmentation requires readable frameRef")
