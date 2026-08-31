@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.streamsense.analyticsservice.api.RiskFactor;
+import com.streamsense.analyticsservice.api.StreamMetricBucket;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.events.ChatMessageEvent;
 import com.streamsense.analyticsservice.events.SentimentAnalysisEvent;
@@ -13,8 +15,6 @@ import com.streamsense.analyticsservice.events.SponsorDetectionEvent;
 import com.streamsense.analyticsservice.events.TranscriptSentimentEvent;
 import com.streamsense.analyticsservice.service.MetricAggregationService;
 import com.streamsense.analyticsservice.service.MetricQueryService;
-import com.streamsense.analyticsservice.web.RiskFactor;
-import com.streamsense.analyticsservice.web.StreamMetricBucket;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;

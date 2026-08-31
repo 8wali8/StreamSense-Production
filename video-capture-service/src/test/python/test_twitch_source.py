@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from app.twitch_source import TwitchSourceResolver, TwitchStreamOffline, TwitchStreamResolutionError
+from app.twitch_source import TwitchSourceResolver, TwitchStreamOfflineError, TwitchStreamResolutionError
 
 
 def test_resolver_returns_hls_url(monkeypatch):
@@ -33,7 +33,10 @@ def test_resolver_can_resolve_vod_url(monkeypatch):
 
     resolver = TwitchSourceResolver("best", 5)
 
-    assert resolver.resolve_url("https://www.twitch.tv/videos/2750461300", "redbull-testing") == "https://example.com/vod.m3u8"
+    assert (
+        resolver.resolve_url("https://www.twitch.tv/videos/2750461300", "redbull-testing")
+        == "https://example.com/vod.m3u8"
+    )
     assert "https://www.twitch.tv/videos/2750461300" in captured_command
 
 
@@ -45,7 +48,7 @@ def test_resolver_maps_offline_channel(monkeypatch):
 
     resolver = TwitchSourceResolver("best", 5)
 
-    with pytest.raises(TwitchStreamOffline):
+    with pytest.raises(TwitchStreamOfflineError):
         resolver.resolve("offline")
 
 

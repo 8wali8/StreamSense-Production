@@ -37,7 +37,7 @@ Twitch verification targets (`make twitch-up`, `twitch-video-up`, `twitch-transc
 
 ### Java Services
 
-A Maven multi-module build: the root `pom.xml` (`streamsense-parent`) inherits from `spring-boot-starter-parent`, lists the eight services as modules, imports the Spring Cloud and Resilience4j BOMs, and pins the few versions those do not manage. Service POMs declare dependencies without versions; add a version only in the parent. The parent also runs the enforcer (Java 21, Maven 3.9+), JaCoCo (report under `target/site/jacoco` at `verify`), `build-info`, and `git-commit-id` (best-effort, so builds without `.git` still work), and enforces palantir-java-format through Spotless: `verify` fails on an unformatted file, `mvn spotless:apply` fixes it.
+A Maven multi-module build: the root `pom.xml` (`streamsense-parent`) inherits from `spring-boot-starter-parent`, lists the eight services as modules, imports the Spring Cloud and Resilience4j BOMs, and pins the few versions those do not manage. Service POMs declare dependencies without versions; add a version only in the parent. The parent also runs the enforcer (Java 21, Maven 3.9+), JaCoCo (report under `target/site/jacoco` at `verify`), `build-info`, and `git-commit-id` (best-effort, so builds without `.git` still work), and enforces palantir-java-format through Spotless: `verify` fails on an unformatted file, `mvn spotless:apply` fixes it. `verify` also fails when a module's line coverage drops below the `jacoco.minimum.line` property in its POM (set from the measured baseline; raise it when coverage grows, never lower it to pass), and every service has an `ArchitectureTest` (ArchUnit, identical across services): no field injection, no `java.util.logging` or `System.out`, the web layer (`web`, `controller`, `api`, `graphql`) never touches `persistence`, `persistence` never depends on the layers above it, and nothing outside `web`/`controller` depends on them, so response types a service returns live in `api` or `model`, not `web`.
 
 ```bash
 mvn -q -DskipTests package         # Build every service jar in one reactor run (what `make package` does)
@@ -55,11 +55,13 @@ uv sync --locked                                   # Create .venv from uv.lock (
 uv run pytest                                      # All tests (pytest picks up src/main/python from pyproject)
 uv run pytest src/test/python/test_X.py            # Single file
 uv run ruff check src/main/python src/test/python  # Lint (CI runs this for both services)
+uv run ruff format src/main/python src/test/python # Format (CI runs `ruff format --check`)
+uv run mypy                                        # Type-check src/main/python (CI runs this too)
 uv add <package>            # Add a runtime dependency (updates pyproject.toml and uv.lock)
 uv add --group dev <package> # Add a test/lint dependency
 ```
 
-Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` change that produced it. CI installs with `uv sync --locked`, which fails if the lock is stale.
+Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` change that produced it. CI installs with `uv sync --locked`, which fails if the lock is stale. Ruff runs the rule families listed under `[tool.ruff.lint] select` in each `pyproject.toml` (pycodestyle, pyflakes, isort, bugbear, pyupgrade, simplify, comprehensions, ruff, pytest-style, blind-except, bandit, naming); `N815` is ignored because event and API models keep the JSON contracts' camelCase names, and tests may `assert` and use placeholder credentials. A `# noqa` needs a reason after the code. mypy runs with the pydantic plugin and `check_untyped_defs` over `src/main/python` and passes clean; keep it that way rather than adding ignores.
 
 ### Frontend
 

@@ -29,6 +29,7 @@ dev = [
     "httpx>=0.27,<1",
     "ruff==0.16.3",
     "jsonschema>=4.26,<5",
+    "mypy>=1.20,<2",
 ]
 
 [tool.uv]
@@ -53,11 +54,29 @@ pythonpath = ["src/main/python"]
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint]
+# The rule families every module passes; add a family here only together with the fixes it needs.
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF", "PT", "BLE", "S", "N"]
+# Event and API models keep the camelCase field names of the JSON contracts in docs/schemas.
+ignore = ["N815"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["app", "conftest"]
 
 [tool.ruff.lint.per-file-ignores]
-# FastAPI route parameters use File()/Depends() calls as argument defaults.
-"src/main/python/app/main.py" = ["B008"]
+# Tests assert, carry placeholder credentials, and write under /tmp on purpose.
+"src/test/python/*" = ["S101", "S105", "S108"]
+# FastAPI route parameters use File()/Depends() calls as argument defaults and carry the API's camelCase names.
+"src/main/python/app/main.py" = ["B008", "N803"]
 # Segmentation deliberately catches broad exceptions to fall back to degraded output.
 "src/main/python/app/segmentation.py" = ["BLE001"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/main/python"]
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true

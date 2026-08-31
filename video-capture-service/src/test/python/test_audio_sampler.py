@@ -14,9 +14,7 @@ def test_audio_sampler_requires_non_empty_output(monkeypatch, tmp_path):
 
     monkeypatch.setattr("app.audio_sampler.run_bounded", fake_run)
 
-    output, latency_ms = AudioSampler(5, 2).capture(
-        "https://example.com/live.m3u8", tmp_path / "segment.wav"
-    )
+    output, latency_ms = AudioSampler(5, 2).capture("https://example.com/live.m3u8", tmp_path / "segment.wav")
 
     assert output.exists()
     assert output.stat().st_size == len(b"wav-bytes")

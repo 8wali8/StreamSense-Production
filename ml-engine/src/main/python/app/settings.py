@@ -39,10 +39,10 @@ def _secret_env(name: str, default: str | None = None) -> str | None:
         except OSError as exc:
             raise ValueError(f"{name}_FILE points to a missing or unreadable file: {path}") from exc
         return value or None
-    value = os.getenv(name)
-    if value is None:
+    env_value = os.getenv(name)
+    if env_value is None:
         return default
-    return value.strip() or None
+    return env_value.strip() or None
 
 
 class _EnvSettings(BaseSettings):
@@ -105,14 +105,38 @@ class SegmentationSettings(_EnvSettings):
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    backend: str = Field("", validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_BACKEND", "STREAMSENSE_SPONSOR_MODEL_BACKEND"))
-    model_path: str | None = Field(None, validation_alias=AliasChoices("STREAMSENSE_SAM_CHECKPOINT_PATH", "STREAMSENSE_SPONSOR_MODEL_PATH"))
-    model_version: str = Field("sam-vit-b", validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_MODEL_VERSION", "STREAMSENSE_SPONSOR_MODEL_VERSION"))
-    confidence_threshold: float = Field(0.25, validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_CONFIDENCE_THRESHOLD", "STREAMSENSE_SPONSOR_CONFIDENCE_THRESHOLD"))
-    iou_threshold: float = Field(0.5, validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_IOU_THRESHOLD", "STREAMSENSE_SPONSOR_IOU_THRESHOLD"))
-    max_proposals: int = Field(20, validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_MAX_PROPOSALS", "STREAMSENSE_SPONSOR_MAX_PROPOSALS"))
-    model_input_size: int = Field(640, validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_MODEL_INPUT_SIZE", "STREAMSENSE_SPONSOR_MODEL_INPUT_SIZE"))
-    labels: str = Field("segment", validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_LABELS", "STREAMSENSE_SPONSOR_MODEL_LABELS"))
+    backend: str = Field(
+        "", validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_BACKEND", "STREAMSENSE_SPONSOR_MODEL_BACKEND")
+    )
+    model_path: str | None = Field(
+        None, validation_alias=AliasChoices("STREAMSENSE_SAM_CHECKPOINT_PATH", "STREAMSENSE_SPONSOR_MODEL_PATH")
+    )
+    model_version: str = Field(
+        "sam-vit-b",
+        validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_MODEL_VERSION", "STREAMSENSE_SPONSOR_MODEL_VERSION"),
+    )
+    confidence_threshold: float = Field(
+        0.25,
+        validation_alias=AliasChoices(
+            "STREAMSENSE_SEGMENTATION_CONFIDENCE_THRESHOLD", "STREAMSENSE_SPONSOR_CONFIDENCE_THRESHOLD"
+        ),
+    )
+    iou_threshold: float = Field(
+        0.5,
+        validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_IOU_THRESHOLD", "STREAMSENSE_SPONSOR_IOU_THRESHOLD"),
+    )
+    max_proposals: int = Field(
+        20, validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_MAX_PROPOSALS", "STREAMSENSE_SPONSOR_MAX_PROPOSALS")
+    )
+    model_input_size: int = Field(
+        640,
+        validation_alias=AliasChoices(
+            "STREAMSENSE_SEGMENTATION_MODEL_INPUT_SIZE", "STREAMSENSE_SPONSOR_MODEL_INPUT_SIZE"
+        ),
+    )
+    labels: str = Field(
+        "segment", validation_alias=AliasChoices("STREAMSENSE_SEGMENTATION_LABELS", "STREAMSENSE_SPONSOR_MODEL_LABELS")
+    )
     min_area_ratio: float = Field(0.0005, validation_alias="STREAMSENSE_SEGMENTATION_MIN_AREA_RATIO")
     sam_model_type: str = Field("vit_b", validation_alias="STREAMSENSE_SAM_MODEL_TYPE")
     sam_checkpoint_url: str = Field(SAM_VIT_B_CHECKPOINT_URL, validation_alias="STREAMSENSE_SAM_CHECKPOINT_URL")
@@ -200,7 +224,9 @@ class Settings(_EnvSettings):
 
     ml_engine_force_failure: bool = False
     service_name: str = "ml-engine"
-    service_version: str = Field("0.1.0", validation_alias=AliasChoices("STREAMSENSE_SERVICE_VERSION", "SERVICE_VERSION"))
+    service_version: str = Field(
+        "0.1.0", validation_alias=AliasChoices("STREAMSENSE_SERVICE_VERSION", "SERVICE_VERSION")
+    )
     git_sha: str | None = Field(None, validation_alias=AliasChoices("STREAMSENSE_GIT_SHA", "GIT_SHA"))
 
     sentiment: SentimentSettings = Field(default_factory=SentimentSettings)

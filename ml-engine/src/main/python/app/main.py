@@ -29,7 +29,7 @@ from app.models import (
     SponsorResponse,
     TranscriptionResponse,
 )
-from app.registry import BackendRegistry, ModelNotReady
+from app.registry import BackendRegistry, ModelNotReadyError
 from app.relevance import SponsorRelevanceInput
 from app.settings import Settings, get_settings
 from app.sponsor import SponsorDetectionContext
@@ -46,7 +46,7 @@ TRANSCRIPTION_FAILED_DETAIL = "local transcription failed"
 def get_registry(request: Request) -> BackendRegistry:
     registry: BackendRegistry | None = getattr(request.app.state, "registry", None)
     if registry is None or not registry.ready:
-        raise ModelNotReady("registry")
+        raise ModelNotReadyError("registry")
     return registry
 
 
@@ -157,7 +157,12 @@ def _inference_router() -> APIRouter:
             result = registry.sentiment.analyze(request.message)
         logger.info(
             "sentiment request processed eventId=%s streamer=%s user=%s label=%s score=%.3f modelVersion=%s",
-            request.eventId, request.streamer, request.user, result.label, result.score, result.model_version,
+            request.eventId,
+            request.streamer,
+            request.user,
+            result.label,
+            result.score,
+            result.model_version,
         )
         return SentimentResponse(label=result.label, score=result.score, modelVersion=result.model_version)
 
@@ -174,9 +179,15 @@ def _inference_router() -> APIRouter:
                 )
             )
         logger.info(
-            "relevance request processed eventId=%s streamer=%s sponsor=%s relevant=%s score=%.3f reason=%s modelVersion=%s",
-            request.eventId, request.streamer, request.sponsor, result.sponsor_relevant, result.relevance_score,
-            result.relevance_reason, result.model_version,
+            "relevance request processed eventId=%s streamer=%s sponsor=%s relevant=%s score=%.3f reason=%s"
+            " modelVersion=%s",
+            request.eventId,
+            request.streamer,
+            request.sponsor,
+            result.sponsor_relevant,
+            result.relevance_score,
+            result.relevance_reason,
+            result.model_version,
         )
         return SponsorRelevanceResponse(
             sponsorRelevant=result.sponsor_relevant,
@@ -194,7 +205,10 @@ def _inference_router() -> APIRouter:
         except FrameArtifactError as exc:
             logger.warning(
                 "sponsor frame artifact read failed frameId=%s streamer=%s frameRef=%s error=%s",
-                request.frameId, request.streamer, request.frameRef, exc,
+                request.frameId,
+                request.streamer,
+                request.frameRef,
+                exc,
             )
             if settings.sponsor.require_frame_read:
                 raise
@@ -217,7 +231,11 @@ def _inference_router() -> APIRouter:
             )
         logger.info(
             "sponsor request processed frameId=%s streamer=%s sponsor=%s confidence=%.3f modelVersion=%s proposals=%s",
-            request.frameId, request.streamer, detection.sponsor, detection.confidence, detection.model_version,
+            request.frameId,
+            request.streamer,
+            detection.sponsor,
+            detection.confidence,
+            detection.model_version,
             len(proposals),
         )
         return SponsorResponse(
@@ -243,7 +261,10 @@ def _inference_router() -> APIRouter:
         with metrics.timed("segmentation"):
             proposals = registry.segmenter.propose(frame_image.image)[: max(0, settings.segmentation.max_proposals)]
         logger.info(
-            "segmentation processed frameId=%s frameRef=%s proposals=%s", request.frameId, request.frameRef, len(proposals)
+            "segmentation processed frameId=%s frameRef=%s proposals=%s",
+            request.frameId,
+            request.frameRef,
+            len(proposals),
         )
         return SegmentationResponse(
             modelVersion=settings.segmentation.model_version,
@@ -251,8 +272,14 @@ def _inference_router() -> APIRouter:
             frameHeight=frame_image.artifact.height,
             proposals=[
                 RegionProposalResponse(
-                    label=p.label, confidence=p.confidence, x=p.x, y=p.y, width=p.width, height=p.height,
-                    source=p.source, areaRatio=p.area_ratio,
+                    label=p.label,
+                    confidence=p.confidence,
+                    x=p.x,
+                    y=p.y,
+                    width=p.width,
+                    height=p.height,
+                    source=p.source,
+                    areaRatio=p.area_ratio,
                 )
                 for p in proposals
             ],
@@ -277,12 +304,19 @@ def _inference_router() -> APIRouter:
         except TranscriptionError as exc:
             logger.warning(
                 "transcription failed segmentId=%s streamer=%s durationMs=%s error=%s",
-                segmentId, streamer, endedAt - startedAt, exc,
+                segmentId,
+                streamer,
+                endedAt - startedAt,
+                exc,
             )
             raise
         logger.info(
             "transcription processed segmentId=%s streamer=%s durationMs=%s textLength=%s modelVersion=%s",
-            segmentId, streamer, endedAt - startedAt, len(result.text), result.model_version,
+            segmentId,
+            streamer,
+            endedAt - startedAt,
+            len(result.text),
+            result.model_version,
         )
         return TranscriptionResponse(
             text=result.text, language=result.language, confidence=result.confidence, modelVersion=result.model_version
@@ -293,8 +327,8 @@ def _inference_router() -> APIRouter:
 
 # ---------------------------------------------------------------------- error mapping
 def _register_error_handlers(app: FastAPI) -> None:
-    @app.exception_handler(ModelNotReady)
-    async def model_not_ready(_: Request, exc: ModelNotReady) -> JSONResponse:
+    @app.exception_handler(ModelNotReadyError)
+    async def model_not_ready(_: Request, exc: ModelNotReadyError) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": str(exc)})
 
     @app.exception_handler(FrameArtifactError)

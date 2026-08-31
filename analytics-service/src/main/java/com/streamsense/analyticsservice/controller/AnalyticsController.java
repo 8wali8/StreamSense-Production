@@ -1,10 +1,10 @@
 package com.streamsense.analyticsservice.controller;
 
+import com.streamsense.analyticsservice.api.BrandSafetyMetrics;
+import com.streamsense.analyticsservice.api.SponsorExposureMetric;
+import com.streamsense.analyticsservice.api.StreamMetricBucket;
+import com.streamsense.analyticsservice.api.StreamMetricsSummary;
 import com.streamsense.analyticsservice.service.MetricQueryService;
-import com.streamsense.analyticsservice.web.BrandSafetyMetrics;
-import com.streamsense.analyticsservice.web.SponsorExposureMetric;
-import com.streamsense.analyticsservice.web.StreamMetricBucket;
-import com.streamsense.analyticsservice.web.StreamMetricsSummary;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

@@ -62,8 +62,14 @@ class TranscriptSegmentEvent:
 
 
 class KeyedEvent(Protocol):
-    streamer: str
-    streamSessionId: str
+    """What the publisher needs from an event: the partition-key fields (read-only, so frozen dataclasses qualify)
+    and a dict view."""
+
+    @property
+    def streamer(self) -> str: ...
+
+    @property
+    def streamSessionId(self) -> str: ...  # noqa: N802 - the JSON contract's field name
 
     def as_dict(self) -> dict: ...
 
@@ -107,7 +113,9 @@ class EventPublisher:
     def publish(self, event: KeyedEvent) -> int:
         """Send one event and wait for its acknowledgement. Returns the round-trip in milliseconds."""
         start = time.monotonic()
-        future = self._get_producer().send(self.topic, key=event.streamSessionId or event.streamer, value=event.as_dict())
+        future = self._get_producer().send(
+            self.topic, key=event.streamSessionId or event.streamer, value=event.as_dict()
+        )
         future.get(timeout=self.ack_timeout_seconds)
         return int((time.monotonic() - start) * 1000)
 

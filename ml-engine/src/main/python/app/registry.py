@@ -109,7 +109,7 @@ class BackendRegistry:
     @staticmethod
     def _require(backend: Any, name: str) -> Any:
         if backend is None:
-            raise ModelNotReady(name)
+            raise ModelNotReadyError(name)
         return backend
 
     # ------------------------------------------------------------------ introspection
@@ -118,13 +118,15 @@ class BackendRegistry:
         return [
             BackendInfo("sentiment", s.sentiment.backend, s.sentiment.model, _loaded(self._sentiment)),
             BackendInfo("relevance", s.relevance.backend, s.relevance.model, _loaded(self._relevance)),
-            BackendInfo("segmentation", s.segmentation.backend or "none", s.segmentation.model_version, _loaded(self._segmenter)),
+            BackendInfo(
+                "segmentation", s.segmentation.backend or "none", s.segmentation.model_version, _loaded(self._segmenter)
+            ),
             BackendInfo("transcription", "faster-whisper", s.whisper.model, _loaded(self._transcriber)),
             BackendInfo("sponsor", "deterministic-stub", "stub-v1", True),
         ]
 
 
-class ModelNotReady(RuntimeError):
+class ModelNotReadyError(RuntimeError):
     def __init__(self, backend: str) -> None:
         super().__init__(f"{backend} backend is not ready")
         self.backend = backend

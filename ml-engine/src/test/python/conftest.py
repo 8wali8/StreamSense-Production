@@ -152,7 +152,8 @@ def client(make_client: ClientFactory) -> TestClient:
 @pytest.fixture
 def real_lightweight_client() -> Iterator[TestClient]:
     """A client with the real registry on model-free backends (lexical, direct, heuristic)."""
-    app = create_app(make_settings(segmentation=SegmentationSettings(backend="heuristic", model_version="heuristic-test")))
+    app = create_app(
+        make_settings(segmentation=SegmentationSettings(backend="heuristic", model_version="heuristic-test"))
+    )
     with TestClient(app) as client:
         yield client
-

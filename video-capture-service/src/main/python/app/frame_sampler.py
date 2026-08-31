@@ -28,15 +28,17 @@ class FrameSampler:
         ]
         if seek_seconds is not None:
             command.extend(["-ss", f"{max(0.0, seek_seconds):.3f}"])
-        command.extend([
-            "-i",
-            hls_url,
-            "-frames:v",
-            "1",
-            "-q:v",
-            str(quality),
-            str(output_path),
-        ])
+        command.extend(
+            [
+                "-i",
+                hls_url,
+                "-frames:v",
+                "1",
+                "-q:v",
+                str(quality),
+                str(output_path),
+            ]
+        )
 
         start = time.monotonic()
         try:

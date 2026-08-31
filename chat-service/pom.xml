@@ -7,6 +7,8 @@
   <name>chat-service</name>
 
   <properties>
+    <!-- measured line coverage 51.0% on the baseline run; floor two points below -->
+    <jacoco.minimum.line>0.49</jacoco.minimum.line>
     <mockito.version>5.15.2</mockito.version>
     <byte-buddy.version>1.15.11</byte-buddy.version>
   </properties>
@@ -61,6 +63,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
       <scope>test</scope>
     </dependency>
 

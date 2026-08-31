@@ -61,13 +61,20 @@ class CaptureRuntime:
                 self.transcription_client = TranscriptionClient(
                     config.ml_engine_url, config.transcript_request_timeout_seconds, config.transcript_language
                 )
-                self.transcript_publisher = EventPublisher(config.kafka_bootstrap_servers, config.transcript_segments_topic)
+                self.transcript_publisher = EventPublisher(
+                    config.kafka_bootstrap_servers, config.transcript_segments_topic
+                )
                 self.transcript_publisher.connect()
         else:
             self.status_store.statuses["disabled"] = ChannelStatus(channel="disabled", state=CaptureState.DISABLED)
 
         self.manager = CaptureManager(
-            config, self.status_store, self.storage, self.publisher, self.transcription_client, self.transcript_publisher
+            config,
+            self.status_store,
+            self.storage,
+            self.publisher,
+            self.transcription_client,
+            self.transcript_publisher,
         )
         self.manager.start()
         self.started = True
@@ -87,7 +94,11 @@ class CaptureRuntime:
         # The manager's config is the active one: a channel switch replaces it, while the
         # runtime keeps the start-up configuration.
         expected = len(self.manager.config.channels)
-        detail = {"status": "ready" if alive == expected else "degraded", "workersAlive": alive, "workersExpected": expected}
+        detail = {
+            "status": "ready" if alive == expected else "degraded",
+            "workersAlive": alive,
+            "workersExpected": expected,
+        }
         return alive == expected, detail
 
 
@@ -139,6 +150,8 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
     @app.post("/api/video/capture/channels")
     def switch_capture_channels(request: Request, body: ChannelSwitchRequest) -> dict:
         runtime = get_runtime(request)
+        if runtime.manager is None:
+            raise HTTPException(status_code=503, detail="capture manager is not running")
         try:
             return runtime.manager.switch_channels(body.channels)
         except ValueError as exc:

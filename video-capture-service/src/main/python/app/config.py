@@ -42,10 +42,10 @@ def _secret_env(name: str, default: str | None = None) -> str | None:
         except OSError as exc:
             raise ValueError(f"{name}_FILE points to a missing or unreadable file: {path}") from exc
         return value or None
-    value = os.getenv(name)
-    if value is None:
+    env_value = os.getenv(name)
+    if env_value is None:
         return default
-    return value.strip() or None
+    return env_value.strip() or None
 
 
 def _env_key(value: str) -> str:
@@ -119,7 +119,10 @@ class CaptureConfig:
             access_key=_secret_env("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY"),
             secret_key=_secret_env("STREAMSENSE_FRAME_STORAGE_SECRET_KEY"),
             path_prefix=os.getenv("STREAMSENSE_FRAME_STORAGE_PATH_PREFIX", "twitch").strip().strip("/"),
-            filesystem_root=os.getenv("STREAMSENSE_FRAME_STORAGE_FILESYSTEM_ROOT", "/tmp/streamsense-frames").strip(),
+            filesystem_root=os.getenv(
+                "STREAMSENSE_FRAME_STORAGE_FILESYSTEM_ROOT",
+                "/tmp/streamsense-frames",  # noqa: S108 - scratch default for the filesystem backend, overridable
+            ).strip(),
         )
         return CaptureConfig(
             enabled=_bool_env("STREAMSENSE_TWITCH_VIDEO_ENABLED", False),

@@ -81,9 +81,19 @@ def test_publisher_is_idempotent_and_connects_lazily():
     assert publisher.is_connected() is False
 
     event = FrameEvent(
-        frameId="frame-1", streamer="austincs", frameRef="s3://b/k", frameSequence=1, capturedAt=1, source="TWITCH",
-        channelLogin="austincs", streamSessionId="session-1", twitchStreamId=None, videoTimestampMs=0,
-        artifactContentType="image/jpeg", artifactSizeBytes=1, captureWorkerId="w",
+        frameId="frame-1",
+        streamer="austincs",
+        frameRef="s3://b/k",
+        frameSequence=1,
+        capturedAt=1,
+        source="TWITCH",
+        channelLogin="austincs",
+        streamSessionId="session-1",
+        twitchStreamId=None,
+        videoTimestampMs=0,
+        artifactContentType="image/jpeg",
+        artifactSizeBytes=1,
+        captureWorkerId="w",
     )
     publisher.publish(event)
     publisher.publish(event)
@@ -96,7 +106,8 @@ def test_publisher_is_idempotent_and_connects_lazily():
     assert producer.flushed == 0, "flush must not happen per message"
 
     publisher.close()
-    assert producer.flushed == 1 and producer.closed == 1
+    assert producer.flushed == 1
+    assert producer.closed == 1
     assert publisher.is_connected() is False
 
 

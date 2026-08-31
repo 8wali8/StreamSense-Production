@@ -51,6 +51,9 @@
 
     <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
     <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+    <archunit.version>1.5.0</archunit.version>
+    <!-- line-coverage floor JaCoCo enforces at verify; every service overrides it from its measured baseline -->
+    <jacoco.minimum.line>0.00</jacoco.minimum.line>
     <spotless-maven-plugin.version>2.44.5</spotless-maven-plugin.version>
     <git-commit-id-maven-plugin.version>9.0.1</git-commit-id-maven-plugin.version>
     <palantir-java-format.version>2.50.0</palantir-java-format.version>
@@ -81,6 +84,12 @@
         <groupId>com.networknt</groupId>
         <artifactId>json-schema-validator</artifactId>
         <version>${json-schema-validator.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit-junit5</artifactId>
+        <version>${archunit.version}</version>
+        <scope>test</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -157,7 +166,12 @@
         </executions>
       </plugin>
 
-      <!-- Coverage is measured on every test run (target/site/jacoco); no threshold is gated yet. -->
+      <!--
+        Coverage is measured on every test run (target/site/jacoco) and `verify` fails when the module's
+        line coverage drops below jacoco.minimum.line, which each service pins from its measured baseline
+        (docs/planning/branches/26-archunit-and-coverage.md). Raise a service's floor when its coverage
+        grows; never lower it to make a build pass.
+      -->
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
@@ -174,6 +188,27 @@
             <goals>
               <goal>report</goal>
             </goals>
+          </execution>
+          <execution>
+            <id>coverage-floor</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${jacoco.minimum.line}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
           </execution>
         </executions>
       </plugin>

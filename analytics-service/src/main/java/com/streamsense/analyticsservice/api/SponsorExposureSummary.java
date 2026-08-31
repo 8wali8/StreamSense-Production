@@ -1,4 +1,4 @@
-package com.streamsense.analyticsservice.web;
+package com.streamsense.analyticsservice.api;
 
 import java.util.List;
 

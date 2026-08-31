@@ -62,11 +62,8 @@ class TransformersSentimentAnalyzer:
             classifier = self._load_classifier()
             output = classifier(text, truncation=True)
             probabilities = _extract_probabilities(output)
-            label = max(probabilities, key=probabilities.get)
-            score = _clamp_score(
-                probabilities.get("POSITIVE", 0.0)
-                - probabilities.get("NEGATIVE", 0.0)
-            )
+            label = max(probabilities, key=lambda name: probabilities[name])
+            score = _clamp_score(probabilities.get("POSITIVE", 0.0) - probabilities.get("NEGATIVE", 0.0))
             return SentimentResult(label, score, self._config.model)
         except Exception:
             logger.exception("sentiment transformer inference failed; using fallback")
