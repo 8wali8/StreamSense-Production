@@ -26,10 +26,14 @@ export type BrandSafetyMetrics = {
 };
 
 export type ChatMessageEvent = {
+  channelLogin?: Maybe<Scalars['String']['output']>;
   eventId: Scalars['ID']['output'];
   message: Scalars['String']['output'];
+  source?: Maybe<Scalars['String']['output']>;
+  streamSessionId?: Maybe<Scalars['String']['output']>;
   streamer: Scalars['String']['output'];
   timestamp: Scalars['Float']['output'];
+  twitchStreamId?: Maybe<Scalars['String']['output']>;
   user: Scalars['String']['output'];
 };
 
@@ -153,6 +157,7 @@ export type RiskFactor = {
 };
 
 export type SentimentAnalysisEvent = {
+  channelLogin?: Maybe<Scalars['String']['output']>;
   chatTimestamp: Scalars['Float']['output'];
   label: Scalars['String']['output'];
   matchedSponsor?: Maybe<Scalars['String']['output']>;
@@ -165,9 +170,12 @@ export type SentimentAnalysisEvent = {
   relevanceVersion?: Maybe<Scalars['String']['output']>;
   score: Scalars['Float']['output'];
   sentimentEventId: Scalars['ID']['output'];
+  source?: Maybe<Scalars['String']['output']>;
   sourceEventId: Scalars['ID']['output'];
   sponsorRelevant: Scalars['Boolean']['output'];
+  streamSessionId?: Maybe<Scalars['String']['output']>;
   streamer: Scalars['String']['output'];
+  twitchStreamId?: Maybe<Scalars['String']['output']>;
   user: Scalars['String']['output'];
 };
 

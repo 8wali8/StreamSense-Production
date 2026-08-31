@@ -61,6 +61,19 @@ public class SentimentRecordEntity {
     @Column(name = "relevance_version", length = 128)
     private String relevanceVersion;
 
+    // Optional capture-session fields carried by the chat event (hardening/10); nullable for older rows.
+    @Column(name = "source", length = 32)
+    private String source;
+
+    @Column(name = "channel_login", length = 255)
+    private String channelLogin;
+
+    @Column(name = "stream_session_id", length = 255)
+    private String streamSessionId;
+
+    @Column(name = "twitch_stream_id", length = 128)
+    private String twitchStreamId;
+
     public String getSentimentEventId() {
         return sentimentEventId;
     }
@@ -189,6 +202,38 @@ public class SentimentRecordEntity {
         this.relevanceVersion = relevanceVersion;
     }
 
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getChannelLogin() {
+        return channelLogin;
+    }
+
+    public void setChannelLogin(String channelLogin) {
+        this.channelLogin = channelLogin;
+    }
+
+    public String getStreamSessionId() {
+        return streamSessionId;
+    }
+
+    public void setStreamSessionId(String streamSessionId) {
+        this.streamSessionId = streamSessionId;
+    }
+
+    public String getTwitchStreamId() {
+        return twitchStreamId;
+    }
+
+    public void setTwitchStreamId(String twitchStreamId) {
+        this.twitchStreamId = twitchStreamId;
+    }
+
     public SentimentAnalysisEvent toEvent() {
         SentimentAnalysisEvent event = new SentimentAnalysisEvent();
         event.setSentimentEventId(sentimentEventId);
@@ -207,6 +252,10 @@ public class SentimentRecordEntity {
         event.setRelevanceScore(relevanceScore);
         event.setRelevanceReason(relevanceReason);
         event.setRelevanceVersion(relevanceVersion);
+        event.setSource(source);
+        event.setChannelLogin(channelLogin);
+        event.setStreamSessionId(streamSessionId);
+        event.setTwitchStreamId(twitchStreamId);
         return event;
     }
 
@@ -228,6 +277,10 @@ public class SentimentRecordEntity {
         entity.setRelevanceScore(event.getRelevanceScore());
         entity.setRelevanceReason(event.getRelevanceReason());
         entity.setRelevanceVersion(event.getRelevanceVersion());
+        entity.setSource(event.getSource());
+        entity.setChannelLogin(event.getChannelLogin());
+        entity.setStreamSessionId(event.getStreamSessionId());
+        entity.setTwitchStreamId(event.getTwitchStreamId());
         return entity;
     }
 

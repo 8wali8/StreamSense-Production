@@ -35,7 +35,7 @@ Maintains ordering of sentiment events per streamer.
 
 Defined in:
 
-docs/schemas/sentiment-analysis-event.json
+docs/schemas/sentiment-analysis-event.schema.json
 
 Fields:
 
@@ -51,6 +51,8 @@ processedAt | Time sentiment result generated
 label | Sentiment category (POSITIVE / NEUTRAL / NEGATIVE)
 score | Sentiment polarity score [-1.0, 1.0]
 modelVersion | ML model version
+sponsorRelevant, matchedSponsor, matchedTerms, relevanceScore, relevanceReason, relevanceVersion | Sponsor relevance result for the message
+source, channelLogin, streamSessionId, twitchStreamId | Optional capture-session fields copied from the chat message (null for older rows); persisted since V4
 
 ---
 
