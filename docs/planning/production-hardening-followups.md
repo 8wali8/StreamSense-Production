@@ -33,3 +33,21 @@ The fourteen branches in `production-hardening.md` (on `hardening/00-plan`) each
 ## Conventions carried over
 
 Branches `hardening/<NN>-<slug>` in worktrees under `StreamSense-worktrees/`; never the main checkout. Each branch: one note in `docs/planning/branches/<NN>-<slug>.md` with what changed, what was left alone, the verification table with real results, and manual checks for the reviewer. Secrets never committed. Conventional commits with the session trailer. CLAUDE.md updated whenever a convention or command changes.
+
+## Progress (2026-09-04)
+
+All eight branches are pushed and stacked in order, each with its note under `branches/` and the verification it ran; none is merged. Review from 21 upward and forward-merge as before, so each later branch picks up the review fixes of the one below it.
+
+| Branch | Head | Note |
+|---|---|---|
+| `hardening/20-followups-plan` | 0fdbb10 | this plan |
+| `hardening/21-spotless-and-verify` | 0928a4e | `21-spotless-and-verify.md` |
+| `hardening/22-session-fields-persisted` | 9823da0 | `22-session-fields-persisted.md` |
+| `hardening/23-frontend-error-surfacing` | 787557b | `23-frontend-error-surfacing.md` |
+| `hardening/24-read-only-rootfs` | c2aea1c | `24-read-only-rootfs.md` |
+| `hardening/25-network-policy` | 3044a70 | `25-network-policy.md` |
+| `hardening/26-archunit-and-coverage` | a58ceda | `26-archunit-and-coverage.md` |
+| `hardening/27-python-layout` | 61e8ee9 | `27-python-layout.md` |
+| `hardening/28-ml-stack-upgrade` | (this branch) | `28-ml-stack-upgrade.md`, `28-ml-stack-comparison.md` |
+
+Deviations from the table above, each explained in its note: 24 keeps the busybox init containers; 25 gives the PodDisruptionBudget to the frontend only (the gateway's shared Kafka consumer group blocks a second replica); 26 fixed mypy's findings instead of ratcheting; 28 went to transformers 5.16.1 because only 5.10+ clears every CVE, and it also stopped the Dockerfiles from `chown -R`ing the venv.
