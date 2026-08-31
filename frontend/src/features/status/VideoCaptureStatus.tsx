@@ -1,5 +1,5 @@
-import { getVideoCaptureStatus, type VideoCaptureStatus as CaptureStatus } from "../api/video";
-import { usePolledResource } from "../hooks/usePolledResource";
+import { getVideoCaptureStatus, type VideoCaptureStatus as CaptureStatus } from "../../api/video";
+import { usePolledResource } from "../../hooks/usePolledResource";
 
 function formatStatus(status: CaptureStatus | null, error: string | null): string {
   if (error) return "Video: status unavailable";

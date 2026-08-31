@@ -1,8 +1,8 @@
 import { act, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { emitSubscription, renderWithApollo } from "../test/apollo";
-import { sentimentEvent } from "../test/fixtures";
-import { graphqlData, graphqlError, graphqlPending, server } from "../test/msw";
+import { emitSubscription, renderWithApollo } from "../../test/apollo";
+import { sentimentEvent } from "../../test/fixtures";
+import { graphqlData, graphqlError, graphqlPending, server } from "../../test/msw";
 import { SentimentPanel } from "./SentimentPanel";
 
 describe("SentimentPanel", () => {
@@ -32,12 +32,14 @@ describe("SentimentPanel", () => {
     expect(await screen.findByText("No sentiment history yet.")).toBeInTheDocument();
   });
 
-  it("renders GraphQL errors", async () => {
-    server.use(graphqlError("RecentSentiment", "sentiment service unavailable"));
+  it("renders GraphQL errors with the gateway's code translated", async () => {
+    server.use(graphqlError("RecentSentiment", "Downstream service unavailable", "DOWNSTREAM_UNAVAILABLE"));
 
     renderWithApollo(<SentimentPanel />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load sentiment history");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Failed to load sentiment history: a downstream service is unavailable",
+    );
   });
 
   it("renders a live subscription event on top of history", async () => {

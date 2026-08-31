@@ -24,19 +24,21 @@ Set `VITE_API_BASE_URL` only when the built app is served from a different origi
 
 ## Layout
 
-| Path                             | Role                                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `src/config/env.ts`              | Every environment read; nothing else touches `import.meta.env`                                                |
-| `src/lib/api-client.ts`          | The only `fetch` caller: base URL, bearer token, JSON, timeout, `ApiError` with RFC 9457 problem details      |
-| `src/api/*.ts`                   | One module per backend feature (`chat`, `video`, `sentiment`, `ml`) with typed request functions              |
-| `src/graphql/`                   | `queries.ts`, `subscriptions.ts`, and the generated `generated.ts`                                            |
-| `src/apollo/client.ts`           | Apollo Client with the HTTP/WebSocket split link and the same auth token as REST                              |
-| `src/hooks/usePolledResource.ts` | Load now and every N ms, keyed by streamer                                                                    |
-| `src/hooks/useLiveFeed.ts`       | History query plus live subscription events, de-duplicated and capped (`useLiveEvents` for subscription-only) |
-| `src/features/console/`          | The live player with detections, and the transcript, sponsor sentiment, and chat feeds                        |
-| `src/features/streamer/`         | Streamer and sponsor selection, runtime switching, the roster                                                 |
-| `src/components/`                | Reusable panels, `MetricCard`, `ErrorBoundary`                                                                |
-| `src/lib/format.ts`              | Pure display helpers shared by the console and panels                                                         |
+| Path                                            | Role                                                                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `src/config/env.ts`                             | Every environment read; nothing else touches `import.meta.env`                                                |
+| `src/lib/api-client.ts`                         | The only `fetch` caller: base URL, bearer token, JSON, timeout, `ApiError` with RFC 9457 problem details      |
+| `src/api/*.ts`                                  | One module per backend feature (`chat`, `video`, `sentiment`, `ml`) with typed request functions              |
+| `src/graphql/`                                  | `queries.ts`, `subscriptions.ts`, and the generated `generated.ts`                                            |
+| `src/apollo/client.ts`                          | Apollo Client with the HTTP/WebSocket split link and the same auth token as REST                              |
+| `src/hooks/usePolledResource.ts`                | Load now and every N ms, keyed by streamer                                                                    |
+| `src/hooks/useLiveFeed.ts`                      | History query plus live subscription events, de-duplicated and capped (`useLiveEvents` for subscription-only) |
+| `src/features/console/`                         | The live player with detections, and the transcript, sponsor sentiment, and chat feeds                        |
+| `src/features/streamer/`                        | Streamer and sponsor selection, runtime switching, the roster                                                 |
+| `src/features/evidence/`, `metrics/`, `status/` | The sentiment, sponsor, and recommendation panels; the metrics overview; the health and ingest status pills   |
+| `src/components/`                               | Building blocks with no feature of their own: `MetricCard`, `ErrorBoundary`                                   |
+| `src/lib/errors.ts`                             | `describeError`: problem `detail` for REST, translated `extensions.code` for GraphQL                          |
+| `src/lib/format.ts`                             | Pure display helpers shared by the console and panels                                                         |
 
 ## Tests
 

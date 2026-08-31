@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { HttpResponse, restProblem, restResolver, server } from "../test/msw";
+import { HttpResponse, restProblem, restResolver, server } from "../../test/msw";
 import { SegmentationPreview } from "./SegmentationPreview";
 
 const frame = {
@@ -66,9 +66,7 @@ describe("SegmentationPreview", () => {
     render(<SegmentationPreview frame={frame} />);
     await user.click(screen.getByRole("button", { name: "Run SAM" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "/ml/segment returned 503: segmentation model is not loaded",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("segmentation model is not loaded");
   });
 
   it("disables the button until a frame reference is available", async () => {

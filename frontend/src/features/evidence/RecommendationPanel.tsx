@@ -1,8 +1,9 @@
+import { describeError } from "../../lib/errors";
 import { useState } from "react";
 import { useQuery } from "@apollo/client/react";
-import { MetricCard } from "./MetricCard";
-import type { RecommendationsQuery } from "../graphql/generated";
-import { RECOMMENDATIONS_QUERY } from "../graphql/queries";
+import { MetricCard } from "../../components/MetricCard";
+import type { RecommendationsQuery } from "../../graphql/generated";
+import { RECOMMENDATIONS_QUERY } from "../../graphql/queries";
 
 function categoryTone(category: string): string {
   if (category === "SPONSOR_ALIGNMENT") return "#7c3aed";
@@ -90,7 +91,7 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
 
       {error && (
         <div className="error-state" role="alert">
-          Failed to load recommendations: {error.message}
+          Failed to load recommendations: {describeError(error)}
         </div>
       )}
 

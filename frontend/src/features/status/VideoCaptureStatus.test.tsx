@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { videoStatusCapturing } from "../test/fixtures";
-import { HttpResponse, http, restJson, server } from "../test/msw";
+import { videoStatusCapturing } from "../../test/fixtures";
+import { HttpResponse, http, restJson, server } from "../../test/msw";
 import { VideoCaptureStatus } from "./VideoCaptureStatus";
 
 describe("VideoCaptureStatus", () => {

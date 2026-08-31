@@ -1,8 +1,8 @@
 import { act, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { emitSubscription, renderWithApollo } from "../test/apollo";
-import { sponsorDetection } from "../test/fixtures";
-import { graphqlData, graphqlError, graphqlPending, server } from "../test/msw";
+import { emitSubscription, renderWithApollo } from "../../test/apollo";
+import { sponsorDetection } from "../../test/fixtures";
+import { graphqlData, graphqlError, graphqlPending, server } from "../../test/msw";
 import { SponsorPanel } from "./SponsorPanel";
 
 describe("SponsorPanel", () => {

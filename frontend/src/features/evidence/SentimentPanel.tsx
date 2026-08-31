@@ -1,14 +1,15 @@
+import { describeError } from "../../lib/errors";
 import { useState } from "react";
 import type {
   OnSentimentSubscription,
   RecentSentimentQuery,
   RecentSentimentQueryVariables,
-} from "../graphql/generated";
-import { RECENT_SENTIMENT_QUERY } from "../graphql/queries";
-import { ON_SENTIMENT_SUBSCRIPTION } from "../graphql/subscriptions";
-import { useLiveFeed } from "../hooks/useLiveFeed";
-import { formatTime, sentimentColor, sentimentLabelClass } from "../lib/format";
-import { MetricCard } from "./MetricCard";
+} from "../../graphql/generated";
+import { RECENT_SENTIMENT_QUERY } from "../../graphql/queries";
+import { ON_SENTIMENT_SUBSCRIPTION } from "../../graphql/subscriptions";
+import { useLiveFeed } from "../../hooks/useLiveFeed";
+import { formatTime, sentimentColor, sentimentLabelClass } from "../../lib/format";
+import { MetricCard } from "../../components/MetricCard";
 
 type SentimentAnalysisEvent = RecentSentimentQuery["recentSentiment"][number];
 
@@ -91,7 +92,9 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
 
       <div className="status-line">
         Status:{" "}
-        {subscriptionError ? `subscription error (${subscriptionError.message})` : `live (streamer=${activeStreamer})`}
+        {subscriptionError
+          ? `subscription error (${describeError(subscriptionError)})`
+          : `live (streamer=${activeStreamer})`}
       </div>
 
       <div className="metric-grid">
@@ -105,7 +108,7 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
 
       {error && (
         <div className="error-state" role="alert">
-          Failed to load sentiment history: {error.message}
+          Failed to load sentiment history: {describeError(error)}
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderWithApollo } from "../test/apollo";
-import { graphqlData, graphqlError, server } from "../test/msw";
+import { renderWithApollo } from "../../test/apollo";
+import { graphqlData, graphqlError, server } from "../../test/msw";
 import { Health } from "./Health";
 
 describe("Health", () => {
@@ -19,6 +19,6 @@ describe("Health", () => {
 
     renderWithApollo(<Health />);
 
-    expect(await screen.findByText(/Health: error - .*gateway unavailable/)).toBeInTheDocument();
+    expect(await screen.findByText("Health: error - a downstream service is unavailable")).toBeInTheDocument();
   });
 });

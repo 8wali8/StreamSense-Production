@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderWithApollo } from "../test/apollo";
-import { recommendation } from "../test/fixtures";
-import { graphqlData, graphqlError, graphqlPending, server } from "../test/msw";
+import { renderWithApollo } from "../../test/apollo";
+import { recommendation } from "../../test/fixtures";
+import { graphqlData, graphqlError, graphqlPending, server } from "../../test/msw";
 import { RecommendationPanel } from "./RecommendationPanel";
 
 describe("RecommendationPanel", () => {

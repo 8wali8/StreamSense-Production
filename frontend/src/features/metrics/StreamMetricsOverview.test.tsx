@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderWithApollo } from "../test/apollo";
-import { streamAnalytics } from "../test/fixtures";
-import { graphqlData, graphqlError, graphqlPending, server } from "../test/msw";
+import { renderWithApollo } from "../../test/apollo";
+import { streamAnalytics } from "../../test/fixtures";
+import { graphqlData, graphqlError, graphqlPending, server } from "../../test/msw";
 import { StreamMetricsOverview } from "./StreamMetricsOverview";
 
 describe("StreamMetricsOverview", () => {

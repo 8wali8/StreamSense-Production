@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { twitchStatusConnected } from "../test/fixtures";
-import { restJson, restProblem, server } from "../test/msw";
+import { twitchStatusConnected } from "../../test/fixtures";
+import { restJson, restProblem, server } from "../../test/msw";
 import { TwitchIngestionStatus } from "./TwitchIngestionStatus";
 
 describe("TwitchIngestionStatus", () => {
@@ -35,6 +35,6 @@ describe("TwitchIngestionStatus", () => {
     render(<TwitchIngestionStatus />);
 
     const pill = await screen.findByText("Twitch: status unavailable");
-    expect(pill).toHaveAttribute("title", "/api/chat/twitch/status returned 503: chat-service is restarting");
+    expect(pill).toHaveAttribute("title", "chat-service is restarting");
   });
 });

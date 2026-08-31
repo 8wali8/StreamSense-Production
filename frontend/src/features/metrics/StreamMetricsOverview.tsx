@@ -1,7 +1,8 @@
+import { describeError } from "../../lib/errors";
 import { useQuery } from "@apollo/client/react";
-import { MetricCard } from "./MetricCard";
-import type { StreamAnalyticsQuery } from "../graphql/generated";
-import { STREAM_ANALYTICS_QUERY } from "../graphql/queries";
+import { MetricCard } from "../../components/MetricCard";
+import type { StreamAnalyticsQuery } from "../../graphql/generated";
+import { STREAM_ANALYTICS_QUERY } from "../../graphql/queries";
 
 type StreamMetricsSummary = StreamAnalyticsQuery["streamMetricsSummary"];
 type SentimentMetricSummary = StreamMetricsSummary["chatSentiment"];
@@ -40,7 +41,7 @@ export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) 
 
       {error && (
         <div className="error-state" role="alert">
-          Failed to load aggregate metrics: {error.message}
+          Failed to load aggregate metrics: {describeError(error)}
         </div>
       )}
 
