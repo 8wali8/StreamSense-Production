@@ -13,7 +13,7 @@ COPY --from=extract --chown=app:app /build/extracted/spring-boot-loader/ ./
 COPY --from=extract --chown=app:app /build/extracted/snapshot-dependencies/ ./
 COPY --from=extract --chown=app:app /build/extracted/application/ ./
 USER 10001
-# Size the heap from the container limit; Kubernetes sets the same value explicitly.
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
 EXPOSE 8084
-ENTRYPOINT ["java", "-jar", "application.jar"]
+# The heap is sized from the container limit on the command line rather than through
+# JAVA_TOOL_OPTIONS, whose "Picked up" banner would be the one non-JSON line in the log.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "application.jar"]
