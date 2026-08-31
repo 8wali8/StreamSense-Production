@@ -47,21 +47,21 @@ mvn -f sentiment-service/pom.xml clean test -Dtest=MyTest   # Single test class 
 
 ### Python services (ml-engine, video-capture-service)
 
-Each Python service has a `pyproject.toml` and a committed `uv.lock`; dependencies are installed with [uv](https://docs.astral.sh/uv/), never from a requirements file. Test and lint tooling live in the `dev` dependency group, which the Docker images do not install.
+Each Python service has a `pyproject.toml` and a committed `uv.lock`; dependencies are installed with [uv](https://docs.astral.sh/uv/), never from a requirements file. Each is a real package in the `src/` layout (`ml-engine/src/ml_engine`, `video-capture-service/src/video_capture_service`, tests in `tests/`) built by hatchling: `uv sync` installs it into the venv, the images install it non-editable, and nothing sets `PYTHONPATH`. Import the package by name (`from ml_engine.settings import ...`), never relative to a source directory. Test and lint tooling live in the `dev` dependency group, which the Docker images do not install.
 
 ```bash
 # From ml-engine/ or video-capture-service/
 uv sync --locked                                   # Create .venv from uv.lock (includes the dev group)
-uv run pytest                                      # All tests (pytest picks up src/main/python from pyproject)
-uv run pytest src/test/python/test_X.py            # Single file
-uv run ruff check src/main/python src/test/python  # Lint (CI runs this for both services)
-uv run ruff format src/main/python src/test/python # Format (CI runs `ruff format --check`)
-uv run mypy                                        # Type-check src/main/python (CI runs this too)
+uv run pytest                                      # All tests (tests/ imports the installed package)
+uv run pytest tests/test_X.py                      # Single file
+uv run ruff check src tests                        # Lint (CI runs this for both services)
+uv run ruff format src tests                       # Format (CI runs `ruff format --check`)
+uv run mypy                                        # Type-check src/ (CI runs this too)
 uv add <package>            # Add a runtime dependency (updates pyproject.toml and uv.lock)
 uv add --group dev <package> # Add a test/lint dependency
 ```
 
-Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` change that produced it. CI installs with `uv sync --locked`, which fails if the lock is stale. Ruff runs the rule families listed under `[tool.ruff.lint] select` in each `pyproject.toml` (pycodestyle, pyflakes, isort, bugbear, pyupgrade, simplify, comprehensions, ruff, pytest-style, blind-except, bandit, naming); `N815` is ignored because event and API models keep the JSON contracts' camelCase names, and tests may `assert` and use placeholder credentials. A `# noqa` needs a reason after the code. mypy runs with the pydantic plugin and `check_untyped_defs` over `src/main/python` and passes clean; keep it that way rather than adding ignores.
+Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` change that produced it. CI installs with `uv sync --locked`, which fails if the lock is stale. Ruff runs the rule families listed under `[tool.ruff.lint] select` in each `pyproject.toml` (pycodestyle, pyflakes, isort, bugbear, pyupgrade, simplify, comprehensions, ruff, pytest-style, blind-except, bandit, naming); `N815` is ignored because event and API models keep the JSON contracts' camelCase names, and tests may `assert` and use placeholder credentials. A `# noqa` needs a reason after the code. mypy runs with the pydantic plugin and `check_untyped_defs` over `src/` and passes clean; keep it that way rather than adding ignores.
 
 ### Frontend
 
@@ -146,7 +146,7 @@ Kubernetes reads the same files: the root `kustomization.yaml` generates the con
 
 **Secrets are never literal in committed files.** Compose mounts git-ignored `secrets/<NAME>` files at `/run/secrets/<NAME>` (`make secrets` creates any missing file with a random value; `make up` and `start-stack.ps1` do this automatically; the `*.example` files are placeholders). Spring services import `optional:configtree:/run/secrets/`, so a placeholder like `${POSTGRES_PASSWORD}` in config-repo resolves from the file or from an env var of the same name. Python services accept `<NAME>_FILE`. Kubernetes builds the hash-suffixed `streamsense-secrets` Secret from git-ignored `k8s/secrets/streamsense.env` via `secretGenerator` (so a changed value rolls the pods), and manifests use `secretKeyRef`. New credentials follow the same three paths.
 
-The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings). In ml-engine every env read lives in `app/settings.py` (pydantic-settings, one class per `STREAMSENSE_<BACKEND>_` prefix, validated at start-up); routes receive settings and the `BackendRegistry` through FastAPI dependencies, so add config as a settings field, never as an `os.getenv` in a handler, and swap backends in tests with `app.dependency_overrides`, never by monkeypatching module globals.
+The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings). In ml-engine every env read lives in `src/ml_engine/settings.py` (pydantic-settings, one class per `STREAMSENSE_<BACKEND>_` prefix, validated at start-up); routes receive settings and the `BackendRegistry` through FastAPI dependencies, so add config as a settings field, never as an `os.getenv` in a handler, and swap backends in tests with `app.dependency_overrides`, never by monkeypatching module globals.
 
 Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires the `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` secret file or key, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_STORE` (`redis`/`memory`), `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS`, `STREAMSENSE_GATEWAY_GRAPHIQL_ENABLED` (off by default; Compose turns it on for local exploration), `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
 
