@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
+from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import ClientError
 from kafka.errors import KafkaTimeoutError
 
@@ -109,6 +110,16 @@ def test_storage_client_error_is_classified_as_degraded_storage(monkeypatch):
     assert status.frames_stored == 0
 
 
+def test_wrapped_upload_failure_is_classified_as_degraded_storage(monkeypatch):
+    # boto3's upload_file wraps the underlying ClientError; the wrapper is not a botocore exception.
+    error = S3UploadFailedError("Failed to upload frame.png to frames/x: An error occurred (AccessDenied)")
+
+    _, status = run_one_iteration(monkeypatch, FakeStorage(error=error), FakePublisher())
+
+    assert status.state == CaptureState.DEGRADED_STORAGE
+    assert status.frames_stored == 0
+
+
 def test_unexpected_error_keeps_the_worker_alive_and_is_labelled(monkeypatch):
     _, status = run_one_iteration(monkeypatch, FakeStorage(error=RuntimeError("boom")), FakePublisher())
 
@@ -128,10 +139,13 @@ def test_workers_have_independent_stop_events(monkeypatch):
     assert manager.workers_alive() == 1
     first_event = manager.workers[0][1]
 
-    manager.switch_channels(["other"])
+    manager.switch_channels(["other", "second"])
     assert first_event.is_set()
-    assert [thread.name for thread, _ in manager.workers] == ["capture-other"]
-    assert manager.workers_alive() == 1
+    assert [thread.name for thread, _ in manager.workers] == ["capture-other", "capture-second"]
+    assert manager.workers_alive() == 2
+    # Readiness must count against the switched configuration, not the start-up one.
+    assert len(manager.config.channels) == 2
+    assert len(config.channels) == 1
 
     manager.stop()
     assert manager.workers_alive() == 0
