@@ -10,6 +10,8 @@ Item 21 of `docs/planning/production-hardening-followups.md` (follow-ups from br
 - **`@MockBean`/`@SpyBean` → `@MockitoBean`/`@MockitoSpyBean`** in the four tests that used them (Boot 3.4 deprecated the old annotations; they were producing warnings on every build).
 - **Gateway property namespace**: `spring.cloud.gateway.{routes,httpclient,metrics}` → `spring.cloud.gateway.server.webflux.*` (the Spring Cloud Gateway 4.3 names; the old ones are flagged `deprecated` in the plugin's configuration metadata) in config-repo, the gateway's test config, the four routing integration tests, and the javadoc that cites them. CLAUDE.md names the new namespace.
 
+- **Merged the review chain**: the reviewed and forward-merged state of `hardening/14-supply-chain` (secret generation, k8s claim fixes, graceful-shutdown grace periods, `ci-ok` aggregate) is merged in; the `ci-ok` job now also waits for `schema-compat`, `dockerfile-lint`, `security-scan`, and `sbom`, so branch protection covers the jobs branches 10 and 14 added; the new `ConfigRepoYamlTest` is formatted.
+
 ## Deliberately left alone
 
 - No formatter for YAML, Markdown, or the Python services here: Prettier (frontend), ruff format (Python), and the pre-commit whitespace hooks already cover those.
@@ -19,12 +21,12 @@ Item 21 of `docs/planning/production-hardening-followups.md` (follow-ups from br
 
 | Check | Command | Result |
 |---|---|---|
-| Full reactor with the Spotless gate | `mvn -B -ntp -Dmaven.gitcommitid.skip=true clean verify` at the root in `maven:3.9-eclipse-temurin-21` | REACTOR_PLACEHOLDER |
-| Gate really fails on an unformatted file | append a badly indented method to one class, run `verify` on that module | GATE_PLACEHOLDER |
+| Full reactor with the Spotless gate | `mvn -B -ntp -Dmaven.gitcommitid.skip=true clean verify` at the root in `maven:3.9-eclipse-temurin-21` | BUILD SUCCESS on all 9 modules before the review-chain merge; after the merge `spotless:check` across all modules and `config-server` verify (9 tests, which include the new `ConfigRepoYamlTest`) pass |
+| Gate really fails on an unformatted file | append a badly indented method to one class, run `verify` on that module | proven in passing: the first full run failed chat-service with `format violations` on `ChatIngestControllerTest.java` (an import left out of order by the `@MockitoBean` replacement); `spotless:apply` fixed it and the rerun passed |
 | Old namespace gone | `grep -rn "spring.cloud.gateway\." --include=*.java --include=*.yml . \| grep -v server.webflux` | no matches |
 | Compose renders (config-repo changed) | `docker compose config -q` | OK |
-| Kubernetes renders (config-repo feeds the ConfigMap) | `kubectl kustomize .` | K8S_PLACEHOLDER |
-| Workflow syntax | `actionlint .github/workflows/ci.yml` | ACTIONLINT_PLACEHOLDER |
+| Kubernetes renders (config-repo feeds the ConfigMap) | `kubectl kustomize .` | OK |
+| Workflow syntax | `actionlint .github/workflows/ci.yml` | OK |
 
 ## Manual checks for the reviewer
 
