@@ -26,9 +26,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Run as a dedicated non-root user; ffmpeg and streamlink scratch files go under HOME.
+# Run as a dedicated non-root user; ffmpeg and streamlink scratch files go under HOME. /app stays
+# root-owned and read-only to the service (a chown -R of the venv would duplicate that layer).
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home app \
-    && mkdir -p /tmp/app && chown -R 10001:10001 /app /tmp/app
+    && mkdir -p /tmp/app && chown -R 10001:10001 /tmp/app
 ENV HOME=/tmp/app
 USER 10001
 

@@ -24,8 +24,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Run as a dedicated non-root user. The model cache directories are created and owned here so a
 # fresh Compose volume inherits that ownership; Kubernetes sets fsGroup 10001 on the PVCs instead.
+# /app stays root-owned and read-only to the service (it only imports from the venv); a chown -R of
+# the venv would copy the whole dependency layer into this one and double the image.
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home app \
-    && mkdir -p /models /tmp/app && chown -R 10001:10001 /app /models /tmp/app
+    && mkdir -p /models /tmp/app && chown -R 10001:10001 /models /tmp/app
 ENV HOME=/tmp/app
 USER 10001
 
