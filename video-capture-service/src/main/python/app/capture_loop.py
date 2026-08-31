@@ -6,6 +6,7 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 
+from boto3.exceptions import Boto3Error
 from botocore.exceptions import BotoCoreError, ClientError
 from kafka.errors import KafkaError
 
@@ -209,7 +210,9 @@ class CaptureManager:
                 metrics.kafka_publish_errors.labels(channel=channel).inc()
                 metrics.frames_skipped.labels(channel=channel, reason="kafka").inc()
                 self._record_failure(channel, CaptureState.DEGRADED_KAFKA, str(exc), "kafka", reconnect=True)
-            except (BotoCoreError, ClientError, OSError) as exc:
+            # boto3's transfer layer wraps a failed upload_file in S3UploadFailedError, a Boto3Error
+            # rather than a botocore exception, so it is listed here too.
+            except (BotoCoreError, ClientError, Boto3Error, OSError) as exc:
                 status.frames_skipped += 1
                 metrics.storage_errors.labels(channel=channel).inc()
                 metrics.frames_skipped.labels(channel=channel, reason="storage").inc()
