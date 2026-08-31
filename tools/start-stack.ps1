@@ -62,13 +62,36 @@ Run-Step "Check Docker" {
 }
 
 Run-Step "Ensure local secrets" {
-    Get-ChildItem -Path "secrets" -Filter "*.example" | ForEach-Object {
-        $target = Join-Path $_.DirectoryName ($_.Name -replace "\.example$", "")
-        if (-not (Test-Path -LiteralPath $target)) {
-            Copy-Item -LiteralPath $_.FullName -Destination $target
-            "created $target from example"
+    # Same rules as `make secrets`: a missing file whose Compose volume already exists means the volume
+    # holds an older credential, so stop and say so; every other missing file gets a fresh random value.
+    $project = if ($env:COMPOSE_PROJECT_NAME) { $env:COMPOSE_PROJECT_NAME } else { (Split-Path -Leaf (Get-Location)).ToLowerInvariant() }
+    foreach ($pair in @(@("POSTGRES_PASSWORD", "postgres-data"), @("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY", "minio-data"), @("STREAMSENSE_FRAME_STORAGE_SECRET_KEY", "minio-data"))) {
+        $name, $volume = $pair
+        if (-not (Test-Path -LiteralPath "secrets/$name")) {
+            $existing = docker volume ls -q --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.volume=$volume" 2>$null
+            if ($existing) {
+                throw "secrets/$name is missing, but the Compose volume '$volume' already exists and was initialised with an older credential. Write that credential into secrets/$name to keep the data, or run 'make nuke' to discard the volume; then rerun."
+            }
         }
     }
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    Get-ChildItem -Path "secrets" -Filter "*.example" | ForEach-Object {
+        $name = $_.Name -replace "\.example$", ""
+        $target = Join-Path $_.DirectoryName $name
+        if (-not (Test-Path -LiteralPath $target)) {
+            $byteCount = switch ($name) {
+                "STREAMSENSE_FRAME_STORAGE_ACCESS_KEY" { 8 }
+                "STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET" { 32 }
+                default { 16 }
+            }
+            $buffer = New-Object byte[] $byteCount
+            $rng.GetBytes($buffer)
+            $value = ($buffer | ForEach-Object { $_.ToString("x2") }) -join ""
+            [System.IO.File]::WriteAllText($target, "$value`n")
+            "created $target with a random value"
+        }
+    }
+    $rng.Dispose()
     "secrets present under ./secrets"
 }
 
@@ -89,7 +112,14 @@ if ($Channels.Count -eq 0) {
 
 if (-not $SkipPackage) {
     Run-Step "Package Java services (one reactor build)" {
-        docker run --rm -v "${PWD}:/workspace" -w "/workspace" maven:3.9.9-eclipse-temurin-21 mvn -B -ntp -DskipTests package
+        # In a git worktree `.git` is a file that points outside the bind mount, so the git-commit-id
+        # plugin cannot open the repository inside the container; skip it there (build-info still works).
+        $mavenArgs = @("-B", "-ntp", "-DskipTests", "package")
+        if (Test-Path -LiteralPath ".git" -PathType Leaf) {
+            "git worktree detected: skipping git-commit-id metadata for the container build"
+            $mavenArgs = @("-Dmaven.gitcommitid.skip=true") + $mavenArgs
+        }
+        docker run --rm -v "${PWD}:/workspace" -w "/workspace" maven:3.9.9-eclipse-temurin-21 mvn @mavenArgs
     }
 }
 
