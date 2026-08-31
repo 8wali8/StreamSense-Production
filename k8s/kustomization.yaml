@@ -28,6 +28,7 @@ resources:
   - monitoring/zipkin.yaml
   - monitoring/kafka-exporter.yaml
   - ingress/streamsense-ingress.yaml
+  - network/network-policies.yaml
 
 # Credentials come from a git-ignored env file that `make secrets` writes with random values
 # (see secrets/streamsense.env.example). kustomize appends a content hash to the Secret name and

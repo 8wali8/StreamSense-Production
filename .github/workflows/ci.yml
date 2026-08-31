@@ -288,6 +288,11 @@ jobs:
       - name: Validate kustomize renders without errors
         run: kubectl kustomize . > /dev/null
 
+      # Every dependency the manifests, config-repo, Prometheus targets, nginx proxies, and Ingress declare
+      # must be allowed by k8s/network/network-policies.yaml (default-deny plus per-workload allows).
+      - name: Network policies cover every declared dependency
+        run: python3 tools/k8s/check_network_policies.py
+
       - name: Validate Grafana dashboard JSON
         run: |
           python3 -c "

@@ -1,0 +1,1252 @@
+# Network policies for the streamsense namespace. The first policy denies all ingress and egress for
+# every pod; each workload then gets exactly the peers it needs, derived from the manifests (init-container
+# waits, env URLs), config-server/config-repo, the Prometheus scrape targets, the frontend's nginx
+# proxy_pass lines, and the Ingress backends. tools/k8s/check_network_policies.py re-derives those edges
+# and fails CI when a policy stops covering one, so add the edge here when you add a dependency.
+#
+# Enforcement needs a CNI that implements NetworkPolicy (kind's default kindnet does not; see
+# docs/kubernetes-kind.md). Kubelet probes and `kubectl port-forward` come from the node and are not
+# subject to these rules on the usual CNIs. Every pod may resolve names through cluster DNS.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: streamsense
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: eureka-server
+  namespace: streamsense
+  # registry: every Spring client registers and fetches; Prometheus scrapes it
+spec:
+  podSelector:
+    matchLabels:
+      app: eureka-server
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: chat-service
+        - podSelector:
+            matchLabels:
+              app: config-server
+        - podSelector:
+            matchLabels:
+              app: prometheus
+        - podSelector:
+            matchLabels:
+              app: recommendation-service
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 8761
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: config-server
+  namespace: streamsense
+  # serves config to the six Spring clients; waits for Eureka at start-up
+spec:
+  podSelector:
+    matchLabels:
+      app: config-server
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: chat-service
+        - podSelector:
+            matchLabels:
+              app: prometheus
+        - podSelector:
+            matchLabels:
+              app: recommendation-service
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 8888
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-gateway
+  namespace: streamsense
+  # entry point: ingress-nginx and the frontend's nginx reach it; it calls every REST service, Redis (rate limits), and Kafka (subscriptions)
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8080
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: chat-service
+      ports:
+        - port: 8081
+    - to:
+        - podSelector:
+            matchLabels:
+              app: recommendation-service
+      ports:
+        - port: 8082
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+      ports:
+        - port: 8083
+    - to:
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 8084
+    - to:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+      ports:
+        - port: 8085
+    - to:
+        - podSelector:
+            matchLabels:
+              app: video-capture-service
+      ports:
+        - port: 8090
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: config-server
+      ports:
+        - port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chat-service
+  namespace: streamsense
+  # Twitch IRC (6697, 6667 without TLS) and gql.twitch.tv (443) for replay; publishes to Kafka
+spec:
+  podSelector:
+    matchLabels:
+      app: chat-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8081
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: config-server
+      ports:
+        - port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+    # public addresses only: the private ranges cover the pod and service networks
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+        - port: 6697
+        - port: 6667
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: recommendation-service
+  namespace: streamsense
+  # reads sentiment-service and video-service over REST
+spec:
+  podSelector:
+    matchLabels:
+      app: recommendation-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8082
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+      ports:
+        - port: 8083
+    - to:
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 8084
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: config-server
+      ports:
+        - port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sentiment-service
+  namespace: streamsense
+  # Kafka consumer/producer, Postgres, Redis cache, ml-engine inference
+spec:
+  podSelector:
+    matchLabels:
+      app: sentiment-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: prometheus
+        - podSelector:
+            matchLabels:
+              app: recommendation-service
+      ports:
+        - port: 8083
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ml-engine
+      ports:
+        - port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: config-server
+      ports:
+        - port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: video-service
+  namespace: streamsense
+  # Kafka consumer/producer, Postgres, Redis cache, ml-engine inference
+spec:
+  podSelector:
+    matchLabels:
+      app: video-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: prometheus
+        - podSelector:
+            matchLabels:
+              app: recommendation-service
+      ports:
+        - port: 8084
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ml-engine
+      ports:
+        - port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: config-server
+      ports:
+        - port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: analytics-service
+  namespace: streamsense
+  # Kafka consumer, Postgres
+spec:
+  podSelector:
+    matchLabels:
+      app: analytics-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8085
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: config-server
+      ports:
+        - port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zipkin
+      ports:
+        - port: 9411
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: video-capture-service
+  namespace: streamsense
+  # Twitch HLS over 443 (streamlink), frames to MinIO, audio to ml-engine, events to Kafka
+spec:
+  podSelector:
+    matchLabels:
+      app: video-capture-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8090
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ml-engine
+      ports:
+        - port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: minio
+      ports:
+        - port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    # public addresses only: the private ranges cover the pod and service networks
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ml-engine
+  namespace: streamsense
+  # reads frames from MinIO; 443 out for a Hugging Face download when the model cache is empty
+spec:
+  podSelector:
+    matchLabels:
+      app: ml-engine
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - podSelector:
+            matchLabels:
+              app: prometheus
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+        - podSelector:
+            matchLabels:
+              app: video-capture-service
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 8000
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: minio
+      ports:
+        - port: 9000
+    # public addresses only: the private ranges cover the pod and service networks
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend
+  namespace: streamsense
+  # nginx proxies /graphql and /api to the gateway and POST /ml/segment to ml-engine
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8080
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ml-engine
+      ports:
+        - port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka
+  namespace: streamsense
+  # single KRaft node: broker 9092 for clients, controller 29093 to itself
+spec:
+  podSelector:
+    matchLabels:
+      app: kafka
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: chat-service
+        - podSelector:
+            matchLabels:
+              app: kafka
+        - podSelector:
+            matchLabels:
+              app: kafka-exporter
+        - podSelector:
+            matchLabels:
+              app: kafka-topics-init
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+        - podSelector:
+            matchLabels:
+              app: video-capture-service
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 9092
+    - from:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 29093
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 29093
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-topics-init
+  namespace: streamsense
+  # one-shot Job that creates the topics
+spec:
+  podSelector:
+    matchLabels:
+      app: kafka-topics-init
+  policyTypes: [Ingress, Egress]
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-exporter
+  namespace: streamsense
+  # consumer-lag metrics for Prometheus
+spec:
+  podSelector:
+    matchLabels:
+      app: kafka-exporter
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9308
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus
+  namespace: streamsense
+  # scrapes every target in k8s/config/prometheus-config.yaml; Grafana queries it
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: grafana
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9090
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ml-engine
+      ports:
+        - port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 8080
+    - to:
+        - podSelector:
+            matchLabels:
+              app: chat-service
+      ports:
+        - port: 8081
+    - to:
+        - podSelector:
+            matchLabels:
+              app: recommendation-service
+      ports:
+        - port: 8082
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+      ports:
+        - port: 8083
+    - to:
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 8084
+    - to:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+      ports:
+        - port: 8085
+    - to:
+        - podSelector:
+            matchLabels:
+              app: video-capture-service
+      ports:
+        - port: 8090
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+      ports:
+        - port: 8761
+    - to:
+        - podSelector:
+            matchLabels:
+              app: config-server
+      ports:
+        - port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9090
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka-exporter
+      ports:
+        - port: 9308
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana
+  namespace: streamsense
+  # dashboards over Prometheus; reached through ingress-nginx
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 3000
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+  namespace: streamsense
+  # sentiment-, video-, and analytics-service
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 5432
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+  namespace: streamsense
+  # gateway rate limits, sentiment and video caches
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 6379
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minio
+  namespace: streamsense
+  # frame storage for video-capture-service and ml-engine
+spec:
+  podSelector:
+    matchLabels:
+      app: minio
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ml-engine
+        - podSelector:
+            matchLabels:
+              app: video-capture-service
+      ports:
+        - port: 9000
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: zipkin
+  namespace: streamsense
+  # trace sink for every Spring service; reached through ingress-nginx
+spec:
+  podSelector:
+    matchLabels:
+      app: zipkin
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - podSelector:
+            matchLabels:
+              app: chat-service
+        - podSelector:
+            matchLabels:
+              app: config-server
+        - podSelector:
+            matchLabels:
+              app: eureka-server
+        - podSelector:
+            matchLabels:
+              app: recommendation-service
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+        - podSelector:
+            matchLabels:
+              app: video-service
+      ports:
+        - port: 9411
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 9411
+  egress:
+    # cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

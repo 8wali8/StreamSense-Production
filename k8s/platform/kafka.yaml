@@ -149,6 +149,10 @@ spec:
   # Finished pods are garbage-collected; the topics themselves persist in Kafka.
   ttlSecondsAfterFinished: 600
   template:
+    metadata:
+      labels:
+        # the network policy for the Job's pod selects on this label
+        app: kafka-topics-init
     spec:
       securityContext:
         runAsNonRoot: true

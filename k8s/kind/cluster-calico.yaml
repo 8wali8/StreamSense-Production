@@ -1,0 +1,19 @@
+# kind cluster without the default CNI, for running the network policies in k8s/network/ with Calico
+# enforcing them (kindnet, kind's default, ignores NetworkPolicy). See docs/kubernetes-kind.md,
+# "Enforcing the network policies": create the cluster with this file, then install Calico before
+# applying StreamSense. The host port mappings match k8s/kind/cluster.yaml.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true
+  # Calico's default pod CIDR; keep in step with the custom-resources manifest if you change it
+  podSubnet: 192.168.0.0/16
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP

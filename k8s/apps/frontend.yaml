@@ -21,7 +21,10 @@ metadata:
   labels:
     app: frontend
 spec:
-  replicas: 1
+  # Two stateless nginx replicas so the PodDisruptionBudget below can keep one serving while a node
+  # drains. The gateway stays at one replica: its Kafka consumers share one group id, so a second
+  # replica would split the partitions and subscribers on either pod would miss events.
+  replicas: 2
   selector:
     matchLabels:
       app: frontend
@@ -30,6 +33,15 @@ spec:
       labels:
         app: frontend
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: frontend
       securityContext:
         runAsNonRoot: true
         runAsUser: 101
@@ -77,3 +89,18 @@ spec:
           emptyDir: {}
         - name: cache
           emptyDir: {}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend
+  namespace: streamsense
+  labels:
+    app: frontend
+spec:
+  minAvailable: 1
+  # an unhealthy replica never blocks a drain
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: frontend
