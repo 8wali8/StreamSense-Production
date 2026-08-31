@@ -30,11 +30,15 @@ spec:
     spec:
       securityContext:
         fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: ml-engine
           image: streamsense/ml-engine:sprint9
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 10001
             capabilities:
@@ -96,6 +100,8 @@ spec:
           ports:
             - containerPort: 8000
           volumeMounts:
+            - name: scratch-tmp
+              mountPath: /tmp
             - name: whisper-model-cache
               mountPath: /models/whisper
             - name: relevance-model-cache
@@ -125,6 +131,8 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
       volumes:
+        - name: scratch-tmp
+          emptyDir: {}
         - name: whisper-model-cache
           persistentVolumeClaim:
             claimName: ml-engine-whisper-cache

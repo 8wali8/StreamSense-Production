@@ -347,27 +347,14 @@ jobs:
           output: trivy-results.sarif
           trivyignores: .trivyignore
 
-      # Dockerfiles, Compose, and Kubernetes manifests. CRITICAL misconfigurations fail the job; HIGH ones
-      # (today: readOnlyRootFilesystem and pod-level security contexts) are reported in the log and tracked
-      # as the next hardening branch.
-      - name: Trivy misconfiguration scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: misconfig
-          severity: HIGH,CRITICAL
-          exit-code: "0"
-          format: table
-          trivyignores: .trivyignore
-
+      # Dockerfiles, Compose, and Kubernetes manifests: HIGH and CRITICAL misconfigurations fail the job.
       - name: Trivy misconfiguration gate
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           scanners: misconfig
-          severity: CRITICAL
+          severity: HIGH,CRITICAL
           exit-code: "1"
           format: table
           trivyignores: .trivyignore

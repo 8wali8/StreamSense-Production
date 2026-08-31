@@ -33,11 +33,15 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: minio
           image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1000
             capabilities:
@@ -70,9 +74,13 @@ spec:
             - containerPort: 9000
             - containerPort: 9001
           volumeMounts:
+            - name: scratch-tmp
+              mountPath: /tmp
             - name: minio-data
               mountPath: /data
       volumes:
+        - name: scratch-tmp
+          emptyDir: {}
         - name: minio-data
           persistentVolumeClaim:
             claimName: minio-data

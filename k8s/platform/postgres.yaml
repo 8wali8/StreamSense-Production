@@ -30,11 +30,15 @@ spec:
     spec:
       securityContext:
         fsGroup: 999
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 999
             capabilities:
@@ -85,9 +89,17 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 5
           volumeMounts:
+            - name: scratch-tmp
+              mountPath: /tmp
+            - name: scratch-var-run-postgresql
+              mountPath: /var/run/postgresql
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
       volumes:
+        - name: scratch-tmp
+          emptyDir: {}
+        - name: scratch-var-run-postgresql
+          emptyDir: {}
         - name: postgres-data
           persistentVolumeClaim:
             claimName: postgres-data

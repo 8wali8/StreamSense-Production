@@ -48,11 +48,15 @@ spec:
       enableServiceLinks: false
       securityContext:
         fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: kafka
           image: confluentinc/cp-kafka:7.6.1@sha256:620734d9fc0bb1f9886932e5baf33806074469f40e3fe246a3fdbb59309535fa
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1000
             capabilities:
@@ -102,6 +106,12 @@ spec:
             - name: controller
               containerPort: 29093
           volumeMounts:
+            - name: scratch-tmp
+              mountPath: /tmp
+            - name: scratch-etc-kafka
+              mountPath: /etc/kafka
+            - name: scratch-var-log-kafka
+              mountPath: /var/log/kafka
             - name: kafka-data
               mountPath: /var/lib/kafka/data
           readinessProbe:
@@ -114,6 +124,13 @@ spec:
               port: 9092
             initialDelaySeconds: 40
             periodSeconds: 20
+      volumes:
+        - name: scratch-tmp
+          emptyDir: {}
+        - name: scratch-etc-kafka
+          emptyDir: {}
+        - name: scratch-var-log-kafka
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: kafka-data
@@ -133,12 +150,17 @@ spec:
   ttlSecondsAfterFinished: 600
   template:
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       restartPolicy: OnFailure
       containers:
         - name: kafka-topics-init
           image: confluentinc/cp-kafka:7.6.1@sha256:620734d9fc0bb1f9886932e5baf33806074469f40e3fe246a3fdbb59309535fa
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1000
             capabilities:
@@ -177,3 +199,9 @@ spec:
               kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.transcript.sentiment.events.analytics.dlt --partitions 3 --replication-factor 1;
               kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stream.sponsor.detections.analytics.dlt --partitions 3 --replication-factor 1;
               kafka-topics --bootstrap-server kafka:9092 --list;
+          volumeMounts:
+            - name: scratch-tmp
+              mountPath: /tmp
+      volumes:
+        - name: scratch-tmp
+          emptyDir: {}

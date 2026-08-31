@@ -137,7 +137,7 @@ Apply the stack:
 kubectl apply -k .
 ```
 
-Apply from the repository root, not from `k8s/`: the root `kustomization.yaml` generates the config-server ConfigMap from `config-server/config-repo/*.yml`, which `k8s/` cannot reference on its own. Every workload now carries resource requests and limits, a non-root `securityContext`, and split liveness and readiness probes; Postgres, MinIO, and the ml-engine model caches use PersistentVolumeClaims (kind's default StorageClass provisions them). The namespace enforces the `baseline` Pod Security Standard and warns on anything below `restricted`.
+Apply from the repository root, not from `k8s/`: the root `kustomization.yaml` generates the config-server ConfigMap from `config-server/config-repo/*.yml`, which `k8s/` cannot reference on its own. Every workload now carries resource requests and limits, a non-root `securityContext` with a read-only root filesystem (writable paths are explicit `scratch-*` `emptyDir` mounts), a pod-level seccomp profile, and split liveness and readiness probes; Postgres, MinIO, and the ml-engine model caches use PersistentVolumeClaims (kind's default StorageClass provisions them). The namespace enforces the `baseline` Pod Security Standard and warns on anything below `restricted`.
 
 If ingress creation races the admission webhook on a fresh cluster, re-apply ingress after the controller is ready:
 

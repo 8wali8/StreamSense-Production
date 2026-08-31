@@ -26,11 +26,16 @@ spec:
       labels:
         app: zipkin
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: zipkin
           image: openzipkin/zipkin:3.6.1@sha256:d17e856dcbba7ffeefbbfc252f89ab78a4ab6faed47e646d46daad78f91b5ee2
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1000
             capabilities:
@@ -60,3 +65,9 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
+          volumeMounts:
+            - name: scratch-tmp
+              mountPath: /tmp
+      volumes:
+        - name: scratch-tmp
+          emptyDir: {}
