@@ -1,4 +1,5 @@
 import pytest
+
 from app.frame_store import (
     FrameArtifactError,
     _secret_env,
