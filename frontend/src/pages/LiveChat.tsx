@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
 import { useSubscription } from "@apollo/client/react";
-import type { OnChatMessageSubscription } from "../graphql/generated";
+import type {
+  OnChatMessageSubscription,
+  OnChatMessageSubscriptionVariables,
+} from "../graphql/generated";
 import { ON_CHAT_MESSAGE_SUBSCRIPTION } from "../graphql/subscriptions";
 
 type ChatMessageEvent = OnChatMessageSubscription["onChatMessage"];
@@ -23,7 +26,7 @@ export function LiveChat({ streamer, autoConnect = false, hideControls = false }
     const [events, setEvents] = useState<ChatMessageEvent[]>([]);
     const seenIdsRef = useRef<Set<string>>(new Set());
 
-    const { error } = useSubscription<OnChatMessageSubscription>(ON_CHAT_MESSAGE_SUBSCRIPTION, {
+    const { error } = useSubscription<OnChatMessageSubscription, OnChatMessageSubscriptionVariables>(ON_CHAT_MESSAGE_SUBSCRIPTION, {
         variables: { streamer: activeStreamer },
         skip: !connected || !activeStreamer,
 

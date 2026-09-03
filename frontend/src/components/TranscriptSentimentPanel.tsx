@@ -2,7 +2,12 @@ import { useState } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { RECENT_TRANSCRIPT_SENTIMENT_QUERY } from "../graphql/queries";
 import { ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION } from "../graphql/subscriptions";
-import type { OnTranscriptSentimentSubscription, RecentTranscriptSentimentQuery } from "../graphql/generated";
+import type {
+  OnTranscriptSentimentSubscription,
+  OnTranscriptSentimentSubscriptionVariables,
+  RecentTranscriptSentimentQuery,
+  RecentTranscriptSentimentQueryVariables,
+} from "../graphql/generated";
 
 type TranscriptSentimentEvent = RecentTranscriptSentimentQuery["recentTranscriptSentiment"][number];
 
@@ -21,7 +26,7 @@ export function TranscriptSentimentPanel({ streamer, hideControls = false }: Tra
   const [liveEvents, setLiveEvents] = useState<TranscriptSentimentEvent[]>([]);
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecentTranscriptSentimentQuery>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
+  const { data, loading, error } = useQuery<RecentTranscriptSentimentQuery, RecentTranscriptSentimentQueryVariables>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
     fetchPolicy: "network-only",
@@ -31,7 +36,7 @@ export function TranscriptSentimentPanel({ streamer, hideControls = false }: Tra
   const historyIds = new Set(historyEvents.map((event) => event.sentimentEventId));
   const events = [...liveEvents.filter((event) => !historyIds.has(event.sentimentEventId)), ...historyEvents].slice(0, 50);
 
-  const { error: subscriptionError } = useSubscription<OnTranscriptSentimentSubscription>(ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
+  const { error: subscriptionError } = useSubscription<OnTranscriptSentimentSubscription, OnTranscriptSentimentSubscriptionVariables>(ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
     variables: { streamer: activeStreamer },
     skip: !activeStreamer,
     onData: ({ data: subscriptionData }) => {
