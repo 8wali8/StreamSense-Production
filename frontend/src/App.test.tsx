@@ -135,6 +135,11 @@ describe("App live console", () => {
         posted.push("chat");
         return HttpResponse.json([]);
       }),
+      restResolver("post", "/api/video/capture/channels", async ({ request }) => {
+        const body = (await request.json()) as { channels?: string[] };
+        posted.push(`capture:${(body.channels ?? []).join(",")}`);
+        return HttpResponse.json({ channels: body.channels ?? [] });
+      }),
       restResolver("post", "/api/sentiment/relevance/sponsors", () => {
         posted.push("relevance");
         return HttpResponse.json({});
@@ -146,10 +151,13 @@ describe("App live console", () => {
 
     await user.click(screen.getByRole("button", { name: /@speedrun-lab/ }));
     expect(await screen.findByText(/pointed at @speedrun-lab/)).toBeInTheDocument();
-    expect(posted).toEqual(["chat", "relevance"]);
+    // A streamer switch moves chat and video capture to the new channel and updates relevance; the
+    // three requests are issued concurrently, so only the set is asserted.
+    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat", "relevance"]);
 
     await user.click(screen.getByRole("button", { name: /load console/i }));
     expect(await screen.findByText(/Sponsor relevance updated for @speedrun-lab/)).toBeInTheDocument();
-    expect(posted).toEqual(["chat", "relevance", "relevance"]);
+    // Reloading the same streamer must not re-point chat or capture; only relevance is sent again.
+    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat", "relevance", "relevance"]);
   });
 });
