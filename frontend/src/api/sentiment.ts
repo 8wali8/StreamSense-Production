@@ -1,5 +1,5 @@
 import type { RecentTranscriptSegmentsQuery } from "../graphql/generated";
-import { apiFetch, apiSend, apiUrl } from "../lib/api-client";
+import { apiFetch, apiSend } from "../lib/api-client";
 
 /**
  * GET /api/sentiment/transcript/recent returns the same TranscriptSegmentEvent the GraphQL query
@@ -8,7 +8,7 @@ import { apiFetch, apiSend, apiUrl } from "../lib/api-client";
 export type TranscriptSegment = RecentTranscriptSegmentsQuery["recentTranscriptSegments"][number];
 
 export async function getRecentTranscriptSegments(streamer: string, limit: number): Promise<TranscriptSegment[]> {
-  const segments = await apiFetch<unknown>(apiUrl("/api/sentiment/transcript/recent", { streamer, limit }));
+  const segments = await apiFetch<unknown>("/api/sentiment/transcript/recent", { params: { streamer, limit } });
   return Array.isArray(segments) ? (segments as TranscriptSegment[]) : [];
 }
 
