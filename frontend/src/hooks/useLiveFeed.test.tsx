@@ -113,4 +113,29 @@ describe("useLiveFeed", () => {
     expect(screen.getByTestId("live")).toHaveTextContent("0");
     expect(await screen.findByText("other-h1")).toBeInTheDocument();
   });
+
+  it("does not bring the old buffer back when the reset key returns to a previous value", async () => {
+    server.use(
+      graphqlResolver("Items", ({ variables }) =>
+        HttpResponse.json({ data: { items: historyFor(String(variables.streamer)) } }),
+      ),
+    );
+
+    const apollo = renderWithApollo(<Probe streamer="test" />);
+    await screen.findByText("h1,h2");
+    act(() => {
+      emitSubscription(apollo, { onItem: item("l1") });
+    });
+    await screen.findByText("l1,h1,h2");
+
+    apollo.rerender(<Probe streamer="next" />);
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
+
+    // Back to the first streamer while the second one never emitted anything: the old live
+    // event must not reappear.
+    apollo.rerender(<Probe streamer="test" />);
+    await screen.findByText("h1,h2");
+
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
+  });
 });
