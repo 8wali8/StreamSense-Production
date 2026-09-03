@@ -1,7 +1,20 @@
 /**
  * Sample GraphQL objects as the gateway returns them. Every object carries `__typename` because
  * Apollo's cache normalises by it; a fixture without one would leave the query result partial.
+ *
+ * The fixture types are the generated operation result types plus `__typename`, so a renamed
+ * field or a changed nullability in the schema fails to compile here instead of letting a test
+ * exercise a response the gateway cannot return.
  */
+
+import type {
+  OnChatMessageSubscription,
+  RecentSentimentQuery,
+  RecentTranscriptSegmentsQuery,
+  RecentTranscriptSentimentQuery,
+  RecommendationsQuery,
+  SponsorDetectionsQuery,
+} from "../graphql/generated";
 
 export function sentimentEvent(overrides: Partial<SentimentEventFixture> = {}): SentimentEventFixture {
   return {
@@ -26,24 +39,8 @@ export function sentimentEvent(overrides: Partial<SentimentEventFixture> = {}): 
   };
 }
 
-export type SentimentEventFixture = {
+export type SentimentEventFixture = RecentSentimentQuery["recentSentiment"][number] & {
   __typename: "SentimentAnalysisEvent";
-  sentimentEventId: string;
-  sourceEventId: string;
-  streamer: string;
-  user: string;
-  message: string;
-  chatTimestamp: number;
-  processedAt: number;
-  label: string;
-  score: number;
-  modelVersion: string;
-  sponsorRelevant: boolean;
-  matchedSponsor: string | null;
-  matchedTerms: string[];
-  relevanceScore: number;
-  relevanceReason: string | null;
-  relevanceVersion: string | null;
 };
 
 export function sponsorDetection(overrides: Partial<SponsorDetectionFixture> = {}): SponsorDetectionFixture {
@@ -72,27 +69,8 @@ export function sponsorDetection(overrides: Partial<SponsorDetectionFixture> = {
   };
 }
 
-export type SponsorDetectionFixture = {
+export type SponsorDetectionFixture = SponsorDetectionsQuery["sponsorDetections"][number] & {
   __typename: "SponsorDetectionEvent";
-  detectionEventId: string;
-  sourceFrameId: string;
-  streamer: string;
-  frameRef: string;
-  frameSequence: number;
-  capturedAt: number;
-  processedAt: number;
-  sponsor: string;
-  confidence: number;
-  modelVersion: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  source: string | null;
-  channelLogin: string | null;
-  streamSessionId: string | null;
-  twitchStreamId: string | null;
-  videoTimestampMs: number | null;
 };
 
 export function transcriptSegment(overrides: Partial<TranscriptSegmentFixture> = {}): TranscriptSegmentFixture {
@@ -116,22 +94,8 @@ export function transcriptSegment(overrides: Partial<TranscriptSegmentFixture> =
   };
 }
 
-export type TranscriptSegmentFixture = {
+export type TranscriptSegmentFixture = RecentTranscriptSegmentsQuery["recentTranscriptSegments"][number] & {
   __typename: "TranscriptSegmentEvent";
-  segmentId: string;
-  streamer: string;
-  text: string;
-  startedAt: number;
-  endedAt: number;
-  language: string | null;
-  confidence: number | null;
-  modelVersion: string;
-  source: string;
-  channelLogin: string | null;
-  streamSessionId: string;
-  videoTimestampMs: number;
-  transcriptSequence: number;
-  captureWorkerId: string | null;
 };
 
 export function transcriptSentiment(overrides: Partial<TranscriptSentimentFixture> = {}): TranscriptSentimentFixture {
@@ -160,27 +124,8 @@ export function transcriptSentiment(overrides: Partial<TranscriptSentimentFixtur
   };
 }
 
-export type TranscriptSentimentFixture = {
+export type TranscriptSentimentFixture = RecentTranscriptSentimentQuery["recentTranscriptSentiment"][number] & {
   __typename: "TranscriptSentimentEvent";
-  sentimentEventId: string;
-  segmentId: string;
-  streamer: string;
-  text: string;
-  segmentStartedAt: number;
-  segmentEndedAt: number;
-  processedAt: number;
-  label: string;
-  score: number;
-  modelVersion: string;
-  transcriptModelVersion: string;
-  streamSessionId: string;
-  transcriptSequence: number;
-  sponsorRelevant: boolean;
-  matchedSponsor: string | null;
-  matchedTerms: string[];
-  relevanceScore: number;
-  relevanceReason: string | null;
-  relevanceVersion: string | null;
 };
 
 export function chatMessage(overrides: Partial<ChatMessageFixture> = {}): ChatMessageFixture {
@@ -195,14 +140,7 @@ export function chatMessage(overrides: Partial<ChatMessageFixture> = {}): ChatMe
   };
 }
 
-export type ChatMessageFixture = {
-  __typename: "ChatMessageEvent";
-  eventId: string;
-  streamer: string;
-  user: string;
-  message: string;
-  timestamp: number;
-};
+export type ChatMessageFixture = OnChatMessageSubscription["onChatMessage"] & { __typename: "ChatMessageEvent" };
 
 export function recommendation(overrides: Partial<RecommendationFixture> = {}): RecommendationFixture {
   return {
@@ -221,19 +159,7 @@ export function recommendation(overrides: Partial<RecommendationFixture> = {}): 
   };
 }
 
-export type RecommendationFixture = {
-  __typename: "Recommendation";
-  recommendationId: string;
-  streamer: string;
-  title: string;
-  category: string;
-  score: number;
-  reasonSummary: string;
-  reasons: string[];
-  experimentName: string;
-  variantId: string;
-  generatedAt: number;
-};
+export type RecommendationFixture = RecommendationsQuery["recommendations"][number] & { __typename: "Recommendation" };
 
 /** The StreamAnalytics query result: summary plus one timeseries bucket. */
 export function streamAnalytics() {
