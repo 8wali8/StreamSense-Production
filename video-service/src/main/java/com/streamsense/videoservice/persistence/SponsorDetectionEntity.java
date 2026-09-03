@@ -242,6 +242,8 @@ public class SponsorDetectionEntity {
         event.setStreamSessionId(streamSessionId);
         event.setTwitchStreamId(twitchStreamId);
         event.setVideoTimestampMs(videoTimestampMs);
+        // Not persisted: derived from the model version so a history read matches what was published.
+        event.setFallback(SponsorDetectionEvent.isFallbackModelVersion(modelVersion));
         return event;
     }
 
