@@ -112,7 +112,7 @@ public class VideoProcessingService {
         event.setStreamSessionId(frame.getStreamSessionId());
         event.setTwitchStreamId(frame.getTwitchStreamId());
         event.setVideoTimestampMs(frame.getVideoTimestampMs());
-        event.setFallback("fallback".equalsIgnoreCase(response.getModelVersion()));
+        event.setFallback(SponsorDetectionEvent.isFallbackModelVersion(response.getModelVersion()));
         return event;
     }
 
