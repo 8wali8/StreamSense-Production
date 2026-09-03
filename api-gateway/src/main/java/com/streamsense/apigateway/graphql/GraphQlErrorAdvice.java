@@ -10,8 +10,10 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.graphql.data.method.annotation.GraphQlExceptionHandler;
+import org.springframework.core.codec.CodecException;
 import org.springframework.graphql.execution.ErrorType;
 import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -25,9 +27,12 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  *   <li>{@code DOWNSTREAM_ERROR}: the downstream service failed (5xx); the status is in
  *       {@code extensions.status}.</li>
  *   <li>{@code BAD_REQUEST}: the arguments failed validation, either in the gateway or in the
- *       downstream service (a 4xx answer, whose status is in {@code extensions.status}). The
- *       services validate ranges such as {@code limit} and {@code bucketSeconds}, so their 400 is
- *       the caller's mistake, not a service fault.</li>
+ *       downstream service (a 400 or 422 answer, whose status is in {@code extensions.status}).
+ *       The services validate ranges such as {@code limit} and {@code bucketSeconds}, so their
+ *       400 is the caller's mistake, not a service fault. Any other 4xx (401, 403, 404, 429) is
+ *       something the caller cannot fix by changing arguments and stays {@code DOWNSTREAM_ERROR}.</li>
+ *   <li>{@code DOWNSTREAM_ERROR} also covers a 2xx whose body the gateway cannot decode (a
+ *       contract mismatch during version skew); the body is never echoed.</li>
  * </ul>
  * Messages never include downstream response bodies.
  */
@@ -53,7 +58,7 @@ public class GraphQlErrorAdvice {
                 ? ex.getRequest().getURI().getHost()
                 : "unknown";
         int status = ex.getStatusCode().value();
-        if (ex.getStatusCode().is4xxClientError()) {
+        if (isValidationStatus(status)) {
             log.info("downstream rejected request field={} host={} status={}", env.getField().getName(), host, status);
             return GraphqlErrorBuilder.newError(env)
                     .errorType(ErrorType.BAD_REQUEST)
@@ -67,6 +72,20 @@ public class GraphQlErrorAdvice {
                 .message("Downstream service returned an error")
                 .extensions(extensions("DOWNSTREAM_ERROR", Map.of("host", host, "status", status)))
                 .build();
+    }
+
+    @GraphQlExceptionHandler({CodecException.class, UnsupportedMediaTypeException.class})
+    public GraphQLError handleUndecodableResponse(Exception ex, DataFetchingEnvironment env) {
+        log.warn("downstream response could not be decoded field={} cause={}", env.getField().getName(), ex.getClass().getSimpleName());
+        return GraphqlErrorBuilder.newError(env)
+                .errorType(ErrorType.INTERNAL_ERROR)
+                .message("Downstream service returned an unreadable response")
+                .extensions(extensions("DOWNSTREAM_ERROR", Map.of("reason", "undecodable_response")))
+                .build();
+    }
+
+    private static boolean isValidationStatus(int status) {
+        return status == 400 || status == 422;
     }
 
     @GraphQlExceptionHandler({ConstraintViolationException.class, IllegalArgumentException.class})

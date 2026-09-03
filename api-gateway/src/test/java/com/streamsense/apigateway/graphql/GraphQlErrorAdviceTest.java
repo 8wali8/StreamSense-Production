@@ -106,6 +106,39 @@ class GraphQlErrorAdviceTest {
     }
 
     @Test
+    void otherDownstreamClientErrorsAreNotTheCallersMistake() {
+        RECOMMENDATION_SERVICE.enqueue(new MockResponse().setResponseCode(404).setBody("no such route"));
+
+        graphQlTester.document(RECOMMENDATIONS_QUERY)
+                .variable("streamer", "test")
+                .variable("limit", 3)
+                .execute()
+                .errors()
+                .satisfy(errors -> {
+                    assertThat(errors).hasSize(1);
+                    assertThat(errors.get(0).getExtensions()).containsEntry("code", "DOWNSTREAM_ERROR").containsEntry("status", 404);
+                });
+    }
+
+    @Test
+    void undecodableDownstreamBodyIsADownstreamError() {
+        RECOMMENDATION_SERVICE.enqueue(new MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("{not json at all"));
+
+        graphQlTester.document(RECOMMENDATIONS_QUERY)
+                .variable("streamer", "test")
+                .variable("limit", 3)
+                .execute()
+                .errors()
+                .satisfy(errors -> {
+                    assertThat(errors).hasSize(1);
+                    assertThat(errors.get(0).getExtensions()).containsEntry("code", "DOWNSTREAM_ERROR").containsEntry("reason", "undecodable_response");
+                    assertThat(errors.get(0).getMessage()).doesNotContain("not json");
+                });
+    }
+
+    @Test
     void unreachableDownstreamIsReportedAsUnavailable() {
         graphQlTester.document(SUMMARY_QUERY)
                 .variable("streamer", "test")
