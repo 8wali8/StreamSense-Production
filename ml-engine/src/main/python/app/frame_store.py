@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 import threading
 from dataclasses import dataclass
 from io import BytesIO
@@ -94,9 +95,16 @@ class FrameStore:
             client.close()
 
     def _read_s3(self, bucket: str, key: str) -> bytes:
+        limit = max_frame_bytes()
         try:
             response = self._s3_client().get_object(Bucket=bucket, Key=key)
-            return response["Body"].read()
+            declared = response.get("ContentLength")
+            if declared is not None and int(declared) > limit:
+                raise FrameArtifactError(f"frame artifact exceeds {limit} bytes: s3://{bucket}/{key}")
+            data = response["Body"].read(limit + 1)
+            if len(data) > limit:
+                raise FrameArtifactError(f"frame artifact exceeds {limit} bytes: s3://{bucket}/{key}")
+            return data
         except FrameArtifactError:
             raise
         except Exception as exc:
@@ -135,12 +143,32 @@ def load_frame_image(frame_ref: str) -> FrameImage | None:
     return _default_store.load_frame_image(frame_ref)
 
 
+DEFAULT_MAX_FRAME_BYTES = 32 * 1024 * 1024
+
+
+def max_frame_bytes() -> int:
+    """Upper bound for one frame artifact; a frame reference must never be able to read unbounded data."""
+    raw = os.getenv("STREAMSENSE_FRAME_MAX_BYTES", "").strip()
+    return int(raw) if raw else DEFAULT_MAX_FRAME_BYTES
+
+
 def _read_file(path: str) -> bytes:
+    # A frameRef can come from a client, so only regular files of a bounded size are read: no device
+    # nodes (`/dev/zero` never ends), no FIFOs, and nothing larger than a frame can be.
+    limit = max_frame_bytes()
     try:
+        info = os.stat(path)
+        if not stat.S_ISREG(info.st_mode):
+            raise FrameArtifactError(f"frame file is not a regular file: {path}")
+        if info.st_size > limit:
+            raise FrameArtifactError(f"frame file exceeds {limit} bytes: {path}")
         with open(path, "rb") as handle:
-            return handle.read()
+            data = handle.read(limit + 1)
     except OSError as exc:
         raise FrameArtifactError(f"failed to read frame file: {path}") from exc
+    if len(data) > limit:
+        raise FrameArtifactError(f"frame file exceeds {limit} bytes: {path}")
+    return data
 
 
 def _file_path(parsed: Any) -> str:
