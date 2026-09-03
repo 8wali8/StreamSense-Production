@@ -22,9 +22,12 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  * <ul>
  *   <li>{@code DOWNSTREAM_UNAVAILABLE}: the downstream service could not be reached or timed out
  *       (connection refused, DNS failure, the response timeout from branch 03).</li>
- *   <li>{@code DOWNSTREAM_ERROR}: the downstream service answered with a non-2xx status; the
- *       status is in {@code extensions.status}.</li>
- *   <li>{@code BAD_REQUEST}: the arguments failed validation.</li>
+ *   <li>{@code DOWNSTREAM_ERROR}: the downstream service failed (5xx); the status is in
+ *       {@code extensions.status}.</li>
+ *   <li>{@code BAD_REQUEST}: the arguments failed validation, either in the gateway or in the
+ *       downstream service (a 4xx answer, whose status is in {@code extensions.status}). The
+ *       services validate ranges such as {@code limit} and {@code bucketSeconds}, so their 400 is
+ *       the caller's mistake, not a service fault.</li>
  * </ul>
  * Messages never include downstream response bodies.
  */
@@ -49,11 +52,20 @@ public class GraphQlErrorAdvice {
         String host = ex.getRequest() != null && ex.getRequest().getURI() != null
                 ? ex.getRequest().getURI().getHost()
                 : "unknown";
-        log.warn("downstream error field={} host={} status={}", env.getField().getName(), host, ex.getStatusCode().value());
+        int status = ex.getStatusCode().value();
+        if (ex.getStatusCode().is4xxClientError()) {
+            log.info("downstream rejected request field={} host={} status={}", env.getField().getName(), host, status);
+            return GraphqlErrorBuilder.newError(env)
+                    .errorType(ErrorType.BAD_REQUEST)
+                    .message("Downstream service rejected the request")
+                    .extensions(extensions("BAD_REQUEST", Map.of("host", host, "status", status)))
+                    .build();
+        }
+        log.warn("downstream error field={} host={} status={}", env.getField().getName(), host, status);
         return GraphqlErrorBuilder.newError(env)
                 .errorType(ErrorType.INTERNAL_ERROR)
                 .message("Downstream service returned an error")
-                .extensions(extensions("DOWNSTREAM_ERROR", Map.of("host", host, "status", ex.getStatusCode().value())))
+                .extensions(extensions("DOWNSTREAM_ERROR", Map.of("host", host, "status", status)))
                 .build();
     }
 
