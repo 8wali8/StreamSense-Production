@@ -6,7 +6,7 @@ React 19 + TypeScript + Vite, Apollo Client 4 for GraphQL queries and `graphql-w
 
 ```bash
 npm ci               # Install exactly what package-lock.json says
-npm run dev          # Dev server on http://localhost:3000, proxying to the Compose backend
+npm run dev          # Dev server on http://localhost:5173, proxying to the Compose backend (3000 is the Docker frontend)
 npm run build        # tsc -b && vite build
 npm run test         # Vitest (vitest run)
 npm run lint         # ESLint

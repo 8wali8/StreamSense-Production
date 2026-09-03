@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      port: 3000,
+      // Vite's default; 3000 belongs to the Compose frontend container, which `make up` publishes.
+      port: 5173,
       // Same routes nginx proxies in the Docker image, so `npm run dev` works against `make up`.
       proxy: {
         "/graphql": { target: apiTarget, changeOrigin: true, ws: true },
