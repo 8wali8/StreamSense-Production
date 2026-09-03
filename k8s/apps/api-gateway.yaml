@@ -173,10 +173,14 @@ spec:
               value: redis
             - name: REDIS_PORT
               value: "6379"
-            # ingress-nginx replaces X-Forwarded-For with the real client IP, so exactly one hop is trusted.
-            # Set back to "0" if the controller is ever switched to use-forwarded-headers.
+            # Two proxies we operate can sit in front of the gateway: ingress-nginx, and the console's
+            # nginx when a request comes through streamsense.local. ingress-nginx overwrites
+            # X-Forwarded-For with the real client, the console appends the ingress address, so the
+            # client is the second entry from the right; a direct gateway.streamsense.local request has
+            # only one entry and the resolver clamps to it. Set back to "0" if ingress-nginx is ever
+            # switched to use-forwarded-headers, which would make the header client-controlled.
             - name: STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS
-              value: "1"
+              value: "2"
             - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
               value: "true"
           ports:

@@ -100,7 +100,11 @@ describe("App live console", () => {
 
     const transcript = await screen.findByRole("heading", { name: "All transcript" });
     expect(transcript).toBeInTheDocument();
-    expect((await screen.findAllByText(redbullSegment.text)).length).toBeGreaterThan(0);
+    // Scoped to the raw transcript feed: the sponsor sentiment feed renders the same text, so a
+    // page-wide search would stay green even if the raw feed lost every line.
+    const transcriptFeed = transcript.closest("section");
+    expect(transcriptFeed).not.toBeNull();
+    expect((await within(transcriptFeed as HTMLElement).findAllByText(redbullSegment.text)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Matched Red Bull/).length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(
