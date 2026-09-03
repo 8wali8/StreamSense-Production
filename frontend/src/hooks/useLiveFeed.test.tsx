@@ -106,6 +106,22 @@ describe("useLiveFeed", () => {
     expect(screen.getByTestId("live")).toHaveTextContent("0");
   });
 
+  it("does not bring the old buffer back when the reset key returns to a previous value", () => {
+    const { rerender } = render(<Probe streamer="test" />);
+    act(() => {
+      onData?.({ data: { data: { onItem: { id: "l1", streamer: "test" } } } });
+    });
+    expect(screen.getByTestId("live")).toHaveTextContent("1");
+
+    rerender(<Probe streamer="next" />);
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
+
+    // Back to the first streamer while the second one never emitted anything.
+    rerender(<Probe streamer="test" />);
+
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
+  });
+
   it("passes the query options through to Apollo", () => {
     render(<Probe streamer="test" />);
 
