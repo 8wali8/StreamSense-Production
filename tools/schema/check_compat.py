@@ -7,7 +7,11 @@ ref (default ``origin/main``) and fails on changes that would break an existing 
 - a required property was added (old producers would not send it);
 - a property was removed (old consumers may read it);
 - a property's ``type`` changed or narrowed (``["string","null"]`` -> ``"string"`` counts);
-- an ``enum`` lost a value;
+- an ``enum`` lost a value, or appeared on a property that had none;
+- a validation keyword was added or tightened (``minimum``/``maximum`` and their exclusive forms,
+  ``minLength``/``maxLength``, ``minItems``/``maxItems``, ``minProperties``/``maxProperties``,
+  ``pattern``, ``format``, ``const``, ``multipleOf``, ``uniqueItems``); nested ``properties``,
+  ``items``, and ``required`` are compared the same way, recursively;
 
 Adding an optional property, widening a type to allow null, or adding an enum value is fine;
 setting ``additionalProperties`` to false is reported as a warning because only the contract tests enforce it.
@@ -66,22 +70,57 @@ def types_of(prop: dict) -> set[str]:
     return set(declared) if isinstance(declared, list) else {declared}
 
 
-def compare(name: str, old: dict, new: dict) -> list[str]:
+# Keywords whose presence, or a move in the tightening direction, rejects payloads the base accepted.
+LOWER_BOUNDS = ("minimum", "exclusiveMinimum", "minLength", "minItems", "minProperties")
+UPPER_BOUNDS = ("maximum", "exclusiveMaximum", "maxLength", "maxItems", "maxProperties")
+EXACT_CONSTRAINTS = ("pattern", "format", "const", "multipleOf", "uniqueItems")
+
+
+def compare_constraints(label: str, old: dict, new: dict) -> list[str]:
+    """Every way ``new`` can reject a value that ``old`` accepted, for one schema node."""
+    problems: list[str] = []
+    old_types, new_types = types_of(old), types_of(new)
+    if old_types != {"any"} and not old_types <= new_types:
+        problems.append(f"{label} type narrowed from {sorted(old_types)} to {sorted(new_types)}")
+    old_enum, new_enum = old.get("enum"), new.get("enum")
+    if new_enum is not None and old_enum is None:
+        problems.append(f"{label} gained an enum {sorted(map(str, new_enum))} (any value was accepted before)")
+    elif old_enum and new_enum is not None and not set(old_enum) <= set(new_enum):
+        problems.append(f"{label} enum lost values {sorted(set(old_enum) - set(new_enum))}")
+    for keyword in LOWER_BOUNDS:
+        if keyword in new and (keyword not in old or new[keyword] > old[keyword]):
+            problems.append(f"{label} {keyword} tightened to {new[keyword]} (was {old.get(keyword, 'unset')})")
+    for keyword in UPPER_BOUNDS:
+        if keyword in new and (keyword not in old or new[keyword] < old[keyword]):
+            problems.append(f"{label} {keyword} tightened to {new[keyword]} (was {old.get(keyword, 'unset')})")
+    for keyword in EXACT_CONSTRAINTS:
+        if keyword in new and new[keyword] != old.get(keyword):
+            problems.append(f"{label} {keyword} is now {new[keyword]!r} (was {old.get(keyword, 'unset')!r})")
+    if isinstance(old.get("items"), dict) and isinstance(new.get("items"), dict):
+        problems.extend(compare_constraints(f"{label}[]", old["items"], new["items"]))
+    elif "items" in new and "items" not in old:
+        problems.append(f"{label} items gained a schema (any element was accepted before)")
+    if isinstance(old.get("properties"), dict) or isinstance(new.get("properties"), dict):
+        problems.extend(compare_object(label, old, new))
+    return problems
+
+
+def compare_object(label: str, old: dict, new: dict) -> list[str]:
+    """Properties and ``required`` of an object node, recursing into each property."""
     problems: list[str] = []
     old_props, new_props = old.get("properties", {}), new.get("properties", {})
     old_required, new_required = set(old.get("required", [])), set(new.get("required", []))
-
     for added in sorted(new_required - old_required):
-        problems.append(f"{name}: '{added}' became required (old producers do not send it)")
+        problems.append(f"{label}: '{added}' became required (old producers do not send it)")
     for removed in sorted(set(old_props) - set(new_props)):
-        problems.append(f"{name}: property '{removed}' was removed")
+        problems.append(f"{label}: property '{removed}' was removed")
     for field in sorted(set(old_props) & set(new_props)):
-        old_types, new_types = types_of(old_props[field]), types_of(new_props[field])
-        if old_types != {"any"} and not old_types <= new_types:
-            problems.append(f"{name}: '{field}' type narrowed from {sorted(old_types)} to {sorted(new_types)}")
-        old_enum, new_enum = old_props[field].get("enum"), new_props[field].get("enum")
-        if old_enum and new_enum is not None and not set(old_enum) <= set(new_enum):
-            problems.append(f"{name}: '{field}' enum lost values {sorted(set(old_enum) - set(new_enum))}")
+        problems.extend(compare_constraints(f"{label}: '{field}'", old_props[field], new_props[field]))
+    return problems
+
+
+def compare(name: str, old: dict, new: dict) -> list[str]:
+    problems = compare_object(name, old, new)
     if old.get("additionalProperties", True) is not False and new.get("additionalProperties", True) is False:
         # Consumers do not validate at runtime, so this only tightens the contract tests; flag it, do not fail.
         print(f"  WARNING: {name}: additionalProperties is now false; every producer's contract test must pass", file=sys.stderr)
@@ -92,6 +131,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base", default="origin/main", help="git ref to compare against (default: origin/main)")
     args = parser.parse_args()
+
+    resolved = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{args.base}^{{commit}}"], capture_output=True, text=True, encoding="utf-8"
+    )
+    if resolved.returncode != 0:
+        # Fail closed: an unresolvable base would make every schema look new and pass the gate.
+        print(f"base ref '{args.base}' does not resolve to a commit (fetch it first)", file=sys.stderr)
+        return 2
 
     schemas = sorted(SCHEMA_DIR.glob("*.schema.json"))
     if not schemas:
