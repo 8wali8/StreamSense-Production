@@ -14,6 +14,7 @@ import type {
   RecentTranscriptSentimentQuery,
   RecommendationsQuery,
   SponsorDetectionsQuery,
+  StreamAnalyticsQuery,
 } from "../graphql/generated";
 
 export function sentimentEvent(overrides: Partial<SentimentEventFixture> = {}): SentimentEventFixture {
@@ -162,7 +163,18 @@ export function recommendation(overrides: Partial<RecommendationFixture> = {}): 
 export type RecommendationFixture = RecommendationsQuery["recommendations"][number] & { __typename: "Recommendation" };
 
 /** The StreamAnalytics query result: summary plus one timeseries bucket. */
-export function streamAnalytics() {
+/**
+ * The generated shape with an optional `__typename` on every object, which Apollo's cache needs and
+ * the generated types do not declare.
+ */
+type WithTypenames<T> =
+  T extends Array<infer U>
+    ? Array<WithTypenames<U>>
+    : T extends object
+      ? { [K in keyof T]: WithTypenames<T[K]> } & { __typename?: string }
+      : T;
+
+export function streamAnalytics(): WithTypenames<StreamAnalyticsQuery> {
   return {
     streamMetricsSummary: {
       __typename: "StreamMetricsSummary",

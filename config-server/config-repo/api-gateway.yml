@@ -46,6 +46,7 @@ streamsense:
       protected-paths:
         - /graphql
         - /api/**
+        - /ml/**
       excluded-paths:
         - /actuator/**
         - /graphiql
@@ -60,6 +61,12 @@ streamsense:
         path: /api/video/upload-frame
         method: POST
         requests: 20
+        window-seconds: 60
+      # The console's segmentation preview; segmentation is the most expensive call ml-engine serves.
+      - id: ml-segment
+        path: /ml/segment
+        method: POST
+        requests: 30
         window-seconds: 60
 
 spring:
@@ -116,6 +123,16 @@ spring:
           uri: ${streamsense.services.analytics-service.base-url}
           predicates:
             - Path=/api/analytics/**
+        # The one ml-engine endpoint the console calls. It goes through the gateway so the auth and
+        # rate-limit filters cover it; every other ml-engine route stays internal to the services.
+        - id: ml-engine-segment
+          uri: ${ML_ENGINE_URL:http://ml-engine:8000}
+          predicates:
+            - Path=/ml/segment
+            - Method=POST
+          metadata:
+            # The SAM backend's first call downloads and initialises the model; well above the 10 s default.
+            response-timeout: 180000
 
   graphql:
     graphiql:

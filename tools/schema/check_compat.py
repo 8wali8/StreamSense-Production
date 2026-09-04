@@ -15,7 +15,9 @@ ref (default ``origin/main``) and fails on changes that would break an existing 
 
 Adding an optional property, widening a type to allow null, or adding an enum value is fine;
 setting ``additionalProperties`` to false is reported as a warning because only the contract tests enforce it.
-Schemas that do not exist on the base ref are new and pass. Every schema that exists on the base
+A finding listed verbatim in ``docs/schemas/compat-exceptions.txt`` is reported as accepted rather than
+breaking; that file is the reviewed record of deliberate tightenings and is pruned once the base ref
+has moved past them. Schemas that do not exist on the base ref are new and pass. Every schema that exists on the base
 ref must still exist in the tree, or be listed in ``RENAMED`` (old name -> new name), in which
 case the renamed file is compared against the old one; a base schema that simply disappears fails.
 Run from the repository root:
@@ -76,11 +78,35 @@ UPPER_BOUNDS = ("maximum", "exclusiveMaximum", "maxLength", "maxItems", "maxProp
 EXACT_CONSTRAINTS = ("pattern", "format", "const", "multipleOf", "uniqueItems")
 
 
+JSON_TYPES = {str: "string", bool: "boolean", int: "integer", float: "number", list: "array", dict: "object", type(None): "null"}
+
+
+def values_fit(old: dict, new_types: set[str]) -> bool:
+    """True when the old node's ``const``/``enum`` already restricted it to values of the new type."""
+    values = [old["const"]] if "const" in old else old.get("enum")
+    if not values:
+        return False
+    for value in values:
+        json_type = JSON_TYPES.get(type(value))
+        if json_type not in new_types and not (json_type == "integer" and "number" in new_types):
+            return False
+    return True
+
+
+def load_exceptions(path: pathlib.Path) -> set[str]:
+    """Findings a reviewer has accepted, one per line (``#`` comments allowed). Prune when the base moves on."""
+    if not path.exists():
+        return set()
+    return {line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")}
+
+
 def compare_constraints(label: str, old: dict, new: dict) -> list[str]:
     """Every way ``new`` can reject a value that ``old`` accepted, for one schema node."""
     problems: list[str] = []
     old_types, new_types = types_of(old), types_of(new)
-    if old_types != {"any"} and not old_types <= new_types:
+    if old_types == {"any"} and new_types != {"any"} and not values_fit(old, new_types):
+        problems.append(f"{label} gained a type {sorted(new_types)} (any value was accepted before)")
+    elif old_types != {"any"} and not old_types <= new_types:
         problems.append(f"{label} type narrowed from {sorted(old_types)} to {sorted(new_types)}")
     old_enum, new_enum = old.get("enum"), new.get("enum")
     if new_enum is not None and old_enum is None:
@@ -120,7 +146,9 @@ def compare_object(label: str, old: dict, new: dict) -> list[str]:
 
 
 def compare(name: str, old: dict, new: dict) -> list[str]:
-    problems = compare_object(name, old, new)
+    # The root is a schema node like any other: its type, bounds, and enum are compared here, and
+    # compare_constraints recurses into the properties and required lists below it.
+    problems = compare_constraints(name, old, new)
     if old.get("additionalProperties", True) is not False and new.get("additionalProperties", True) is False:
         # Consumers do not validate at runtime, so this only tightens the contract tests; flag it, do not fail.
         print(f"  WARNING: {name}: additionalProperties is now false; every producer's contract test must pass", file=sys.stderr)
@@ -172,9 +200,13 @@ def main() -> int:
         failures.extend(found)
         print(f"{label}: {'OK' if not found else str(len(found)) + ' incompatible change(s)'}")
 
+    accepted = load_exceptions(SCHEMA_DIR / "compat-exceptions.txt")
     for failure in failures:
-        print(f"  BREAKING: {failure}", file=sys.stderr)
-    return 1 if failures else 0
+        if failure in accepted:
+            print(f"  ACCEPTED (listed in compat-exceptions.txt): {failure}", file=sys.stderr)
+        else:
+            print(f"  BREAKING: {failure}", file=sys.stderr)
+    return 1 if any(failure not in accepted for failure in failures) else 0
 
 
 if __name__ == "__main__":
