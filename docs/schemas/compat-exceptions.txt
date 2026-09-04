@@ -1,0 +1,4 @@
+# Deliberate schema tightenings accepted by review. One finding per line, exactly as
+# tools/schema/check_compat.py prints it (a BREAKING line without the prefix). Remove a line once
+# main carries the change. Empty today: the transcript schema repairs in branch 10 typed values that
+# were already constrained by enum/const, which the script recognises as compatible.

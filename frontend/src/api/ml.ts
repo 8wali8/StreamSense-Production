@@ -28,10 +28,12 @@ export type SegmentationResponse = {
 };
 
 export function segmentFrame(request: SegmentationRequest): Promise<SegmentationResponse> {
-  // Segmentation loads a model on first use; give it longer than the default budget.
+  // Segmentation loads a model on first use. With the SAM backend on a fresh volume, the first call
+  // downloads the checkpoint and initialises the model before running CPU inference, which can take
+  // well over a minute; the budget must outlast that cold start (nginx and the gateway allow the same).
   return apiFetch<SegmentationResponse>("/ml/segment", {
     method: "POST",
     body: request,
-    timeoutMs: 60_000,
+    timeoutMs: 180_000,
   });
 }

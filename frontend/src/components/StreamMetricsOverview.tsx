@@ -1,6 +1,6 @@
 import { useQuery } from "@apollo/client/react";
 import { MetricCard } from "./MetricCard";
-import type { StreamAnalyticsQuery } from "../graphql/generated";
+import type { StreamAnalyticsQuery, StreamAnalyticsQueryVariables } from "../graphql/generated";
 import { STREAM_ANALYTICS_QUERY } from "../graphql/queries";
 
 type StreamMetricsSummary = StreamAnalyticsQuery["streamMetricsSummary"];
@@ -11,7 +11,7 @@ type StreamMetricsOverviewProps = {
 };
 
 export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) {
-  const { data, loading, error } = useQuery<StreamAnalyticsQuery>(STREAM_ANALYTICS_QUERY, {
+  const { data, loading, error } = useQuery<StreamAnalyticsQuery, StreamAnalyticsQueryVariables>(STREAM_ANALYTICS_QUERY, {
     variables: { streamer, windowMinutes: 15, bucketSeconds: 60 },
     skip: !streamer,
     fetchPolicy: "network-only",
