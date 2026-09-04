@@ -28,6 +28,8 @@ streamsense:
       base-url: http://video-capture-service:8090
     analytics-service:
       base-url: http://analytics-service:8085
+    ml-engine:
+      base-url: http://ml-engine:8000
     # WebClient calls from GraphQL resolvers; proxied routes use spring.cloud.gateway.httpclient below.
     connect-timeout: 2s
     response-timeout: 5s
@@ -115,7 +117,7 @@ spring:
         # The one ml-engine endpoint the console calls. It goes through the gateway so the auth and
         # rate-limit filters cover it; every other ml-engine route stays internal to the services.
         - id: ml-engine-segment
-          uri: ${ML_ENGINE_URL:http://ml-engine:8000}
+          uri: ${streamsense.services.ml-engine.base-url}
           predicates:
             - Path=/ml/segment
             - Method=POST
