@@ -41,7 +41,12 @@ export type RequestOptions = {
   storage?: TokenStorage | null;
 };
 
-export const DEFAULT_TIMEOUT_MS = 10_000;
+/**
+ * Above the gateway's own 10 s response timeout (config-repo api-gateway.yml) with room for transit,
+ * so a stalled downstream surfaces as the gateway's problem detail (an ApiError) rather than as the
+ * browser's AbortError racing it.
+ */
+export const DEFAULT_TIMEOUT_MS = 15_000;
 
 function timeoutSignal(timeoutMs: number): AbortSignal | undefined {
   return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"

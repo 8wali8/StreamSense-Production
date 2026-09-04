@@ -1,9 +1,8 @@
-import { env } from "../config/env";
 import { apiFetch } from "../lib/api-client";
 
 /**
- * POST /ml/segment. ml-engine is reached through nginx (Docker) or the Vite proxy (dev), never through
- * the gateway, so these calls use the ML base URL rather than the API base.
+ * POST /ml/segment, a gateway route (so the auth and rate-limit filters cover it), reached through
+ * nginx (Docker) or the Vite proxy (dev) like every other call.
  */
 export type SegmentationRequest = {
   frameId: string;
@@ -29,11 +28,12 @@ export type SegmentationResponse = {
 };
 
 export function segmentFrame(request: SegmentationRequest): Promise<SegmentationResponse> {
-  // Segmentation loads a model on first use; give it longer than the default budget.
+  // Segmentation loads a model on first use. With the SAM backend on a fresh volume, the first call
+  // downloads the checkpoint and initialises the model before running CPU inference, which can take
+  // well over a minute; the budget must outlast that cold start (nginx and the gateway allow the same).
   return apiFetch<SegmentationResponse>("/ml/segment", {
     method: "POST",
     body: request,
-    timeoutMs: 60_000,
-    baseUrl: env.mlBaseUrl,
+    timeoutMs: 180_000,
   });
 }
