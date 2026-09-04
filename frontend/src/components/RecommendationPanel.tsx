@@ -32,11 +32,14 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
   const [localStreamer, setLocalStreamer] = useState("test");
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecommendationsQuery, RecommendationsQueryVariables>(RECOMMENDATIONS_QUERY, {
-    variables: { streamer: activeStreamer, limit: 4 },
-    skip: !activeStreamer,
-    fetchPolicy: "network-only",
-  });
+  const { data, loading, error } = useQuery<RecommendationsQuery, RecommendationsQueryVariables>(
+    RECOMMENDATIONS_QUERY,
+    {
+      variables: { streamer: activeStreamer, limit: 4 },
+      skip: !activeStreamer,
+      fetchPolicy: "network-only",
+    },
+  );
 
   const recommendations = data?.recommendations ?? [];
   const strongestScore = recommendations[0]?.score ?? 0;
