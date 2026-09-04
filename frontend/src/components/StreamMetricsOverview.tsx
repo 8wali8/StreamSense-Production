@@ -11,12 +11,15 @@ type StreamMetricsOverviewProps = {
 };
 
 export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) {
-  const { data, loading, error } = useQuery<StreamAnalyticsQuery, StreamAnalyticsQueryVariables>(STREAM_ANALYTICS_QUERY, {
-    variables: { streamer, windowMinutes: 15, bucketSeconds: 60 },
-    skip: !streamer,
-    fetchPolicy: "network-only",
-    pollInterval: 15000,
-  });
+  const { data, loading, error } = useQuery<StreamAnalyticsQuery, StreamAnalyticsQueryVariables>(
+    STREAM_ANALYTICS_QUERY,
+    {
+      variables: { streamer, windowMinutes: 15, bucketSeconds: 60 },
+      skip: !streamer,
+      fetchPolicy: "network-only",
+      pollInterval: 15000,
+    },
+  );
 
   const summary = data?.streamMetricsSummary;
   const buckets = data?.streamMetricsTimeseries ?? [];

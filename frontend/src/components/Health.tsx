@@ -1,8 +1,5 @@
 import { useQuery } from "@apollo/client/react";
-import type {
-  HealthQuery,
-  HealthQueryVariables,
-} from "../graphql/generated";
+import type { HealthQuery, HealthQueryVariables } from "../graphql/generated";
 import { HEALTH_QUERY } from "../graphql/queries";
 
 export function Health() {
