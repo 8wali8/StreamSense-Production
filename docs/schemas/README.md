@@ -11,7 +11,7 @@ sample against its schema (networknt `json-schema-validator` in Java, `jsonschem
 | `sentiment-analysis-event.schema.json` | `stream.sentiment.events` | sentiment-service | analytics-service, api-gateway |
 | `transcript-segment-event.schema.json` | `stream.transcript.segments` (key = streamSessionId) | video-capture-service | sentiment-service, api-gateway |
 | `transcript-sentiment-event.schema.json` | `stream.transcript.sentiment.events` | sentiment-service | analytics-service, api-gateway |
-| `frame-data.schema.json` | `stream.video.frames` (key = streamSessionId) | video-capture-service, video-service (upload path) | video-service |
+| `frame-data.schema.json` | `stream.video.frames` (key = streamSessionId from video-capture-service; the `POST /api/video/upload-frame` path in video-service keys by streamer and sets no session id) | video-capture-service, video-service (upload path) | video-service |
 | `sponsor-detection-event.schema.json` | `stream.sponsor.detections` | video-service | analytics-service, api-gateway |
 | `ml-sentiment-request.schema.json` | `POST /ml/sentiment` request | sentiment-service | ml-engine |
 | `ml-sentiment-response.schema.json` | `POST /ml/sentiment` response | ml-engine | sentiment-service |
