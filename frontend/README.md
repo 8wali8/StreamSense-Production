@@ -18,7 +18,7 @@ npm run codegen:check  # Fail if generated.ts is stale (CI runs this)
 
 ## Running against the backend
 
-`npm run dev` proxies `/graphql` (HTTP and WebSocket) and `/api` to the API gateway and `/ml` to ml-engine, so `make up` (or `make up-fast`) in the repository root is all the backend you need. The targets default to `http://localhost:8080` and `http://localhost:8000`; override them with `VITE_DEV_API_TARGET` / `VITE_DEV_ML_TARGET` in a git-ignored `.env.local` (see `.env.example`). In Docker, nginx serves `dist/` and proxies the same three routes.
+`npm run dev` proxies `/graphql` (HTTP and WebSocket) and `/api` to the API gateway and `/ml` to ml-engine, so `make up` (or `make up-fast`) in the repository root is all the backend you need. The targets default to `http://localhost:8080` and `http://localhost:8000`; override them with `VITE_DEV_API_TARGET` / `VITE_DEV_ML_TARGET` in a git-ignored `.env.local` (see `.env.example`). In Docker, nginx serves `dist/` and proxies the same three routes. Same-origin is the supported setup: `VITE_API_BASE_URL` and `VITE_ML_BASE_URL` only make sense behind an edge that adds CORS, because neither the gateway nor ml-engine sends CORS headers.
 
 Set `VITE_API_BASE_URL` only when the built app is served from a different origin than the gateway; it is inlined at build time.
 
