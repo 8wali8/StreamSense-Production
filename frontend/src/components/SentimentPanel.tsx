@@ -2,7 +2,12 @@ import { useState } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { RECENT_SENTIMENT_QUERY } from "../graphql/queries";
 import { ON_SENTIMENT_SUBSCRIPTION } from "../graphql/subscriptions";
-import type { OnSentimentSubscription, RecentSentimentQuery } from "../graphql/generated";
+import type {
+  OnSentimentSubscription,
+  OnSentimentSubscriptionVariables,
+  RecentSentimentQuery,
+  RecentSentimentQueryVariables,
+} from "../graphql/generated";
 
 type SentimentAnalysisEvent = RecentSentimentQuery["recentSentiment"][number];
 
@@ -27,7 +32,7 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
   const [liveEvents, setLiveEvents] = useState<SentimentAnalysisEvent[]>([]);
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecentSentimentQuery>(RECENT_SENTIMENT_QUERY, {
+  const { data, loading, error } = useQuery<RecentSentimentQuery, RecentSentimentQueryVariables>(RECENT_SENTIMENT_QUERY, {
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
     fetchPolicy: "network-only",
@@ -37,7 +42,7 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
   const historyIds = new Set(historyEvents.map((event) => event.sentimentEventId));
   const events = [...liveEvents.filter((event) => !historyIds.has(event.sentimentEventId)), ...historyEvents].slice(0, 50);
 
-  const { error: subscriptionError } = useSubscription<OnSentimentSubscription>(ON_SENTIMENT_SUBSCRIPTION, {
+  const { error: subscriptionError } = useSubscription<OnSentimentSubscription, OnSentimentSubscriptionVariables>(ON_SENTIMENT_SUBSCRIPTION, {
     variables: { streamer: activeStreamer },
     skip: !activeStreamer,
     onData: ({ data: subscriptionData }) => {
