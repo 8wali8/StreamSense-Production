@@ -48,10 +48,14 @@ export type RequestOptions = {
  */
 export const DEFAULT_TIMEOUT_MS = 15_000;
 
-function timeoutSignal(timeoutMs: number): AbortSignal | undefined {
-  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
-    ? AbortSignal.timeout(timeoutMs)
-    : undefined;
+function timeoutSignal(timeoutMs: number): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  // Older browsers: the same bound, built by hand, so no request is ever open-ended.
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(new DOMException(`request timed out after ${timeoutMs} ms`, "TimeoutError")), timeoutMs);
+  return controller.signal;
 }
 
 async function readProblem(response: Response): Promise<ProblemDetail | null> {

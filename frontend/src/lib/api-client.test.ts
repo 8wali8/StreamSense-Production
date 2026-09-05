@@ -54,6 +54,33 @@ describe("api-client", () => {
     expect(init.headers).not.toHaveProperty("Content-Type");
   });
 
+  it("still bounds a request when AbortSignal.timeout is unavailable", async () => {
+    vi.useFakeTimers();
+    const originalTimeout = AbortSignal.timeout;
+    Object.defineProperty(AbortSignal, "timeout", { value: undefined, configurable: true, writable: true });
+    try {
+      const fetchMock = vi.fn().mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(init.signal?.reason as Error));
+          }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const pending = apiFetch("/api/chat/twitch/status", { timeoutMs: 50, storage: null });
+      const outcome = pending.catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(50);
+
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      expect(init.signal?.aborted).toBe(true);
+      expect((await outcome) as Error).toHaveProperty("name", "TimeoutError");
+    } finally {
+      Object.defineProperty(AbortSignal, "timeout", { value: originalTimeout, configurable: true, writable: true });
+      vi.useRealTimers();
+    }
+  });
+
   it("appends params once, after the base URL, and never double-applies the base", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, []));
     vi.stubGlobal("fetch", fetchMock);
