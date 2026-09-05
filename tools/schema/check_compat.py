@@ -122,12 +122,16 @@ def compare_constraints(label: str, old: dict, new: dict) -> list[str]:
     for keyword in EXACT_CONSTRAINTS:
         if keyword in new and new[keyword] != old.get(keyword):
             problems.append(f"{label} {keyword} is now {new[keyword]!r} (was {old.get(keyword, 'unset')!r})")
-    if isinstance(old.get("items"), dict) and isinstance(new.get("items"), dict):
-        problems.extend(compare_constraints(f"{label}[]", old["items"], new["items"]))
-    elif "items" in new and "items" not in old:
-        problems.append(f"{label} items gained a schema (any element was accepted before)")
-    if isinstance(old.get("properties"), dict) or isinstance(new.get("properties"), dict):
-        problems.extend(compare_object(label, old, new))
+    # `items` absent or `true` accepts any element; only a dict constrains them.
+    old_items, new_items = old.get("items", True), new.get("items", True)
+    if isinstance(new_items, dict):
+        if isinstance(old_items, dict):
+            problems.extend(compare_constraints(f"{label}[]", old_items, new_items))
+        elif old_items is not False:
+            problems.append(f"{label} items gained a schema (any element was accepted before)")
+    # `required` and `properties` are compared for every node: an object schema can add `required`
+    # without ever declaring `properties`, and that alone turns {} from valid into invalid.
+    problems.extend(compare_object(label, old, new))
     return problems
 
 

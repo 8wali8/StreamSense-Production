@@ -131,9 +131,10 @@ describe("App live console", () => {
   it("switches streamer from the roster and only updates sponsor relevance when the streamer is unchanged", async () => {
     const posted: string[] = [];
     server.use(
-      restResolver("post", "/api/chat/twitch/channels", () => {
-        posted.push("chat");
-        return HttpResponse.json([]);
+      restResolver("post", "/api/chat/twitch/channels", async ({ request }) => {
+        const body = (await request.json()) as { channels?: string[] };
+        posted.push(`chat:${(body.channels ?? []).join(",")}`);
+        return HttpResponse.json(body.channels ?? []);
       }),
       restResolver("post", "/api/video/capture/channels", async ({ request }) => {
         const body = (await request.json()) as { channels?: string[] };
@@ -153,11 +154,11 @@ describe("App live console", () => {
     expect(await screen.findByText(/pointed at @speedrun-lab/)).toBeInTheDocument();
     // A streamer switch moves chat and video capture to the new channel and updates relevance; the
     // three requests are issued concurrently, so only the set is asserted.
-    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat", "relevance"]);
+    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat:speedrun-lab", "relevance"]);
 
     await user.click(screen.getByRole("button", { name: /load console/i }));
     expect(await screen.findByText(/Sponsor relevance updated for @speedrun-lab/)).toBeInTheDocument();
     // Reloading the same streamer must not re-point chat or capture; only relevance is sent again.
-    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat", "relevance", "relevance"]);
+    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat:speedrun-lab", "relevance", "relevance"]);
   });
 });
