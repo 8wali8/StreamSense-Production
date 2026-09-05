@@ -1,6 +1,6 @@
 # StreamSense event and API schemas
 
-One JSON Schema (draft 2020-12) per Kafka event and per ml-engine payload, named `<subject>.schema.json`.
+One JSON Schema (draft 2020-12) per Kafka event, plus the two ml-engine sentiment payloads, named `<subject>.schema.json`. The other ml-engine payloads (sponsor relevance, sponsor detection, segmentation, transcription) are defined by the Pydantic models in `ml-engine/src/main/python/app/models.py` and are not schema-checked yet; adding them is listed as a follow-up in the branch record.
 These are enforced, not documentation: every producer and consumer test validates a serialised
 sample against its schema (networknt `json-schema-validator` in Java, `jsonschema` in Python), and
 `tools/schema/check_compat.py` fails CI when a change would break existing consumers.
