@@ -13,6 +13,9 @@ from urllib.parse import unquote, urlparse
 
 from PIL import Image, UnidentifiedImageError
 
+# Default upper bound for one frame artifact; FrameStorageSettings.max_bytes overrides it at start-up.
+DEFAULT_MAX_FRAME_BYTES = 32 * 1024 * 1024
+
 
 class FrameArtifactError(Exception):
     pass
@@ -60,7 +63,14 @@ class S3Settings(Protocol):
 class FrameStore:
     """One per process. Holds a single boto3 client, created lazily behind a lock."""
 
-    def __init__(self, s3: S3Settings | None = None, *, require_frame_read: bool = False) -> None:
+    def __init__(
+        self,
+        s3: S3Settings | None = None,
+        *,
+        require_frame_read: bool = False,
+        max_frame_bytes: int = DEFAULT_MAX_FRAME_BYTES,
+    ) -> None:
+        self._max_frame_bytes = max_frame_bytes
         self._s3 = s3
         self.require_frame_read = require_frame_read
         self._client: Any | None = None
@@ -80,7 +90,7 @@ class FrameStore:
         must_read = self.require_frame_read if required is None else required
         parsed = urlparse(frame_ref)
         if parsed.scheme == "file":
-            return _decode_image(_read_file(_file_path(parsed)), frame_ref)
+            return _decode_image(_read_file(_file_path(parsed), self._max_frame_bytes), frame_ref)
         if parsed.scheme == "s3":
             return _decode_image(self._read_s3(parsed.netloc, parsed.path.lstrip("/")), frame_ref)
         if must_read:
@@ -95,7 +105,7 @@ class FrameStore:
             client.close()
 
     def _read_s3(self, bucket: str, key: str) -> bytes:
-        limit = max_frame_bytes()
+        limit = self._max_frame_bytes
         try:
             response = self._s3_client().get_object(Bucket=bucket, Key=key)
             declared = response.get("ContentLength")
@@ -143,19 +153,9 @@ def load_frame_image(frame_ref: str) -> FrameImage | None:
     return _default_store.load_frame_image(frame_ref)
 
 
-DEFAULT_MAX_FRAME_BYTES = 32 * 1024 * 1024
-
-
-def max_frame_bytes() -> int:
-    """Upper bound for one frame artifact; a frame reference must never be able to read unbounded data."""
-    raw = os.getenv("STREAMSENSE_FRAME_MAX_BYTES", "").strip()
-    return int(raw) if raw else DEFAULT_MAX_FRAME_BYTES
-
-
-def _read_file(path: str) -> bytes:
+def _read_file(path: str, limit: int) -> bytes:
     # A frameRef can come from a client, so only regular files of a bounded size are read: no device
     # nodes (`/dev/zero` never ends), no FIFOs, and nothing larger than a frame can be.
-    limit = max_frame_bytes()
     try:
         info = os.stat(path)
         if not stat.S_ISREG(info.st_mode):
