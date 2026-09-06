@@ -1,0 +1,48 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits", ":pinDigests", "helpers:pinGitHubActionDigests"],
+  "timezone": "America/New_York",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "rangeStrategy": "pin",
+  "lockFileMaintenance": { "enabled": true, "schedule": ["before 6am on the first day of the month"] },
+  "packageRules": [
+    {
+      "description": "Spring Boot and Spring Cloud move together; keep them in one PR and never auto-merge them.",
+      "matchPackageNames": ["org.springframework.boot:spring-boot-starter-parent", "org.springframework.cloud:spring-cloud-dependencies"],
+      "groupName": "spring platform"
+    },
+    {
+      "description": "Digest-only bumps of images already pinned by tag are safe to merge once CI is green.",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest"],
+      "automerge": true
+    },
+    {
+      "description": "Patch releases of GitHub Actions and dev tooling are low risk.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["patch", "digest"],
+      "automerge": true
+    },
+    {
+      "description": "Frontend dev tooling in one weekly PR.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "frontend dev dependencies"
+    },
+    {
+      "description": "Python dev group in one PR.",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["dev"],
+      "groupName": "python dev dependencies"
+    },
+    {
+      "description": "Major bumps of runtime images (Postgres, Kafka, Redis) need a migration note, never auto.",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ],
+  "vulnerabilityAlerts": { "labels": ["security"], "automerge": false }
+}
