@@ -56,7 +56,8 @@ describe("api-client", () => {
 
   it("still bounds a request when AbortSignal.timeout is unavailable", async () => {
     vi.useFakeTimers();
-    const originalTimeout = AbortSignal.timeout;
+    // Captured as a property descriptor (not as a detached method) so it can be restored verbatim.
+    const originalTimeout = Object.getOwnPropertyDescriptor(AbortSignal, "timeout");
     Object.defineProperty(AbortSignal, "timeout", { value: undefined, configurable: true, writable: true });
     try {
       const fetchMock = vi.fn().mockImplementation(
@@ -76,7 +77,9 @@ describe("api-client", () => {
       expect(init.signal?.aborted).toBe(true);
       expect((await outcome) as Error).toHaveProperty("name", "TimeoutError");
     } finally {
-      Object.defineProperty(AbortSignal, "timeout", { value: originalTimeout, configurable: true, writable: true });
+      if (originalTimeout) {
+        Object.defineProperty(AbortSignal, "timeout", originalTimeout);
+      }
       vi.useRealTimers();
     }
   });
