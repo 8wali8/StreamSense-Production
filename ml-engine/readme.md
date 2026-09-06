@@ -10,5 +10,5 @@ Python ML microservice for StreamSense.
 ## Run locally
 
 ```bash
-pip install -r requirements.txt
-PYTHONPATH=src/main/python uvicorn app.main:app --reload --port 8000
+uv sync --locked
+PYTHONPATH=src/main/python uv run uvicorn app.main:app --reload --port 8000

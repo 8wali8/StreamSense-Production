@@ -75,7 +75,7 @@ class CaptureStatusStore:
         elif CaptureState.FAILED in states:
             state = CaptureState.FAILED.value
         elif states:
-            state = sorted(item.value for item in states)[0]
+            state = min(item.value for item in states)
         else:
             state = CaptureState.DISABLED.value
 
