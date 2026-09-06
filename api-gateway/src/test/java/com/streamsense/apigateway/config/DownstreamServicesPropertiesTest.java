@@ -18,7 +18,8 @@ class DownstreamServicesPropertiesTest {
         "streamsense.services.sentiment-service.base-url=http://sentiment-service:8083",
         "streamsense.services.video-service.base-url=http://video-service:8084",
         "streamsense.services.video-capture-service.base-url=http://video-capture-service:8090",
-        "streamsense.services.analytics-service.base-url=http://analytics-service:8085"
+        "streamsense.services.analytics-service.base-url=http://analytics-service:8085",
+        "streamsense.services.ml-engine.base-url=http://ml-engine:8000"
     };
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
@@ -33,6 +34,7 @@ class DownstreamServicesPropertiesTest {
             assertThat(properties.getRecommendationService().getBaseUrl())
                     .isEqualTo("http://recommendation-service:8082");
             assertThat(properties.getAnalyticsService().getBaseUrl()).isEqualTo("http://analytics-service:8085");
+            assertThat(properties.getMlEngine().getBaseUrl()).isEqualTo("http://ml-engine:8000");
             assertThat(properties.getConnectTimeout()).isEqualTo(Duration.ofSeconds(2));
             assertThat(properties.getResponseTimeout()).isEqualTo(Duration.ofSeconds(5));
         });
@@ -45,7 +47,8 @@ class DownstreamServicesPropertiesTest {
                         "streamsense.services.sentiment-service.base-url=http://sentiment-service:8083",
                         "streamsense.services.video-service.base-url=http://video-service:8084",
                         "streamsense.services.video-capture-service.base-url=http://video-capture-service:8090",
-                        "streamsense.services.analytics-service.base-url=http://analytics-service:8085")
+                        "streamsense.services.analytics-service.base-url=http://analytics-service:8085",
+                        "streamsense.services.ml-engine.base-url=http://ml-engine:8000")
                 .run(context -> {
                     assertThat(context).hasFailed();
                     assertThat(context.getStartupFailure()).hasStackTraceContaining("recommendationService.baseUrl");

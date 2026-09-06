@@ -100,7 +100,11 @@ describe("App live console", () => {
 
     const transcript = await screen.findByRole("heading", { name: "All transcript" });
     expect(transcript).toBeInTheDocument();
-    expect((await screen.findAllByText(redbullSegment.text)).length).toBeGreaterThan(0);
+    // Scoped to the raw transcript feed: the sponsor sentiment feed renders the same text, so a
+    // page-wide search would stay green even if the raw feed lost every line.
+    const transcriptFeed = transcript.closest("section");
+    expect(transcriptFeed).not.toBeNull();
+    expect((await within(transcriptFeed as HTMLElement).findAllByText(redbullSegment.text)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Matched Red Bull/).length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(
@@ -127,9 +131,15 @@ describe("App live console", () => {
   it("switches streamer from the roster and only updates sponsor relevance when the streamer is unchanged", async () => {
     const posted: string[] = [];
     server.use(
-      restResolver("post", "/api/chat/twitch/channels", () => {
-        posted.push("chat");
-        return HttpResponse.json([]);
+      restResolver("post", "/api/chat/twitch/channels", async ({ request }) => {
+        const body = (await request.json()) as { channels?: string[] };
+        posted.push(`chat:${(body.channels ?? []).join(",")}`);
+        return HttpResponse.json(body.channels ?? []);
+      }),
+      restResolver("post", "/api/video/capture/channels", async ({ request }) => {
+        const body = (await request.json()) as { channels?: string[] };
+        posted.push(`capture:${(body.channels ?? []).join(",")}`);
+        return HttpResponse.json({ channels: body.channels ?? [] });
       }),
       restResolver("post", "/api/sentiment/relevance/sponsors", () => {
         posted.push("relevance");
@@ -142,10 +152,13 @@ describe("App live console", () => {
 
     await user.click(screen.getByRole("button", { name: /@speedrun-lab/ }));
     expect(await screen.findByText(/pointed at @speedrun-lab/)).toBeInTheDocument();
-    expect(posted).toEqual(["chat", "relevance"]);
+    // A streamer switch moves chat and video capture to the new channel and updates relevance; the
+    // three requests are issued concurrently, so only the set is asserted.
+    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat:speedrun-lab", "relevance"]);
 
     await user.click(screen.getByRole("button", { name: /load console/i }));
     expect(await screen.findByText(/Sponsor relevance updated for @speedrun-lab/)).toBeInTheDocument();
-    expect(posted).toEqual(["chat", "relevance", "relevance"]);
+    // Reloading the same streamer must not re-point chat or capture; only relevance is sent again.
+    expect([...posted].sort()).toEqual(["capture:speedrun-lab", "chat:speedrun-lab", "relevance", "relevance"]);
   });
 });

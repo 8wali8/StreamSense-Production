@@ -1,7 +1,7 @@
-import { act, screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import { gql } from "@apollo/client";
 import { describe, expect, it } from "vitest";
-import { emitSubscription, renderWithApollo } from "../test/apollo";
+import { currentSubscription, emitSubscription, renderWithApollo } from "../test/apollo";
 import { graphqlResolver, HttpResponse, server } from "../test/msw";
 import { useLiveFeed } from "./useLiveFeed";
 
@@ -112,5 +112,36 @@ describe("useLiveFeed", () => {
 
     expect(screen.getByTestId("live")).toHaveTextContent("0");
     expect(await screen.findByText("other-h1")).toBeInTheDocument();
+  });
+
+  it("does not bring the old buffer back when the reset key returns to a previous value", async () => {
+    server.use(
+      graphqlResolver("Items", ({ variables }) =>
+        HttpResponse.json({ data: { items: historyFor(String(variables.streamer)) } }),
+      ),
+    );
+
+    const apollo = renderWithApollo(<Probe streamer="test" />);
+    await screen.findByText("h1,h2");
+    // The subscription must be opened with the selected streamer, and the event is only delivered
+    // to a subscription that carries it.
+    expect(currentSubscription(apollo)).toEqual({ operationName: "OnItem", variables: { streamer: "test" } });
+    act(() => {
+      emitSubscription(apollo, { onItem: item("l1") }, { operationName: "OnItem", variables: { streamer: "test" } });
+    });
+    await screen.findByText("l1,h1,h2");
+
+    apollo.rerender(<Probe streamer="next" />);
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
+    await waitFor(() => {
+      expect(currentSubscription(apollo).variables).toEqual({ streamer: "next" });
+    });
+
+    // Back to the first streamer while the second one never emitted anything: the old live
+    // event must not reappear.
+    apollo.rerender(<Probe streamer="test" />);
+    await screen.findByText("h1,h2");
+
+    expect(screen.getByTestId("live")).toHaveTextContent("0");
   });
 });

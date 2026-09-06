@@ -34,6 +34,9 @@ spec:
         runAsNonRoot: true
         runAsUser: 101
         runAsGroup: 101
+        # The /tmp and /var/cache/nginx emptyDirs are owned by this group, so nginx (uid 101) can write
+        # its pid file and temp files regardless of how the kubelet initialises the volume roots.
+        fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
       containers:
