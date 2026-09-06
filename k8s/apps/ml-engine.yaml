@@ -106,20 +106,20 @@ spec:
               mountPath: /models/sam
           readinessProbe:
             httpGet:
-              path: /ml/health
+              path: /ml/ready
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
-              path: /ml/health
+              path: /ml/live
               port: 8000
             periodSeconds: 20
             timeoutSeconds: 5
           startupProbe:
             httpGet:
-              path: /ml/health
+              path: /ml/ready
               port: 8000
             failureThreshold: 60
             periodSeconds: 10

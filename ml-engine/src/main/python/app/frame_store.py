@@ -1,11 +1,15 @@
+"""Reads frame artifacts referenced by ``file://`` or ``s3://`` URIs."""
+
+from __future__ import annotations
+
 import hashlib
 import os
+import threading
 from dataclasses import dataclass
 from io import BytesIO
+from typing import Any, Protocol
 from urllib.parse import unquote, urlparse
 
-import boto3
-from botocore.client import Config
 from PIL import Image, UnidentifiedImageError
 
 
@@ -35,49 +39,100 @@ class FrameImage:
         return self.artifact.signature
 
 
-def frame_read_required() -> bool:
-    return os.getenv("STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+READABLE_SCHEMES = frozenset({"file", "s3"})
+
+
+def readable_frame_ref(frame_ref: str) -> bool:
+    """True when ``frame_ref`` names something this store can read (``file://`` or ``s3://``)."""
+    return urlparse(frame_ref).scheme in READABLE_SCHEMES
+
+
+class S3Settings(Protocol):
+    """The subset of frame-storage settings the store needs (see ``app.settings.FrameStorageSettings``)."""
+
+    endpoint: str | None
+    region: str
+    access_key: str | None
+    secret_key: str | None
+
+
+class FrameStore:
+    """One per process. Holds a single boto3 client, created lazily behind a lock."""
+
+    def __init__(self, s3: S3Settings | None = None, *, require_frame_read: bool = False) -> None:
+        self._s3 = s3
+        self.require_frame_read = require_frame_read
+        self._client: Any | None = None
+        self._lock = threading.Lock()
+
+    def load_frame_artifact(self, frame_ref: str) -> FrameArtifact | None:
+        frame_image = self.load_frame_image(frame_ref)
+        return frame_image.artifact if frame_image else None
+
+    def load_frame_image(self, frame_ref: str, *, required: bool | None = None) -> FrameImage | None:
+        """Decode the frame behind ``frame_ref``.
+
+        Returns ``None`` for schemes this store cannot read unless the read is required (either
+        by the ``required`` argument or the store's ``require_frame_read`` default), in which
+        case a :class:`FrameArtifactError` is raised. Read and decode failures always raise.
+        """
+        must_read = self.require_frame_read if required is None else required
+        parsed = urlparse(frame_ref)
+        if parsed.scheme == "file":
+            return _decode_image(_read_file(_file_path(parsed)), frame_ref)
+        if parsed.scheme == "s3":
+            return _decode_image(self._read_s3(parsed.netloc, parsed.path.lstrip("/")), frame_ref)
+        if must_read:
+            raise FrameArtifactError(f"unsupported frameRef scheme for required frame read: {parsed.scheme or 'none'}")
+        return None
+
+    def close(self) -> None:
+        with self._lock:
+            client = self._client
+            self._client = None
+        if client is not None and hasattr(client, "close"):
+            client.close()
+
+    def _read_s3(self, bucket: str, key: str) -> bytes:
+        try:
+            response = self._s3_client().get_object(Bucket=bucket, Key=key)
+            return response["Body"].read()
+        except FrameArtifactError:
+            raise
+        except Exception as exc:
+            raise FrameArtifactError(f"failed to read s3 frame artifact: s3://{bucket}/{key}") from exc
+
+    def _s3_client(self) -> Any:
+        if self._client is not None:
+            return self._client
+        with self._lock:
+            if self._client is None:
+                if self._s3 is None:
+                    raise FrameArtifactError("s3 frame storage is not configured")
+                import boto3
+                from botocore.client import Config
+
+                self._client = boto3.client(
+                    "s3",
+                    endpoint_url=self._s3.endpoint,
+                    region_name=self._s3.region,
+                    aws_access_key_id=self._s3.access_key,
+                    aws_secret_access_key=self._s3.secret_key,
+                    config=Config(signature_version="s3v4"),
+                )
+        return self._client
+
+
+# Convenience for callers and tests that only deal with local files.
+_default_store = FrameStore()
 
 
 def load_frame_artifact(frame_ref: str) -> FrameArtifact | None:
-    frame_image = load_frame_image(frame_ref)
-    return frame_image.artifact if frame_image else None
+    return _default_store.load_frame_artifact(frame_ref)
 
 
 def load_frame_image(frame_ref: str) -> FrameImage | None:
-    parsed = urlparse(frame_ref)
-    if parsed.scheme == "file":
-        return _decode_image(_read_file(_file_path(parsed)), frame_ref)
-    if parsed.scheme == "s3":
-        return _decode_image(_read_s3(parsed.netloc, parsed.path.lstrip("/")), frame_ref)
-    if frame_read_required():
-        raise FrameArtifactError(f"unsupported frameRef scheme for required frame read: {parsed.scheme or 'none'}")
-    return None
-
-
-def _secret_env(name: str, default: str | None = None) -> str | None:
-    """Read a credential from ``<name>_FILE`` (a Docker/Kubernetes secret mount) or ``<name>``.
-
-    The file form wins when both are set so that a mounted secret cannot be shadowed by a
-    stale environment default. Values are stripped; an empty value counts as unset.
-    """
-    path = os.getenv(f"{name}_FILE")
-    if path:
-        try:
-            with open(path, encoding="utf-8") as handle:
-                value = handle.read().strip()
-        except OSError as exc:
-            raise ValueError(f"{name}_FILE points to a missing or unreadable file: {path}") from exc
-        return value or None
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip() or None
+    return _default_store.load_frame_image(frame_ref)
 
 
 def _read_file(path: str) -> bytes:
@@ -88,32 +143,11 @@ def _read_file(path: str) -> bytes:
         raise FrameArtifactError(f"failed to read frame file: {path}") from exc
 
 
-def _file_path(parsed) -> str:
+def _file_path(parsed: Any) -> str:
     path = unquote(parsed.path or parsed.netloc)
     if os.name == "nt" and path.startswith("/") and len(path) > 2 and path[2] == ":":
         return path[1:]
     return path
-
-
-def _read_s3(bucket: str, key: str) -> bytes:
-    try:
-        client = boto3.client(
-            "s3",
-            endpoint_url=os.getenv("STREAMSENSE_FRAME_STORAGE_ENDPOINT"),
-            region_name=os.getenv("STREAMSENSE_FRAME_STORAGE_REGION", "us-east-1"),
-            aws_access_key_id=_secret_env("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY"),
-            aws_secret_access_key=_secret_env("STREAMSENSE_FRAME_STORAGE_SECRET_KEY"),
-            config=Config(signature_version="s3v4"),
-        )
-    except ValueError as exc:
-        # A missing or unreadable *_FILE secret mount is a frame-read failure like any other, so
-        # the endpoints degrade the same way instead of surfacing an unhandled 500.
-        raise FrameArtifactError(f"frame storage credentials unavailable: {exc}") from exc
-    try:
-        response = client.get_object(Bucket=bucket, Key=key)
-        return response["Body"].read()
-    except Exception as exc:
-        raise FrameArtifactError(f"failed to read s3 frame artifact: s3://{bucket}/{key}") from exc
 
 
 def _decode_image(data: bytes, frame_ref: str) -> FrameImage:

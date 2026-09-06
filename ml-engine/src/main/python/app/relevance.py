@@ -1,6 +1,6 @@
 import logging
-import os
 import re
+import threading
 import unicodedata
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -40,21 +40,6 @@ class RelevanceConfig:
     min_score: float
     preload: bool
 
-    @classmethod
-    def from_env(cls) -> "RelevanceConfig":
-        return cls(
-            backend=os.getenv("STREAMSENSE_RELEVANCE_BACKEND", "sentence-transformers")
-            .strip()
-            .lower(),
-            model=os.getenv("STREAMSENSE_RELEVANCE_MODEL", DEFAULT_MODEL).strip()
-            or DEFAULT_MODEL,
-            device=os.getenv("STREAMSENSE_RELEVANCE_DEVICE", "cpu").strip() or "cpu",
-            cache_dir=os.getenv("STREAMSENSE_RELEVANCE_CACHE_DIR", DEFAULT_CACHE_DIR).strip()
-            or DEFAULT_CACHE_DIR,
-            min_score=_env_float("STREAMSENSE_RELEVANCE_MIN_SCORE", DEFAULT_MIN_SCORE),
-            preload=_env_bool("STREAMSENSE_RELEVANCE_PRELOAD", False),
-        )
-
 
 class RelevanceAnalyzer(Protocol):
     def analyze(self, request: SponsorRelevanceInput) -> SponsorRelevanceResult:
@@ -66,6 +51,7 @@ class EmbeddingRelevanceAnalyzer:
         self._config = config
         self._fallback = fallback
         self._model: Any | None = None
+        self._lock = threading.Lock()
 
         if config.preload:
             try:
@@ -117,17 +103,24 @@ class EmbeddingRelevanceAnalyzer:
             logger.exception("relevance embedding inference failed; using direct fallback")
             return self._fallback.analyze(request)
 
+    def is_loaded(self) -> bool:
+        return self._model is not None
+
+    def warm_up(self) -> None:
+        self._load_model()
+
     def _load_model(self) -> Any:
         if self._model is not None:
             return self._model
+        with self._lock:
+            if self._model is None:
+                from sentence_transformers import SentenceTransformer
 
-        from sentence_transformers import SentenceTransformer
-
-        self._model = SentenceTransformer(
-            self._config.model,
-            cache_folder=self._config.cache_dir,
-            device=self._config.device,
-        )
+                self._model = SentenceTransformer(
+                    self._config.model,
+                    cache_folder=self._config.cache_dir,
+                    device=self._config.device,
+                )
         return self._model
 
 
@@ -140,12 +133,7 @@ class DirectRelevanceAnalyzer:
         return direct_match(request, self._min_score, self._model_version)
 
 
-def analyze_relevance(request: SponsorRelevanceInput) -> SponsorRelevanceResult:
-    return _get_relevance_analyzer().analyze(request)
-
-
-def create_relevance_analyzer(config: RelevanceConfig | None = None) -> RelevanceAnalyzer:
-    config = config or RelevanceConfig.from_env()
+def create_relevance_analyzer(config: RelevanceConfig) -> RelevanceAnalyzer:
     fallback = DirectRelevanceAnalyzer("direct-relevance-v1", config.min_score)
     if config.backend in {"sentence-transformers", "embedding", "embeddings"}:
         return EmbeddingRelevanceAnalyzer(config, fallback)
@@ -238,32 +226,3 @@ def clean_sponsor(value: str) -> str:
 def not_relevant(sponsor: str, model_version: str, reason: str) -> SponsorRelevanceResult:
     del sponsor
     return SponsorRelevanceResult(False, None, [], 0.0, reason, model_version)
-
-
-def _get_relevance_analyzer() -> RelevanceAnalyzer:
-    global _relevance_analyzer
-
-    if _relevance_analyzer is None:
-        _relevance_analyzer = create_relevance_analyzer()
-    return _relevance_analyzer
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw_value = os.getenv(name)
-    if raw_value is None:
-        return default
-    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env_float(name: str, default: float) -> float:
-    raw_value = os.getenv(name)
-    if raw_value is None:
-        return default
-    try:
-        return float(raw_value)
-    except ValueError:
-        logger.warning("invalid float env %s=%r; using %s", name, raw_value, default)
-        return default
-
-
-_relevance_analyzer: RelevanceAnalyzer | None = None
