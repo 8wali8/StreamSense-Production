@@ -17,7 +17,8 @@ FROM nginxinc/nginx-unprivileged:1.31.5-alpine@sha256:aa8c9087d36d93e9d650c5365f
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY streamsense-headers.conf /etc/nginx/streamsense-headers.conf
 ARG VITE_API_BASE_URL=""
-RUN sed -i "s|__API_ORIGIN__|${VITE_API_BASE_URL}|" /etc/nginx/streamsense-headers.conf
+# Global: the placeholder appears in both connect-src and img-src of the same header line.
+RUN sed -i "s|__API_ORIGIN__|${VITE_API_BASE_URL}|g" /etc/nginx/streamsense-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
