@@ -1,8 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# Apply from the repository root (`kubectl apply -k .`): the root kustomization adds the
+# config-server ConfigMap generated from config-server/config-repo, which this directory
+# cannot reach on its own.
 resources:
+  - platform/storage.yaml
   - namespace.yaml
-  - config/config-server-config-repo.yaml
   - config/prometheus-config.yaml
   - config/grafana-config.yaml
   - platform/eureka-server.yaml

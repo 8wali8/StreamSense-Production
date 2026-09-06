@@ -18,6 +18,8 @@ metadata:
   namespace: streamsense
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: ml-engine
@@ -26,11 +28,29 @@ spec:
       labels:
         app: ml-engine
     spec:
+      securityContext:
+        fsGroup: 10001
       containers:
         - name: ml-engine
           image: streamsense/ml-engine:sprint9
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              memory: 6Gi
           imagePullPolicy: IfNotPresent
           env:
+            - name: HOME
+              value: "/tmp"
             - name: STREAMSENSE_FRAME_STORAGE_ENDPOINT
               value: http://minio:9000
             - name: STREAMSENSE_FRAME_STORAGE_REGION
@@ -65,6 +85,10 @@ spec:
               value: cpu
             - name: STREAMSENSE_RELEVANCE_CACHE_DIR
               value: /models/relevance
+            - name: STREAMSENSE_SENTIMENT_CACHE_DIR
+              value: /models/sentiment
+            - name: STREAMSENSE_SAM_CACHE_DIR
+              value: /models/sam
             - name: STREAMSENSE_RELEVANCE_MIN_SCORE
               value: "0.50"
             - name: STREAMSENSE_RELEVANCE_PRELOAD
@@ -76,6 +100,10 @@ spec:
               mountPath: /models/whisper
             - name: relevance-model-cache
               mountPath: /models/relevance
+            - name: sentiment-model-cache
+              mountPath: /models/sentiment
+            - name: sam-model-cache
+              mountPath: /models/sam
           readinessProbe:
             httpGet:
               path: /ml/health
@@ -87,11 +115,25 @@ spec:
             httpGet:
               path: /ml/health
               port: 8000
-            initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /ml/health
+              port: 8000
+            failureThreshold: 60
+            periodSeconds: 10
             timeoutSeconds: 5
       volumes:
         - name: whisper-model-cache
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: ml-engine-whisper-cache
         - name: relevance-model-cache
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: ml-engine-relevance-cache
+        - name: sentiment-model-cache
+          persistentVolumeClaim:
+            claimName: ml-engine-sentiment-cache
+        - name: sam-model-cache
+          persistentVolumeClaim:
+            claimName: ml-engine-sam-cache

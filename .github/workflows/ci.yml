@@ -151,7 +151,7 @@ jobs:
         run: make secrets
 
       - name: Validate kustomize renders without errors
-        run: kubectl kustomize k8s > /dev/null
+        run: kubectl kustomize . > /dev/null
 
       - name: Validate Grafana dashboard JSON
         run: |

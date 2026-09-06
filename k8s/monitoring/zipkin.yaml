@@ -29,6 +29,20 @@ spec:
       containers:
         - name: zipkin
           image: openzipkin/zipkin:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9411

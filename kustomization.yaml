@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Root entry point: `kubectl kustomize .` / `kubectl apply -k .`
+# The Kubernetes manifests live under k8s/. The config-server ConfigMap is generated here,
+# straight from the files config-server also mounts in Docker Compose, so the two can no
+# longer drift. The generated name carries a content hash; kustomize rewrites the reference in
+# k8s/platform/config-server.yaml, so a config change rolls the config-server pod.
+resources:
+  - k8s
+
+configMapGenerator:
+  - name: config-server-native-repo
+    namespace: streamsense
+    files:
+      - config-server/config-repo/analytics-service.yml
+      - config-server/config-repo/api-gateway.yml
+      - config-server/config-repo/application.yml
+      - config-server/config-repo/chat-service.yml
+      - config-server/config-repo/eureka-server.yml
+      - config-server/config-repo/recommendation-service.yml
+      - config-server/config-repo/sentiment-service.yml
+      - config-server/config-repo/video-service.yml

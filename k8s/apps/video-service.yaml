@@ -29,36 +29,120 @@ spec:
       initContainers:
         - name: wait-for-config-server
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
           command:
             - sh
             - -c
             - until wget -qO- http://config-server:8888/actuator/health; do sleep 2; done
         - name: wait-for-eureka
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
           command:
             - sh
             - -c
             - until wget -qO- http://eureka-server:8761/actuator/health; do sleep 2; done
         - name: wait-for-kafka
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
           command:
             - sh
             - -c
             - until nc -z kafka 9092; do sleep 2; done
         - name: wait-for-postgres
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
           command:
             - sh
             - -c
             - until nc -z postgres 5432; do sleep 2; done
         - name: wait-for-redis
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
           command:
             - sh
             - -c
             - until nc -z redis 6379; do sleep 2; done
         - name: wait-for-ml-engine
           image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
           command:
             - sh
             - -c
@@ -66,8 +150,24 @@ spec:
       containers:
         - name: video-service
           image: streamsense/video-service:sprint9
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1536Mi
           imagePullPolicy: IfNotPresent
           env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=75.0"
             - name: CONFIG_SERVER_URL
               value: http://config-server:8888
             - name: EUREKA_DEFAULT_ZONE
@@ -85,21 +185,21 @@ spec:
             - containerPort: 8084
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: 8084
             initialDelaySeconds: 25
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: 8084
             initialDelaySeconds: 50
             periodSeconds: 20
             timeoutSeconds: 5
           startupProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: 8084
             failureThreshold: 60
             periodSeconds: 10
