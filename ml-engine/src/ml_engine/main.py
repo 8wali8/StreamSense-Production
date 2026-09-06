@@ -1,7 +1,7 @@
 """StreamSense ML Engine.
 
 Built by :func:`create_app`. Backends live in a :class:`BackendRegistry` created in the lifespan,
-settings come from :mod:`app.settings`, and every route receives both through dependencies, so
+settings come from :mod:`ml_engine.settings`, and every route receives both through dependencies, so
 tests swap fakes with ``app.dependency_overrides`` instead of patching module globals.
 """
 
