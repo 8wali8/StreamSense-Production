@@ -74,8 +74,8 @@ spec:
             - name: STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: api-gateway-auth
-                  key: hmac-secret
+                  name: streamsense-secrets
+                  key: STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
                   optional: true
             - name: STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED
               value: "true"

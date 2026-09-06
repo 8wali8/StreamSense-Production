@@ -97,9 +97,15 @@ spec:
             - name: STREAMSENSE_FRAME_STORAGE_ENDPOINT
               value: http://minio:9000
             - name: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
-              value: streamsense
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
             - name: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
-              value: streamsense
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
           ports:
             - containerPort: 8090
           readinessProbe:

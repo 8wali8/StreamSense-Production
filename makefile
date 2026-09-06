@@ -38,6 +38,7 @@ help:
 	@echo "Common:"
 	@echo "  make up            Package Java, build images, start everything"
 	@echo "  make up-fast       Start existing images/containers without packaging"
+	@echo "  make secrets       Create git-ignored local secret files from the *.example files"
 	@echo "  make down          Stop everything"
 	@echo "  make restart       down then up"
 	@echo "  make logs          Follow logs for all services"
@@ -82,13 +83,56 @@ build:
 		$(COMPOSE) $(COMPOSE_FILE) build; \
 	fi
 
+# ---- Local secrets ----
+# Compose mounts ./secrets/<NAME> at /run/secrets/<NAME>; kustomize builds the
+# streamsense-secrets Secret from k8s/secrets/streamsense.env. Both are git-ignored.
+# Every missing file gets a fresh random value, so a clone never runs on credentials
+# that are known outside this machine. The directories are 0700 (other local users
+# cannot reach the files) while the files themselves are 0644, because Compose
+# bind-mounts them and the containers read them as their own non-root users. Existing files are left alone;
+# delete one and rerun to rotate it (Postgres and MinIO persist the credentials they
+# were first started with, so rotating those also needs `make nuke`).
+.PHONY: secrets
+secrets:
+	@set -euo pipefail; umask 022; \
+	chmod 700 secrets k8s/secrets; \
+	command -v openssl >/dev/null || { echo "make secrets needs openssl on PATH"; exit 1; }; \
+	project="$${COMPOSE_PROJECT_NAME:-$$(basename "$$PWD" | tr 'A-Z' 'a-z')}"; \
+	legacy_volume() { docker volume ls -q --filter "label=com.docker.compose.project=$$project" --filter "label=com.docker.compose.volume=$$1" 2>/dev/null | grep -q .; }; \
+	for pair in POSTGRES_PASSWORD:postgres-data STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:minio-data STREAMSENSE_FRAME_STORAGE_SECRET_KEY:minio-data; do \
+		name="$${pair%%:*}"; volume="$${pair##*:}"; \
+		if [[ ! -f "secrets/$$name" ]] && legacy_volume "$$volume"; then \
+			echo "secrets/$$name is missing, but the Compose volume '$$volume' already exists and was initialised with an older credential."; \
+			echo "Write that credential into secrets/$$name to keep the data, or run 'make nuke' to discard the volume; then rerun make secrets."; \
+			exit 1; \
+		fi; \
+	done; \
+	for example in secrets/*.example; do \
+		name="$$(basename "$${example%.example}")"; target="secrets/$$name"; \
+		if [[ ! -f "$$target" ]]; then \
+			case "$$name" in \
+				STREAMSENSE_FRAME_STORAGE_ACCESS_KEY) bytes=8 ;; \
+				STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET) bytes=32 ;; \
+				*) bytes=16 ;; \
+			esac; \
+			value="$$(openssl rand -hex "$$bytes")"; \
+			printf '%s\n' "$$value" > "$$target" && chmod 644 "$$target"; \
+			echo "created $$target with a random value"; \
+		fi; \
+	done; \
+	if [[ ! -f k8s/secrets/streamsense.env ]]; then \
+		awk -F= '/^[A-Z_]+=/ { cmd = "cat secrets/" $$1; cmd | getline value; close(cmd); print $$1 "=" value; next } { print }' \
+			k8s/secrets/streamsense.env.example > k8s/secrets/streamsense.env && chmod 644 k8s/secrets/streamsense.env; \
+		echo "created k8s/secrets/streamsense.env with the same values"; \
+	fi
+
 .PHONY: up
-up: package
+up: package secrets
 	@echo "Building images and starting system (detached)..."
 	@$(COMPOSE) $(COMPOSE_FILE) up -d --build
 
 .PHONY: up-fast
-up-fast:
+up-fast: secrets
 	@echo "Starting existing system (detached, no package/build)..."
 	@$(COMPOSE) $(COMPOSE_FILE) up -d
 
@@ -196,7 +240,7 @@ demo-open:
 	@python tools/demo/open_demo.py
 
 .PHONY: smoke-e2e
-smoke-e2e:
+smoke-e2e: secrets
 	@python tools/smoke/compose_smoke.py --start-compose --teardown
 
 .PHONY: replay-smoke

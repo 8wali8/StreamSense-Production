@@ -169,7 +169,7 @@ make help
 make up
 ```
 
-`make up` packages Java service JARs, builds images, and starts the full Compose stack. The frontend is served at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` routes.
+`make up` creates any missing git-ignored local secret file with a random value (`make secrets`), packages Java service JARs, builds images, and starts the full Compose stack. The frontend is served at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` routes.
 
 Useful commands:
 
