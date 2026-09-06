@@ -1,6 +1,6 @@
 # StreamSense event and API schemas
 
-One JSON Schema (draft 2020-12) per Kafka event and per ml-engine payload, named `<subject>.schema.json`.
+One JSON Schema (draft 2020-12) per Kafka event, plus the two ml-engine sentiment payloads, named `<subject>.schema.json`. The other ml-engine payloads (sponsor relevance, sponsor detection, segmentation, transcription) are defined by the Pydantic models in `ml-engine/src/main/python/app/models.py` and are not schema-checked yet; adding them is listed as a follow-up in the branch record.
 These are enforced, not documentation: every producer and consumer test validates a serialised
 sample against its schema (networknt `json-schema-validator` in Java, `jsonschema` in Python), and
 `tools/schema/check_compat.py` fails CI when a change would break existing consumers.
@@ -11,7 +11,7 @@ sample against its schema (networknt `json-schema-validator` in Java, `jsonschem
 | `sentiment-analysis-event.schema.json` | `stream.sentiment.events` | sentiment-service | analytics-service, api-gateway |
 | `transcript-segment-event.schema.json` | `stream.transcript.segments` (key = streamSessionId) | video-capture-service | sentiment-service, api-gateway |
 | `transcript-sentiment-event.schema.json` | `stream.transcript.sentiment.events` | sentiment-service | analytics-service, api-gateway |
-| `frame-data.schema.json` | `stream.video.frames` (key = streamSessionId) | video-capture-service, video-service (upload path) | video-service |
+| `frame-data.schema.json` | `stream.video.frames` (key = streamSessionId from video-capture-service; the `POST /api/video/upload-frame` path in video-service keys by streamer and sets no session id) | video-capture-service, video-service (upload path) | video-service |
 | `sponsor-detection-event.schema.json` | `stream.sponsor.detections` | video-service | analytics-service, api-gateway |
 | `ml-sentiment-request.schema.json` | `POST /ml/sentiment` request | sentiment-service | ml-engine |
 | `ml-sentiment-response.schema.json` | `POST /ml/sentiment` response | ml-engine | sentiment-service |

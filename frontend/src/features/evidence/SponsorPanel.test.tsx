@@ -65,5 +65,8 @@ describe("SponsorPanel", () => {
     expect(screen.getAllByText("Prime").length).toBeGreaterThan(0);
     expect(screen.getByText("confidence=0.77")).toBeInTheDocument();
     expect(screen.getByText("1 detections")).toBeInTheDocument();
+    // The metric cards: one detection, and it came from the fallback model.
+    expect(screen.getByText("Detections").nextElementSibling).toHaveTextContent("1");
+    expect(screen.getByText("Fallbacks").nextElementSibling).toHaveTextContent("1");
   });
 });

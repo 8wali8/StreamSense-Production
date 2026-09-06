@@ -56,7 +56,10 @@ public class RedisRateLimiter implements RateLimiter {
         long resetAt = windowStart + windowSeconds;
         String key = KEY_PREFIX + bucketId + ":" + windowStart;
 
-        return redis.execute(INCREMENT_WITH_EXPIRY, List.of(key), List.of(String.valueOf(windowSeconds + 1)))
+        // The key lives until one second after the window closes, however late in the window it was created,
+        // so a bucket first touched near the end of a window does not linger for almost a whole extra window.
+        long ttlSeconds = resetAt - nowEpochSecond + 1;
+        return redis.execute(INCREMENT_WITH_EXPIRY, List.of(key), List.of(String.valueOf(ttlSeconds)))
                 .next()
                 .map(count -> decide(count, requestLimit, resetAt))
                 .onErrorResume(error -> {
