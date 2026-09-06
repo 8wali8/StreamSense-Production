@@ -86,4 +86,4 @@ See `docs/replay-runbook.md` for detailed startup, verification, and troubleshoo
 
 Build `tools/smoke-replay.ps1` so one command can answer whether `redbull-testing` replay is working end-to-end.
 
-See `docs/next-work.md` for the recommended backlog order.
+See `next-work.md` (same folder) for the recommended backlog order at the time.

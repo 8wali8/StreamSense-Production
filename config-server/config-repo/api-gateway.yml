@@ -138,6 +138,7 @@ spring:
 
   graphql:
     graphiql:
-      enabled: true
+      # An interactive schema explorer is a local convenience, not a production endpoint.
+      enabled: ${STREAMSENSE_GATEWAY_GRAPHIQL_ENABLED:false}
     websocket:
       path: /graphql
