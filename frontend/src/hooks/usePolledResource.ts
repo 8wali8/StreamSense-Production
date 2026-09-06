@@ -42,7 +42,7 @@ export function usePolledResource<T>(load: () => Promise<T>, intervalMs: number,
     };
 
     void run();
-    const intervalId = window.setInterval(run, intervalMs);
+    const intervalId = window.setInterval(() => void run(), intervalMs);
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);

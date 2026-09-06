@@ -65,10 +65,13 @@ Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` c
 
 ```bash
 # From frontend/
-npm run dev     # Dev server (port 5173; 3000 is the Compose frontend container)
-npm run build   # tsc -b && vite build
-npm run test    # Vitest (vitest run)
-npm run lint    # ESLint
+npm run dev            # Dev server (port 5173; 3000 is the Compose frontend container), proxying to the Compose backend
+npm run build          # tsc -b && vite build
+npm run test           # Vitest (vitest run)
+npm run test:coverage  # Vitest with the coverage floors CI enforces
+npm run lint           # ESLint (type-aware, react-hooks, jsx-a11y)
+npm run format         # Prettier --write (format:check in CI)
+npm run codegen        # Regenerate src/graphql/generated.ts from the gateway SDL
 ```
 
 ### CI parity
@@ -167,6 +170,8 @@ React 19 + Vite + Apollo Client 4. GraphQL operations live in `frontend/src/grap
 In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` to the backend. `npm run dev` (port 5173, so it can run next to the Compose frontend on 3000) proxies the same three routes to the Compose backend (`VITE_DEV_API_TARGET` / `VITE_DEV_ML_TARGET` override the targets), so a running `make up` is all it needs. REST calls go through `src/lib/api-client.ts` (base URL from `src/config/env.ts`, the same bearer token as GraphQL, JSON, a timeout on every call, `ApiError` carrying the service's RFC 9457 problem details) via one typed function per endpoint in `src/api/<feature>.ts`; components never call `fetch` or read `import.meta.env` directly. Periodic REST reads use `usePolledResource`.
 
 Layout: `src/App.tsx` is the shell only. Feature code lives under `src/features/<feature>/` (`console/` is the live player plus transcript, sponsor, and chat feeds; `streamer/` is the streamer/sponsor selection, its runtime switching, and the roster). Reusable panels stay in `src/components/`, pure helpers in `src/lib/`, hooks in `src/hooks/`. Any panel that shows a history query with live subscription events on top uses `useLiveFeed` (or `useLiveEvents` when there is no history query): it de-duplicates by id, keeps the newest first, and resets when the streamer changes, so never hand-roll a `useSubscription` + `useState` buffer. Pure list-building logic (for example `features/console/transcript-lines.ts`) is a plain function with a unit test, not JSX. Each major section of the page is wrapped in `ErrorBoundary` so one failing panel cannot blank the console. Do not add a component nobody renders; delete it.
+
+Tests: every component test renders with a real Apollo client (`renderWithApollo` in `src/test/apollo.tsx`) and answers HTTP with MSW handlers (`src/test/msw.ts` helpers: `graphqlData`, `graphqlError`, `graphqlPending`, `restJson`, `restProblem`); subscriptions are driven with `emitSubscription`. Never `vi.mock` `@apollo/client/react`, `fetch`, or a sibling component: mock the network at the edge, not the module graph. Fixtures in `src/test/fixtures.ts` carry `__typename` because the cache needs it. Interact through `@testing-library/user-event`. Unhandled requests fail the test. ESLint is type-aware (`recommendedTypeChecked`) with `jsx-a11y`; Prettier is the formatter (`.prettierrc.json`, 120 columns); `vitest run --coverage` enforces the floors in `vite.config.ts`, so a change that drops coverage below them fails CI.
 
 ### Java service conventions
 

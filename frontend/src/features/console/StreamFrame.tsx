@@ -14,7 +14,9 @@ type StreamFrameProps = {
 /** The embedded Twitch player with the latest sponsor detections drawn over it. */
 export function StreamFrame({ streamer, sponsorBrand, campaignGoal, sponsors, latestEventAt }: StreamFrameProps) {
   const latestFrame = sponsors.find((event) => event.frameRef);
-  const frameOverlays = latestFrame ? sponsors.filter((event) => event.frameRef === latestFrame.frameRef).slice(0, 6) : [];
+  const frameOverlays = latestFrame
+    ? sponsors.filter((event) => event.frameRef === latestFrame.frameRef).slice(0, 6)
+    : [];
   const topSponsor = sponsors.find((event) => event.sponsor !== "UNKNOWN") ?? latestFrame;
 
   return (
@@ -44,7 +46,9 @@ export function StreamFrame({ streamer, sponsorBrand, campaignGoal, sponsors, la
 
         <div className="video-overlay video-overlay-bottom-left">
           <span>Sponsor read</span>
-          <strong>{topSponsor ? `${topSponsor.sponsor} ${(topSponsor.confidence * 100).toFixed(0)}%` : "No detection yet"}</strong>
+          <strong>
+            {topSponsor ? `${topSponsor.sponsor} ${(topSponsor.confidence * 100).toFixed(0)}%` : "No detection yet"}
+          </strong>
         </div>
 
         <div className="video-overlay video-overlay-bottom-right">

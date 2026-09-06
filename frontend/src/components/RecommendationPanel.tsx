@@ -32,11 +32,14 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
   const [localStreamer, setLocalStreamer] = useState("test");
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecommendationsQuery, RecommendationsQueryVariables>(RECOMMENDATIONS_QUERY, {
-    variables: { streamer: activeStreamer, limit: 4 },
-    skip: !activeStreamer,
-    fetchPolicy: "network-only",
-  });
+  const { data, loading, error } = useQuery<RecommendationsQuery, RecommendationsQueryVariables>(
+    RECOMMENDATIONS_QUERY,
+    {
+      variables: { streamer: activeStreamer, limit: 4 },
+      skip: !activeStreamer,
+      fetchPolicy: "network-only",
+    },
+  );
 
   const recommendations = data?.recommendations ?? [];
   const strongestScore = recommendations[0]?.score ?? 0;
@@ -73,7 +76,9 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
             />
           </label>
 
-          <button className="button-primary" onClick={onLoad}>Load recommendations</button>
+          <button className="button-primary" onClick={onLoad}>
+            Load recommendations
+          </button>
         </div>
       )}
 
@@ -106,7 +111,9 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
               </div>
 
               <div className="event-tags">
-                <span className="category-label" style={{ color: categoryTone(recommendation.category) }}>{recommendation.category}</span>
+                <span className="category-label" style={{ color: categoryTone(recommendation.category) }}>
+                  {recommendation.category}
+                </span>
                 <span className="tag" style={{ background: scoreTone(recommendation.score), color: "#07111f" }}>
                   {recommendation.score.toFixed(2)}
                 </span>
@@ -114,7 +121,9 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
             </div>
 
             <p>{recommendation.reasonSummary}</p>
-            <div className="event-tags"><span className="tag">Variant: {recommendation.variantId}</span></div>
+            <div className="event-tags">
+              <span className="tag">Variant: {recommendation.variantId}</span>
+            </div>
             <ul className="recommendation-reasons">
               {recommendation.reasons.map((reason) => (
                 <li key={reason}>{reason}</li>
@@ -133,4 +142,3 @@ function scoreClass(score: number): string {
   if (score >= 0.3) return "metric-neutral";
   return "metric-negative";
 }
-
