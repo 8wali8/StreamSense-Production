@@ -37,12 +37,12 @@ Twitch verification targets (`make twitch-up`, `twitch-video-up`, `twitch-transc
 
 ### Java Services
 
-Not a Maven monorepo — each Java service has its own `pom.xml`. Run Maven from the service directory or with `mvn -f <service>/pom.xml`.
+A Maven multi-module build: the root `pom.xml` (`streamsense-parent`) inherits from `spring-boot-starter-parent`, lists the eight services as modules, imports the Spring Cloud and Resilience4j BOMs, and pins the few versions those do not manage. Service POMs declare dependencies without versions; add a version only in the parent. The parent also runs the enforcer (Java 21, Maven 3.9+), JaCoCo (report under `target/site/jacoco` at `verify`), `build-info`, and `git-commit-id` (best-effort, so builds without `.git` still work), and configures Spotless with palantir-java-format for manual `mvn spotless:check|apply` until the sources are formatted and the check is bound to `verify`.
 
 ```bash
-mvn clean test                     # Run tests
-mvn clean package -DskipTests      # Build JAR
-mvn clean test -Dtest=MyTest       # Run a single test class
+mvn -q -DskipTests package         # Build every service jar in one reactor run (what `make package` does)
+mvn clean test                     # From the root: test everything; from a service dir: that service only
+mvn -f sentiment-service/pom.xml clean test -Dtest=MyTest   # Single test class in one service
 ```
 
 ### Python services (ml-engine, video-capture-service)

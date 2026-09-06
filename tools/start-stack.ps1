@@ -9,17 +9,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$javaServices = @(
-    "eureka-server",
-    "config-server",
-    "api-gateway",
-    "chat-service",
-    "sentiment-service",
-    "video-service",
-    "recommendation-service",
-    "analytics-service"
-)
-
 function Run-Step {
     param(
         [string]$Name,
@@ -122,10 +111,15 @@ if ($Channels.Count -eq 0) {
 }
 
 if (-not $SkipPackage) {
-    foreach ($service in $javaServices) {
-        Run-Step "Package $service" {
-            docker run --rm -v "${PWD}:/workspace" -w "/workspace/$service" maven:3.9.9-eclipse-temurin-21 mvn -B -ntp -DskipTests package
+    Run-Step "Package Java services (one reactor build)" {
+        # In a git worktree `.git` is a file that points outside the bind mount, so the git-commit-id
+        # plugin cannot open the repository inside the container; skip it there (build-info still works).
+        $mavenArgs = @("-B", "-ntp", "-DskipTests", "package")
+        if (Test-Path -LiteralPath ".git" -PathType Leaf) {
+            "git worktree detected: skipping git-commit-id metadata for the container build"
+            $mavenArgs = @("-Dmaven.gitcommitid.skip=true") + $mavenArgs
         }
+        docker run --rm -v "${PWD}:/workspace" -w "/workspace" maven:3.9.9-eclipse-temurin-21 mvn @mavenArgs
     }
 }
 

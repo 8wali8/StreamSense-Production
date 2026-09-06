@@ -210,15 +210,8 @@ package:
 	@if [[ -n "$(SERVICE)" ]]; then \
 		$(MAKE) package-one SERVICE=$(SERVICE); \
 	else \
-		set -e; \
-		echo "Packaging all services (local Maven)..."; \
-		for s in $(JAVA_SERVICES); do \
-			if [[ -f "$$s/pom.xml" ]]; then \
-				echo ""; \
-				echo "===== PACKAGE $$s ====="; \
-				( cd $$s && mvn -q -DskipTests package ); \
-			fi; \
-		done; \
+		echo "Packaging all services (one Maven reactor build from the root pom)..."; \
+		mvn -q -DskipTests package; \
 	fi
 
 .PHONY: package-one
