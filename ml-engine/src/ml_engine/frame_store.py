@@ -52,7 +52,7 @@ def readable_frame_ref(frame_ref: str) -> bool:
 
 
 class S3Settings(Protocol):
-    """The subset of frame-storage settings the store needs (see ``app.settings.FrameStorageSettings``)."""
+    """The subset of frame-storage settings the store needs (see ``ml_engine.settings.FrameStorageSettings``)."""
 
     endpoint: str | None
     region: str
