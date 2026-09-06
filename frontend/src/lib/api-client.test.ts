@@ -54,6 +54,57 @@ describe("api-client", () => {
     expect(init.headers).not.toHaveProperty("Content-Type");
   });
 
+  it("still bounds a request when AbortSignal.timeout is unavailable", async () => {
+    vi.useFakeTimers();
+    // Captured as a property descriptor (not as a detached method) so it can be restored verbatim.
+    const originalTimeout = Object.getOwnPropertyDescriptor(AbortSignal, "timeout");
+    Object.defineProperty(AbortSignal, "timeout", { value: undefined, configurable: true, writable: true });
+    try {
+      const fetchMock = vi.fn().mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(init.signal?.reason as Error));
+          }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const pending = apiFetch("/api/chat/twitch/status", { timeoutMs: 50, storage: null });
+      const outcome = pending.catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(50);
+
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      expect(init.signal?.aborted).toBe(true);
+      expect((await outcome) as Error).toHaveProperty("name", "TimeoutError");
+    } finally {
+      if (originalTimeout) {
+        Object.defineProperty(AbortSignal, "timeout", originalTimeout);
+      }
+      vi.useRealTimers();
+    }
+  });
+
+  it("appends params once, after the base URL, and never double-applies the base", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, []));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetch("/api/sentiment/transcript/recent", { params: { streamer: "red bull", limit: 25 }, storage: null });
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe("/api/sentiment/transcript/recent?streamer=red+bull&limit=25");
+    expect(apiUrl("/api/sentiment/transcript/recent", { limit: 1 })).toBe("/api/sentiment/transcript/recent?limit=1");
+  });
+
+  it("lets a call choose its own origin, for ml-engine which the gateway does not route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { proposals: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetch("/ml/segment", { method: "POST", body: {}, baseUrl: "http://localhost:8000", storage: null });
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe("http://localhost:8000/ml/segment");
+  });
+
   it("turns a problem+json response into an ApiError carrying the detail", async () => {
     vi.stubGlobal(
       "fetch",

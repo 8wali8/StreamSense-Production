@@ -118,3 +118,20 @@ def test_secret_env_missing_file_is_a_clear_error(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError, match="STREAMSENSE_TEST_SECRET_FILE"):
         _secret_env("STREAMSENSE_TEST_SECRET")
+
+
+def test_frame_storage_max_bytes_is_validated_at_startup(monkeypatch):
+    from pydantic import ValidationError
+
+    from app.settings import FrameStorageSettings
+
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_MAX_BYTES", "8")
+    assert FrameStorageSettings().max_bytes == 8
+
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_MAX_BYTES", "0")
+    with pytest.raises(ValidationError):
+        FrameStorageSettings()
+
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_MAX_BYTES", "not-a-number")
+    with pytest.raises(ValidationError):
+        FrameStorageSettings()

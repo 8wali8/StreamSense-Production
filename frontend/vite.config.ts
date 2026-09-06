@@ -6,17 +6,18 @@ import { defineConfig } from "vitest/config";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const apiTarget = env.VITE_DEV_API_TARGET || "http://localhost:8080";
-  const mlTarget = env.VITE_DEV_ML_TARGET || "http://localhost:8000";
 
   return {
     plugins: [react()],
     server: {
-      port: 3000,
+      // Vite's default; 3000 belongs to the Compose frontend container, which `make up` publishes.
+      port: 5173,
       // Same routes nginx proxies in the Docker image, so `npm run dev` works against `make up`.
       proxy: {
         "/graphql": { target: apiTarget, changeOrigin: true, ws: true },
         "/api": { target: apiTarget, changeOrigin: true },
-        "/ml": { target: mlTarget, changeOrigin: true },
+        // /ml/segment is a gateway route (auth and rate limiting), so it shares the API target.
+        "/ml": { target: apiTarget, changeOrigin: true },
       },
     },
     test: {

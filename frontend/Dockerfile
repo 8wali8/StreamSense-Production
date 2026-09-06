@@ -5,6 +5,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+# Set VITE_API_BASE_URL only for a build that talks to an API on another origin (see .env.example);
+# the same value is allowed in the Content-Security-Policy below.
+ARG VITE_API_BASE_URL=""
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
 # Serve stage: the unprivileged nginx image runs as uid 101, listens on 8080, and keeps its pid and
@@ -12,6 +16,9 @@ RUN npm run build
 FROM nginxinc/nginx-unprivileged:1.31.5-alpine@sha256:aa8c9087d36d93e9d650c5365f883b421e8214aedbad24ade52b844c583358f1
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY streamsense-headers.conf /etc/nginx/streamsense-headers.conf
+ARG VITE_API_BASE_URL=""
+# Global: the placeholder appears in both connect-src and img-src of the same header line.
+RUN sed -i "s|__API_ORIGIN__|${VITE_API_BASE_URL}|g" /etc/nginx/streamsense-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 # The base image already runs as this user; stating it lets scanners see it.
 USER 101

@@ -8,18 +8,30 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Every error leaves this service as an RFC 9457 {@code application/problem+json} body.
@@ -92,10 +104,48 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(
             Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
-        if (body instanceof ProblemDetail problem && request instanceof ServletWebRequest servletRequest) {
-            decorate(problem, servletRequest.getRequest());
+        if (body == null && ex instanceof ErrorResponse errorResponse) {
+            // Some framework handlers pass no body and let the superclass build it later; build it here so
+            // the type and the request context below apply to every problem, not only the ones handed to us.
+            body = errorResponse.updateAndGetBody(getMessageSource(), LocaleContextHolder.getLocale());
+        }
+        if (body instanceof ProblemDetail problem) {
+            if (problem.getType() == null
+                    || "about:blank".equals(problem.getType().toString())) {
+                // The framework's own problems arrive typed "about:blank"; give them a StreamSense identifier so
+                // clients can tell a malformed body from a missing parameter or an unsupported media type.
+                problem.setType(URI.create(PROBLEM_TYPE_BASE + typeFor(ex, statusCode)));
+            }
+            if (request instanceof ServletWebRequest servletRequest) {
+                decorate(problem, servletRequest.getRequest());
+            }
         }
         return super.handleExceptionInternal(ex, body, headers, statusCode, request);
+    }
+
+    /** Stable problem type slug for the framework exceptions {@link ResponseEntityExceptionHandler} maps. */
+    static String typeFor(Exception ex, HttpStatusCode status) {
+        if (ex instanceof HttpMessageNotReadableException) {
+            return "malformed-request";
+        }
+        if (ex instanceof MissingServletRequestParameterException || ex instanceof MissingServletRequestPartException) {
+            return "missing-parameter";
+        }
+        if (ex instanceof MethodArgumentTypeMismatchException || ex instanceof TypeMismatchException) {
+            return "invalid-request";
+        }
+        if (ex instanceof HttpMediaTypeNotSupportedException || ex instanceof HttpMediaTypeNotAcceptableException) {
+            return "unsupported-media-type";
+        }
+        if (ex instanceof HttpRequestMethodNotSupportedException) {
+            return "method-not-allowed";
+        }
+        if (ex instanceof NoResourceFoundException || ex instanceof NoHandlerFoundException) {
+            return "not-found";
+        }
+        HttpStatus resolved = HttpStatus.resolve(status.value());
+        String phrase = resolved != null ? resolved.getReasonPhrase() : "error";
+        return phrase.toLowerCase().replace(' ', '-');
     }
 
     private ProblemDetail problem(HttpStatus status, String type, String detail, HttpServletRequest request) {

@@ -204,7 +204,7 @@ If you do not want to edit `/etc/hosts`, use `curl` with an explicit `Host` head
 If you want browser access by hostname, add:
 
 ```text
-127.0.0.1 gateway.streamsense.local grafana.streamsense.local zipkin.streamsense.local
+127.0.0.1 streamsense.local gateway.streamsense.local grafana.streamsense.local zipkin.streamsense.local
 ```
 
 ## 9. Verification

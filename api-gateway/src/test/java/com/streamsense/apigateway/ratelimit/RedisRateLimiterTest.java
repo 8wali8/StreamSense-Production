@@ -81,6 +81,20 @@ class RedisRateLimiterTest {
     }
 
     @Test
+    void keysCreatedLateInTheWindowStillExpireAtTheWindowBoundary() {
+        // 12:00:59 is one second before the 12:00:00 window closes; the key must not get a fresh 61 seconds.
+        RedisRateLimiter limiter = limiter(redis, "2026-04-11T12:00:59Z", true);
+        String bucket = "video-upload:203.0.113.21:" + System.nanoTime();
+
+        limiter.acquire(bucket, 5, 60).block();
+
+        Long ttl = redis.getExpire(RedisRateLimiter.KEY_PREFIX + bucket + ":1775908800")
+                .block()
+                .toSeconds();
+        assertThat(ttl).isBetween(1L, 2L);
+    }
+
+    @Test
     void failsOpenOrClosedWhenRedisIsUnreachable() {
         LettuceConnectionFactory unreachable = factoryFor("127.0.0.1", 1);
         ReactiveStringRedisTemplate brokenRedis = new ReactiveStringRedisTemplate(unreachable);

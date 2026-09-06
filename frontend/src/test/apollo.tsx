@@ -38,7 +38,40 @@ export function renderWithApollo(
   return { ...result, ...context };
 }
 
-/** Push one subscription payload to every active subscriber of the mock link. */
-export function emitSubscription(context: ApolloTestContext, data: Record<string, unknown>): void {
+/** The operation name and variables of the subscription the component most recently opened. */
+export function currentSubscription(context: ApolloTestContext): {
+  operationName: string;
+  variables: Record<string, unknown>;
+} {
+  const operation = context.subscriptions.operation;
+  if (!operation) {
+    throw new Error("no subscription is active on the mock link");
+  }
+  return { operationName: operation.operationName ?? "", variables: operation.variables };
+}
+
+/**
+ * Push one subscription payload to every active subscriber of the mock link. When `expected` is
+ * given, the active subscription must match it first, so a hook that forgot its variables or kept
+ * the previous streamer's cannot receive the event and pass anyway.
+ */
+export function emitSubscription(
+  context: ApolloTestContext,
+  data: Record<string, unknown>,
+  expected?: { operationName?: string; variables?: Record<string, unknown> },
+): void {
+  if (expected) {
+    const active = currentSubscription(context);
+    if (expected.operationName !== undefined && active.operationName !== expected.operationName) {
+      throw new Error(`active subscription is ${active.operationName}, expected ${expected.operationName}`);
+    }
+    if (expected.variables !== undefined) {
+      const actual = JSON.stringify(active.variables);
+      const wanted = JSON.stringify(expected.variables);
+      if (actual !== wanted) {
+        throw new Error(`active subscription variables are ${actual}, expected ${wanted}`);
+      }
+    }
+  }
   context.subscriptions.simulateResult({ result: { data } });
 }
