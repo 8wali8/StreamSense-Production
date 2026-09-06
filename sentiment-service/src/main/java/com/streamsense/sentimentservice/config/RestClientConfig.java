@@ -21,8 +21,8 @@ public class RestClientConfig {
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
         return builder
-                .setConnectTimeout(Duration.ofMillis(properties.getMl().getConnectTimeoutMs()))
-                .setReadTimeout(Duration.ofMillis(properties.getMl().getReadTimeoutMs()))
+                .connectTimeout(Duration.ofMillis(properties.getMl().getConnectTimeoutMs()))
+                .readTimeout(Duration.ofMillis(properties.getMl().getReadTimeoutMs()))
                 .additionalInterceptors((request, body, execution) -> {
                     String correlationId = MDC.get("correlationId");
                     String traceparent = MDC.get("traceparent");
