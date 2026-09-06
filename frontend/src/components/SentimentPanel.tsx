@@ -1,25 +1,12 @@
 import { useState } from "react";
-import { useQuery, useSubscription } from "@apollo/client/react";
+import type { OnSentimentSubscription, RecentSentimentQuery, RecentSentimentQueryVariables } from "../graphql/generated";
 import { RECENT_SENTIMENT_QUERY } from "../graphql/queries";
 import { ON_SENTIMENT_SUBSCRIPTION } from "../graphql/subscriptions";
-import type {
-  OnSentimentSubscription,
-  OnSentimentSubscriptionVariables,
-  RecentSentimentQuery,
-  RecentSentimentQueryVariables,
-} from "../graphql/generated";
+import { useLiveFeed } from "../hooks/useLiveFeed";
+import { formatTime, sentimentColor, sentimentLabelClass } from "../lib/format";
+import { MetricCard } from "./MetricCard";
 
 type SentimentAnalysisEvent = RecentSentimentQuery["recentSentiment"][number];
-
-function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString();
-}
-
-function labelColor(label: string): string {
-  if (label === "POSITIVE") return "#157f3b";
-  if (label === "NEGATIVE") return "#b42318";
-  return "#7a5c00";
-}
 
 type SentimentPanelProps = {
   streamer?: string;
@@ -29,48 +16,27 @@ type SentimentPanelProps = {
 export function SentimentPanel({ streamer, hideControls = false }: SentimentPanelProps) {
   const [streamerInput, setStreamerInput] = useState("test");
   const [localStreamer, setLocalStreamer] = useState("test");
-  const [liveEvents, setLiveEvents] = useState<SentimentAnalysisEvent[]>([]);
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecentSentimentQuery, RecentSentimentQueryVariables>(RECENT_SENTIMENT_QUERY, {
+  const feed = useLiveFeed<RecentSentimentQuery, OnSentimentSubscription, RecentSentimentQueryVariables, SentimentAnalysisEvent>({
+    query: RECENT_SENTIMENT_QUERY,
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
-    fetchPolicy: "network-only",
+    selectHistory: (data) => data.recentSentiment,
+    subscription: ON_SENTIMENT_SUBSCRIPTION,
+    subscriptionVariables: { streamer: activeStreamer },
+    selectEvent: (data) => data.onSentiment,
+    getId: (event) => event.sentimentEventId,
+    limit: 50,
+    resetKey: activeStreamer,
   });
-
-  const historyEvents = data?.recentSentiment ?? [];
-  const historyIds = new Set(historyEvents.map((event) => event.sentimentEventId));
-  const events = [...liveEvents.filter((event) => !historyIds.has(event.sentimentEventId)), ...historyEvents].slice(0, 50);
-
-  const { error: subscriptionError } = useSubscription<OnSentimentSubscription, OnSentimentSubscriptionVariables>(ON_SENTIMENT_SUBSCRIPTION, {
-    variables: { streamer: activeStreamer },
-    skip: !activeStreamer,
-    onData: ({ data: subscriptionData }) => {
-      const event = subscriptionData.data?.onSentiment;
-      if (!event) {
-        return;
-      }
-
-      setLiveEvents((prev) => {
-        if (
-          historyIds.has(event.sentimentEventId) ||
-          prev.some((existing) => existing.sentimentEventId === event.sentimentEventId)
-        ) {
-          return prev;
-        }
-
-        return [event, ...prev].slice(0, 50);
-      });
-    },
-  });
+  const { items: events, loading, error, subscriptionError } = feed;
 
   function onLoad() {
     const nextStreamer = streamerInput.trim();
     if (!nextStreamer) {
       return;
     }
-
-    setLiveEvents([]);
     setLocalStreamer(nextStreamer);
   }
 
@@ -142,8 +108,8 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
                 [{formatTime(event.chatTimestamp)}] {event.streamer} • source={event.sourceEventId}
               </div>
               <span
-                className={`sentiment-label ${sentimentClass(event.label)}`}
-                style={{ color: labelColor(event.label) }}
+                className={`sentiment-label ${sentimentLabelClass(event.label)}`}
+                style={{ color: sentimentColor(event.label) }}
               >
                 {event.label}
               </span>
@@ -161,20 +127,5 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
         ))}
       </div>
     </section>
-  );
-}
-
-function sentimentClass(label: string): string {
-  if (label === "POSITIVE") return "label-positive";
-  if (label === "NEGATIVE") return "label-negative";
-  return "label-neutral";
-}
-
-function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
-  return (
-    <div className={`metric-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }

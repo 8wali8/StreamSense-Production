@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@apollo/client/react";
-import type {
-  RecommendationsQuery,
-  RecommendationsQueryVariables,
-} from "../graphql/generated";
+import { MetricCard } from "./MetricCard";
+import type { RecommendationsQuery, RecommendationsQueryVariables } from "../graphql/generated";
 import { RECOMMENDATIONS_QUERY } from "../graphql/queries";
 
 function categoryTone(category: string): string {
@@ -136,11 +134,3 @@ function scoreClass(score: number): string {
   return "metric-negative";
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
-  return (
-    <div className={`metric-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
