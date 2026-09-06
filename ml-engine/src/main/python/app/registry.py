@@ -42,7 +42,11 @@ class BackendRegistry:
         self._segmenter: Segmenter | None = None
         self._transcriber: WhisperTranscriber | None = None
         self._sponsor_detector: SponsorDetector = DeterministicSponsorDetector()
-        self._frame_store = FrameStore(settings.frame_storage, require_frame_read=settings.sponsor.require_frame_read)
+        self._frame_store = FrameStore(
+            settings.frame_storage,
+            require_frame_read=settings.sponsor.require_frame_read,
+            max_frame_bytes=settings.frame_storage.max_bytes,
+        )
         self._ready = False
 
     # ------------------------------------------------------------------ lifecycle

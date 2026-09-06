@@ -64,11 +64,11 @@ POST /ml/sentiment
 
 Request schema:
 
-docs/schemas/ml-sentiment-request.json
+docs/schemas/ml-sentiment-request.schema.json
 
 Response schema:
 
-docs/schemas/ml-sentiment-response.json
+docs/schemas/ml-sentiment-response.schema.json
 
 ---
 

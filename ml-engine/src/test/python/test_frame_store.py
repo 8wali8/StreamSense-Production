@@ -3,6 +3,22 @@ import pytest
 from app.frame_store import FrameArtifactError, FrameStore, load_frame_artifact, load_frame_image
 
 
+def test_frame_reads_are_bounded_by_the_configured_size(tmp_path):
+    frame_path = tmp_path / "frame.ppm"
+    frame_path.write_bytes(b"P6\n2 1\n255\n\xff\x00\x00\x00\xff\x00")
+
+    with pytest.raises(FrameArtifactError, match="exceeds 8 bytes"):
+        FrameStore(max_frame_bytes=8).load_frame_image(f"file://{frame_path}")
+
+
+def test_only_regular_files_are_read(tmp_path):
+    directory = tmp_path / "frames"
+    directory.mkdir()
+
+    with pytest.raises(FrameArtifactError, match="not a regular file"):
+        load_frame_image(f"file://{directory}")
+
+
 def test_load_frame_image_decodes_rgb_frame(tmp_path):
     frame_path = tmp_path / "frame.ppm"
     frame_path.write_bytes(b"P6\n2 1\n255\n\xff\x00\x00\x00\xff\x00")

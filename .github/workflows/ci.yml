@@ -367,6 +367,9 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           trivyignores: .trivyignore
+          # SARIF output ignores the severity filter unless this is set, and every reported finding
+          # (MEDIUM included) would then trip exit-code 1.
+          limit-severities-for-sarif: true
 
       # Dockerfiles, Compose, and Kubernetes manifests: HIGH and CRITICAL misconfigurations fail the job.
       - name: Trivy misconfiguration gate
