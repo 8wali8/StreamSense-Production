@@ -37,6 +37,9 @@ public class DownstreamServicesProperties {
 
     @Valid
     private final Service analyticsService = new Service();
+    /** ml-engine, reached through the proxied {@code /ml/segment} route rather than a resolver. */
+    @Valid
+    private final Service mlEngine = new Service();
 
     /** Time allowed to establish the TCP connection to a downstream service. */
     @NotNull
@@ -68,6 +71,10 @@ public class DownstreamServicesProperties {
 
     public Service getAnalyticsService() {
         return analyticsService;
+    }
+
+    public Service getMlEngine() {
+        return mlEngine;
     }
 
     public Duration getConnectTimeout() {
