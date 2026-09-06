@@ -40,14 +40,25 @@ All eight branches are pushed and stacked in order, each with its note under `br
 
 | Branch | Head | Note |
 |---|---|---|
-| `hardening/20-followups-plan` | 0fdbb10 | this plan |
-| `hardening/21-spotless-and-verify` | 0928a4e | `21-spotless-and-verify.md` |
-| `hardening/22-session-fields-persisted` | 9823da0 | `22-session-fields-persisted.md` |
-| `hardening/23-frontend-error-surfacing` | 787557b | `23-frontend-error-surfacing.md` |
-| `hardening/24-read-only-rootfs` | c2aea1c | `24-read-only-rootfs.md` |
-| `hardening/25-network-policy` | 3044a70 | `25-network-policy.md` |
-| `hardening/26-archunit-and-coverage` | a58ceda | `26-archunit-and-coverage.md` |
-| `hardening/27-python-layout` | 61e8ee9 | `27-python-layout.md` |
+| `hardening/20-followups-plan` | 8776639 | this plan |
+| `hardening/21-spotless-and-verify` | 7d89dfc | `21-spotless-and-verify.md` |
+| `hardening/22-session-fields-persisted` | f47cb2e | `22-session-fields-persisted.md` |
+| `hardening/23-frontend-error-surfacing` | 1b40601 | `23-frontend-error-surfacing.md` |
+| `hardening/24-read-only-rootfs` | 15c27e5 | `24-read-only-rootfs.md` |
+| `hardening/25-network-policy` | b7a616b | `25-network-policy.md` |
+| `hardening/26-archunit-and-coverage` | 51c67f6 | `26-archunit-and-coverage.md` |
+| `hardening/27-python-layout` | d547da7 | `27-python-layout.md` |
 | `hardening/28-ml-stack-upgrade` | (this branch) | `28-ml-stack-upgrade.md`, `28-ml-stack-comparison.md` |
 
 Deviations from the table above, each explained in its note: 24 keeps the busybox init containers; 25 gives the PodDisruptionBudget to the frontend only (the gateway's shared Kafka consumer group blocks a second replica); 26 fixed mypy's findings instead of ratcheting; 28 went to transformers 5.16.1 because only 5.10+ clears every CVE, and it also stopped the Dockerfiles from `chown -R`ing the venv.
+
+### Forward-merge of the review fixes (6 September)
+
+The 01 to 14 chain gained 24 review-fix commits after these branches were cut; each branch now carries them (20 ← 14, then 21 ← 20 and so on). What the merges needed and what was re-run:
+
+- 21: your gateway auth, rate-limit, and error-advice fixes won over this branch's reformatting of the same files; the gateway config keeps the new `ml-engine-segment` route under the `server.webflux` namespace; the rate-limit integration test registers its route there too. Full reactor green (209 tests, Spotless gate clean).
+- 23: the three moved panels keep their `features/` paths and take the typed query variables from the fixes. Lint, format, codegen, build, and 72 tests with the coverage floors green.
+- 24: manifests re-validated (56 resources, kubeconform, kube-linter, Trivy misconfiguration gate).
+- 25: the console's `POST /ml/segment` now goes through the gateway, so the policies changed: gateway egress to ml-engine 8000 and ml-engine ingress from the gateway added, the frontend's direct ml-engine allow removed. The checker had flagged both missing edges; 64 edges covered again.
+- 26: full reactor green with every `ArchitectureTest` passing on the fixed code and every coverage floor holding. Python: ruff, format, mypy, 75 and 48 tests.
+- 27 and 28: one review-fix test imported `app.settings` inside its body and needed the renamed package; two docstrings updated likewise. Python suites green on both; the Trivy vulnerability gate on 28 stays at exit 0.
