@@ -14,14 +14,14 @@ Branch 04 hardened every pod's own security context, but any pod could still ope
   | Source | May reach |
   |---|---|
   | six Spring clients (gateway, chat, recommendation, sentiment, video, analytics) | config-server 8888, eureka-server 8761, zipkin 9411 |
-  | api-gateway | + redis 6379, kafka 9092, chat 8081, recommendation 8082, sentiment 8083, video 8084, video-capture 8090, analytics 8085 |
+  | api-gateway | + redis 6379, kafka 9092, chat 8081, recommendation 8082, sentiment 8083, video 8084, video-capture 8090, analytics 8085, ml-engine 8000 (the proxied `POST /ml/segment` route) |
   | chat-service | + kafka 9092, internet 443/6697/6667 |
   | recommendation-service | + sentiment 8083, video 8084 |
   | sentiment-service, video-service | + kafka 9092, postgres 5432, redis 6379, ml-engine 8000 |
   | analytics-service | + kafka 9092, postgres 5432 |
   | video-capture-service | kafka 9092, minio 9000, ml-engine 8000, internet 443 |
   | ml-engine | minio 9000, internet 443 |
-  | frontend | api-gateway 8080, ml-engine 8000 (the nginx `proxy_pass` lines) |
+  | frontend | api-gateway 8080 (every nginx `proxy_pass` line, `/ml/segment` included, targets the gateway) |
   | config-server | eureka-server 8761 (its init wait), zipkin 9411 |
   | eureka-server | zipkin 9411 |
   | kafka | itself on 29093 (KRaft controller) and 9092 |

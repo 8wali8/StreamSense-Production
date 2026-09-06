@@ -2,14 +2,13 @@ package com.streamsense.apigateway.config;
 
 import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -25,12 +24,15 @@ public class GatewayAuthWebFilter implements WebFilter {
     private final JwtAuthTokenValidator tokenValidator;
     private final MeterRegistry meterRegistry;
     private final String graphqlWebSocketPath;
+    private final String serviceName;
 
     public GatewayAuthWebFilter(
             GatewayEdgeProperties properties,
             JwtAuthTokenValidator tokenValidator,
             MeterRegistry meterRegistry,
-            @Value("${spring.graphql.websocket.path:/graphql}") String graphqlWebSocketPath) {
+            @Value("${spring.graphql.websocket.path:/graphql}") String graphqlWebSocketPath,
+            @Value("${spring.application.name:api-gateway}") String serviceName) {
+        this.serviceName = serviceName;
         this.properties = properties;
         this.tokenValidator = tokenValidator;
         this.meterRegistry = meterRegistry;
@@ -63,14 +65,15 @@ public class GatewayAuthWebFilter implements WebFilter {
         meterRegistry
                 .counter("streamsense_gateway_auth_rejections_total", "reason", result.reason())
                 .increment();
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-
-        String responseBody = "{\"error\":\"unauthorized\",\"reason\":\"" + result.reason() + "\"}";
-        return exchange.getResponse()
-                .writeWith(Mono.just(
-                        exchange.getResponse().bufferFactory().wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
+        // A problem+json body like every other StreamSense error; `error` and `reason` stay for existing clients.
+        return ProblemResponses.write(
+                exchange,
+                HttpStatus.UNAUTHORIZED,
+                "unauthorized",
+                "Authentication failed: " + result.reason(),
+                serviceName,
+                Map.of("error", "unauthorized", "reason", result.reason()));
     }
 
     // Only a GET with the RFC 6455 upgrade headers is a handshake. The HTTP GraphQL endpoint is POST-only and a GET

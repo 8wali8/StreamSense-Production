@@ -37,6 +37,12 @@ export function useLiveEvents<TSubscription, TItem>(
 } {
   const resetKey = options.resetKey ?? "";
   const [buffer, setBuffer] = useState<Buffer<TItem>>({ key: resetKey, items: [] });
+  // Drop the previous key's buffer as soon as the key changes, using React's "adjust state during
+  // render" pattern. Hiding it at return time is not enough: switching A -> B -> A while B stays
+  // quiet would otherwise bring A's old events back.
+  if (buffer.key !== resetKey) {
+    setBuffer({ key: resetKey, items: [] });
+  }
   const { selectEvent, getId, limit, knownIds, accept } = options;
 
   const { error } = useSubscription<TSubscription, OperationVariables>(options.subscription, {

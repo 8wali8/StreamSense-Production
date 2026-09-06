@@ -100,7 +100,7 @@ kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.32.2
 kubectl wait --namespace calico-system --for=condition=Ready pods --all --timeout=300s
 ```
 
-Then continue with the ingress-nginx install and `kubectl apply -k .` as below. Cluster DNS and the ingress controller keep working because every policy allows egress to `kube-dns` and the ingress policies allow traffic from the `ingress-nginx` namespace. A quick proof that the policies bite: `kubectl -n streamsense exec deploy/frontend -- wget -qO- --timeout=3 http://postgres:5432` times out (the frontend may only reach the gateway and ml-engine), while `kubectl -n streamsense exec deploy/frontend -- wget -qO- --timeout=3 http://api-gateway:8080/actuator/health` answers.
+Then continue with the ingress-nginx install and `kubectl apply -k .` as below. Cluster DNS and the ingress controller keep working because every policy allows egress to `kube-dns` and the ingress policies allow traffic from the `ingress-nginx` namespace. A quick proof that the policies bite: `kubectl -n streamsense exec deploy/frontend -- wget -qO- --timeout=3 http://postgres:5432` times out (the frontend may only reach the gateway), while `kubectl -n streamsense exec deploy/frontend -- wget -qO- --timeout=3 http://api-gateway:8080/actuator/health` answers.
 
 When you add a dependency between services, add the matching rule to the policy of both the caller (egress) and the callee (ingress); `python3 tools/k8s/check_network_policies.py` (also run in CI) derives every dependency from the manifests, `config-server/config-repo`, the Prometheus targets, the frontend's nginx proxies, and the Ingress backends, and fails until the policies cover it.
 
@@ -204,7 +204,7 @@ If you do not want to edit `/etc/hosts`, use `curl` with an explicit `Host` head
 If you want browser access by hostname, add:
 
 ```text
-127.0.0.1 gateway.streamsense.local grafana.streamsense.local zipkin.streamsense.local
+127.0.0.1 streamsense.local gateway.streamsense.local grafana.streamsense.local zipkin.streamsense.local
 ```
 
 ## 9. Verification

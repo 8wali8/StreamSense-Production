@@ -29,6 +29,10 @@ export class ApiError extends Error {
 
 export type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
+  /** Query string parameters, encoded and appended to the path. */
+  params?: Record<string, string | number>;
+  /** Origin prefix for this call; defaults to the API base URL. ml-engine calls pass the ML base. */
+  baseUrl?: string;
   /** Serialised as JSON; sets the Content-Type. */
   body?: unknown;
   signal?: AbortSignal;
@@ -37,12 +41,24 @@ export type RequestOptions = {
   storage?: TokenStorage | null;
 };
 
-export const DEFAULT_TIMEOUT_MS = 10_000;
+/**
+ * Above the gateway's own 10 s response timeout (config-repo api-gateway.yml) with room for transit,
+ * so a stalled downstream surfaces as the gateway's problem detail (an ApiError) rather than as the
+ * browser's AbortError racing it.
+ */
+export const DEFAULT_TIMEOUT_MS = 15_000;
 
-function timeoutSignal(timeoutMs: number): AbortSignal | undefined {
-  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
-    ? AbortSignal.timeout(timeoutMs)
-    : undefined;
+function timeoutSignal(timeoutMs: number): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  // Older browsers: the same bound, built by hand, so no request is ever open-ended.
+  const controller = new AbortController();
+  setTimeout(
+    () => controller.abort(new DOMException(`request timed out after ${timeoutMs} ms`, "TimeoutError")),
+    timeoutMs,
+  );
+  return controller.signal;
 }
 
 async function readProblem(response: Response): Promise<ProblemDetail | null> {
@@ -69,7 +85,8 @@ export async function apiRequest(path: string, options: RequestOptions = {}): Pr
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+  // `path` is always origin-relative; the base is applied exactly once here.
+  const response = await fetch(buildUrl(path, options.params, options.baseUrl ?? env.apiBaseUrl), {
     method: options.method ?? "GET",
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -93,10 +110,18 @@ export async function apiSend(path: string, options: RequestOptions = {}): Promi
   await apiRequest(path, { method: "POST", ...options });
 }
 
-export function apiUrl(path: string, params?: Record<string, string | number>): string {
+function buildUrl(path: string, params: Record<string, string | number> | undefined, baseUrl: string): string {
   if (!params) {
-    return `${env.apiBaseUrl}${path}`;
+    return `${baseUrl}${path}`;
   }
   const query = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
-  return `${env.apiBaseUrl}${path}?${query.toString()}`;
+  return `${baseUrl}${path}?${query.toString()}`;
+}
+
+/**
+ * Absolute URL for places that need one outside the client (an `<img src>`, a link). Never pass the
+ * result back into `apiFetch`/`apiSend`, which apply the base themselves; use `params` there instead.
+ */
+export function apiUrl(path: string, params?: Record<string, string | number>): string {
+  return buildUrl(path, params, env.apiBaseUrl);
 }
