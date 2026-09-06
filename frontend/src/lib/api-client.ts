@@ -54,7 +54,10 @@ function timeoutSignal(timeoutMs: number): AbortSignal {
   }
   // Older browsers: the same bound, built by hand, so no request is ever open-ended.
   const controller = new AbortController();
-  setTimeout(() => controller.abort(new DOMException(`request timed out after ${timeoutMs} ms`, "TimeoutError")), timeoutMs);
+  setTimeout(
+    () => controller.abort(new DOMException(`request timed out after ${timeoutMs} ms`, "TimeoutError")),
+    timeoutMs,
+  );
   return controller.signal;
 }
 
