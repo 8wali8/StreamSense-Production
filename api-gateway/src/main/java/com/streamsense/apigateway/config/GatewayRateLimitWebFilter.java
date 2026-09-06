@@ -16,7 +16,7 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 
-import com.streamsense.apigateway.ratelimit.InMemoryRateLimiter;
+import com.streamsense.apigateway.ratelimit.RateLimiter;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
@@ -28,7 +28,7 @@ public class GatewayRateLimitWebFilter implements WebFilter {
     private static final int MAX_CLIENT_KEY_LENGTH = 128;
 
     private final GatewayEdgeProperties properties;
-    private final InMemoryRateLimiter rateLimiter;
+    private final RateLimiter rateLimiter;
     private final MeterRegistry meterRegistry;
     private final String serviceName;
     private final RemoteAddressResolver addressResolver;
@@ -36,7 +36,7 @@ public class GatewayRateLimitWebFilter implements WebFilter {
 
     public GatewayRateLimitWebFilter(
             GatewayEdgeProperties properties,
-            InMemoryRateLimiter rateLimiter,
+            RateLimiter rateLimiter,
             MeterRegistry meterRegistry,
             @Value("${spring.application.name:api-gateway}") String serviceName) {
         this.properties = properties;
@@ -62,19 +62,19 @@ public class GatewayRateLimitWebFilter implements WebFilter {
         }
 
         String clientKey = resolveClientKey(exchange);
-        InMemoryRateLimiter.RateLimitDecision decision = rateLimiter.acquire(
-                matchingRule.getId() + ":" + clientKey,
-                matchingRule.getRequests(),
-                matchingRule.getWindowSeconds());
+        return rateLimiter
+                .acquire(matchingRule.getId() + ":" + clientKey, matchingRule.getRequests(), matchingRule.getWindowSeconds())
+                .flatMap(decision -> apply(exchange, chain, matchingRule, decision));
+    }
 
+    private Mono<Void> apply(ServerWebExchange exchange, WebFilterChain chain, GatewayEdgeProperties.RateLimitRule matchingRule,
+            RateLimiter.RateLimitDecision decision) {
         exchange.getResponse().getHeaders().set("X-RateLimit-Limit", String.valueOf(matchingRule.getRequests()));
         exchange.getResponse().getHeaders().set("X-RateLimit-Remaining", String.valueOf(decision.remaining()));
         exchange.getResponse().getHeaders().set("X-RateLimit-Reset", String.valueOf(decision.resetAtEpochSeconds()));
-
         if (decision.allowed()) {
             return chain.filter(exchange);
         }
-
         meterRegistry.counter(
                 "streamsense_gateway_rate_limit_rejections_total",
                 "limit", matchingRule.getId(),

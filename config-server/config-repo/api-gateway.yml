@@ -35,6 +35,10 @@ streamsense:
     response-timeout: 5s
   gateway:
     rate-limit-enabled: ${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:true}
+    # Counters are shared across gateway replicas through Redis; "memory" counts per instance.
+    rate-limit-store: ${STREAMSENSE_GATEWAY_RATE_LIMIT_STORE:redis}
+    # If Redis is unreachable, requests pass (true) rather than being rejected; the outage is metered.
+    rate-limit-fail-open: ${STREAMSENSE_GATEWAY_RATE_LIMIT_FAIL_OPEN:true}
     trusted-proxy-hops: ${STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS:0}
     auth:
       enabled: ${STREAMSENSE_GATEWAY_AUTH_ENABLED:false}
@@ -68,6 +72,13 @@ streamsense:
         window-seconds: 60
 
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      # Short budgets: a slow Redis must not hold every rate-limited request.
+      connect-timeout: 500ms
+      timeout: 500ms
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     consumer:
