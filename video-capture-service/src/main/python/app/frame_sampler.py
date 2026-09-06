@@ -2,6 +2,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from app.process import run_bounded
+
 
 class FrameCaptureError(Exception):
     pass
@@ -38,13 +40,7 @@ class FrameSampler:
 
         start = time.monotonic()
         try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                check=False,
-            )
+            result = run_bounded(command, self.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
             raise FrameCaptureError("ffmpeg frame capture timed out") from exc
 

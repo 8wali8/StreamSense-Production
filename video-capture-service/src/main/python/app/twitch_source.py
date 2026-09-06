@@ -1,5 +1,7 @@
 import subprocess
 
+from app.process import run_bounded
+
 
 class TwitchStreamOffline(Exception):
     pass
@@ -30,13 +32,7 @@ class TwitchSourceResolver:
             command[1:1] = ["--twitch-api-header", f"Authorization=OAuth {token}"]
 
         try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                check=False,
-            )
+            result = run_bounded(command, self.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
             raise TwitchStreamResolutionError("stream resolution timed out") from exc
 
