@@ -123,7 +123,7 @@ def test_secret_env_missing_file_is_a_clear_error(monkeypatch, tmp_path):
 def test_frame_storage_max_bytes_is_validated_at_startup(monkeypatch):
     from pydantic import ValidationError
 
-    from app.settings import FrameStorageSettings
+    from ml_engine.settings import FrameStorageSettings
 
     monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_MAX_BYTES", "8")
     assert FrameStorageSettings().max_bytes == 8
