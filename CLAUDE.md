@@ -65,7 +65,7 @@ Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` c
 
 ```bash
 # From frontend/
-npm run dev     # Dev server (port 3000)
+npm run dev     # Dev server (port 5173; 3000 is the Compose frontend container)
 npm run build   # tsc -b && vite build
 npm run test    # Vitest (vitest run)
 npm run lint    # ESLint
@@ -164,7 +164,7 @@ The GraphQL schema lives in `api-gateway/src/main/resources/graphql/`; `docs/con
 
 React 19 + Vite + Apollo Client 4. GraphQL operations live in `frontend/src/graphql/` (`queries.ts`, `subscriptions.ts`), and their result and variable types are generated from the gateway's SDL into `frontend/src/graphql/generated.ts` by GraphQL Code Generator (`codegen.ts`: `typescript` + `typescript-operations`, reading `api-gateway/src/main/resources/graphql/*.graphqls` directly). Never hand-write a type for a GraphQL result: pass the generated `<Operation>Query` / `<Operation>Subscription` type to `useQuery`/`useSubscription` and derive entity types from it (`RecentSentimentQuery["recentSentiment"][number]`). After changing an operation or the SDL run `npm run codegen` and commit `generated.ts`; CI runs `npm run codegen:check` and fails when it is stale. Apollo config and WebSocket link setup is in `frontend/src/apollo/client.ts`. Subscriptions use `graphql-ws`.
 
-In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` to the backend. Local `npm run dev` has **no** Vite proxy for these routes — for end-to-end browser checks, prefer the Docker frontend.
+In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` to the backend. `npm run dev` (port 5173, so it can run next to the Compose frontend on 3000) proxies the same three routes to the Compose backend (`VITE_DEV_API_TARGET` / `VITE_DEV_ML_TARGET` override the targets), so a running `make up` is all it needs. REST calls go through `src/lib/api-client.ts` (base URL from `src/config/env.ts`, the same bearer token as GraphQL, JSON, a timeout on every call, `ApiError` carrying the service's RFC 9457 problem details) via one typed function per endpoint in `src/api/<feature>.ts`; components never call `fetch` or read `import.meta.env` directly. Periodic REST reads use `usePolledResource`.
 
 ### Java service conventions
 
