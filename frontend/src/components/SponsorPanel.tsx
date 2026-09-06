@@ -2,36 +2,14 @@ import { useState } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { RECENT_SPONSOR_DETECTIONS_QUERY } from "../graphql/queries";
 import { ON_SPONSOR_DETECTION_SUBSCRIPTION } from "../graphql/subscriptions";
+import type {
+  OnSponsorDetectionSubscription,
+  OnSponsorDetectionSubscriptionVariables,
+  SponsorDetectionsQuery,
+  SponsorDetectionsQueryVariables,
+} from "../graphql/generated";
 
-type SponsorDetectionEvent = {
-  detectionEventId: string;
-  sourceFrameId: string;
-  streamer: string;
-  frameRef: string;
-  frameSequence: number;
-  capturedAt: number;
-  processedAt: number;
-  sponsor: string;
-  confidence: number;
-  modelVersion: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  source?: string | null;
-  channelLogin?: string | null;
-  streamSessionId?: string | null;
-  twitchStreamId?: string | null;
-  videoTimestampMs?: number | null;
-};
-
-type RecentSponsorDetectionsData = {
-  sponsorDetections: SponsorDetectionEvent[];
-};
-
-type OnSponsorDetectionData = {
-  onSponsorDetection: SponsorDetectionEvent;
-};
+type SponsorDetectionEvent = SponsorDetectionsQuery["sponsorDetections"][number];
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString();
@@ -57,7 +35,7 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
   const [liveEvents, setLiveEvents] = useState<SponsorDetectionEvent[]>([]);
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecentSponsorDetectionsData>(RECENT_SPONSOR_DETECTIONS_QUERY, {
+  const { data, loading, error } = useQuery<SponsorDetectionsQuery, SponsorDetectionsQueryVariables>(RECENT_SPONSOR_DETECTIONS_QUERY, {
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
     fetchPolicy: "network-only",
@@ -67,7 +45,7 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
   const historyIds = new Set(historyEvents.map((event) => event.detectionEventId));
   const events = [...liveEvents.filter((event) => !historyIds.has(event.detectionEventId)), ...historyEvents].slice(0, 50);
 
-  const { error: subscriptionError } = useSubscription<OnSponsorDetectionData>(ON_SPONSOR_DETECTION_SUBSCRIPTION, {
+  const { error: subscriptionError } = useSubscription<OnSponsorDetectionSubscription, OnSponsorDetectionSubscriptionVariables>(ON_SPONSOR_DETECTION_SUBSCRIPTION, {
     variables: { streamer: activeStreamer },
     skip: !activeStreamer,
     onData: ({ data: subscriptionData }) => {

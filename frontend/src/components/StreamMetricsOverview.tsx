@@ -1,80 +1,19 @@
 import { useQuery } from "@apollo/client/react";
+import type {
+  StreamAnalyticsQuery,
+  StreamAnalyticsQueryVariables,
+} from "../graphql/generated";
 import { STREAM_ANALYTICS_QUERY } from "../graphql/queries";
 
-type SentimentMetricSummary = {
-  positive: number;
-  neutral: number;
-  negative: number;
-  averageScore?: number | null;
-  negativeRatio?: number | null;
-};
-
-type SponsorExposureMetric = {
-  sponsor: string;
-  detectionCount: number;
-  acceptedDetectionCount: number;
-  estimatedExposureMs: number;
-  averageConfidence?: number | null;
-  maxConfidence?: number | null;
-  fallbackDetectionCount: number;
-  lowConfidenceDetectionCount: number;
-};
-
-type StreamMetricsSummary = {
-  streamer: string;
-  windowMinutes: number;
-  chat: {
-    totalMessages: number;
-    messagesPerMinute: number;
-    uniqueChatters: number;
-    peakMessagesPerMinute: number;
-  };
-  chatSentiment: SentimentMetricSummary;
-  transcriptSentiment: SentimentMetricSummary;
-  sponsorExposure: {
-    totalDetections: number;
-    acceptedDetections: number;
-    estimatedExposureMs: number;
-    topSponsors: SponsorExposureMetric[];
-  };
-  engagement: {
-    spikeCount: number;
-    latestSpikeAt?: number | null;
-  };
-  risk: {
-    level: string;
-    score?: number | null;
-    factors: { name: string; value: number; weight: number }[];
-  };
-  dataQuality: {
-    lowData: boolean;
-    latestEventAt?: number | null;
-    aggregationLagMs?: number | null;
-  };
-};
-
-type StreamMetricBucket = {
-  bucketStart: number;
-  chatMessageCount: number;
-  chatAverageScore?: number | null;
-  transcriptAverageScore?: number | null;
-  sponsorDetectionCount: number;
-  estimatedSponsorExposureMs: number;
-  engagementSpike: boolean;
-  negativeSpike: boolean;
-};
-
-type StreamAnalyticsData = {
-  streamMetricsSummary: StreamMetricsSummary;
-  streamMetricsTimeseries: StreamMetricBucket[];
-};
+type StreamMetricsSummary = StreamAnalyticsQuery["streamMetricsSummary"];
+type SentimentMetricSummary = StreamMetricsSummary["chatSentiment"];
 
 type StreamMetricsOverviewProps = {
   streamer: string;
 };
 
 export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) {
-  const { data, loading, error } = useQuery<StreamAnalyticsData>(STREAM_ANALYTICS_QUERY, {
+  const { data, loading, error } = useQuery<StreamAnalyticsQuery, StreamAnalyticsQueryVariables>(STREAM_ANALYTICS_QUERY, {
     variables: { streamer, windowMinutes: 15, bucketSeconds: 60 },
     skip: !streamer,
     fetchPolicy: "network-only",
