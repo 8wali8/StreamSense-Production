@@ -6,3 +6,10 @@ spring:
 eureka:
   client:
     enabled: false
+
+streamsense:
+  services:
+    sentiment-service:
+      base-url: http://localhost:8083
+    video-service:
+      base-url: http://localhost:8084

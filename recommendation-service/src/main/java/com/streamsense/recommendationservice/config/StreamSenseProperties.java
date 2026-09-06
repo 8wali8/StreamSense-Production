@@ -3,11 +3,19 @@ package com.streamsense.recommendationservice.config;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+
+@Validated
 @ConfigurationProperties(prefix = "streamsense")
 public class StreamSenseProperties {
 
+    @Valid
     private final Services services = new Services();
     private final Recommendations recommendations = new Recommendations();
 
@@ -21,8 +29,32 @@ public class StreamSenseProperties {
 
     public static class Services {
 
+        @Valid
         private final DownstreamService sentimentService = new DownstreamService();
+        @Valid
         private final DownstreamService videoService = new DownstreamService();
+        /** Time allowed to open a connection to sentiment-service or video-service. */
+        @Min(1)
+        private int connectTimeoutMs = 2000;
+        /** Time allowed to wait for a response once the request is sent. */
+        @Min(1)
+        private int readTimeoutMs = 5000;
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
 
         public DownstreamService getSentimentService() {
             return sentimentService;
@@ -35,6 +67,8 @@ public class StreamSenseProperties {
 
     public static class DownstreamService {
 
+        /** Required: there is no localhost fallback, a missing URL stops the service from starting. */
+        @NotBlank
         private String baseUrl;
 
         public String getBaseUrl() {

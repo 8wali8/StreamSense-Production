@@ -124,7 +124,9 @@ Created by the `kafka-topics-init` Compose service (auto-create is disabled):
 
 ### Configuration
 
-Spring services load config from **config-server** at startup; each service's own `src/main/resources/application.yml` is bootstrap-only. Real runtime config lives in `config-server/config-repo/*.yml` (one YAML per service plus `application.yml` for shared defaults). Override the config-server URL with `CONFIG_SERVER_URL`.
+Spring services load config from **config-server** at startup; each service's own `src/main/resources/application.yml` is bootstrap-only. Real runtime config lives in `config-server/config-repo/*.yml` (one YAML per service plus `application.yml` for shared defaults). Override the config-server URL with `CONFIG_SERVER_URL`. The import is required, not optional: a service retries config-server for about a minute (`spring.cloud.config.retry.*`) and then fails to start rather than booting with empty config, so running a Java service outside Compose or kind needs a reachable config-server (tests are unaffected: each service's `src/test/resources/application.yml` shadows the bootstrap file and disables config-server and Eureka).
+
+**Downstream URLs are required and every outbound call is bounded.** The gateway binds `streamsense.services.*` into a validated `DownstreamServicesProperties` (all six base URLs `@NotBlank`, plus `connect-timeout` and `response-timeout` applied to every `WebClient` through a `WebClientCustomizer`); proxied routes use `spring.cloud.gateway.httpclient.*`. recommendation-service validates its two base URLs the same way and applies `connect-timeout-ms` and `read-timeout-ms` to `RestClient` through a `RestClientCustomizer`; sentiment-service and video-service already bound their `RestTemplate` from `streamsense.ml.*`. Never add a `localhost` default to a service URL and never build an HTTP client without a timeout.
 
 **If you change config that Kubernetes uses, mirror it in `k8s/config/config-server-config-repo.yaml`** — it duplicates the config-repo as a ConfigMap.
 

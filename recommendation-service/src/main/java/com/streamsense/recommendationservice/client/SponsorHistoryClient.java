@@ -21,9 +21,7 @@ public class SponsorHistoryClient {
 
     public SponsorHistoryClient(RestClient.Builder restClientBuilder, StreamSenseProperties properties) {
         this.restClient = restClientBuilder
-                .baseUrl(properties.getServices().getVideoService().getBaseUrl() != null
-                        ? properties.getServices().getVideoService().getBaseUrl()
-                        : "http://localhost:8084")
+                .baseUrl(properties.getServices().getVideoService().getBaseUrl())
                 .build();
     }
 

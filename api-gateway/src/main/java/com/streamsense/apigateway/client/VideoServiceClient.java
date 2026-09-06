@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import com.streamsense.apigateway.config.DownstreamServicesProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -24,9 +24,8 @@ public class VideoServiceClient {
 
     private final WebClient webClient;
 
-    public VideoServiceClient(WebClient.Builder webClientBuilder,
-            @Value("${streamsense.services.video-service.base-url}") String baseUrl) {
-        this.webClient = webClientBuilder.baseUrl(baseUrl).build();
+    public VideoServiceClient(WebClient.Builder webClientBuilder, DownstreamServicesProperties services) {
+        this.webClient = webClientBuilder.baseUrl(services.getVideoService().getBaseUrl()).build();
     }
 
     public Mono<List<SponsorDetectionEvent>> recentDetections(String streamer, int limit) {

@@ -11,6 +11,19 @@ eureka:
     enabled: false
 
 streamsense:
+  services:
+    chat-service:
+      base-url: http://localhost:8081
+    recommendation-service:
+      base-url: http://localhost:8082
+    sentiment-service:
+      base-url: http://localhost:8083
+    video-service:
+      base-url: http://localhost:8084
+    video-capture-service:
+      base-url: http://localhost:8090
+    analytics-service:
+      base-url: http://localhost:8085
   gateway:
     auth:
       enabled: false
