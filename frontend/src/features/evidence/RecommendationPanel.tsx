@@ -2,7 +2,7 @@ import { describeError } from "../../lib/errors";
 import { useState } from "react";
 import { useQuery } from "@apollo/client/react";
 import { MetricCard } from "../../components/MetricCard";
-import type { RecommendationsQuery } from "../../graphql/generated";
+import type { RecommendationsQuery, RecommendationsQueryVariables } from "../../graphql/generated";
 import { RECOMMENDATIONS_QUERY } from "../../graphql/queries";
 
 function categoryTone(category: string): string {
@@ -33,11 +33,14 @@ export function RecommendationPanel({ streamer, hideControls = false }: Recommen
   const [localStreamer, setLocalStreamer] = useState("test");
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecommendationsQuery>(RECOMMENDATIONS_QUERY, {
-    variables: { streamer: activeStreamer, limit: 4 },
-    skip: !activeStreamer,
-    fetchPolicy: "network-only",
-  });
+  const { data, loading, error } = useQuery<RecommendationsQuery, RecommendationsQueryVariables>(
+    RECOMMENDATIONS_QUERY,
+    {
+      variables: { streamer: activeStreamer, limit: 4 },
+      skip: !activeStreamer,
+      fetchPolicy: "network-only",
+    },
+  );
 
   const recommendations = data?.recommendations ?? [];
   const strongestScore = recommendations[0]?.score ?? 0;
