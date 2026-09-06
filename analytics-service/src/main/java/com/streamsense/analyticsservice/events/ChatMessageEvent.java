@@ -10,7 +10,6 @@ public class ChatMessageEvent {
     private String channelLogin;
     private String streamSessionId;
     private String twitchStreamId;
-    private Long ingestedAt;
 
     public String getEventId() {
         return eventId;
@@ -84,11 +83,4 @@ public class ChatMessageEvent {
         this.twitchStreamId = twitchStreamId;
     }
 
-    public Long getIngestedAt() {
-        return ingestedAt;
-    }
-
-    public void setIngestedAt(Long ingestedAt) {
-        this.ingestedAt = ingestedAt;
-    }
 }

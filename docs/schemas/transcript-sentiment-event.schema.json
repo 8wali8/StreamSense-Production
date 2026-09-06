@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streamsense.dev/schemas/transcript-sentiment-event.schema.json",
   "title": "TranscriptSentimentEvent",
   "type": "object",
   "required": [
@@ -18,18 +19,85 @@
     "transcriptSequence"
   ],
   "properties": {
-    "sentimentEventId": { "type": "string" },
-    "segmentId": { "type": "string" },
-    "streamer": { "type": "string" },
-    "text": { "type": "string", "maxLength": 4000 },
-    "segmentStartedAt": { "type": "integer" },
-    "segmentEndedAt": { "type": "integer" },
-    "processedAt": { "type": "integer" },
-    "label": { "enum": ["POSITIVE", "NEUTRAL", "NEGATIVE"] },
-    "score": { "type": "number", "minimum": -1, "maximum": 1 },
-    "modelVersion": { "type": "string" },
-    "transcriptModelVersion": { "type": "string" },
-    "streamSessionId": { "type": "string" },
-    "transcriptSequence": { "type": "integer" }
-  }
+    "sentimentEventId": {
+      "type": "string"
+    },
+    "segmentId": {
+      "type": "string"
+    },
+    "streamer": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "segmentStartedAt": {
+      "type": "integer"
+    },
+    "segmentEndedAt": {
+      "type": "integer"
+    },
+    "processedAt": {
+      "type": "integer"
+    },
+    "label": {
+      "type": "string",
+      "enum": [
+        "POSITIVE",
+        "NEUTRAL",
+        "NEGATIVE"
+      ]
+    },
+    "score": {
+      "type": "number",
+      "minimum": -1,
+      "maximum": 1
+    },
+    "modelVersion": {
+      "type": "string"
+    },
+    "transcriptModelVersion": {
+      "type": "string"
+    },
+    "streamSessionId": {
+      "type": "string"
+    },
+    "transcriptSequence": {
+      "type": "integer"
+    },
+    "sponsorRelevant": {
+      "type": "boolean"
+    },
+    "matchedSponsor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "matchedTerms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "relevanceScore": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "relevanceReason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relevanceVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
 }

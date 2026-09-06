@@ -5,6 +5,10 @@ public class ChatMessageEvent {
     private String streamer;
     private String user;
     private String message;
+    private String source;
+    private String channelLogin;
+    private String streamSessionId;
+    private String twitchStreamId;
     private long timestamp; // epoch millis (UTC)
 
     public ChatMessageEvent() {
@@ -56,5 +60,37 @@ public class ChatMessageEvent {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getChannelLogin() {
+        return channelLogin;
+    }
+
+    public void setChannelLogin(String channelLogin) {
+        this.channelLogin = channelLogin;
+    }
+
+    public String getStreamSessionId() {
+        return streamSessionId;
+    }
+
+    public void setStreamSessionId(String streamSessionId) {
+        this.streamSessionId = streamSessionId;
+    }
+
+    public String getTwitchStreamId() {
+        return twitchStreamId;
+    }
+
+    public void setTwitchStreamId(String twitchStreamId) {
+        this.twitchStreamId = twitchStreamId;
     }
 }
