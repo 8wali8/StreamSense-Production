@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { describeError } from "../lib/errors";
 
 export type PolledResource<T> = {
   /** Latest successful result for the current key, or null before the first load (and after a key change). */
@@ -35,7 +36,7 @@ export function usePolledResource<T>(load: () => Promise<T>, intervalMs: number,
         }
       } catch (err) {
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : "unknown error";
+          const message = describeError(err instanceof Error ? err : new Error("unknown error"));
           setSnapshot((previous) => ({ key, data: previous.key === key ? previous.data : null, error: message }));
         }
       }

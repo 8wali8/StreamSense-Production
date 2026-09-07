@@ -1,5 +1,5 @@
-import { getTwitchIngestionStatus, type TwitchIngestionStatus as TwitchStatus } from "../api/chat";
-import { usePolledResource } from "../hooks/usePolledResource";
+import { getTwitchIngestionStatus, type TwitchIngestionStatus as TwitchStatus } from "../../api/chat";
+import { usePolledResource } from "../../hooks/usePolledResource";
 
 function formatStatus(status: TwitchStatus | null, error: string | null): string {
   if (error) return "Twitch: status unavailable";

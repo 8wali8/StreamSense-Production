@@ -39,6 +39,7 @@ import {
 } from "../../graphql/subscriptions";
 import { useLiveEvents, useLiveFeed } from "../../hooks/useLiveFeed";
 import { usePolledResource } from "../../hooks/usePolledResource";
+import { describeError } from "../../lib/errors";
 import { mergeById } from "../../lib/format";
 import { buildTranscriptFeed, type TranscriptLine } from "./transcript-lines";
 
@@ -200,7 +201,11 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
   const latestEventAt =
     latestFrame?.capturedAt ?? transcriptSentiments.items[0]?.processedAt ?? chat.live[0]?.timestamp;
 
-  const transcriptError = transcripts.error?.message || transcriptSentiments.error?.message;
+  const transcriptError = transcripts.error
+    ? describeError(transcripts.error)
+    : transcriptSentiments.error
+      ? describeError(transcriptSentiments.error)
+      : undefined;
   return {
     sponsors: sponsors.items,
     transcriptFeed,

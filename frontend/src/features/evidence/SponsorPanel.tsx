@@ -1,14 +1,15 @@
+import { describeError } from "../../lib/errors";
 import { useState } from "react";
 import type {
   OnSponsorDetectionSubscription,
   SponsorDetectionsQuery,
   SponsorDetectionsQueryVariables,
-} from "../graphql/generated";
-import { RECENT_SPONSOR_DETECTIONS_QUERY } from "../graphql/queries";
-import { ON_SPONSOR_DETECTION_SUBSCRIPTION } from "../graphql/subscriptions";
-import { useLiveFeed } from "../hooks/useLiveFeed";
-import { formatTime } from "../lib/format";
-import { MetricCard } from "./MetricCard";
+} from "../../graphql/generated";
+import { RECENT_SPONSOR_DETECTIONS_QUERY } from "../../graphql/queries";
+import { ON_SPONSOR_DETECTION_SUBSCRIPTION } from "../../graphql/subscriptions";
+import { useLiveFeed } from "../../hooks/useLiveFeed";
+import { formatTime } from "../../lib/format";
+import { MetricCard } from "../../components/MetricCard";
 
 type SponsorDetectionEvent = SponsorDetectionsQuery["sponsorDetections"][number];
 
@@ -95,7 +96,7 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
       <div className="status-line">
         Status:{" "}
         {subscriptionError
-          ? `subscription error (${subscriptionError.message})`
+          ? `subscription error (${describeError(subscriptionError)})`
           : `live with auto-reconnect (streamer=${activeStreamer})`}
       </div>
 
@@ -129,7 +130,7 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
 
       {error && (
         <div className="error-state" role="alert">
-          Failed to load sponsor history: {error.message}
+          Failed to load sponsor history: {describeError(error)}
         </div>
       )}
 

@@ -1,6 +1,7 @@
+import { describeError } from "../../lib/errors";
 import { useState } from "react";
-import { segmentFrame, type SegmentationResponse } from "../api/ml";
-import { frameImageUrl } from "../api/video";
+import { segmentFrame, type SegmentationResponse } from "../../api/ml";
+import { frameImageUrl } from "../../api/video";
 
 type SegmentableFrame = {
   sourceFrameId: string;
@@ -48,7 +49,7 @@ export function SegmentationPreview({ frame }: SegmentationPreviewProps) {
     } catch (err) {
       setResult(null);
       setSegmentedFrameRef(null);
-      setError(err instanceof Error ? err.message : "failed to segment frame");
+      setError(describeError(err instanceof Error ? err : new Error("failed to segment frame")));
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import { SegmentationPreview } from "../../components/SegmentationPreview";
+import { SegmentationPreview } from "./SegmentationPreview";
 import { formatTime, percent } from "../../lib/format";
 import { twitchPlayerUrl } from "../streamer/streamer";
 import type { SponsorDetectionEvent } from "./useConsoleFeeds";
