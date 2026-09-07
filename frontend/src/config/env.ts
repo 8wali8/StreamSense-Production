@@ -4,16 +4,10 @@
  * /graphql, /api, /ml) and `npm run dev` (Vite proxies the same routes) both work.
  */
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "";
-const rawMlBaseUrl = import.meta.env.VITE_ML_BASE_URL ?? "";
 
 export const env = {
   /** Origin prefix for REST and GraphQL calls; empty for same-origin. Never ends with a slash. */
   apiBaseUrl: rawBaseUrl.replace(/\/+$/, ""),
-  /**
-   * Origin prefix for ml-engine calls (`/ml/...`); empty for same-origin. Separate from the API base
-   * because the gateway does not route `/ml`: only nginx (Docker) and Vite (dev) proxy it.
-   */
-  mlBaseUrl: rawMlBaseUrl.replace(/\/+$/, ""),
   /** localStorage key holding the bearer token the gateway expects on HTTP and WebSocket. */
   authTokenStorageKey: "streamsense.authToken",
 } as const;

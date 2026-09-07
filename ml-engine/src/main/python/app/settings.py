@@ -172,6 +172,8 @@ class FrameStorageSettings(_EnvSettings):
     region: str = "us-east-1"
     access_key: str | None = None
     secret_key: str | None = None
+    # Largest frame artifact the store will read (file or S3); a frameRef must never read unbounded data.
+    max_bytes: int = Field(default=32 * 1024 * 1024, gt=0, le=1024 * 1024 * 1024)
 
     @model_validator(mode="before")
     @classmethod

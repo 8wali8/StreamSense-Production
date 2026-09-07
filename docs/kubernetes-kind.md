@@ -65,6 +65,7 @@ docker build -t streamsense/video-service:sprint9 ./video-service
 docker build -t streamsense/recommendation-service:sprint9 ./recommendation-service
 docker build -t streamsense/api-gateway:sprint9 ./api-gateway
 docker build -t streamsense/ml-engine:sprint9 ./ml-engine
+docker build -t streamsense/frontend:sprint9 ./frontend
 ```
 
 ## 3. Create The `kind` Cluster
@@ -99,6 +100,7 @@ kind load docker-image \
   streamsense/recommendation-service:sprint9 \
   streamsense/api-gateway:sprint9 \
   streamsense/ml-engine:sprint9 \
+  streamsense/frontend:sprint9 \
   --name streamsense
 ```
 
@@ -176,6 +178,7 @@ Note:
 
 Ingress hosts are:
 
+- `streamsense.local` (the console)
 - `gateway.streamsense.local`
 - `grafana.streamsense.local`
 - `zipkin.streamsense.local`
@@ -185,7 +188,7 @@ If you do not want to edit `/etc/hosts`, use `curl` with an explicit `Host` head
 If you want browser access by hostname, add:
 
 ```text
-127.0.0.1 gateway.streamsense.local grafana.streamsense.local zipkin.streamsense.local
+127.0.0.1 streamsense.local gateway.streamsense.local grafana.streamsense.local zipkin.streamsense.local
 ```
 
 ## 9. Verification

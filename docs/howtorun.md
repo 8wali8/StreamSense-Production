@@ -919,7 +919,7 @@ curl -X POST http://localhost:8080/graphql \
 
 ### Verify rate limiting
 
-The default chat-ingest limiter allows 30 requests per minute per client key. The client key is the caller's socket address; `X-Forwarded-For` is only honoured when `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS` is greater than `0`. The Kubernetes manifests set it to `1` because the gateway sits behind ingress-nginx, while Compose leaves it at `0` because port 8080 is published directly and anything sent on that port could forge the header. Repeating the request from one host should eventually return `429`:
+The default chat-ingest limiter allows 30 requests per minute per client key. The client key is the caller's socket address; `X-Forwarded-For` is only honoured when `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS` is greater than `0`. The Kubernetes manifests set it to `2` because a request reaches the gateway through two proxies StreamSense operates, ingress-nginx and the console's nginx (a direct gateway ingress request carries one entry and the resolver clamps to it), so the gateway sits behind ingress-nginx, while Compose leaves it at `0` because port 8080 is published directly and anything sent on that port could forge the header. Repeating the request from one host should eventually return `429`:
 
 ```bash
 for i in $(seq 1 31); do
