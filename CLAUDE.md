@@ -31,6 +31,8 @@ make nuke            # docker compose down -v (removes volumes/data)
 
 Java Dockerfiles copy `target/*.jar` — after Java changes you must package jars before rebuilding images. `make up` does this for you; `make build` alone does not.
 
+Third-party images are pinned as `name:tag@sha256:<digest>` in `docker-compose.yml`, `k8s/**`, and every `Dockerfile`; never add a floating tag such as `:latest` or `:16`. To bump one, pick the new tag, take the digest from `docker buildx imagetools inspect name:tag`, and update every occurrence (Renovate will do this once enabled).
+
 Twitch verification targets (`make twitch-up`, `twitch-video-up`, `twitch-transcript-up`, `twitch-analytics-up`, and matching `*-status` targets) load credentials from `.env.twitch.local` (not committed).
 
 ### Java Services
@@ -45,12 +47,19 @@ mvn clean test -Dtest=MyTest       # Run a single test class
 
 ### Python services (ml-engine, video-capture-service)
 
+Each Python service has a `pyproject.toml` and a committed `uv.lock`; dependencies are installed with [uv](https://docs.astral.sh/uv/), never from a requirements file. Test and lint tooling live in the `dev` dependency group, which the Docker images do not install.
+
 ```bash
 # From ml-engine/ or video-capture-service/
-PYTHONPATH=src/main/python pytest src/test/python            # All tests
-PYTHONPATH=src/main/python pytest src/test/python/test_X.py  # Single file
-ruff check src/main/python src/test/python                   # Lint (CI runs this for ml-engine)
+uv sync --locked                                   # Create .venv from uv.lock (includes the dev group)
+uv run pytest                                      # All tests (pytest picks up src/main/python from pyproject)
+uv run pytest src/test/python/test_X.py            # Single file
+uv run ruff check src/main/python src/test/python  # Lint (CI runs this for both services)
+uv add <package>            # Add a runtime dependency (updates pyproject.toml and uv.lock)
+uv add --group dev <package> # Add a test/lint dependency
 ```
+
+Never edit `uv.lock` by hand, and commit it together with the `pyproject.toml` change that produced it. CI installs with `uv sync --locked`, which fails if the lock is stale.
 
 ### Frontend
 
@@ -64,7 +73,7 @@ npm run lint    # ESLint
 
 ### CI parity
 
-CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java matrix covers all eight Java services, and it also tests video-capture-service. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. If you touch `k8s/` or `config-server/config-repo/`, run `kubectl kustomize .` from the repo root — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end.
+CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java matrix covers all eight Java services, and it also tests video-capture-service. `make test` is not identical to CI: for frontend it runs only `lint` + `build` and skips Vitest, while CI runs Vitest too. If you touch `k8s/` or `config-server/config-repo/`, run `kubectl kustomize .` from the repo root — CI validates that plus the JSON embedded in `k8s/config/grafana-config.yaml`. CI also runs a Docker Compose smoke job that exercises chat ingest → sentiment → GraphQL end to end. CI runs on pull requests and on pushes to `main` only, and a `changes` job path-filters the rest: only the Java services whose directories changed are built, and a change under `.github/workflows/` or `config-server/config-repo/` runs everything. Actions are pinned by commit SHA with the version in a comment; bump the SHA and the comment together.
 
 ### Kubernetes (kind cluster)
 
@@ -88,7 +97,7 @@ See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`; the
 | ml-engine | 8000 | Python | FastAPI inference: sentiment, relevance, sponsor, segmentation, transcription |
 | frontend | 3000 | React/TS | Live console (Apollo Client, GraphQL subscriptions) |
 
-Infrastructure: Kafka/Zookeeper (host access `localhost:29092`, internal `kafka:9092`), PostgreSQL 16, Redis 7, MinIO (9000/9001, frame storage), Prometheus (9090), Grafana (3001), Zipkin (9411), Kafka UI (8088), kafka-exporter (9308).
+Infrastructure: Kafka in single-node KRaft mode, no ZooKeeper (host access `localhost:29092`, internal `kafka:9092`; the broker is also the controller and its data lives on a named volume / PVC), PostgreSQL 16, Redis 7, MinIO (9000/9001, frame storage), Prometheus (9090), Grafana (3001), Zipkin (9411), Kafka UI (8088), kafka-exporter (9308).
 
 ### Data Flow
 

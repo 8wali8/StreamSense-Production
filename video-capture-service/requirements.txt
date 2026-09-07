@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-pydantic
-kafka-python
-boto3
-prometheus-client
-streamlink
-pytest
-requests
