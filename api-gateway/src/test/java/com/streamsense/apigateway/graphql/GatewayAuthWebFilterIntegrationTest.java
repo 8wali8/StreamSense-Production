@@ -42,8 +42,12 @@ class GatewayAuthWebFilterIntegrationTest {
                 .exchange()
                 .expectStatus().isUnauthorized()
                 .expectHeader().valueEquals(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
+                .expectHeader().contentType("application/problem+json")
                 .expectBody()
-                .jsonPath("$.reason").isEqualTo("missing_bearer_token");
+                .jsonPath("$.reason").isEqualTo("missing_bearer_token")
+                .jsonPath("$.type").isEqualTo("https://streamsense.dev/problems/unauthorized")
+                .jsonPath("$.status").isEqualTo(401)
+                .jsonPath("$.service").isEqualTo("api-gateway");
     }
 
     @Test

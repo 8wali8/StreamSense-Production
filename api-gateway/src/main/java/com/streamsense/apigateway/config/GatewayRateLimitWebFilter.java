@@ -1,15 +1,15 @@
 package com.streamsense.apigateway.config;
 
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.cloud.gateway.support.ipresolver.RemoteAddressResolver;
 import org.springframework.cloud.gateway.support.ipresolver.XForwardedRemoteAddressResolver;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
@@ -30,16 +30,19 @@ public class GatewayRateLimitWebFilter implements WebFilter {
     private final GatewayEdgeProperties properties;
     private final InMemoryRateLimiter rateLimiter;
     private final MeterRegistry meterRegistry;
+    private final String serviceName;
     private final RemoteAddressResolver addressResolver;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public GatewayRateLimitWebFilter(
             GatewayEdgeProperties properties,
             InMemoryRateLimiter rateLimiter,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            @Value("${spring.application.name:api-gateway}") String serviceName) {
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.meterRegistry = meterRegistry;
+        this.serviceName = serviceName;
         // X-Forwarded-For is client-controlled unless a proxy we operate appended it, so it is only consulted when
         // trusted hops are configured, and then only the entry the nearest trusted proxy added (read from the right).
         this.addressResolver = properties.getTrustedProxyHops() > 0
@@ -78,14 +81,11 @@ public class GatewayRateLimitWebFilter implements WebFilter {
                 "path", matchingRule.getPath())
                 .increment();
 
-        exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(matchingRule.getWindowSeconds()));
-
-        String responseBody = "{\"error\":\"rate_limited\",\"limit\":\"" + matchingRule.getId() + "\"}";
-        return exchange.getResponse().writeWith(Mono.just(exchange.getResponse()
-                .bufferFactory()
-                .wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
+        // A problem+json body like every other StreamSense error; `error` and `limit` stay for existing clients.
+        return ProblemResponses.write(exchange, HttpStatus.TOO_MANY_REQUESTS, "rate-limited",
+                "Rate limit '" + matchingRule.getId() + "' exceeded; retry after " + matchingRule.getWindowSeconds() + " seconds",
+                serviceName, Map.of("error", "rate_limited", "limit", matchingRule.getId()));
     }
 
     private GatewayEdgeProperties.RateLimitRule findMatchingRule(ServerWebExchange exchange) {
