@@ -1,8 +1,6 @@
 import { useQuery } from "@apollo/client/react";
-import type {
-  StreamAnalyticsQuery,
-  StreamAnalyticsQueryVariables,
-} from "../graphql/generated";
+import { MetricCard } from "./MetricCard";
+import type { StreamAnalyticsQuery, StreamAnalyticsQueryVariables } from "../graphql/generated";
 import { STREAM_ANALYTICS_QUERY } from "../graphql/queries";
 
 type StreamMetricsSummary = StreamAnalyticsQuery["streamMetricsSummary"];
@@ -101,14 +99,6 @@ export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) 
   );
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
-  return (
-    <div className={`metric-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (

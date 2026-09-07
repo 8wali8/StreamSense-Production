@@ -30,6 +30,10 @@ Set `VITE_API_BASE_URL` only when the built app is served from a different origi
 | `src/graphql/` | `queries.ts`, `subscriptions.ts`, and the generated `generated.ts` |
 | `src/apollo/client.ts` | Apollo Client with the HTTP/WebSocket split link and the same auth token as REST |
 | `src/hooks/usePolledResource.ts` | Load now and every N ms, keyed by streamer |
-| `src/components/`, `src/pages/` | Panels and pages |
+| `src/hooks/useLiveFeed.ts` | History query plus live subscription events, de-duplicated and capped (`useLiveEvents` for subscription-only) |
+| `src/features/console/` | The live player with detections, and the transcript, sponsor sentiment, and chat feeds |
+| `src/features/streamer/` | Streamer and sponsor selection, runtime switching, the roster |
+| `src/components/` | Reusable panels, `MetricCard`, `ErrorBoundary` |
+| `src/lib/format.ts` | Pure display helpers shared by the console and panels |
 
-Rules: components never call `fetch` or read `import.meta.env` directly; GraphQL result types come from `generated.ts`; new REST endpoints get a function in `src/api/` and a test.
+Rules: components never call `fetch` or read `import.meta.env` directly; GraphQL result types come from `generated.ts`; new REST endpoints get a function in `src/api/` and a test; live panels use `useLiveFeed` instead of a hand-rolled subscription buffer; list-building logic is a pure tested function; `App.tsx` stays a shell.

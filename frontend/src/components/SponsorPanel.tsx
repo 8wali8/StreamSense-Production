@@ -1,19 +1,12 @@
 import { useState } from "react";
-import { useQuery, useSubscription } from "@apollo/client/react";
+import type { OnSponsorDetectionSubscription, SponsorDetectionsQuery, SponsorDetectionsQueryVariables } from "../graphql/generated";
 import { RECENT_SPONSOR_DETECTIONS_QUERY } from "../graphql/queries";
 import { ON_SPONSOR_DETECTION_SUBSCRIPTION } from "../graphql/subscriptions";
-import type {
-  OnSponsorDetectionSubscription,
-  OnSponsorDetectionSubscriptionVariables,
-  SponsorDetectionsQuery,
-  SponsorDetectionsQueryVariables,
-} from "../graphql/generated";
+import { useLiveFeed } from "../hooks/useLiveFeed";
+import { formatTime } from "../lib/format";
+import { MetricCard } from "./MetricCard";
 
 type SponsorDetectionEvent = SponsorDetectionsQuery["sponsorDetections"][number];
-
-function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString();
-}
 
 function sponsorTone(sponsor: string): string {
   if (sponsor === "UNKNOWN") return "#7a5c00";
@@ -32,45 +25,27 @@ type SponsorPanelProps = {
 export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelProps) {
   const [streamerInput, setStreamerInput] = useState("test");
   const [localStreamer, setLocalStreamer] = useState("test");
-  const [liveEvents, setLiveEvents] = useState<SponsorDetectionEvent[]>([]);
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<SponsorDetectionsQuery, SponsorDetectionsQueryVariables>(RECENT_SPONSOR_DETECTIONS_QUERY, {
+  const feed = useLiveFeed<SponsorDetectionsQuery, OnSponsorDetectionSubscription, SponsorDetectionsQueryVariables, SponsorDetectionEvent>({
+    query: RECENT_SPONSOR_DETECTIONS_QUERY,
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
-    fetchPolicy: "network-only",
+    selectHistory: (data) => data.sponsorDetections,
+    subscription: ON_SPONSOR_DETECTION_SUBSCRIPTION,
+    subscriptionVariables: { streamer: activeStreamer },
+    selectEvent: (data) => data.onSponsorDetection,
+    getId: (event) => event.detectionEventId,
+    limit: 50,
+    resetKey: activeStreamer,
   });
-
-  const historyEvents = data?.sponsorDetections ?? [];
-  const historyIds = new Set(historyEvents.map((event) => event.detectionEventId));
-  const events = [...liveEvents.filter((event) => !historyIds.has(event.detectionEventId)), ...historyEvents].slice(0, 50);
-
-  const { error: subscriptionError } = useSubscription<OnSponsorDetectionSubscription, OnSponsorDetectionSubscriptionVariables>(ON_SPONSOR_DETECTION_SUBSCRIPTION, {
-    variables: { streamer: activeStreamer },
-    skip: !activeStreamer,
-    onData: ({ data: subscriptionData }) => {
-      const event = subscriptionData.data?.onSponsorDetection;
-      if (!event) {
-        return;
-      }
-
-      setLiveEvents((prev) => {
-        if (historyIds.has(event.detectionEventId) || prev.some((existing) => existing.detectionEventId === event.detectionEventId)) {
-          return prev;
-        }
-
-        return [event, ...prev].slice(0, 50);
-      });
-    },
-  });
+  const { items: events, loading, error, subscriptionError } = feed;
 
   function onLoad() {
     const nextStreamer = streamerInput.trim();
     if (!nextStreamer) {
       return;
     }
-
-    setLiveEvents([]);
     setLocalStreamer(nextStreamer);
   }
 
@@ -171,14 +146,5 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
         ))}
       </div>
     </section>
-  );
-}
-
-function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
-  return (
-    <div className={`metric-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }
