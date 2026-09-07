@@ -1,17 +1,14 @@
 package com.streamsense.apigateway.graphql;
 
-import java.util.List;
-
-import org.springframework.graphql.data.method.annotation.Argument;
-import org.springframework.graphql.data.method.annotation.QueryMapping;
-import org.springframework.stereotype.Controller;
-
 import com.streamsense.apigateway.analytics.BrandSafetyMetrics;
 import com.streamsense.apigateway.analytics.SponsorExposureMetric;
 import com.streamsense.apigateway.analytics.StreamMetricBucket;
 import com.streamsense.apigateway.analytics.StreamMetricsSummary;
 import com.streamsense.apigateway.client.AnalyticsServiceClient;
-
+import java.util.List;
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Mono;
 
 @Controller

@@ -22,7 +22,8 @@ public class DownstreamWebClientConfig {
 
     static HttpClient httpClient(DownstreamServicesProperties properties) {
         return HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) properties.getConnectTimeout().toMillis())
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int)
+                        properties.getConnectTimeout().toMillis())
                 .responseTimeout(properties.getResponseTimeout());
     }
 }

@@ -12,5 +12,4 @@ public record Recommendation(
         List<String> reasons,
         String experimentName,
         String variantId,
-        long generatedAt) {
-}
+        long generatedAt) {}

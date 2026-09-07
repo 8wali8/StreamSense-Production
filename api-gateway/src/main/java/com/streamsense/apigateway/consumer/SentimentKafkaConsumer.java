@@ -1,12 +1,11 @@
 package com.streamsense.apigateway.consumer;
 
+import com.streamsense.apigateway.events.SentimentAnalysisEvent;
+import com.streamsense.apigateway.subscriptions.SentimentSubscriptionBus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.apigateway.events.SentimentAnalysisEvent;
-import com.streamsense.apigateway.subscriptions.SentimentSubscriptionBus;
 
 @Component
 public class SentimentKafkaConsumer {
@@ -19,10 +18,15 @@ public class SentimentKafkaConsumer {
         this.bus = bus;
     }
 
-    @KafkaListener(topics = "${streamsense.topics.sentimentEvents}", containerFactory = "sentimentKafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = "${streamsense.topics.sentimentEvents}",
+            containerFactory = "sentimentKafkaListenerContainerFactory")
     public void onMessage(SentimentAnalysisEvent event) {
-        log.info("gateway consumed sentimentEventId={} streamer={} label={}",
-                event.getSentimentEventId(), event.getStreamer(), event.getLabel());
+        log.info(
+                "gateway consumed sentimentEventId={} streamer={} label={}",
+                event.getSentimentEventId(),
+                event.getStreamer(),
+                event.getLabel());
         bus.publish(event);
     }
 }

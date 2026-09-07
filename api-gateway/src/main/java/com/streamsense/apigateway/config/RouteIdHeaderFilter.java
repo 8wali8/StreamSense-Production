@@ -7,7 +7,6 @@ import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
-
 import reactor.core.publisher.Mono;
 
 @Component
@@ -21,7 +20,10 @@ public class RouteIdHeaderFilter implements GlobalFilter, Ordered {
         }
 
         ServerWebExchange mutatedExchange = exchange.mutate()
-                .request(exchange.getRequest().mutate().header("X-StreamSense-Route-Id", route.getId()).build())
+                .request(exchange.getRequest()
+                        .mutate()
+                        .header("X-StreamSense-Route-Id", route.getId())
+                        .build())
                 .build();
 
         mutatedExchange.getResponse().getHeaders().set("X-StreamSense-Route-Id", route.getId());

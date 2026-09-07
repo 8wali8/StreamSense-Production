@@ -1,7 +1,6 @@
 package com.streamsense.videoservice.config;
 
 import java.time.Duration;
-
 import org.slf4j.MDC;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
@@ -20,8 +19,7 @@ public class RestClientConfig {
 
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
-        return builder
-                .connectTimeout(Duration.ofMillis(properties.getMl().getConnectTimeoutMs()))
+        return builder.connectTimeout(Duration.ofMillis(properties.getMl().getConnectTimeoutMs()))
                 .readTimeout(Duration.ofMillis(properties.getMl().getReadTimeoutMs()))
                 .additionalInterceptors((request, body, execution) -> {
                     String correlationId = MDC.get(CorrelationIdFilter.CORRELATION_ID_KEY);

@@ -151,7 +151,7 @@ jobs:
 
       - name: Build and test
         working-directory: ${{ matrix.service }}
-        run: mvn -B -ntp clean test
+        run: mvn -B -ntp clean verify
 
   test-ml-engine:
     runs-on: ubuntu-latest
@@ -563,7 +563,11 @@ jobs:
       - java-build-test
       - test-ml-engine
       - test-video-capture-service
+      - schema-compat
       - frontend-checks
+      - dockerfile-lint
+      - security-scan
+      - sbom
       - validate-k8s-manifests
       - docker-smoke
     if: always()

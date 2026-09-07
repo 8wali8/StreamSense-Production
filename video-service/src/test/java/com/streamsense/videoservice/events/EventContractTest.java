@@ -24,7 +24,8 @@ class EventContractTest {
         frame.setArtifactSizeBytes(123L);
         frame.setCaptureWorkerId("worker-1");
 
-        assertThat(EventSchemas.violations("frame-data.schema.json", EventSchemas.toJson(frame))).isEmpty();
+        assertThat(EventSchemas.violations("frame-data.schema.json", EventSchemas.toJson(frame)))
+                .isEmpty();
     }
 
     @Test
@@ -36,14 +37,16 @@ class EventContractTest {
         frame.setFrameSequence(1L);
         frame.setCapturedAt(1710000000000L);
 
-        assertThat(EventSchemas.violations("frame-data.schema.json", EventSchemas.toJson(frame))).isEmpty();
+        assertThat(EventSchemas.violations("frame-data.schema.json", EventSchemas.toJson(frame)))
+                .isEmpty();
     }
 
     @Test
     void sponsorDetectionMatchesSchema() {
         SponsorDetectionEvent event = detection();
 
-        assertThat(EventSchemas.violations("sponsor-detection-event.schema.json", EventSchemas.toJson(event))).isEmpty();
+        assertThat(EventSchemas.violations("sponsor-detection-event.schema.json", EventSchemas.toJson(event)))
+                .isEmpty();
     }
 
     @Test
@@ -51,7 +54,8 @@ class EventContractTest {
         SponsorDetectionEvent event = detection();
         event.setConfidence(1.5d);
 
-        assertThat(EventSchemas.violations("sponsor-detection-event.schema.json", EventSchemas.toJson(event))).isNotEmpty();
+        assertThat(EventSchemas.violations("sponsor-detection-event.schema.json", EventSchemas.toJson(event)))
+                .isNotEmpty();
     }
 
     private static SponsorDetectionEvent detection() {

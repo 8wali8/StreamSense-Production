@@ -1,17 +1,15 @@
 package com.streamsense.videoservice.kafka;
 
+import com.streamsense.videoservice.config.CorrelationIdFilter;
+import com.streamsense.videoservice.events.FrameData;
+import com.streamsense.videoservice.metrics.VideoMetrics;
+import com.streamsense.videoservice.service.VideoProcessingService;
 import java.nio.charset.StandardCharsets;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.videoservice.config.CorrelationIdFilter;
-import com.streamsense.videoservice.events.FrameData;
-import com.streamsense.videoservice.metrics.VideoMetrics;
-import com.streamsense.videoservice.service.VideoProcessingService;
 
 @Component
 public class VideoFrameConsumer {

@@ -1,15 +1,13 @@
 package com.streamsense.sentimentservice.kafka;
 
+import com.streamsense.sentimentservice.events.TranscriptSegmentEvent;
+import com.streamsense.sentimentservice.service.SentimentService;
 import java.nio.charset.StandardCharsets;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.sentimentservice.events.TranscriptSegmentEvent;
-import com.streamsense.sentimentservice.service.SentimentService;
 
 @Component
 public class TranscriptSegmentConsumer {

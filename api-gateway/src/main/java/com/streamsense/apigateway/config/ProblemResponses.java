@@ -1,17 +1,14 @@
 package com.streamsense.apigateway.config;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.server.ServerWebExchange;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import reactor.core.publisher.Mono;
 
 /**
@@ -27,11 +24,15 @@ final class ProblemResponses {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private ProblemResponses() {
-    }
+    private ProblemResponses() {}
 
-    static Mono<Void> write(ServerWebExchange exchange, HttpStatus status, String type, String detail,
-            String serviceName, Map<String, ?> extra) {
+    static Mono<Void> write(
+            ServerWebExchange exchange,
+            HttpStatus status,
+            String type,
+            String detail,
+            String serviceName,
+            Map<String, ?> extra) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("type", PROBLEM_TYPE_BASE + type);
         body.put("title", status.getReasonPhrase());
@@ -40,7 +41,8 @@ final class ProblemResponses {
         body.put("instance", exchange.getRequest().getPath().value());
         body.put("service", serviceName);
         body.put("timestamp", Instant.now().toString());
-        String correlationId = exchange.getResponse().getHeaders().getFirst(CorrelationIdWebFilter.CORRELATION_ID_HEADER);
+        String correlationId =
+                exchange.getResponse().getHeaders().getFirst(CorrelationIdWebFilter.CORRELATION_ID_HEADER);
         if (correlationId == null || correlationId.isBlank()) {
             correlationId = exchange.getRequest().getHeaders().getFirst(CorrelationIdWebFilter.CORRELATION_ID_HEADER);
         }
@@ -58,6 +60,7 @@ final class ProblemResponses {
         }
         exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
-        return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
+        return exchange.getResponse()
+                .writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
     }
 }

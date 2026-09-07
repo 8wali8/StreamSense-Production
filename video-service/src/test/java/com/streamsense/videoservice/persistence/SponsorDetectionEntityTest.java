@@ -2,9 +2,8 @@ package com.streamsense.videoservice.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.Test;
-
 import com.streamsense.videoservice.events.SponsorDetectionEvent;
+import org.junit.jupiter.api.Test;
 
 class SponsorDetectionEntityTest {
 
@@ -16,7 +15,8 @@ class SponsorDetectionEntityTest {
         published.setModelVersion("fallback");
         published.setFallback(true);
 
-        SponsorDetectionEvent reloaded = SponsorDetectionEntity.fromEvent(published).toEvent();
+        SponsorDetectionEvent reloaded =
+                SponsorDetectionEntity.fromEvent(published).toEvent();
 
         assertThat(reloaded.getFallback()).isTrue();
         assertThat(reloaded.getModelVersion()).isEqualTo("fallback");
@@ -30,6 +30,7 @@ class SponsorDetectionEntityTest {
         published.setModelVersion("stub-v1");
         published.setFallback(false);
 
-        assertThat(SponsorDetectionEntity.fromEvent(published).toEvent().getFallback()).isFalse();
+        assertThat(SponsorDetectionEntity.fromEvent(published).toEvent().getFallback())
+                .isFalse();
     }
 }

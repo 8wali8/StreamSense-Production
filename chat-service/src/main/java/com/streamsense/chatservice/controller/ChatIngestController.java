@@ -1,15 +1,13 @@
 package com.streamsense.chatservice.controller;
 
-import jakarta.validation.Valid;
-
-import org.slf4j.MDC;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import com.streamsense.chatservice.api.ChatIngestRequest;
 import com.streamsense.chatservice.api.ChatIngestResponse;
 import com.streamsense.chatservice.config.CorrelationIdFilter;
 import com.streamsense.chatservice.service.ChatEventIngestService;
+import jakarta.validation.Valid;
+import org.slf4j.MDC;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/chat")

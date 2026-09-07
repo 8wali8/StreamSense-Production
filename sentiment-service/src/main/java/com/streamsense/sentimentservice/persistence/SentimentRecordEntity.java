@@ -1,16 +1,12 @@
 package com.streamsense.sentimentservice.persistence;
 
-import java.util.Arrays;
-import java.util.List;
-
-import org.hibernate.annotations.Immutable;
-
 import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Arrays;
+import java.util.List;
 
 @Entity
 @Table(name = "sentiment_events")

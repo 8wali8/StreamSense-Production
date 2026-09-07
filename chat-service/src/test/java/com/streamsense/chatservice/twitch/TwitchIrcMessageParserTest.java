@@ -3,7 +3,6 @@ package com.streamsense.chatservice.twitch;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Optional;
-
 import org.junit.jupiter.api.Test;
 
 class TwitchIrcMessageParserTest {
@@ -12,8 +11,9 @@ class TwitchIrcMessageParserTest {
 
     @Test
     void parseChatMessage_extractsTwitchTagsAndPayload() {
-        String line = "@badge-info=;badges=;color=;display-name=TestUser;id=abc-123;login=testuser;tmi-sent-ts=1710000000000 "
-                + ":testuser!testuser@testuser.tmi.twitch.tv PRIVMSG #SomeChannel :hello from twitch";
+        String line =
+                "@badge-info=;badges=;color=;display-name=TestUser;id=abc-123;login=testuser;tmi-sent-ts=1710000000000 "
+                        + ":testuser!testuser@testuser.tmi.twitch.tv PRIVMSG #SomeChannel :hello from twitch";
 
         Optional<TwitchIrcChatMessage> parsed = parser.parseChatMessage(line, 1710000009999L);
 
@@ -41,7 +41,8 @@ class TwitchIrcMessageParserTest {
 
     @Test
     void parseChatMessage_ignoresNonChatCommands() {
-        assertThat(parser.parseChatMessage(":tmi.twitch.tv 001 user :Welcome", 1L)).isEmpty();
+        assertThat(parser.parseChatMessage(":tmi.twitch.tv 001 user :Welcome", 1L))
+                .isEmpty();
         assertThat(parser.parseChatMessage("PING :tmi.twitch.tv", 1L)).isEmpty();
     }
 

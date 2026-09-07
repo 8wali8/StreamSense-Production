@@ -2,11 +2,10 @@ package com.streamsense.sentimentservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.Test;
-
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
 import com.streamsense.sentimentservice.events.ChatMessageEvent;
 import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
+import org.junit.jupiter.api.Test;
 
 /** The session fields on a chat event survive into the sentiment event that analytics buckets by. */
 class SentimentServiceSessionFieldsTest {

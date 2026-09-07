@@ -1,9 +1,11 @@
 package com.streamsense.videoservice.config;
 
+import com.streamsense.videoservice.events.FrameData;
+import com.streamsense.videoservice.events.SponsorDetectionEvent;
+import com.streamsense.videoservice.metrics.VideoMetrics;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
@@ -23,10 +25,6 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
-
-import com.streamsense.videoservice.events.FrameData;
-import com.streamsense.videoservice.events.SponsorDetectionEvent;
-import com.streamsense.videoservice.metrics.VideoMetrics;
 
 @Configuration
 public class KafkaProcessingConfig {
@@ -63,7 +61,8 @@ public class KafkaProcessingConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, Object> deadLetterKafkaTemplate(ProducerFactory<String, Object> deadLetterProducerFactory) {
+    public KafkaTemplate<String, Object> deadLetterKafkaTemplate(
+            ProducerFactory<String, Object> deadLetterProducerFactory) {
         return new KafkaTemplate<>(deadLetterProducerFactory);
     }
 
@@ -93,7 +92,9 @@ public class KafkaProcessingConfig {
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 recoverer,
-                new FixedBackOff(properties.getProcessing().getRetryBackoffMs(), properties.getProcessing().getMaxRetries()));
+                new FixedBackOff(
+                        properties.getProcessing().getRetryBackoffMs(),
+                        properties.getProcessing().getMaxRetries()));
 
         errorHandler.addNotRetryableExceptions(IllegalArgumentException.class, IllegalStateException.class);
         errorHandler.setCommitRecovered(true);

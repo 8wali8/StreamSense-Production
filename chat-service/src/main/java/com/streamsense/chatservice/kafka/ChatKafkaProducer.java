@@ -1,8 +1,10 @@
 package com.streamsense.chatservice.kafka;
 
+import com.streamsense.chatservice.events.ChatMessageEvent;
+import com.streamsense.chatservice.metrics.ChatMetrics;
+import io.micrometer.core.instrument.Timer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,11 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.chatservice.events.ChatMessageEvent;
-import com.streamsense.chatservice.metrics.ChatMetrics;
-
-import io.micrometer.core.instrument.Timer;
 
 @Component
 public class ChatKafkaProducer {
@@ -58,8 +55,12 @@ public class ChatKafkaProducer {
         send.whenComplete((result, failure) -> {
             chatMetrics.recordKafkaProduce(sample, failure);
             if (failure != null) {
-                log.warn("chat message publish failed topic={} streamer={} eventId={}",
-                        chatTopic, event.getStreamer(), event.getEventId(), failure);
+                log.warn(
+                        "chat message publish failed topic={} streamer={} eventId={}",
+                        chatTopic,
+                        event.getStreamer(),
+                        event.getEventId(),
+                        failure);
             }
         });
     }

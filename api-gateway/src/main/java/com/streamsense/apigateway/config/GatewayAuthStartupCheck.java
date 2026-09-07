@@ -1,10 +1,8 @@
 package com.streamsense.apigateway.config;
 
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.stereotype.Component;
-
 import jakarta.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
+import org.springframework.stereotype.Component;
 
 // Fails closed: an enabled auth gate with no verifiable key would accept forged tokens, which is worse than not
 // starting. Runs before the web server binds so a misconfigured gateway never serves a single request.

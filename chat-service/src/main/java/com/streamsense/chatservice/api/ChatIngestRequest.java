@@ -17,8 +17,7 @@ public class ChatIngestRequest {
     @PositiveOrZero
     private long timestamp;
 
-    public ChatIngestRequest() {
-    }
+    public ChatIngestRequest() {}
 
     public String getStreamer() {
         return streamer;

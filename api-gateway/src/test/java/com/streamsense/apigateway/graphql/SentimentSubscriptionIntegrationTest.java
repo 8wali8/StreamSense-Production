@@ -1,8 +1,8 @@
 package com.streamsense.apigateway.graphql;
 
+import com.streamsense.apigateway.events.SentimentAnalysisEvent;
 import java.time.Duration;
 import java.util.Map;
-
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,27 +21,27 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
-
-import com.streamsense.apigateway.events.SentimentAnalysisEvent;
-
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@EmbeddedKafka(partitions = 1, topics = { "stream.sentiment.events" })
-@TestPropertySource(properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-        "spring.kafka.consumer.group-id=api-gateway-test-group",
-        "spring.kafka.consumer.auto-offset-reset=earliest",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
-        "streamsense.services.sentiment-service.base-url=http://localhost:8083",
-        "streamsense.services.video-service.base-url=http://localhost:8084",
-        "spring.graphql.websocket.path=/graphql"
-})
+@EmbeddedKafka(
+        partitions = 1,
+        topics = {"stream.sentiment.events"})
+@TestPropertySource(
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+            "spring.kafka.consumer.group-id=api-gateway-test-group",
+            "spring.kafka.consumer.auto-offset-reset=earliest",
+            "streamsense.topics.chatMessages=stream.chat.messages",
+            "streamsense.topics.sentimentEvents=stream.sentiment.events",
+            "streamsense.topics.sponsorDetections=stream.sponsor.detections",
+            "streamsense.services.sentiment-service.base-url=http://localhost:8083",
+            "streamsense.services.video-service.base-url=http://localhost:8084",
+            "spring.graphql.websocket.path=/graphql"
+        })
 class SentimentSubscriptionIntegrationTest {
 
     @LocalServerPort
@@ -63,10 +63,11 @@ class SentimentSubscriptionIntegrationTest {
     @Test
     void subscription_receivesSentimentEventPublishedToKafka() {
         WebSocketGraphQlTester tester = WebSocketGraphQlTester.builder(
-                "ws://localhost:" + port + "/graphql",
-                new ReactorNettyWebSocketClient()).build();
+                        "ws://localhost:" + port + "/graphql", new ReactorNettyWebSocketClient())
+                .build();
 
-        Flux<SentimentAnalysisEvent> subscription = tester.document("""
+        Flux<SentimentAnalysisEvent> subscription = tester.document(
+                        """
                         subscription($streamer: String!) {
                           onSentiment(streamer: $streamer) {
                             sentimentEventId
@@ -96,16 +97,22 @@ class SentimentSubscriptionIntegrationTest {
         StepVerifier.create(subscription)
                 .then(() -> {
                     try {
-                        testKafkaTemplate().send("stream.sentiment.events", "test", event).get();
+                        testKafkaTemplate()
+                                .send("stream.sentiment.events", "test", event)
+                                .get();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 })
                 .assertNext(received -> {
-                    org.assertj.core.api.Assertions.assertThat(received.getSentimentEventId()).isEqualTo("sent-123");
-                    org.assertj.core.api.Assertions.assertThat(received.getSourceEventId()).isEqualTo("evt-123");
-                    org.assertj.core.api.Assertions.assertThat(received.getStreamer()).isEqualTo("test");
-                    org.assertj.core.api.Assertions.assertThat(received.getLabel()).isEqualTo("POSITIVE");
+                    org.assertj.core.api.Assertions.assertThat(received.getSentimentEventId())
+                            .isEqualTo("sent-123");
+                    org.assertj.core.api.Assertions.assertThat(received.getSourceEventId())
+                            .isEqualTo("evt-123");
+                    org.assertj.core.api.Assertions.assertThat(received.getStreamer())
+                            .isEqualTo("test");
+                    org.assertj.core.api.Assertions.assertThat(received.getLabel())
+                            .isEqualTo("POSITIVE");
                 })
                 .thenCancel()
                 .verify(Duration.ofSeconds(10));

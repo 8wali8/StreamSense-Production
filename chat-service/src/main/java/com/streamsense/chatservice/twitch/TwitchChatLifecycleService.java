@@ -1,5 +1,6 @@
 package com.streamsense.chatservice.twitch;
 
+import com.streamsense.chatservice.config.StreamSenseProperties;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -11,16 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
-
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.chatservice.config.StreamSenseProperties;
 
 @Component
 public class TwitchChatLifecycleService implements SmartLifecycle {
@@ -156,8 +153,10 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
 
     private void connectAndRead() throws IOException {
         try (Socket socket = openSocket();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
+                BufferedReader reader =
+                        new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                BufferedWriter writer =
+                        new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
             activeSocket = socket;
             authenticateAndJoin(writer);
@@ -178,16 +177,19 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     private Socket openSocket() throws IOException {
         if (properties.isSsl()) {
             Socket rawSocket = new Socket();
-            rawSocket.connect(new InetSocketAddress(properties.getHost(), properties.getPort()), properties.getConnectionTimeoutMs());
+            rawSocket.connect(
+                    new InetSocketAddress(properties.getHost(), properties.getPort()),
+                    properties.getConnectionTimeoutMs());
             SSLSocketFactory sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-            SSLSocket sslSocket = (SSLSocket) sslSocketFactory
-                    .createSocket(rawSocket, properties.getHost(), properties.getPort(), true);
+            SSLSocket sslSocket = (SSLSocket)
+                    sslSocketFactory.createSocket(rawSocket, properties.getHost(), properties.getPort(), true);
             sslSocket.startHandshake();
             return sslSocket;
         }
 
         Socket socket = new Socket();
-        socket.connect(new InetSocketAddress(properties.getHost(), properties.getPort()), properties.getConnectionTimeoutMs());
+        socket.connect(
+                new InetSocketAddress(properties.getHost(), properties.getPort()), properties.getConnectionTimeoutMs());
         return socket;
     }
 

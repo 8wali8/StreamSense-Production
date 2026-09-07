@@ -1,11 +1,9 @@
 package com.streamsense.apigateway.config;
 
-import java.time.Duration;
-
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -16,7 +14,7 @@ import org.springframework.validation.annotation.Validated;
  * silently falling back to {@code localhost}, which only ever worked on a developer machine.
  * The timeouts apply to the {@link org.springframework.web.reactive.function.client.WebClient}
  * calls made from the GraphQL resolvers; the proxied routes use
- * {@code spring.cloud.gateway.httpclient.*} instead.
+ * {@code spring.cloud.gateway.server.webflux.httpclient.*} instead.
  */
 @Validated
 @ConfigurationProperties(prefix = "streamsense.services")
@@ -24,14 +22,19 @@ public class DownstreamServicesProperties {
 
     @Valid
     private final Service chatService = new Service();
+
     @Valid
     private final Service recommendationService = new Service();
+
     @Valid
     private final Service sentimentService = new Service();
+
     @Valid
     private final Service videoService = new Service();
+
     @Valid
     private final Service videoCaptureService = new Service();
+
     @Valid
     private final Service analyticsService = new Service();
     /** ml-engine, reached through the proxied {@code /ml/segment} route rather than a resolver. */

@@ -16,5 +16,4 @@ public record StreamBucketMetric(
         long transcriptNegativeCount,
         double transcriptScoreSum,
         long negativeSpikeCount,
-        long engagementSpikeCount) {
-}
+        long engagementSpikeCount) {}

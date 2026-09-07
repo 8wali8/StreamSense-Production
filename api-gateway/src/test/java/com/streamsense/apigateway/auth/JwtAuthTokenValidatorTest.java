@@ -2,19 +2,17 @@ package com.streamsense.apigateway.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.streamsense.apigateway.config.GatewayEdgeProperties;
+import com.streamsense.apigateway.support.TestJwtTokens;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.List;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.streamsense.apigateway.config.GatewayEdgeProperties;
-import com.streamsense.apigateway.support.TestJwtTokens;
 
 class JwtAuthTokenValidatorTest {
 
@@ -24,8 +22,7 @@ class JwtAuthTokenValidatorTest {
     @BeforeEach
     void setUp() {
         validator = new JwtAuthTokenValidator(
-                new ObjectMapper(),
-                Clock.fixed(Instant.parse("2026-04-11T12:00:00Z"), ZoneOffset.UTC));
+                new ObjectMapper(), Clock.fixed(Instant.parse("2026-04-11T12:00:00Z"), ZoneOffset.UTC));
         authProperties = new GatewayEdgeProperties.Auth();
         authProperties.setRequiredIssuer("streamsense-local");
         authProperties.setRequiredAudience("streamsense-clients");
@@ -35,9 +32,15 @@ class JwtAuthTokenValidatorTest {
     @Test
     void rejectsTokensSignedWithAnotherKey() {
         JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.tokenSignedWith("a-different-secret-that-is-also-32-bytes-long", "demo-user",
-                        "streamsense-local", List.of("streamsense-clients"),
-                        Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(), null, "HS256"),
+                "Bearer "
+                        + TestJwtTokens.tokenSignedWith(
+                                "a-different-secret-that-is-also-32-bytes-long",
+                                "demo-user",
+                                "streamsense-local",
+                                List.of("streamsense-clients"),
+                                Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(),
+                                null,
+                                "HS256"),
                 authProperties);
 
         assertThat(result.valid()).isFalse();
@@ -47,11 +50,12 @@ class JwtAuthTokenValidatorTest {
     @Test
     void rejectsPayloadsEditedAfterSigning() {
         String[] parts = TestJwtTokens.validToken("demo-user").split("\\.");
-        String elevated = Base64.getUrlEncoder().withoutPadding()
+        String elevated = Base64.getUrlEncoder()
+                .withoutPadding()
                 .encodeToString("{\"sub\":\"admin\"}".getBytes(StandardCharsets.UTF_8));
 
-        JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + parts[0] + "." + elevated + "." + parts[2], authProperties);
+        JwtAuthTokenValidator.ValidationResult result =
+                validator.validate("Bearer " + parts[0] + "." + elevated + "." + parts[2], authProperties);
 
         assertThat(result.valid()).isFalse();
         assertThat(result.reason()).isEqualTo("invalid_jwt_signature");
@@ -61,8 +65,8 @@ class JwtAuthTokenValidatorTest {
     void rejectsEveryTokenWhenNoKeyIsConfigured() {
         authProperties.setHmacSecret(null);
 
-        JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.validToken("demo-user"), authProperties);
+        JwtAuthTokenValidator.ValidationResult result =
+                validator.validate("Bearer " + TestJwtTokens.validToken("demo-user"), authProperties);
 
         assertThat(result.valid()).isFalse();
         assertThat(result.reason()).isEqualTo("auth_key_not_configured");
@@ -71,8 +75,14 @@ class JwtAuthTokenValidatorTest {
     @Test
     void rejectsAlgorithmsTheConfiguredKeyCannotVerify() {
         JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.token("demo-user", "streamsense-local", List.of("streamsense-clients"),
-                        Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(), null, "RS256"),
+                "Bearer "
+                        + TestJwtTokens.token(
+                                "demo-user",
+                                "streamsense-local",
+                                List.of("streamsense-clients"),
+                                Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(),
+                                null,
+                                "RS256"),
                 authProperties);
 
         assertThat(result.valid()).isFalse();
@@ -81,7 +91,8 @@ class JwtAuthTokenValidatorTest {
 
     @Test
     void acceptsTokensMintedByTheDevTool() {
-        // Produced by tools/mint-jwt.py with TEST_SECRET at 2026-04-11T12:00:00Z, ttl 600s; the fixed clock keeps it live.
+        // Produced by tools/mint-jwt.py with TEST_SECRET at 2026-04-11T12:00:00Z, ttl 600s; the fixed clock keeps it
+        // live.
         String minted = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
                 + "eyJzdWIiOiJtaW50ZWQtdXNlciIsImlzcyI6InN0cmVhbXNlbnNlLWxvY2FsIiwiYXVkIjoic3RyZWFtc2Vuc2UtY2xpZW50cyIsImlhdCI6MTc3NTkwODgwMCwiZXhwIjoxNzc1OTA5NDAwfQ."
                 + "6SNqiGAV9QdX5sKQjUPhQ6ou0kRKROiC2mjx2NpW4pY";
@@ -95,7 +106,14 @@ class JwtAuthTokenValidatorTest {
     @Test
     void validatesWellFormedToken() {
         JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.token("demo-user", "streamsense-local", List.of("streamsense-clients"), Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(), null, "HS256"),
+                "Bearer "
+                        + TestJwtTokens.token(
+                                "demo-user",
+                                "streamsense-local",
+                                List.of("streamsense-clients"),
+                                Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(),
+                                null,
+                                "HS256"),
                 authProperties);
 
         assertThat(result.valid()).isTrue();
@@ -114,7 +132,14 @@ class JwtAuthTokenValidatorTest {
     @Test
     void rejectsNoneAlgorithm() {
         JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.token("demo-user", "streamsense-local", List.of("streamsense-clients"), Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(), null, "none"),
+                "Bearer "
+                        + TestJwtTokens.token(
+                                "demo-user",
+                                "streamsense-local",
+                                List.of("streamsense-clients"),
+                                Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(),
+                                null,
+                                "none"),
                 authProperties);
 
         assertThat(result.valid()).isFalse();
@@ -124,7 +149,14 @@ class JwtAuthTokenValidatorTest {
     @Test
     void rejectsWrongAudience() {
         JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.token("demo-user", "streamsense-local", List.of("other-clients"), Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(), null, "HS256"),
+                "Bearer "
+                        + TestJwtTokens.token(
+                                "demo-user",
+                                "streamsense-local",
+                                List.of("other-clients"),
+                                Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(),
+                                null,
+                                "HS256"),
                 authProperties);
 
         assertThat(result.valid()).isFalse();
@@ -134,7 +166,14 @@ class JwtAuthTokenValidatorTest {
     @Test
     void rejectsExpiredToken() {
         JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.token("demo-user", "streamsense-local", List.of("streamsense-clients"), Instant.parse("2026-04-11T11:59:00Z").getEpochSecond(), null, "HS256"),
+                "Bearer "
+                        + TestJwtTokens.token(
+                                "demo-user",
+                                "streamsense-local",
+                                List.of("streamsense-clients"),
+                                Instant.parse("2026-04-11T11:59:00Z").getEpochSecond(),
+                                null,
+                                "HS256"),
                 authProperties);
 
         assertThat(result.valid()).isFalse();
@@ -144,7 +183,14 @@ class JwtAuthTokenValidatorTest {
     @Test
     void rejectsFutureNotBefore() {
         JwtAuthTokenValidator.ValidationResult result = validator.validate(
-                "Bearer " + TestJwtTokens.token("demo-user", "streamsense-local", List.of("streamsense-clients"), Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(), Instant.parse("2026-04-11T12:01:00Z").getEpochSecond(), "HS256"),
+                "Bearer "
+                        + TestJwtTokens.token(
+                                "demo-user",
+                                "streamsense-local",
+                                List.of("streamsense-clients"),
+                                Instant.parse("2026-04-11T12:10:00Z").getEpochSecond(),
+                                Instant.parse("2026-04-11T12:01:00Z").getEpochSecond(),
+                                "HS256"),
                 authProperties);
 
         assertThat(result.valid()).isFalse();

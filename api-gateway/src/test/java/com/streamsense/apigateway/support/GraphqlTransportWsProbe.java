@@ -1,19 +1,16 @@
 package com.streamsense.apigateway.support;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.client.WebsocketClientSpec;
@@ -26,8 +23,7 @@ public final class GraphqlTransportWsProbe {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private GraphqlTransportWsProbe() {
-    }
+    private GraphqlTransportWsProbe() {}
 
     public record Session(List<String> messages, CloseStatus closeStatus) {
 
@@ -48,8 +44,8 @@ public final class GraphqlTransportWsProbe {
         String subscribe = json(Map.of("id", "1", "type", "subscribe", "payload", Map.of("query", "{ health }")));
 
         // The subprotocol must be negotiated by the client handshaker itself, not sent as a raw header.
-        new ReactorNettyWebSocketClient(HttpClient.create(),
-                () -> WebsocketClientSpec.builder().protocols("graphql-transport-ws"))
+        new ReactorNettyWebSocketClient(
+                        HttpClient.create(), () -> WebsocketClientSpec.builder().protocols("graphql-transport-ws"))
                 .execute(URI.create("ws://localhost:" + port + "/graphql"), session -> {
                     Mono<Void> traffic = session.send(Mono.just(session.textMessage(init)))
                             .thenMany(session.receive()

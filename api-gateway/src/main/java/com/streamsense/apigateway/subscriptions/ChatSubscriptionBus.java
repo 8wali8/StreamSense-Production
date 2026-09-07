@@ -1,11 +1,9 @@
 package com.streamsense.apigateway.subscriptions;
 
+import com.streamsense.apigateway.events.ChatMessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.apigateway.events.ChatMessageEvent;
-
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -19,7 +17,11 @@ public class ChatSubscriptionBus {
     public void publish(ChatMessageEvent evt) {
         Sinks.EmitResult result = sink.tryEmitNext(evt);
         if (result.isFailure()) {
-            log.warn("failed to emit chat eventId={} streamer={} result={}", evt.getEventId(), evt.getStreamer(), result);
+            log.warn(
+                    "failed to emit chat eventId={} streamer={} result={}",
+                    evt.getEventId(),
+                    evt.getStreamer(),
+                    result);
         }
     }
 

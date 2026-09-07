@@ -3,7 +3,9 @@ package com.streamsense.apigateway.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.TimeUnit;
-
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -18,25 +20,23 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
-
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.cloud.config.enabled=false",
-        "eureka.client.enabled=false",
-        "spring.kafka.listener.auto-startup=false",
-        "streamsense.topics.chatMessages=stream.chat.messages",
-        "streamsense.topics.sentimentEvents=stream.sentiment.events",
-        "streamsense.topics.sponsorDetections=stream.sponsor.detections",
-        "spring.kafka.bootstrap-servers=localhost:9092",
-        "spring.kafka.consumer.group-id=api-gateway-test-group-correlation",
-        "streamsense.services.sentiment-service.base-url=http://localhost:8083",
-        "streamsense.services.video-service.base-url=http://localhost:8084"
-})
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "spring.cloud.config.enabled=false",
+            "eureka.client.enabled=false",
+            "spring.kafka.listener.auto-startup=false",
+            "streamsense.topics.chatMessages=stream.chat.messages",
+            "streamsense.topics.sentimentEvents=stream.sentiment.events",
+            "streamsense.topics.sponsorDetections=stream.sponsor.detections",
+            "spring.kafka.bootstrap-servers=localhost:9092",
+            "spring.kafka.consumer.group-id=api-gateway-test-group-correlation",
+            "streamsense.services.sentiment-service.base-url=http://localhost:8083",
+            "streamsense.services.video-service.base-url=http://localhost:8084"
+        })
 class CorrelationIdPropagationIntegrationTest {
 
     private static final MockWebServer DOWNSTREAM = new MockWebServer();
@@ -88,19 +88,27 @@ class CorrelationIdPropagationIntegrationTest {
 
     @Test
     void restoresCorrelationIdOnWorkerThreads() {
-        webTestClient().get().uri("/probe/correlation")
+        webTestClient()
+                .get()
+                .uri("/probe/correlation")
                 .header(CorrelationIdWebFilter.CORRELATION_ID_HEADER, "corr-123")
                 .exchange()
-                .expectStatus().isOk()
-                .expectHeader().valueEquals(CorrelationIdWebFilter.CORRELATION_ID_HEADER, "corr-123")
-                .expectBody(String.class).isEqualTo("corr-123");
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals(CorrelationIdWebFilter.CORRELATION_ID_HEADER, "corr-123")
+                .expectBody(String.class)
+                .isEqualTo("corr-123");
     }
 
     @Test
     void generatesCorrelationIdWhenTheRequestHasNone() {
-        EntityExchangeResult<String> result = webTestClient().get().uri("/probe/correlation")
+        EntityExchangeResult<String> result = webTestClient()
+                .get()
+                .uri("/probe/correlation")
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(String.class)
                 .returnResult();
 
@@ -113,18 +121,22 @@ class CorrelationIdPropagationIntegrationTest {
     void forwardsCorrelationIdOnWebClientCalls() throws Exception {
         DOWNSTREAM.enqueue(new MockResponse().setBody("downstream-ok"));
 
-        webTestClient().get()
+        webTestClient()
+                .get()
                 .uri(builder -> builder.path("/probe/downstream")
                         .queryParam("url", DOWNSTREAM.url("/api/downstream").toString())
                         .build())
                 .header(CorrelationIdWebFilter.CORRELATION_ID_HEADER, "corr-456")
                 .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class).isEqualTo("downstream-ok");
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .isEqualTo("downstream-ok");
 
         RecordedRequest recorded = DOWNSTREAM.takeRequest(5, TimeUnit.SECONDS);
         assertThat(recorded).isNotNull();
-        assertThat(recorded.getHeader(CorrelationIdWebFilter.CORRELATION_ID_HEADER)).isEqualTo("corr-456");
+        assertThat(recorded.getHeader(CorrelationIdWebFilter.CORRELATION_ID_HEADER))
+                .isEqualTo("corr-456");
     }
 
     private WebTestClient webTestClient() {

@@ -2,11 +2,9 @@ package com.streamsense.apigateway.config;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketSession;
-
 import reactor.core.publisher.Mono;
 
 // Spring GraphQL only hands interceptors a WebSocketSessionInfo, which cannot close the socket; the handler bean in

@@ -6,5 +6,4 @@ public record SponsorExposureSummary(
         long totalDetections,
         long acceptedDetections,
         long estimatedExposureMs,
-        List<SponsorExposureMetric> topSponsors) {
-}
+        List<SponsorExposureMetric> topSponsors) {}

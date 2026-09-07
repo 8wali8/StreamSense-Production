@@ -2,17 +2,15 @@ package com.streamsense.sentimentservice.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestTemplate;
-
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.MlRelevanceRequest;
 import com.streamsense.sentimentservice.dto.MlRelevanceResponse;
 import com.streamsense.sentimentservice.dto.MlSentimentRequest;
 import com.streamsense.sentimentservice.dto.MlSentimentResponse;
 import com.streamsense.sentimentservice.metrics.SentimentMetrics;
-
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestTemplate;
 
 class MlEngineClientTest {
 

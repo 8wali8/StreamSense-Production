@@ -1,30 +1,27 @@
 package com.streamsense.videoservice.cache;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.streamsense.videoservice.config.StreamSenseProperties;
+import com.streamsense.videoservice.events.SponsorDetectionEvent;
+import com.streamsense.videoservice.metrics.VideoMetrics;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.streamsense.videoservice.config.StreamSenseProperties;
-import com.streamsense.videoservice.events.SponsorDetectionEvent;
-import com.streamsense.videoservice.metrics.VideoMetrics;
 
 @Component
 public class RedisRecentSponsorDetectionsCache implements RecentSponsorDetectionsCache {
 
     private static final Logger log = LoggerFactory.getLogger(RedisRecentSponsorDetectionsCache.class);
     private static final String CACHE_NAME = "recentSponsorDetections";
-    private static final TypeReference<List<SponsorDetectionEvent>> RECENT_DETECTIONS_TYPE = new TypeReference<>() {
-    };
+    private static final TypeReference<List<SponsorDetectionEvent>> RECENT_DETECTIONS_TYPE = new TypeReference<>() {};
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -59,8 +56,12 @@ public class RedisRecentSponsorDetectionsCache implements RecentSponsorDetection
                 return Optional.of(cached);
             } catch (Exception e) {
                 videoMetrics.incrementCacheMiss(CACHE_NAME);
-                log.warn("sponsor history cache read failed streamer={} limit={} key={} error={}",
-                        streamer, limit, cacheKey, e.getMessage());
+                log.warn(
+                        "sponsor history cache read failed streamer={} limit={} key={} error={}",
+                        streamer,
+                        limit,
+                        cacheKey,
+                        e.getMessage());
                 delete(cacheKey);
                 return Optional.empty();
             }
@@ -71,10 +72,12 @@ public class RedisRecentSponsorDetectionsCache implements RecentSponsorDetection
     public void put(String streamer, int limit, List<SponsorDetectionEvent> recent) {
         String cacheKey = cacheKey(streamer, limit);
         try {
-            redisTemplate.opsForValue().set(
-                    cacheKey,
-                    objectMapper.writeValueAsString(recent),
-                    Duration.ofSeconds(properties.getCache().getRecentTtlSeconds()));
+            redisTemplate
+                    .opsForValue()
+                    .set(
+                            cacheKey,
+                            objectMapper.writeValueAsString(recent),
+                            Duration.ofSeconds(properties.getCache().getRecentTtlSeconds()));
         } catch (Exception e) {
             log.warn("sponsor history cache write failed key={} error={}", cacheKey, e.getMessage());
         }

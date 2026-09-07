@@ -1,16 +1,15 @@
 package com.streamsense.apigateway.graphql;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import graphql.GraphQLError;
 import graphql.GraphqlErrorBuilder;
 import graphql.schema.DataFetchingEnvironment;
 import jakarta.validation.ConstraintViolationException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.graphql.data.method.annotation.GraphQlExceptionHandler;
 import org.springframework.core.codec.CodecException;
+import org.springframework.graphql.data.method.annotation.GraphQlExceptionHandler;
 import org.springframework.graphql.execution.ErrorType;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
@@ -44,7 +43,11 @@ public class GraphQlErrorAdvice {
     @GraphQlExceptionHandler
     public GraphQLError handleDownstreamUnavailable(WebClientRequestException ex, DataFetchingEnvironment env) {
         String host = ex.getUri() != null ? ex.getUri().getHost() : "unknown";
-        log.warn("downstream unavailable field={} host={} cause={}", env.getField().getName(), host, ex.getMessage());
+        log.warn(
+                "downstream unavailable field={} host={} cause={}",
+                env.getField().getName(),
+                host,
+                ex.getMessage());
         return GraphqlErrorBuilder.newError(env)
                 .errorType(ErrorType.INTERNAL_ERROR)
                 .message("Downstream service unavailable")
@@ -59,7 +62,11 @@ public class GraphQlErrorAdvice {
                 : "unknown";
         int status = ex.getStatusCode().value();
         if (isValidationStatus(status)) {
-            log.info("downstream rejected request field={} host={} status={}", env.getField().getName(), host, status);
+            log.info(
+                    "downstream rejected request field={} host={} status={}",
+                    env.getField().getName(),
+                    host,
+                    status);
             return GraphqlErrorBuilder.newError(env)
                     .errorType(ErrorType.BAD_REQUEST)
                     .message("Downstream service rejected the request")
@@ -76,7 +83,10 @@ public class GraphQlErrorAdvice {
 
     @GraphQlExceptionHandler({CodecException.class, UnsupportedMediaTypeException.class})
     public GraphQLError handleUndecodableResponse(Exception ex, DataFetchingEnvironment env) {
-        log.warn("downstream response could not be decoded field={} cause={}", env.getField().getName(), ex.getClass().getSimpleName());
+        log.warn(
+                "downstream response could not be decoded field={} cause={}",
+                env.getField().getName(),
+                ex.getClass().getSimpleName());
         return GraphqlErrorBuilder.newError(env)
                 .errorType(ErrorType.INTERNAL_ERROR)
                 .message("Downstream service returned an unreadable response")

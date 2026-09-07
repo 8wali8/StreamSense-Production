@@ -1,7 +1,6 @@
 package com.streamsense.sentimentservice.persistence;
 
 import com.streamsense.sentimentservice.events.TranscriptSegmentEvent;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

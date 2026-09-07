@@ -6,20 +6,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.streamsense.chatservice.events.ChatMessageEvent;
+import com.streamsense.chatservice.metrics.ChatMetrics;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.concurrent.CompletableFuture;
-
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
-
-import com.streamsense.chatservice.events.ChatMessageEvent;
-import com.streamsense.chatservice.metrics.ChatMetrics;
-
-import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class ChatKafkaProducerTest {
 
@@ -70,8 +67,7 @@ class ChatKafkaProducerTest {
     void recordsSendsThatFailBeforeReachingTheBuffer() {
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenThrow(new IllegalStateException("serializer failed"));
 
-        assertThatThrownBy(() -> producer.publish(chatEvent(), null, null))
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> producer.publish(chatEvent(), null, null)).isInstanceOf(IllegalStateException.class);
 
         assertThat(produceTimer().count()).isEqualTo(1);
         assertThat(produceFailures()).isEqualTo(1);
@@ -82,7 +78,9 @@ class ChatKafkaProducerTest {
     }
 
     private double produceFailures() {
-        return registry.get("streamsense_kafka_produce_failures_total").counter().count();
+        return registry.get("streamsense_kafka_produce_failures_total")
+                .counter()
+                .count();
     }
 
     private static ChatMessageEvent chatEvent() {

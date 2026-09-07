@@ -3,7 +3,6 @@ package com.streamsense.chatservice.twitch;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-
 import org.springframework.stereotype.Component;
 
 @Component

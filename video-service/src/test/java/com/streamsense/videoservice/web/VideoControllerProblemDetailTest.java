@@ -5,14 +5,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.streamsense.videoservice.config.StreamSenseProperties;
+import com.streamsense.videoservice.controller.VideoController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
-
-import com.streamsense.videoservice.config.StreamSenseProperties;
-import com.streamsense.videoservice.controller.VideoController;
 
 /** The controller's own IllegalArgumentException and bean-validation failures both arrive as problem+json. */
 class VideoControllerProblemDetailTest {
@@ -33,9 +32,11 @@ class VideoControllerProblemDetailTest {
 
     @Test
     void oversizedFrameRefIsA400ProblemFromTheDomainCheck() throws Exception {
-        mockMvc.perform(post("/api/video/upload-frame")
-                .contentType("application/json")
-                .content("""
+        mockMvc.perform(
+                        post("/api/video/upload-frame")
+                                .contentType("application/json")
+                                .content(
+                                        """
                         {
                           "streamer": "test",
                           "frameRef": "frames/this-reference-is-far-too-long.png",
@@ -55,9 +56,11 @@ class VideoControllerProblemDetailTest {
 
     @Test
     void missingFieldIsA400ProblemListingTheField() throws Exception {
-        mockMvc.perform(post("/api/video/upload-frame")
-                .contentType("application/json")
-                .content("""
+        mockMvc.perform(
+                        post("/api/video/upload-frame")
+                                .contentType("application/json")
+                                .content(
+                                        """
                         {
                           "streamer": "test",
                           "frameSequence": 1,

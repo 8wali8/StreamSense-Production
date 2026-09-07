@@ -1,11 +1,9 @@
 package com.streamsense.apigateway.subscriptions;
 
+import com.streamsense.apigateway.events.SponsorDetectionEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.apigateway.events.SponsorDetectionEvent;
-
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -19,8 +17,11 @@ public class SponsorSubscriptionBus {
     public void publish(SponsorDetectionEvent event) {
         Sinks.EmitResult result = sink.tryEmitNext(event);
         if (result.isFailure()) {
-            log.warn("failed to emit sponsor eventId={} streamer={} result={}",
-                    event.getDetectionEventId(), event.getStreamer(), result);
+            log.warn(
+                    "failed to emit sponsor eventId={} streamer={} result={}",
+                    event.getDetectionEventId(),
+                    event.getStreamer(),
+                    result);
         }
     }
 

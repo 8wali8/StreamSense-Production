@@ -1,16 +1,5 @@
 package com.streamsense.analyticsservice.service;
 
-import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.model.SponsorBucketMetric;
 import com.streamsense.analyticsservice.model.SponsorBucketTotals;
@@ -27,6 +16,15 @@ import com.streamsense.analyticsservice.web.SponsorExposureMetric;
 import com.streamsense.analyticsservice.web.SponsorExposureSummary;
 import com.streamsense.analyticsservice.web.StreamMetricBucket;
 import com.streamsense.analyticsservice.web.StreamMetricsSummary;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 @Service
 public class MetricQueryService {
@@ -37,13 +35,18 @@ public class MetricQueryService {
     private final Clock clock;
 
     @Autowired
-    public MetricQueryService(StreamSenseProperties properties, MetricBucketRepository metricBuckets,
+    public MetricQueryService(
+            StreamSenseProperties properties,
+            MetricBucketRepository metricBuckets,
             SponsorMetricBucketRepository sponsorBuckets) {
         this(properties, metricBuckets, sponsorBuckets, Clock.systemUTC());
     }
 
-    MetricQueryService(StreamSenseProperties properties, MetricBucketRepository metricBuckets,
-            SponsorMetricBucketRepository sponsorBuckets, Clock clock) {
+    MetricQueryService(
+            StreamSenseProperties properties,
+            MetricBucketRepository metricBuckets,
+            SponsorMetricBucketRepository sponsorBuckets,
+            Clock clock) {
         this.properties = properties;
         this.metricBuckets = metricBuckets;
         this.sponsorBuckets = sponsorBuckets;
@@ -52,15 +55,27 @@ public class MetricQueryService {
 
     public StreamMetricsSummary summary(String streamer, String streamSessionId, Integer requestedWindowMinutes) {
         QueryWindow window = window(streamer, streamSessionId, requestedWindowMinutes, null);
-        List<StreamBucketMetric> buckets = metricBuckets.findBuckets(window.streamer(), window.sessionKey(),
-                window.windowStart(), window.windowEnd(), window.bucketSizeSeconds());
-        List<SponsorExposureMetric> sponsorMetrics = sponsorExposure(window.streamer(), window.streamSessionId(),
-                window.windowMinutes());
+        List<StreamBucketMetric> buckets = metricBuckets.findBuckets(
+                window.streamer(),
+                window.sessionKey(),
+                window.windowStart(),
+                window.windowEnd(),
+                window.bucketSizeSeconds());
+        List<SponsorExposureMetric> sponsorMetrics =
+                sponsorExposure(window.streamer(), window.streamSessionId(), window.windowMinutes());
 
-        long totalMessages = buckets.stream().mapToLong(StreamBucketMetric::chatMessageCount).sum();
-        long uniqueChatters = metricBuckets.countUniqueChatters(window.streamer(), window.sessionKey(),
-                window.windowStart(), window.windowEnd(), window.bucketSizeSeconds());
-        long peakMessages = buckets.stream().mapToLong(StreamBucketMetric::chatMessageCount).max().orElse(0);
+        long totalMessages =
+                buckets.stream().mapToLong(StreamBucketMetric::chatMessageCount).sum();
+        long uniqueChatters = metricBuckets.countUniqueChatters(
+                window.streamer(),
+                window.sessionKey(),
+                window.windowStart(),
+                window.windowEnd(),
+                window.bucketSizeSeconds());
+        long peakMessages = buckets.stream()
+                .mapToLong(StreamBucketMetric::chatMessageCount)
+                .max()
+                .orElse(0);
         double messagesPerMinute = window.windowMinutes() == 0 ? 0.0d : (double) totalMessages / window.windowMinutes();
 
         SentimentMetricSummary chatSentiment = chatSentimentSummary(buckets);
@@ -71,10 +86,19 @@ public class MetricQueryService {
                 .mapToLong(SponsorExposureMetric::lowConfidenceDetectionCount)
                 .sum();
         EngagementMetrics engagement = engagementSummary(buckets);
-        BrandSafetyMetrics risk = risk(chatSentiment, transcriptSentiment, sponsorSummary, lowConfidenceDetections,
+        BrandSafetyMetrics risk = risk(
+                chatSentiment,
+                transcriptSentiment,
+                sponsorSummary,
+                lowConfidenceDetections,
                 engagement,
-                totalMessages + chatSentiment.positive() + chatSentiment.neutral() + chatSentiment.negative()
-                        + transcriptSentiment.positive() + transcriptSentiment.neutral() + transcriptSentiment.negative()
+                totalMessages
+                        + chatSentiment.positive()
+                        + chatSentiment.neutral()
+                        + chatSentiment.negative()
+                        + transcriptSentiment.positive()
+                        + transcriptSentiment.neutral()
+                        + transcriptSentiment.negative()
                         + sponsorSummary.totalDetections());
         Long latestEventAt = metricBuckets.latestEventAt(window.streamer(), window.sessionKey());
 
@@ -91,38 +115,61 @@ public class MetricQueryService {
                 sponsorSummary,
                 engagement,
                 risk,
-                new AnalyticsDataQuality(isLowData(totalMessages, chatSentiment, transcriptSentiment, sponsorSummary),
-                        latestEventAt, latestEventAt == null ? null : Math.max(0, clock.millis() - latestEventAt)));
+                new AnalyticsDataQuality(
+                        isLowData(totalMessages, chatSentiment, transcriptSentiment, sponsorSummary),
+                        latestEventAt,
+                        latestEventAt == null ? null : Math.max(0, clock.millis() - latestEventAt)));
     }
 
-    public List<StreamMetricBucket> timeseries(String streamer, String streamSessionId, Integer requestedWindowMinutes,
-            Integer requestedBucketSeconds) {
+    public List<StreamMetricBucket> timeseries(
+            String streamer, String streamSessionId, Integer requestedWindowMinutes, Integer requestedBucketSeconds) {
         QueryWindow window = window(streamer, streamSessionId, requestedWindowMinutes, requestedBucketSeconds);
-        List<StreamBucketMetric> storedBuckets = metricBuckets.findBuckets(window.streamer(), window.sessionKey(),
-                window.windowStart(), window.windowEnd(), window.bucketSizeSeconds());
+        List<StreamBucketMetric> storedBuckets = metricBuckets.findBuckets(
+                window.streamer(),
+                window.sessionKey(),
+                window.windowStart(),
+                window.windowEnd(),
+                window.bucketSizeSeconds());
         Map<Long, StreamBucketMetric> byStart = storedBuckets.stream()
                 .collect(Collectors.toMap(StreamBucketMetric::bucketStart, Function.identity(), this::mergeBuckets));
-        Map<Long, SponsorBucketTotals> sponsorByStart = sponsorBuckets.findSponsorTotalsByBucket(window.streamer(),
-                window.sessionKey(), window.windowStart(), window.windowEnd(), window.bucketSizeSeconds()).stream()
+        Map<Long, SponsorBucketTotals> sponsorByStart = sponsorBuckets
+                .findSponsorTotalsByBucket(
+                        window.streamer(),
+                        window.sessionKey(),
+                        window.windowStart(),
+                        window.windowEnd(),
+                        window.bucketSizeSeconds())
+                .stream()
                 .collect(Collectors.toMap(SponsorBucketTotals::bucketStart, Function.identity()));
         List<StreamMetricBucket> response = new ArrayList<>();
         long bucketMs = window.bucketSizeSeconds() * 1000L;
         for (long bucketStart = window.windowStart(); bucketStart < window.windowEnd(); bucketStart += bucketMs) {
             StreamBucketMetric bucket = byStart.get(bucketStart);
             SponsorBucketTotals sponsor = sponsorByStart.get(bucketStart);
-            response.add(toResponseBucket(bucketStart, bucketMs, bucket,
+            response.add(toResponseBucket(
+                    bucketStart,
+                    bucketMs,
+                    bucket,
                     sponsor == null ? 0 : sponsor.detectionCount(),
                     sponsor == null ? 0 : sponsor.estimatedExposureMs()));
         }
         return response;
     }
 
-    public List<SponsorExposureMetric> sponsorExposure(String streamer, String streamSessionId, Integer requestedWindowMinutes) {
+    public List<SponsorExposureMetric> sponsorExposure(
+            String streamer, String streamSessionId, Integer requestedWindowMinutes) {
         QueryWindow window = window(streamer, streamSessionId, requestedWindowMinutes, null);
-        return sponsorBuckets.findSponsorMetrics(window.streamer(), window.sessionKey(), window.windowStart(),
-                window.windowEnd(), window.bucketSizeSeconds()).stream()
+        return sponsorBuckets
+                .findSponsorMetrics(
+                        window.streamer(),
+                        window.sessionKey(),
+                        window.windowStart(),
+                        window.windowEnd(),
+                        window.bucketSizeSeconds())
+                .stream()
                 .map(this::toSponsorExposure)
-                .sorted(Comparator.comparingLong(SponsorExposureMetric::acceptedDetectionCount).reversed()
+                .sorted(Comparator.comparingLong(SponsorExposureMetric::acceptedDetectionCount)
+                        .reversed()
                         .thenComparing(SponsorExposureMetric::sponsor))
                 .toList();
     }
@@ -131,11 +178,26 @@ public class MetricQueryService {
         return summary(streamer, streamSessionId, requestedWindowMinutes).risk();
     }
 
-    private StreamMetricBucket toResponseBucket(long bucketStart, long bucketMs, StreamBucketMetric bucket,
-            long sponsorDetectionCount, long sponsorExposureMs) {
+    private StreamMetricBucket toResponseBucket(
+            long bucketStart,
+            long bucketMs,
+            StreamBucketMetric bucket,
+            long sponsorDetectionCount,
+            long sponsorExposureMs) {
         if (bucket == null) {
-            return new StreamMetricBucket(bucketStart, bucketStart + bucketMs, 0, 0, null, null, null, null,
-                    sponsorDetectionCount, sponsorExposureMs, false, false);
+            return new StreamMetricBucket(
+                    bucketStart,
+                    bucketStart + bucketMs,
+                    0,
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    sponsorDetectionCount,
+                    sponsorExposureMs,
+                    false,
+                    false);
         }
         return new StreamMetricBucket(
                 bucketStart,
@@ -173,32 +235,61 @@ public class MetricQueryService {
     }
 
     private SentimentMetricSummary chatSentimentSummary(List<StreamBucketMetric> buckets) {
-        long positive = buckets.stream().mapToLong(StreamBucketMetric::chatPositiveCount).sum();
-        long neutral = buckets.stream().mapToLong(StreamBucketMetric::chatNeutralCount).sum();
-        long negative = buckets.stream().mapToLong(StreamBucketMetric::chatNegativeCount).sum();
-        long count = buckets.stream().mapToLong(StreamBucketMetric::chatSentimentCount).sum();
-        double scoreSum = buckets.stream().mapToDouble(StreamBucketMetric::chatScoreSum).sum();
-        return new SentimentMetricSummary(positive, neutral, negative, average(scoreSum, count), ratio(negative, count));
+        long positive = buckets.stream()
+                .mapToLong(StreamBucketMetric::chatPositiveCount)
+                .sum();
+        long neutral =
+                buckets.stream().mapToLong(StreamBucketMetric::chatNeutralCount).sum();
+        long negative = buckets.stream()
+                .mapToLong(StreamBucketMetric::chatNegativeCount)
+                .sum();
+        long count = buckets.stream()
+                .mapToLong(StreamBucketMetric::chatSentimentCount)
+                .sum();
+        double scoreSum =
+                buckets.stream().mapToDouble(StreamBucketMetric::chatScoreSum).sum();
+        return new SentimentMetricSummary(
+                positive, neutral, negative, average(scoreSum, count), ratio(negative, count));
     }
 
     private SentimentMetricSummary transcriptSentimentSummary(List<StreamBucketMetric> buckets) {
-        long positive = buckets.stream().mapToLong(StreamBucketMetric::transcriptPositiveCount).sum();
-        long neutral = buckets.stream().mapToLong(StreamBucketMetric::transcriptNeutralCount).sum();
-        long negative = buckets.stream().mapToLong(StreamBucketMetric::transcriptNegativeCount).sum();
-        long count = buckets.stream().mapToLong(StreamBucketMetric::transcriptSentimentCount).sum();
-        double scoreSum = buckets.stream().mapToDouble(StreamBucketMetric::transcriptScoreSum).sum();
-        return new SentimentMetricSummary(positive, neutral, negative, average(scoreSum, count), ratio(negative, count));
+        long positive = buckets.stream()
+                .mapToLong(StreamBucketMetric::transcriptPositiveCount)
+                .sum();
+        long neutral = buckets.stream()
+                .mapToLong(StreamBucketMetric::transcriptNeutralCount)
+                .sum();
+        long negative = buckets.stream()
+                .mapToLong(StreamBucketMetric::transcriptNegativeCount)
+                .sum();
+        long count = buckets.stream()
+                .mapToLong(StreamBucketMetric::transcriptSentimentCount)
+                .sum();
+        double scoreSum = buckets.stream()
+                .mapToDouble(StreamBucketMetric::transcriptScoreSum)
+                .sum();
+        return new SentimentMetricSummary(
+                positive, neutral, negative, average(scoreSum, count), ratio(negative, count));
     }
 
     private SponsorExposureSummary sponsorSummary(List<SponsorExposureMetric> sponsors) {
-        long total = sponsors.stream().mapToLong(SponsorExposureMetric::detectionCount).sum();
-        long accepted = sponsors.stream().mapToLong(SponsorExposureMetric::acceptedDetectionCount).sum();
-        long exposure = sponsors.stream().mapToLong(SponsorExposureMetric::estimatedExposureMs).sum();
-        return new SponsorExposureSummary(total, accepted, exposure, sponsors.stream().limit(5).toList());
+        long total = sponsors.stream()
+                .mapToLong(SponsorExposureMetric::detectionCount)
+                .sum();
+        long accepted = sponsors.stream()
+                .mapToLong(SponsorExposureMetric::acceptedDetectionCount)
+                .sum();
+        long exposure = sponsors.stream()
+                .mapToLong(SponsorExposureMetric::estimatedExposureMs)
+                .sum();
+        return new SponsorExposureSummary(
+                total, accepted, exposure, sponsors.stream().limit(5).toList());
     }
 
     private EngagementMetrics engagementSummary(List<StreamBucketMetric> buckets) {
-        long spikes = buckets.stream().mapToLong(StreamBucketMetric::engagementSpikeCount).sum();
+        long spikes = buckets.stream()
+                .mapToLong(StreamBucketMetric::engagementSpikeCount)
+                .sum();
         Long latest = buckets.stream()
                 .filter(bucket -> bucket.engagementSpikeCount() > 0)
                 .map(StreamBucketMetric::bucketStart)
@@ -207,8 +298,12 @@ public class MetricQueryService {
         return new EngagementMetrics(spikes, latest);
     }
 
-    private BrandSafetyMetrics risk(SentimentMetricSummary chat, SentimentMetricSummary transcript,
-            SponsorExposureSummary sponsors, long lowConfidenceDetections, EngagementMetrics engagement,
+    private BrandSafetyMetrics risk(
+            SentimentMetricSummary chat,
+            SentimentMetricSummary transcript,
+            SponsorExposureSummary sponsors,
+            long lowConfidenceDetections,
+            EngagementMetrics engagement,
             long totalSignals) {
         if (totalSignals < properties.getAnalytics().getLowDataMinimumEvents()) {
             return new BrandSafetyMetrics("LOW_DATA", null, List.of());
@@ -216,8 +311,8 @@ public class MetricQueryService {
         double chatNegativeRatio = value(chat.negativeRatio());
         double transcriptNegativeRatio = value(transcript.negativeRatio());
         double negativeSpikeScore = Math.min(1.0d, engagement.spikeCount() / 5.0d);
-        double sponsorQualityRisk = sponsors.totalDetections() == 0 ? 0.0d
-                : lowConfidenceDetections / (double) sponsors.totalDetections();
+        double sponsorQualityRisk =
+                sponsors.totalDetections() == 0 ? 0.0d : lowConfidenceDetections / (double) sponsors.totalDetections();
         double negativeEngagementSpikeRisk = chatNegativeRatio >= 0.50d ? negativeSpikeScore : 0.0d;
         List<RiskFactor> factors = List.of(
                 new RiskFactor("chatNegativeRatio", chatNegativeRatio, 0.35d),
@@ -225,51 +320,67 @@ public class MetricQueryService {
                 new RiskFactor("negativeSpikeScore", negativeSpikeScore, 0.20d),
                 new RiskFactor("sponsorQualityRisk", sponsorQualityRisk, 0.10d),
                 new RiskFactor("negativeEngagementSpikeRisk", negativeEngagementSpikeRisk, 0.10d));
-        double score = clamp(
-                chatNegativeRatio * 0.35d
-                        + transcriptNegativeRatio * 0.25d
-                        + negativeSpikeScore * 0.20d
-                        + sponsorQualityRisk * 0.10d
-                        + negativeEngagementSpikeRisk * 0.10d);
+        double score = clamp(chatNegativeRatio * 0.35d
+                + transcriptNegativeRatio * 0.25d
+                + negativeSpikeScore * 0.20d
+                + sponsorQualityRisk * 0.10d
+                + negativeEngagementSpikeRisk * 0.10d);
         return new BrandSafetyMetrics(riskLevel(score), round(score), factors);
     }
 
-    private boolean isLowData(long totalMessages, SentimentMetricSummary chat, SentimentMetricSummary transcript,
+    private boolean isLowData(
+            long totalMessages,
+            SentimentMetricSummary chat,
+            SentimentMetricSummary transcript,
             SponsorExposureSummary sponsors) {
-        long total = totalMessages + chat.positive() + chat.neutral() + chat.negative()
-                + transcript.positive() + transcript.neutral() + transcript.negative() + sponsors.totalDetections();
+        long total = totalMessages
+                + chat.positive()
+                + chat.neutral()
+                + chat.negative()
+                + transcript.positive()
+                + transcript.neutral()
+                + transcript.negative()
+                + sponsors.totalDetections();
         return total < properties.getAnalytics().getLowDataMinimumEvents();
     }
 
     private SponsorExposureMetric toSponsorExposure(SponsorBucketMetric metric) {
         Double average = metric.detectionCount() == 0 ? null : round(metric.confidenceSum() / metric.detectionCount());
-        return new SponsorExposureMetric(metric.sponsor(), metric.detectionCount(), metric.acceptedDetectionCount(),
-                metric.estimatedExposureMs(), average, metric.maxConfidence() == null ? null : round(metric.maxConfidence()),
-                metric.fallbackDetectionCount(), metric.lowConfidenceDetectionCount());
+        return new SponsorExposureMetric(
+                metric.sponsor(),
+                metric.detectionCount(),
+                metric.acceptedDetectionCount(),
+                metric.estimatedExposureMs(),
+                average,
+                metric.maxConfidence() == null ? null : round(metric.maxConfidence()),
+                metric.fallbackDetectionCount(),
+                metric.lowConfidenceDetectionCount());
     }
 
-    private QueryWindow window(String streamer, String streamSessionId, Integer requestedWindowMinutes,
-            Integer requestedBucketSeconds) {
+    private QueryWindow window(
+            String streamer, String streamSessionId, Integer requestedWindowMinutes, Integer requestedBucketSeconds) {
         String cleanedStreamer = cleanRequired(streamer, "streamer");
-        int windowMinutes = requestedWindowMinutes == null ? properties.getAnalytics().getDefaultWindowMinutes()
+        int windowMinutes = requestedWindowMinutes == null
+                ? properties.getAnalytics().getDefaultWindowMinutes()
                 : requestedWindowMinutes;
         if (windowMinutes < 1 || windowMinutes > properties.getAnalytics().getMaxWindowMinutes()) {
             throw new IllegalArgumentException("windowMinutes must be between 1 and "
                     + properties.getAnalytics().getMaxWindowMinutes());
         }
-        int bucketSeconds = requestedBucketSeconds == null ? properties.getAnalytics().getBucketSizeSeconds()
+        int bucketSeconds = requestedBucketSeconds == null
+                ? properties.getAnalytics().getBucketSizeSeconds()
                 : requestedBucketSeconds;
         if (bucketSeconds != properties.getAnalytics().getBucketSizeSeconds()) {
-            throw new IllegalArgumentException("only bucketSeconds=" + properties.getAnalytics().getBucketSizeSeconds()
-                    + " is supported");
+            throw new IllegalArgumentException(
+                    "only bucketSeconds=" + properties.getAnalytics().getBucketSizeSeconds() + " is supported");
         }
         long now = clock.millis();
         long bucketMs = bucketSeconds * 1000L;
         long windowEnd = Math.floorDiv(now, bucketMs) * bucketMs + bucketMs;
         long windowStart = windowEnd - windowMinutes * 60_000L;
         String cleanedSession = clean(streamSessionId);
-        return new QueryWindow(cleanedStreamer, cleanedSession, cleanedSession, windowMinutes, bucketSeconds, windowStart,
-                windowEnd);
+        return new QueryWindow(
+                cleanedStreamer, cleanedSession, cleanedSession, windowMinutes, bucketSeconds, windowStart, windowEnd);
     }
 
     private Double average(double sum, long count) {
@@ -314,7 +425,12 @@ public class MetricQueryService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private record QueryWindow(String streamer, String streamSessionId, String sessionKey, int windowMinutes,
-            int bucketSizeSeconds, long windowStart, long windowEnd) {
-    }
+    private record QueryWindow(
+            String streamer,
+            String streamSessionId,
+            String sessionKey,
+            int windowMinutes,
+            int bucketSizeSeconds,
+            long windowStart,
+            long windowEnd) {}
 }

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeUnit;
-
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
@@ -36,9 +35,12 @@ class DownstreamRestClientTimeoutTest {
         StreamSenseProperties properties = new StreamSenseProperties();
         properties.getServices().setReadTimeoutMs(200);
 
-        RestClient client = customizedBuilder(properties).baseUrl(server.url("/").toString()).build();
+        RestClient client = customizedBuilder(properties)
+                .baseUrl(server.url("/").toString())
+                .build();
 
-        assertThatThrownBy(() -> client.get().uri("/api/sentiment/recent").retrieve().body(String.class))
+        assertThatThrownBy(() ->
+                        client.get().uri("/api/sentiment/recent").retrieve().body(String.class))
                 .isInstanceOf(ResourceAccessException.class)
                 .hasCauseInstanceOf(SocketTimeoutException.class);
     }
@@ -48,9 +50,12 @@ class DownstreamRestClientTimeoutTest {
         server.enqueue(new MockResponse().setBody("[]").addHeader("Content-Type", "application/json"));
         StreamSenseProperties properties = new StreamSenseProperties();
 
-        RestClient client = customizedBuilder(properties).baseUrl(server.url("/").toString()).build();
+        RestClient client = customizedBuilder(properties)
+                .baseUrl(server.url("/").toString())
+                .build();
 
-        assertThat(client.get().uri("/api/sentiment/recent").retrieve().body(String.class)).isEqualTo("[]");
+        assertThat(client.get().uri("/api/sentiment/recent").retrieve().body(String.class))
+                .isEqualTo("[]");
     }
 
     private static RestClient.Builder customizedBuilder(StreamSenseProperties properties) {

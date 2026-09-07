@@ -1,13 +1,11 @@
 package com.streamsense.videoservice.kafka;
 
+import com.streamsense.videoservice.events.SponsorDetectionEvent;
 import java.nio.charset.StandardCharsets;
-
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.videoservice.events.SponsorDetectionEvent;
 
 @Component
 public class SponsorDetectionProducer {

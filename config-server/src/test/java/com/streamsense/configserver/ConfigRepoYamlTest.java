@@ -44,7 +44,7 @@ class ConfigRepoYamlTest {
         options.setAllowDuplicateKeys(false);
         Yaml yaml = new Yaml(new SafeConstructor(options));
         try (InputStream in = Files.newInputStream(file)) {
-            assertThatCode(() -> yaml.loadAll(in).forEach(document -> { }))
+            assertThatCode(() -> yaml.loadAll(in).forEach(document -> {}))
                     .as("%s must parse with duplicate keys rejected", file)
                     .doesNotThrowAnyException();
         }

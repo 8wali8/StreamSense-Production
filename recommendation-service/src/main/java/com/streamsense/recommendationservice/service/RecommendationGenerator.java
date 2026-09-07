@@ -1,5 +1,9 @@
 package com.streamsense.recommendationservice.service;
 
+import com.streamsense.recommendationservice.api.Recommendation;
+import com.streamsense.recommendationservice.client.SentimentSignal;
+import com.streamsense.recommendationservice.client.SponsorSignal;
+import com.streamsense.recommendationservice.config.StreamSenseProperties;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -8,11 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import com.streamsense.recommendationservice.api.Recommendation;
-import com.streamsense.recommendationservice.client.SentimentSignal;
-import com.streamsense.recommendationservice.client.SponsorSignal;
-import com.streamsense.recommendationservice.config.StreamSenseProperties;
 
 public class RecommendationGenerator {
 
@@ -66,14 +65,21 @@ public class RecommendationGenerator {
             recommendations.add(new Recommendation(
                     recommendationId(streamer, "CONTENT_MOMENTUM"),
                     streamer,
-                    momentumScore >= 0.65d ? "Lean into high-energy moments" : "Keep momentum steady while sentiment is holding",
+                    momentumScore >= 0.65d
+                            ? "Lean into high-energy moments"
+                            : "Keep momentum steady while sentiment is holding",
                     "CONTENT_MOMENTUM",
                     round(momentumScore),
-                    String.format("Audience tone is %s with an average sentiment score of %.2f.",
+                    String.format(
+                            "Audience tone is %s with an average sentiment score of %.2f.",
                             summary.dominantSentimentLabel(), summary.averageSentimentScore()),
                     List.of(
-                            String.format("Positive sentiment share is %.0f%% of the recent window.", summary.positiveRatio() * 100.0d),
-                            String.format("Average sentiment score is %.2f across %d recent messages.", summary.averageSentimentScore(), summary.sentimentCount()),
+                            String.format(
+                                    "Positive sentiment share is %.0f%% of the recent window.",
+                                    summary.positiveRatio() * 100.0d),
+                            String.format(
+                                    "Average sentiment score is %.2f across %d recent messages.",
+                                    summary.averageSentimentScore(), summary.sentimentCount()),
                             String.format("The dominant audience tone is %s.", summary.dominantSentimentLabel())),
                     experimentName,
                     variantId,
@@ -81,8 +87,9 @@ public class RecommendationGenerator {
         }
 
         if (summary.topSponsor() != null) {
-            double sponsorScore = clamp01(((summary.topSponsorFrequencyRatio() * 0.60d)
-                    + (summary.topSponsorAverageConfidence() * 0.40d)) * variant.getSponsorWeight());
+            double sponsorScore = clamp01(
+                    ((summary.topSponsorFrequencyRatio() * 0.60d) + (summary.topSponsorAverageConfidence() * 0.40d))
+                            * variant.getSponsorWeight());
             recommendations.add(new Recommendation(
                     recommendationId(streamer, "SPONSOR_ALIGNMENT"),
                     streamer,
@@ -91,40 +98,53 @@ public class RecommendationGenerator {
                     round(sponsorScore),
                     String.format("%s is the most visible sponsor in the recent window.", summary.topSponsor()),
                     List.of(
-                            String.format("%s appeared in %.0f%% of recent sponsor detections.", summary.topSponsor(), summary.topSponsorFrequencyRatio() * 100.0d),
-                            String.format("Average confidence for %s was %.2f.", summary.topSponsor(), summary.topSponsorAverageConfidence()),
-                            String.format("The active variant %s weights sponsor alignment at %.2f.", variantId, variant.getSponsorWeight())),
+                            String.format(
+                                    "%s appeared in %.0f%% of recent sponsor detections.",
+                                    summary.topSponsor(), summary.topSponsorFrequencyRatio() * 100.0d),
+                            String.format(
+                                    "Average confidence for %s was %.2f.",
+                                    summary.topSponsor(), summary.topSponsorAverageConfidence()),
+                            String.format(
+                                    "The active variant %s weights sponsor alignment at %.2f.",
+                                    variantId, variant.getSponsorWeight())),
                     experimentName,
                     variantId,
                     generatedAt));
         }
 
-        double toneScore = clamp01((summary.dominantToneStrength() * 0.70d)
-                + (Math.max(0.0d, summary.averageSentimentScore()) * 0.30d));
+        double toneScore = clamp01(
+                (summary.dominantToneStrength() * 0.70d) + (Math.max(0.0d, summary.averageSentimentScore()) * 0.30d));
         recommendations.add(new Recommendation(
                 recommendationId(streamer, "AUDIENCE_TONE"),
                 streamer,
                 audienceToneTitle(summary.dominantSentimentLabel()),
                 "AUDIENCE_TONE",
                 round(toneScore),
-                String.format("The audience is currently reading as %s.", summary.dominantSentimentLabel().toLowerCase()),
+                String.format(
+                        "The audience is currently reading as %s.",
+                        summary.dominantSentimentLabel().toLowerCase()),
                 List.of(
-                        String.format("Positive=%d, neutral=%d, negative=%d in the recent sentiment window.",
+                        String.format(
+                                "Positive=%d, neutral=%d, negative=%d in the recent sentiment window.",
                                 summary.positiveCount(), summary.neutralCount(), summary.negativeCount()),
                         String.format("Dominant tone strength is %.0f%%.", summary.dominantToneStrength() * 100.0d),
-                        String.format("Variant %s keeps audience-tone guidance visible even when sponsor data is sparse.", variantId)),
+                        String.format(
+                                "Variant %s keeps audience-tone guidance visible even when sponsor data is sparse.",
+                                variantId)),
                 experimentName,
                 variantId,
                 generatedAt));
 
         boolean sparseSignals = summary.sentimentCount() < 4 || summary.sponsorCount() < 2;
         if (summary.negativeRatio() >= 0.35d || sparseSignals) {
-            double cautionScore = clamp01((summary.negativeRatio() * 0.75d * variant.getCautionWeight())
-                    + (sparseSignals ? 0.25d : 0.0d));
+            double cautionScore = clamp01(
+                    (summary.negativeRatio() * 0.75d * variant.getCautionWeight()) + (sparseSignals ? 0.25d : 0.0d));
             recommendations.add(new Recommendation(
                     recommendationId(streamer, "CAUTION_SIGNAL"),
                     streamer,
-                    sparseSignals ? "Hold major changes until the stream has more signal" : "Watch for emerging audience fatigue",
+                    sparseSignals
+                            ? "Hold major changes until the stream has more signal"
+                            : "Watch for emerging audience fatigue",
                     "CAUTION_SIGNAL",
                     round(cautionScore),
                     sparseSignals
@@ -132,15 +152,20 @@ public class RecommendationGenerator {
                             : "Negative sentiment is high enough to justify a caution flag.",
                     List.of(
                             String.format("Negative sentiment share is %.0f%%.", summary.negativeRatio() * 100.0d),
-                            String.format("Recent window contains %d sentiment events and %d sponsor detections.", summary.sentimentCount(), summary.sponsorCount()),
-                            String.format("Variant %s applies a caution weight of %.2f.", variantId, variant.getCautionWeight())),
+                            String.format(
+                                    "Recent window contains %d sentiment events and %d sponsor detections.",
+                                    summary.sentimentCount(), summary.sponsorCount()),
+                            String.format(
+                                    "Variant %s applies a caution weight of %.2f.",
+                                    variantId, variant.getCautionWeight())),
                     experimentName,
                     variantId,
                     generatedAt));
         }
 
         return recommendations.stream()
-                .sorted(Comparator.comparingDouble(Recommendation::score).reversed()
+                .sorted(Comparator.comparingDouble(Recommendation::score)
+                        .reversed()
                         .thenComparing(Recommendation::category)
                         .thenComparing(Recommendation::title))
                 .limit(limit)
@@ -165,7 +190,9 @@ public class RecommendationGenerator {
         }
 
         List<SponsorSignal> knownSponsors = sponsorSignals.stream()
-                .filter(signal -> signal.sponsor() != null && !signal.sponsor().isBlank() && !"UNKNOWN".equalsIgnoreCase(signal.sponsor()))
+                .filter(signal -> signal.sponsor() != null
+                        && !signal.sponsor().isBlank()
+                        && !"UNKNOWN".equalsIgnoreCase(signal.sponsor()))
                 .toList();
         Map<String, List<SponsorSignal>> groupedSponsors = knownSponsors.stream()
                 .collect(Collectors.groupingBy(SponsorSignal::sponsor, LinkedHashMap::new, Collectors.toList()));
@@ -175,7 +202,8 @@ public class RecommendationGenerator {
         double topSponsorAverageConfidence = 0.0d;
         if (!groupedSponsors.isEmpty()) {
             Map.Entry<String, List<SponsorSignal>> topEntry = groupedSponsors.entrySet().stream()
-                    .max(Comparator.<Map.Entry<String, List<SponsorSignal>>>comparingInt(entry -> entry.getValue().size())
+                    .max(Comparator.<Map.Entry<String, List<SponsorSignal>>>comparingInt(
+                                    entry -> entry.getValue().size())
                             .thenComparing(entry -> entry.getKey()))
                     .orElseThrow();
             topSponsor = topEntry.getKey();
@@ -189,7 +217,10 @@ public class RecommendationGenerator {
         int sentimentCount = sentimentSignals.size();
         int sponsorCount = sponsorSignals.size();
         String dominantSentimentLabel = dominantSentimentLabel(positiveCount, neutralCount, negativeCount);
-        double dominantToneStrength = sentimentCount == 0 ? 0.0d : dominantSentimentCount(dominantSentimentLabel, positiveCount, neutralCount, negativeCount) / (double) sentimentCount;
+        double dominantToneStrength = sentimentCount == 0
+                ? 0.0d
+                : dominantSentimentCount(dominantSentimentLabel, positiveCount, neutralCount, negativeCount)
+                        / (double) sentimentCount;
 
         return new SignalSummary(
                 sentimentCount,

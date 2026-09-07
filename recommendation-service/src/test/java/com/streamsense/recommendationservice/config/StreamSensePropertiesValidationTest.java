@@ -18,30 +18,29 @@ class StreamSensePropertiesValidationTest {
     @Test
     void bindsBaseUrlsAndDefaultTimeouts() {
         runner.withPropertyValues(
-                "streamsense.services.sentiment-service.base-url=http://sentiment-service:8083",
-                "streamsense.services.video-service.base-url=http://video-service:8084"
-        ).run(context -> {
-            assertThat(context).hasNotFailed();
-            StreamSenseProperties.Services services = context.getBean(StreamSenseProperties.class).getServices();
-            assertThat(services.getSentimentService().getBaseUrl()).isEqualTo("http://sentiment-service:8083");
-            assertThat(services.getVideoService().getBaseUrl()).isEqualTo("http://video-service:8084");
-            assertThat(services.getConnectTimeoutMs()).isEqualTo(2000);
-            assertThat(services.getReadTimeoutMs()).isEqualTo(5000);
-        });
+                        "streamsense.services.sentiment-service.base-url=http://sentiment-service:8083",
+                        "streamsense.services.video-service.base-url=http://video-service:8084")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    StreamSenseProperties.Services services =
+                            context.getBean(StreamSenseProperties.class).getServices();
+                    assertThat(services.getSentimentService().getBaseUrl()).isEqualTo("http://sentiment-service:8083");
+                    assertThat(services.getVideoService().getBaseUrl()).isEqualTo("http://video-service:8084");
+                    assertThat(services.getConnectTimeoutMs()).isEqualTo(2000);
+                    assertThat(services.getReadTimeoutMs()).isEqualTo(5000);
+                });
     }
 
     @Test
     void missingBaseUrlFailsStartupInsteadOfDefaultingToLocalhost() {
-        runner.withPropertyValues(
-                "streamsense.services.sentiment-service.base-url=http://sentiment-service:8083"
-        ).run(context -> {
-            assertThat(context).hasFailed();
-            assertThat(context.getStartupFailure()).hasStackTraceContaining("videoService.baseUrl");
-        });
+        runner.withPropertyValues("streamsense.services.sentiment-service.base-url=http://sentiment-service:8083")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasStackTraceContaining("videoService.baseUrl");
+                });
     }
 
     @Configuration
     @EnableConfigurationProperties(StreamSenseProperties.class)
-    static class PropertiesConfiguration {
-    }
+    static class PropertiesConfiguration {}
 }

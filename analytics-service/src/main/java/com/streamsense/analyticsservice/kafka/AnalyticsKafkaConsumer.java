@@ -1,9 +1,5 @@
 package com.streamsense.analyticsservice.kafka;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.stereotype.Component;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
@@ -12,6 +8,9 @@ import com.streamsense.analyticsservice.events.SentimentAnalysisEvent;
 import com.streamsense.analyticsservice.events.SponsorDetectionEvent;
 import com.streamsense.analyticsservice.events.TranscriptSentimentEvent;
 import com.streamsense.analyticsservice.service.MetricAggregationService;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
 
 @Component
 public class AnalyticsKafkaConsumer {
@@ -20,35 +19,55 @@ public class AnalyticsKafkaConsumer {
     private final StreamSenseProperties properties;
     private final MetricAggregationService aggregationService;
 
-    public AnalyticsKafkaConsumer(ObjectMapper objectMapper, StreamSenseProperties properties,
-            MetricAggregationService aggregationService) {
+    public AnalyticsKafkaConsumer(
+            ObjectMapper objectMapper, StreamSenseProperties properties, MetricAggregationService aggregationService) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.aggregationService = aggregationService;
     }
 
-    @KafkaListener(topics = "${streamsense.topics.chatMessages:stream.chat.messages}", groupId = "analytics-service-chat")
+    @KafkaListener(
+            topics = "${streamsense.topics.chatMessages:stream.chat.messages}",
+            groupId = "analytics-service-chat")
     public void onChatMessage(ConsumerRecord<String, String> record) {
-        process(record, ChatMessageEvent.class,
-                event -> aggregationService.aggregateChatMessage(properties.getTopics().getChatMessages(), event));
+        process(
+                record,
+                ChatMessageEvent.class,
+                event -> aggregationService.aggregateChatMessage(
+                        properties.getTopics().getChatMessages(), event));
     }
 
-    @KafkaListener(topics = "${streamsense.topics.sentimentEvents:stream.sentiment.events}", groupId = "analytics-service-sentiment")
+    @KafkaListener(
+            topics = "${streamsense.topics.sentimentEvents:stream.sentiment.events}",
+            groupId = "analytics-service-sentiment")
     public void onSentiment(ConsumerRecord<String, String> record) {
-        process(record, SentimentAnalysisEvent.class,
-                event -> aggregationService.aggregateChatSentiment(properties.getTopics().getSentimentEvents(), event));
+        process(
+                record,
+                SentimentAnalysisEvent.class,
+                event -> aggregationService.aggregateChatSentiment(
+                        properties.getTopics().getSentimentEvents(), event));
     }
 
-    @KafkaListener(topics = "${streamsense.topics.transcriptSentimentEvents:stream.transcript.sentiment.events}", groupId = "analytics-service-transcript-sentiment")
+    @KafkaListener(
+            topics = "${streamsense.topics.transcriptSentimentEvents:stream.transcript.sentiment.events}",
+            groupId = "analytics-service-transcript-sentiment")
     public void onTranscriptSentiment(ConsumerRecord<String, String> record) {
-        process(record, TranscriptSentimentEvent.class,
-                event -> aggregationService.aggregateTranscriptSentiment(properties.getTopics().getTranscriptSentimentEvents(), event));
+        process(
+                record,
+                TranscriptSentimentEvent.class,
+                event -> aggregationService.aggregateTranscriptSentiment(
+                        properties.getTopics().getTranscriptSentimentEvents(), event));
     }
 
-    @KafkaListener(topics = "${streamsense.topics.sponsorDetections:stream.sponsor.detections}", groupId = "analytics-service-sponsor")
+    @KafkaListener(
+            topics = "${streamsense.topics.sponsorDetections:stream.sponsor.detections}",
+            groupId = "analytics-service-sponsor")
     public void onSponsorDetection(ConsumerRecord<String, String> record) {
-        process(record, SponsorDetectionEvent.class,
-                event -> aggregationService.aggregateSponsorDetection(properties.getTopics().getSponsorDetections(), event));
+        process(
+                record,
+                SponsorDetectionEvent.class,
+                event -> aggregationService.aggregateSponsorDetection(
+                        properties.getTopics().getSponsorDetections(), event));
     }
 
     // Failures propagate to the container's CommonErrorHandler (KafkaProcessingConfig): malformed or invalid

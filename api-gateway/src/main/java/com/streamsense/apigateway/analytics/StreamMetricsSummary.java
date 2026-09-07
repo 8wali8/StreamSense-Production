@@ -13,5 +13,4 @@ public record StreamMetricsSummary(
         SponsorExposureSummary sponsorExposure,
         EngagementMetrics engagement,
         BrandSafetyMetrics risk,
-        AnalyticsDataQuality dataQuality) {
-}
+        AnalyticsDataQuality dataQuality) {}

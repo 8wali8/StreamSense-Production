@@ -1,9 +1,8 @@
 package com.streamsense.sentimentservice.cache;
 
+import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 import java.util.List;
 import java.util.Optional;
-
-import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 
 public interface RecentSentimentCache {
 

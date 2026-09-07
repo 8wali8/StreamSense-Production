@@ -1,13 +1,11 @@
 package com.streamsense.videoservice.kafka;
 
+import com.streamsense.videoservice.events.FrameData;
 import java.nio.charset.StandardCharsets;
-
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
-
-import com.streamsense.videoservice.events.FrameData;
 
 @Component
 public class VideoFrameProducer {
@@ -16,8 +14,7 @@ public class VideoFrameProducer {
     private final String topic;
 
     public VideoFrameProducer(
-            KafkaTemplate<String, FrameData> kafkaTemplate,
-            @Value("${streamsense.topics.videoFrames}") String topic) {
+            KafkaTemplate<String, FrameData> kafkaTemplate, @Value("${streamsense.topics.videoFrames}") String topic) {
         this.kafkaTemplate = kafkaTemplate;
         this.topic = topic;
     }
