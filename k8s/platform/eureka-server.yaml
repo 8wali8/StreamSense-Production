@@ -26,11 +26,16 @@ spec:
       labels:
         app: eureka-server
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: eureka-server
           image: streamsense/eureka-server:sprint9
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 10001
             capabilities:
@@ -68,3 +73,9 @@ spec:
             failureThreshold: 60
             periodSeconds: 10
             timeoutSeconds: 5
+          volumeMounts:
+            - name: scratch-tmp
+              mountPath: /tmp
+      volumes:
+        - name: scratch-tmp
+          emptyDir: {}

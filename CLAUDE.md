@@ -80,7 +80,7 @@ CI (`.github/workflows/ci.yml`) uses Java 21, Python 3.11, Node 20. Its Java mat
 
 ### Kubernetes (kind cluster)
 
-See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`; the entry point is the root `kustomization.yaml` (`kubectl kustomize .`). Every container declares `resources` (requests and a memory limit) and a non-root `securityContext` that drops all capabilities; Spring services probe `/actuator/health/liveness` and `/readiness` (readiness includes the datastore checks, liveness never does); stateful data lives on PersistentVolumeClaims in `k8s/platform/storage.yaml`, never `emptyDir`. New workloads follow the same shape or the namespace's Pod Security admission will warn.
+See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`; the entry point is the root `kustomization.yaml` (`kubectl kustomize .`). Every container declares `resources` (requests and a memory limit) and a non-root `securityContext` that drops all capabilities and sets `readOnlyRootFilesystem: true`, and every pod sets `runAsNonRoot` and the `RuntimeDefault` seccomp profile at pod level; the paths an image must write get an `emptyDir` named `scratch-<path>` (`/tmp` for the JVM and Python services, plus `/var/run/postgresql` for Postgres and `/etc/kafka` and `/var/log/kafka` for Kafka), proven by running the image with `docker run --read-only --tmpfs <path>` before adding it. Spring services probe `/actuator/health/liveness` and `/readiness` (readiness includes the datastore checks, liveness never does); stateful data lives on PersistentVolumeClaims in `k8s/platform/storage.yaml`, never `emptyDir`. New workloads follow the same shape or the namespace's Pod Security admission will warn.
 
 ## Architecture
 
