@@ -28,6 +28,8 @@ public class ChatEventIngestService {
                 request.getUser(),
                 request.getMessage(),
                 request.getTimestamp());
+        event.setSource("MANUAL");
+        event.setChannelLogin(request.getStreamer());
 
         producer.publish(event, correlationId, traceparent);
         chatMetrics.incrementChatIngest();

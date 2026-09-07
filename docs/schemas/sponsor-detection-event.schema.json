@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://streamsense.local/schemas/sponsor-detection-event.schema.json",
+  "$id": "https://streamsense.dev/schemas/sponsor-detection-event.schema.json",
   "title": "SponsorDetectionEvent",
   "type": "object",
   "additionalProperties": false,
@@ -89,24 +89,46 @@
       "maximum": 1
     },
     "source": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 32
     },
     "channelLogin": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 255
     },
     "streamSessionId": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 255
     },
     "twitchStreamId": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 128
     },
     "videoTimestampMs": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 0
+    },
+    "fallback": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "True when the detection came from the ml-engine fallback path (modelVersion 'fallback')"
     }
   }
 }

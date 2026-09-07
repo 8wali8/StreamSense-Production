@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streamsense.dev/schemas/transcript-segment-event.schema.json",
   "title": "TranscriptSegmentEvent",
   "type": "object",
   "required": [
@@ -17,20 +18,64 @@
     "captureWorkerId"
   ],
   "properties": {
-    "segmentId": { "type": "string" },
-    "streamer": { "type": "string" },
-    "text": { "type": "string", "maxLength": 4000 },
-    "startedAt": { "type": "integer" },
-    "endedAt": { "type": "integer" },
-    "language": { "type": ["string", "null"] },
-    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
-    "modelVersion": { "type": "string" },
-    "source": { "const": "TWITCH" },
-    "channelLogin": { "type": "string" },
-    "streamSessionId": { "type": "string" },
-    "twitchStreamId": { "type": ["string", "null"] },
-    "videoTimestampMs": { "type": "integer" },
-    "transcriptSequence": { "type": "integer" },
-    "captureWorkerId": { "type": "string" }
-  }
+    "segmentId": {
+      "type": "string"
+    },
+    "streamer": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "startedAt": {
+      "type": "integer"
+    },
+    "endedAt": {
+      "type": "integer"
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "modelVersion": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "description": "TWITCH for live capture, TWITCH_VOD_REPLAY for replay"
+    },
+    "channelLogin": {
+      "type": "string"
+    },
+    "streamSessionId": {
+      "type": "string"
+    },
+    "twitchStreamId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "videoTimestampMs": {
+      "type": "integer"
+    },
+    "transcriptSequence": {
+      "type": "integer"
+    },
+    "captureWorkerId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
 }

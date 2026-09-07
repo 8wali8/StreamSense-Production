@@ -214,7 +214,7 @@ public class SentimentService {
                 .toList();
     }
 
-    private SentimentAnalysisEvent buildSentimentEvent(ChatMessageEvent event, MlSentimentResponse response) {
+    static SentimentAnalysisEvent buildSentimentEvent(ChatMessageEvent event, MlSentimentResponse response) {
         SentimentAnalysisEvent sentimentEvent = new SentimentAnalysisEvent();
         sentimentEvent.setSentimentEventId(UUID.randomUUID().toString());
         sentimentEvent.setSourceEventId(event.getEventId());
@@ -226,6 +226,10 @@ public class SentimentService {
         sentimentEvent.setLabel(response.getLabel());
         sentimentEvent.setScore(response.getScore());
         sentimentEvent.setModelVersion(response.getModelVersion());
+        sentimentEvent.setSource(event.getSource());
+        sentimentEvent.setChannelLogin(event.getChannelLogin());
+        sentimentEvent.setStreamSessionId(event.getStreamSessionId());
+        sentimentEvent.setTwitchStreamId(event.getTwitchStreamId());
         return sentimentEvent;
     }
 

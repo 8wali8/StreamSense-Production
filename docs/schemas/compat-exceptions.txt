@@ -1,0 +1,12 @@
+# Deliberate schema tightenings accepted by review. One finding per line, exactly as
+# tools/schema/check_compat.py prints it (a BREAKING line without the prefix). Remove a line once
+# main carries the change.
+#
+# Branch hardening/10-event-schemas closes these four schemas to unknown members. Every producer of
+# these payloads lives in this repository (ml-engine, sentiment-service, video-capture-service) and
+# each one has a contract test that validates a real sample against the closed schema, so no
+# in-repo producer sends extra fields; no external producer exists for these topics or endpoints.
+ml-sentiment-request.schema.json additionalProperties is now false (unknown members were accepted before)
+ml-sentiment-response.schema.json additionalProperties is now false (unknown members were accepted before)
+transcript-segment-event.schema.json additionalProperties is now false (unknown members were accepted before)
+transcript-sentiment-event.schema.json additionalProperties is now false (unknown members were accepted before)
