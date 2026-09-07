@@ -1,20 +1,7 @@
-import { useEffect, useState } from "react";
+import { getVideoCaptureStatus, type VideoCaptureStatus as CaptureStatus } from "../api/video";
+import { usePolledResource } from "../hooks/usePolledResource";
 
-type VideoCaptureStatusResponse = {
-  enabled: boolean;
-  state: string;
-  channels: string[];
-  lastFrameAt: number | null;
-  lastTranscriptAt: number | null;
-  channelStatuses?: Array<{
-    channel: string;
-    state: string;
-    lastError: string | null;
-    lastTranscriptPreview: string | null;
-  }>;
-};
-
-function formatStatus(status: VideoCaptureStatusResponse | null, error: string | null): string {
+function formatStatus(status: CaptureStatus | null, error: string | null): string {
   if (error) return "Video: status unavailable";
   if (!status) return "Video: checking";
   if (!status.enabled) return "Video: disabled";
@@ -31,7 +18,7 @@ function formatChannels(channels: string[]): string {
   return `@${visibleChannels.join(", @")}`;
 }
 
-function title(status: VideoCaptureStatusResponse | null, error: string | null): string | undefined {
+function title(status: CaptureStatus | null, error: string | null): string | undefined {
   if (error) return error;
   const channelError = status?.channelStatuses?.find((channel) => channel.lastError)?.lastError;
   if (channelError) return channelError;
@@ -42,37 +29,7 @@ function title(status: VideoCaptureStatusResponse | null, error: string | null):
 }
 
 export function VideoCaptureStatus() {
-  const [status, setStatus] = useState<VideoCaptureStatusResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadStatus() {
-      try {
-        const response = await fetch("/api/video/capture/status");
-        if (!response.ok) {
-          throw new Error(`status ${response.status}`);
-        }
-        const body = (await response.json()) as VideoCaptureStatusResponse;
-        if (!cancelled) {
-          setStatus(body);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "unknown error");
-        }
-      }
-    }
-
-    void loadStatus();
-    const interval = window.setInterval(loadStatus, 10000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, []);
+  const { data: status, error } = usePolledResource(getVideoCaptureStatus, 10000);
 
   return (
     <span className="status-pill" title={title(status, error)}>

@@ -1,28 +1,12 @@
 import { useState } from "react";
+import { segmentFrame, type SegmentationResponse } from "../api/ml";
+import { frameImageUrl } from "../api/video";
 
 type SegmentableFrame = {
   sourceFrameId: string;
   frameRef: string;
   frameSequence: number;
   capturedAt: number;
-};
-
-type RegionProposal = {
-  label: string;
-  confidence: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  source: string;
-  areaRatio: number;
-};
-
-type SegmentationResponse = {
-  modelVersion: string;
-  frameWidth: number;
-  frameHeight: number;
-  proposals: RegionProposal[];
 };
 
 type SegmentationPreviewProps = {
@@ -35,10 +19,6 @@ function clamp(value: number): number {
 
 function toPercent(value: number): string {
   return `${clamp(value) * 100}%`;
-}
-
-function frameImageUrl(frameRef: string): string {
-  return `/api/video/capture/frame?frameRef=${encodeURIComponent(frameRef)}`;
 }
 
 export function SegmentationPreview({ frame }: SegmentationPreviewProps) {
@@ -62,20 +42,7 @@ export function SegmentationPreview({ frame }: SegmentationPreviewProps) {
     setSegmentedFrameRef(frameRefForRequest);
 
     try {
-      const response = await fetch("/ml/segment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          frameId: frame?.sourceFrameId ?? `preview-${Date.now()}`,
-          frameRef: frameRefForRequest,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`/ml/segment returned ${response.status}`);
-      }
-
-      setResult((await response.json()) as SegmentationResponse);
+      setResult(await segmentFrame({ frameId: frame?.sourceFrameId ?? `preview-${Date.now()}`, frameRef: frameRefForRequest }));
     } catch (err) {
       setResult(null);
       setSegmentedFrameRef(null);

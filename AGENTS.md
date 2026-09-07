@@ -43,7 +43,7 @@
 - Full replay startup: `powershell -ExecutionPolicy Bypass -File "tools/start-stack.ps1" -TwitchEnv -Channels redbull-testing`.
 - Faster replay startup when jars are current: `powershell -ExecutionPolicy Bypass -File "tools/start-stack.ps1" -SkipPackage -TwitchEnv -Channels redbull-testing`.
 - Full Docker Compose serves the frontend at `http://localhost:3000`; nginx proxies `/graphql` to `api-gateway`.
-- Local frontend dev is different: `npm run dev` uses Vite defaults and there is no Vite proxy for `/graphql`. For end-to-end browser checks, prefer the Docker frontend unless you add your own proxy.
+- Local frontend dev: `npm run dev` (port 5173) proxies `/graphql` (HTTP and WebSocket), `/api`, and `/ml` to the Compose backend, so it works against `make up` for end-to-end browser checks; `VITE_DEV_API_TARGET` / `VITE_DEV_ML_TARGET` in a git-ignored `frontend/.env.local` point it elsewhere. The Docker frontend on 3000 is the production-shaped path.
 
 ## Replay Context
 
