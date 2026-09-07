@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import com.streamsense.apigateway.config.DownstreamServicesProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -23,10 +23,8 @@ public class RecommendationServiceClient {
 
     private final WebClient webClient;
 
-    public RecommendationServiceClient(
-            WebClient.Builder webClientBuilder,
-            @Value("${streamsense.services.recommendation-service.base-url:http://localhost:8082}") String baseUrl) {
-        this.webClient = webClientBuilder.baseUrl(baseUrl).build();
+    public RecommendationServiceClient(WebClient.Builder webClientBuilder, DownstreamServicesProperties services) {
+        this.webClient = webClientBuilder.baseUrl(services.getRecommendationService().getBaseUrl()).build();
     }
 
     public Mono<List<Recommendation>> recommendations(String streamer, int limit) {

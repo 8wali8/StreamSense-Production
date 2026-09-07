@@ -52,6 +52,9 @@ data:
           base-url: http://video-capture-service:8090
         analytics-service:
           base-url: http://analytics-service:8085
+        # WebClient calls from GraphQL resolvers; proxied routes use spring.cloud.gateway.httpclient below.
+        connect-timeout: 2s
+        response-timeout: 5s
       gateway:
         rate-limit-enabled: ${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:true}
         trusted-proxy-hops: ${STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS:0}
@@ -98,6 +101,9 @@ data:
         gateway:
           metrics:
             enabled: true
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 10s
           routes:
             - id: chat-service-api
               uri: ${streamsense.services.chat-service.base-url}
@@ -514,6 +520,8 @@ data:
           base-url: http://sentiment-service:8083
         video-service:
           base-url: http://video-service:8084
+        connect-timeout-ms: 2000
+        read-timeout-ms: 5000
       recommendations:
         defaultLimit: 3
         maxLimit: 6

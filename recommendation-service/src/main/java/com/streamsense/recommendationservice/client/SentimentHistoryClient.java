@@ -21,9 +21,7 @@ public class SentimentHistoryClient {
 
     public SentimentHistoryClient(RestClient.Builder restClientBuilder, StreamSenseProperties properties) {
         this.restClient = restClientBuilder
-                .baseUrl(properties.getServices().getSentimentService().getBaseUrl() != null
-                        ? properties.getServices().getSentimentService().getBaseUrl()
-                        : "http://localhost:8083")
+                .baseUrl(properties.getServices().getSentimentService().getBaseUrl())
                 .build();
     }
 

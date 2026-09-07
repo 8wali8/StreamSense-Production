@@ -4,7 +4,18 @@ spring:
     name: sentiment-service
   config:
     import:
-      - optional:configserver:${CONFIG_SERVER_URL:http://config-server:8888}
+      # Required, not optional: booting with empty runtime config is worse than not booting.
+      - configserver:${CONFIG_SERVER_URL:http://config-server:8888}
       # Docker/Kubernetes file secrets: each file under /run/secrets becomes a property
       # named after the file, so ${POSTGRES_PASSWORD} resolves from either env or a secret file.
       - optional:configtree:/run/secrets/
+  cloud:
+    config:
+      request-connect-timeout: 5000
+      request-read-timeout: 10000
+      fail-fast: true
+      retry:
+        initial-interval: 2000
+        multiplier: 1.5
+        max-interval: 10000
+        max-attempts: 12
