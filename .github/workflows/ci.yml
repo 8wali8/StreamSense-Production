@@ -176,11 +176,11 @@ jobs:
 
       - name: Run lint
         working-directory: ml-engine
-        run: uv run ruff check src/main/python src/test/python
+        run: uv run ruff check src tests
 
       - name: Check formatting
         working-directory: ml-engine
-        run: uv run ruff format --check src/main/python src/test/python
+        run: uv run ruff format --check src tests
 
       - name: Type-check
         working-directory: ml-engine
@@ -213,11 +213,11 @@ jobs:
 
       - name: Run lint
         working-directory: video-capture-service
-        run: uv run ruff check src/main/python src/test/python
+        run: uv run ruff check src tests
 
       - name: Check formatting
         working-directory: video-capture-service
-        run: uv run ruff format --check src/main/python src/test/python
+        run: uv run ruff format --check src tests
 
       - name: Type-check
         working-directory: video-capture-service

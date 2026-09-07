@@ -23,9 +23,9 @@ repos:
     rev: v0.16.6
     hooks:
       - id: ruff
-        files: ^(ml-engine|video-capture-service)/src/
+        files: ^(ml-engine|video-capture-service)/(src|tests)/
       - id: ruff-format
-        files: ^(ml-engine|video-capture-service)/src/
+        files: ^(ml-engine|video-capture-service)/(src|tests)/
 
   - repo: https://github.com/rbubley/mirrors-prettier
     rev: v3.9.6

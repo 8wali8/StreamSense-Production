@@ -17,7 +17,7 @@
 
 - Java service check: `cd <service> && mvn -B -ntp clean test`
 - Focused Java test: `cd <service> && mvn -Dtest=MyTest test`
-- Python checks (either service): `cd ml-engine && uv sync --locked && uv run ruff check src/main/python src/test/python && uv run pytest`. Dependencies live in `pyproject.toml` with a committed `uv.lock`; add them with `uv add`, never by hand, and commit the lock with the change.
+- Python checks (either service): `cd ml-engine && uv sync --locked && uv run ruff check src tests && uv run pytest`. Dependencies live in `pyproject.toml` with a committed `uv.lock`; add them with `uv add`, never by hand, and commit the lock with the change.
 - Frontend CI check: `cd frontend && npm ci && npm run lint && npm run test && npm run build`
 - `make test` is not identical to CI: it runs Java tests and ML tests, but for `frontend` it only runs `npm run lint && npm run build` and skips Vitest.
 - If you touch `k8s/` or `config-server/config-repo/`, run `kubectl kustomize .` from the repo root. CI also validates the JSON embedded in `k8s/config/grafana-config.yaml`.
@@ -67,5 +67,5 @@
 ## Entry Points
 
 - GraphQL gateway and subscriptions: `api-gateway/src/main/java/com/streamsense/apigateway/`
-- ML FastAPI app: `ml-engine/src/main/python/app/main.py`
+- ML FastAPI app: `ml-engine/src/ml_engine/main.py`
 - Frontend Apollo transport setup: `frontend/src/apollo/client.ts`

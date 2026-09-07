@@ -15,6 +15,13 @@ dependencies = [
     "requests>=2.31,<3",
 ]
 
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/video_capture_service"]
+
 [dependency-groups]
 dev = [
     "pytest>=8,<9",
@@ -25,13 +32,10 @@ dev = [
 ]
 
 [tool.uv]
-# The service is run from src/main/python via PYTHONPATH, not installed as a package.
-package = false
 environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
 
 [tool.pytest.ini_options]
-testpaths = ["src/test/python"]
-pythonpath = ["src/main/python"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
@@ -43,21 +47,21 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF", "PT", "BLE", "S", "
 ignore = ["N815"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app"]
+known-first-party = ["video_capture_service"]
 
 [tool.ruff.lint.per-file-ignores]
 # Query parameters carry the API's camelCase names.
-"src/main/python/app/main.py" = ["N803"]
+"src/video_capture_service/main.py" = ["N803"]
 # Tests assert, carry placeholder credentials, and write under /tmp on purpose.
-"src/test/python/*" = ["S101", "S105", "S108"]
+"tests/*" = ["S101", "S105", "S108"]
 # Broad excepts at the capture-loop and storage boundaries are replaced by typed
 # exception handling in the lifecycle branch (hardening/06b); keep lint green until then.
-"src/main/python/app/capture_loop.py" = ["BLE001"]
-"src/main/python/app/storage.py" = ["BLE001"]
+"src/video_capture_service/capture_loop.py" = ["BLE001"]
+"src/video_capture_service/storage.py" = ["BLE001"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/main/python"]
+files = ["src"]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 check_untyped_defs = true

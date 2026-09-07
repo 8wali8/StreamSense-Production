@@ -1,5 +1,0 @@
-server:
-  port: 8000
-
-ml-engine:
-  model-version: stub-v1

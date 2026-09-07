@@ -23,6 +23,13 @@ dependencies = [
     "prometheus-client>=0.20,<1",
 ]
 
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ml_engine"]
+
 [dependency-groups]
 dev = [
     "pytest>=8,<9",
@@ -33,8 +40,6 @@ dev = [
 ]
 
 [tool.uv]
-# The service is run from src/main/python via PYTHONPATH, not installed as a package.
-package = false
 # Resolve for the platforms the service is built (linux) and developed (windows, linux) on.
 environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
 
@@ -48,8 +53,7 @@ torch = { index = "pytorch-cpu" }
 torchvision = { index = "pytorch-cpu" }
 
 [tool.pytest.ini_options]
-testpaths = ["src/test/python"]
-pythonpath = ["src/main/python"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
@@ -61,19 +65,19 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF", "PT", "BLE", "S", "
 ignore = ["N815"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "conftest"]
+known-first-party = ["ml_engine", "conftest"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests assert, carry placeholder credentials, and write under /tmp on purpose.
-"src/test/python/*" = ["S101", "S105", "S108"]
+"tests/*" = ["S101", "S105", "S108"]
 # FastAPI route parameters use File()/Depends() calls as argument defaults and carry the API's camelCase names.
-"src/main/python/app/main.py" = ["B008", "N803"]
+"src/ml_engine/main.py" = ["B008", "N803"]
 # Segmentation deliberately catches broad exceptions to fall back to degraded output.
-"src/main/python/app/segmentation.py" = ["BLE001"]
+"src/ml_engine/segmentation.py" = ["BLE001"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/main/python"]
+files = ["src"]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 check_untyped_defs = true

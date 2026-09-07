@@ -9,17 +9,18 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
 
-# Install the locked runtime dependencies before copying source so the layer is cached
-# across code changes. The dev group (pytest, ruff, httpx) is never installed here.
+# Install the locked runtime dependencies before copying source so the layer is cached across
+# code changes; the dev group is never installed here. The second sync installs the service itself
+# into the venv as a regular (non-editable) package, so nothing depends on PYTHONPATH or the cwd.
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+    uv sync --locked --no-dev --no-install-project
 
-COPY src/main/python ./src/main/python
-COPY src/main/resources ./src/main/resources
+COPY src ./src
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
 
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONPATH=/app/src/main/python
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Run as a dedicated non-root user. The model cache directories are created and owned here so a
 # fresh Compose volume inherits that ownership; Kubernetes sets fsGroup 10001 on the PVCs instead.
@@ -28,4 +29,4 @@ RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home
 ENV HOME=/tmp/app
 USER 10001
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "ml_engine.main:app", "--host", "0.0.0.0", "--port", "8000"]
