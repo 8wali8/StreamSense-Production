@@ -162,7 +162,7 @@ The GraphQL schema lives in `api-gateway/src/main/resources/graphql/`; `docs/con
 
 ### Frontend internals
 
-React 19 + Vite + Apollo Client 4. GraphQL operations live in `frontend/src/graphql/`. Apollo config and WebSocket link setup is in `frontend/src/apollo/client.ts`. Subscriptions use `graphql-ws`.
+React 19 + Vite + Apollo Client 4. GraphQL operations live in `frontend/src/graphql/` (`queries.ts`, `subscriptions.ts`), and their result and variable types are generated from the gateway's SDL into `frontend/src/graphql/generated.ts` by GraphQL Code Generator (`codegen.ts`: `typescript` + `typescript-operations`, reading `api-gateway/src/main/resources/graphql/*.graphqls` directly). Never hand-write a type for a GraphQL result: pass the generated `<Operation>Query` / `<Operation>Subscription` type to `useQuery`/`useSubscription` and derive entity types from it (`RecentSentimentQuery["recentSentiment"][number]`). After changing an operation or the SDL run `npm run codegen` and commit `generated.ts`; CI runs `npm run codegen:check` and fails when it is stale. Apollo config and WebSocket link setup is in `frontend/src/apollo/client.ts`. Subscriptions use `graphql-ws`.
 
 In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/graphql`, `/api`, and `/ml` to the backend. Local `npm run dev` has **no** Vite proxy for these routes — for end-to-end browser checks, prefer the Docker frontend.
 

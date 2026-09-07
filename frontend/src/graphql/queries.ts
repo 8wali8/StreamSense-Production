@@ -1,5 +1,11 @@
 import { gql } from "@apollo/client";
 
+export const HEALTH_QUERY = gql`
+  query Health {
+    health
+  }
+`;
+
 export const RECENT_SENTIMENT_QUERY = gql`
   query RecentSentiment($streamer: String!, $limit: Int!) {
     recentSentiment(streamer: $streamer, limit: $limit) {

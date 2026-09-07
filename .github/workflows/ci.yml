@@ -74,6 +74,7 @@ jobs:
               - 'video-capture-service/**'
             frontend:
               - 'frontend/**'
+              - 'api-gateway/src/main/resources/graphql/**'
             k8s:
               - 'k8s/**'
               # The root kustomization is the canonical entry point (it generates the config-server ConfigMap).
@@ -243,6 +244,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Check generated GraphQL types match the gateway schema
+        working-directory: frontend
+        run: npm run codegen:check
 
       - name: Run lint
         working-directory: frontend

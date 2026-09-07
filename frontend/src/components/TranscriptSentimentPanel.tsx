@@ -2,30 +2,14 @@ import { useState } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { RECENT_TRANSCRIPT_SENTIMENT_QUERY } from "../graphql/queries";
 import { ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION } from "../graphql/subscriptions";
+import type {
+  OnTranscriptSentimentSubscription,
+  OnTranscriptSentimentSubscriptionVariables,
+  RecentTranscriptSentimentQuery,
+  RecentTranscriptSentimentQueryVariables,
+} from "../graphql/generated";
 
-type TranscriptSentimentEvent = {
-  sentimentEventId: string;
-  segmentId: string;
-  streamer: string;
-  text: string;
-  segmentStartedAt: number;
-  segmentEndedAt: number;
-  processedAt: number;
-  label: "POSITIVE" | "NEUTRAL" | "NEGATIVE" | string;
-  score: number;
-  modelVersion: string;
-  transcriptModelVersion: string;
-  streamSessionId: string;
-  transcriptSequence: number;
-};
-
-type RecentTranscriptSentimentData = {
-  recentTranscriptSentiment: TranscriptSentimentEvent[];
-};
-
-type OnTranscriptSentimentData = {
-  onTranscriptSentiment: TranscriptSentimentEvent;
-};
+type TranscriptSentimentEvent = RecentTranscriptSentimentQuery["recentTranscriptSentiment"][number];
 
 type TranscriptSentimentPanelProps = {
   streamer?: string;
@@ -42,7 +26,7 @@ export function TranscriptSentimentPanel({ streamer, hideControls = false }: Tra
   const [liveEvents, setLiveEvents] = useState<TranscriptSentimentEvent[]>([]);
   const activeStreamer = streamer ?? localStreamer;
 
-  const { data, loading, error } = useQuery<RecentTranscriptSentimentData>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
+  const { data, loading, error } = useQuery<RecentTranscriptSentimentQuery, RecentTranscriptSentimentQueryVariables>(RECENT_TRANSCRIPT_SENTIMENT_QUERY, {
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
     fetchPolicy: "network-only",
@@ -52,7 +36,7 @@ export function TranscriptSentimentPanel({ streamer, hideControls = false }: Tra
   const historyIds = new Set(historyEvents.map((event) => event.sentimentEventId));
   const events = [...liveEvents.filter((event) => !historyIds.has(event.sentimentEventId)), ...historyEvents].slice(0, 50);
 
-  const { error: subscriptionError } = useSubscription<OnTranscriptSentimentData>(ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
+  const { error: subscriptionError } = useSubscription<OnTranscriptSentimentSubscription, OnTranscriptSentimentSubscriptionVariables>(ON_TRANSCRIPT_SENTIMENT_SUBSCRIPTION, {
     variables: { streamer: activeStreamer },
     skip: !activeStreamer,
     onData: ({ data: subscriptionData }) => {
