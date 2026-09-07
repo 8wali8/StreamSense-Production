@@ -2,9 +2,9 @@
 
 ## Start Here
 
-- Read `docs/current-state.md` before doing non-trivial work. It captures the current replay milestone, known gaps, and the recommended next task.
+- Read `CLAUDE.md` before doing non-trivial work; it is the maintained description of the system and its conventions. `docs/planning/history/current-state.md` is the older replay-milestone snapshot, kept for context.
 - Read `docs/replay-runbook.md` before starting or debugging the Twitch VOD replay stack.
-- Read `docs/next-work.md` when choosing what to build next.
+- Read `docs/planning/` (the hardening branch notes, and `history/next-work.md` for the older backlog) when choosing what to build next.
 - Current canonical demo channel is `redbull-testing`, backed by Twitch VOD `2750461300` and source marker `TWITCH_VOD_REPLAY`.
 
 ## Workflow

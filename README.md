@@ -148,9 +148,8 @@ powershell -ExecutionPolicy Bypass -File "tools/start-stack.ps1" -SkipPackage -T
 
 Key docs for new contributors and agents:
 
-- `docs/current-state.md`: current architecture, replay milestone, known gaps, and handoff context.
+- `docs/planning/`: hardening branch notes and the earlier plans, reports, and session logs (`history/`).
 - `docs/replay-runbook.md`: how VOD replay works, how to start it, and how to verify it.
-- `docs/next-work.md`: recommended backlog and next implementation priorities.
 - `docs/howtorun.md`: broader local runbook and historical verification notes.
 
 ## Tech Stack

@@ -146,11 +146,11 @@ Kubernetes reads the same files: the root `kustomization.yaml` generates the con
 
 The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings). In ml-engine every env read lives in `app/settings.py` (pydantic-settings, one class per `STREAMSENSE_<BACKEND>_` prefix, validated at start-up); routes receive settings and the `BackendRegistry` through FastAPI dependencies, so add config as a settings field, never as an `os.getenv` in a handler, and swap backends in tests with `app.dependency_overrides`, never by monkeypatching module globals.
 
-Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires the `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` secret file or key, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS` (Compose default `0`; the Kubernetes manifest sets `2` for the ingress plus console hops), `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
+Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires the `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` secret file or key, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_STORE` (`redis`/`memory`), `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS` (Compose default `0`; the Kubernetes manifest sets `2` for the ingress plus console hops), `STREAMSENSE_GATEWAY_GRAPHIQL_ENABLED` (off by default; Compose turns it on for local exploration), `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
 
 ### Twitch VOD replay
 
-Both chat-service and video-capture-service support replaying a recorded Twitch VOD instead of a live stream, driven by named replay aliases (default alias: `redbull-testing`, wired in `config-server/config-repo/chat-service.yml` and the video-capture-service environment in `docker-compose.yml`). chat-service replays from a chat fixture (`classpath:replay/...`) or the Twitch GraphQL API; video-capture-service replays frames from the VOD URL. See `plans/vod-replay-testing-plan.md` for the replay startup workflow.
+Both chat-service and video-capture-service support replaying a recorded Twitch VOD instead of a live stream, driven by named replay aliases (default alias: `redbull-testing`, wired in `config-server/config-repo/chat-service.yml` and the video-capture-service environment in `docker-compose.yml`). chat-service replays from a chat fixture (`classpath:replay/...`) or the Twitch GraphQL API; video-capture-service replays frames from the VOD URL. See `docs/replay-runbook.md` for the replay startup workflow.
 
 ### API Gateway internals
 
@@ -194,5 +194,5 @@ Java tests are self-contained: test configs disable config-server and Eureka; in
 - `docs/kubernetes-kind.md` — Kubernetes/kind deployment guide
 - `docs/contracts/` — GraphQL API contracts
 - `docs/schemas/` — one JSON Schema per Kafka event and ml-engine payload, with an index and the compatibility rules in its README
-- `plans/vod-replay-testing-plan.md` — Twitch VOD replay workflow
-- `plan.md` — full 12-week production roadmap
+- `docs/replay-runbook.md` — Twitch VOD replay workflow
+- `docs/planning/` — hardening branch notes (`branches/`) and earlier plans, reports, and session logs (`history/`, kept for context, not maintained)

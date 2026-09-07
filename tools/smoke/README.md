@@ -30,7 +30,7 @@ Use `--relaxed-rate-limit` when the smoke run is part of a benchmark that should
 
 ## VOD replay smoke
 
-`replay_smoke.py` verifies the Twitch VOD replay path from `plans/vod-replay-testing-plan.md`: it switches chat and video capture to a replay alias (default `redbull-testing`), then polls until replay events flow through the stack.
+`replay_smoke.py` verifies the Twitch VOD replay path from `docs/replay-runbook.md` (plan history in `docs/planning/history/plans/vod-replay-testing-plan.md`): it switches chat and video capture to a replay alias (default `redbull-testing`), then polls until replay events flow through the stack.
 
 Against an already-running stack (the stack must have been started with `STREAMSENSE_TWITCH_CHAT_ENABLED=true`; no Twitch credentials are needed for replay):
 

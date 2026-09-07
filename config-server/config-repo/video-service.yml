@@ -29,16 +29,6 @@ streamsense:
     retryBackoffMs: 1000
     maxRetries: 2
 
-hystrix:
-  command:
-    mlSponsor:
-      executionTimeoutMs: 3000
-      requestVolumeThreshold: 10
-      errorThresholdPercentage: 50
-      sleepWindowMs: 15000
-      maxConcurrentCalls: 4
-      maxRetries: 2
-
 resilience4j:
   circuitbreaker:
     instances:
