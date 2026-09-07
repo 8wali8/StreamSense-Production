@@ -35,7 +35,7 @@ Maintains ordering of sentiment events per streamer.
 
 Defined in:
 
-docs/schemas/sentiment-analysis-event.json
+docs/schemas/sentiment-analysis-event.schema.json
 
 Fields:
 
@@ -62,11 +62,11 @@ POST /ml/sentiment
 
 Request schema:
 
-docs/schemas/ml-sentiment-request.json
+docs/schemas/ml-sentiment-request.schema.json
 
 Response schema:
 
-docs/schemas/ml-sentiment-response.json
+docs/schemas/ml-sentiment-response.schema.json
 
 ---
 

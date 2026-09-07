@@ -72,8 +72,14 @@ class GatewayRateLimitIntegrationTest {
         postIngest("203.0.113.10")
                 .expectStatus().isEqualTo(429)
                 .expectHeader().valueEquals("Retry-After", "60")
+                .expectHeader().contentType("application/problem+json")
                 .expectBody()
-                .jsonPath("$.error").isEqualTo("rate_limited");
+                .jsonPath("$.error").isEqualTo("rate_limited")
+                .jsonPath("$.type").isEqualTo("https://streamsense.dev/problems/rate-limited")
+                .jsonPath("$.status").isEqualTo(429)
+                .jsonPath("$.instance").isEqualTo("/api/chat/ingest")
+                .jsonPath("$.service").isEqualTo("api-gateway")
+                .jsonPath("$.correlationId").isNotEmpty();
 
         assertThat(meterRegistry.get("streamsense_gateway_rate_limit_rejections_total")
                 .tag("limit", "chat-ingest")
