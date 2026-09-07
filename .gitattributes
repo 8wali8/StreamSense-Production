@@ -1,0 +1,8 @@
+# The repository stores and checks out LF everywhere. Spotless (Java), Prettier (frontend), and ruff format
+# (Python) all normalise to LF, so a Windows checkout with core.autocrlf=true would otherwise see every file
+# as modified after a formatter run and fail format:check locally while CI passes.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

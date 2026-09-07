@@ -15,6 +15,11 @@ type SentimentAnalysisEvent {
   relevanceScore: Float!
   relevanceReason: String
   relevanceVersion: String
+  # Optional capture-session fields carried over from the chat message.
+  source: String
+  channelLogin: String
+  streamSessionId: String
+  twitchStreamId: String
 }
 
 type TranscriptSegmentEvent {

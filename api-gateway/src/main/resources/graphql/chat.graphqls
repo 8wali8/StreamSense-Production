@@ -4,4 +4,9 @@ type ChatMessageEvent {
   user: String!
   message: String!
   timestamp: Float!
+  # Optional capture-session fields; null for messages ingested before hardening/10.
+  source: String
+  channelLogin: String
+  streamSessionId: String
+  twitchStreamId: String
 }
