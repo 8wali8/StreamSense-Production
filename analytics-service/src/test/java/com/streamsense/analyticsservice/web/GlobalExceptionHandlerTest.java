@@ -14,13 +14,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.http.ProblemDetail;
-import org.springframework.web.context.request.ServletWebRequest;
-import org.springframework.web.bind.MissingServletRequestParameterException;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
-import org.springframework.mock.http.MockHttpInputMessage;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.context.request.ServletWebRequest;
 
 class GlobalExceptionHandlerTest {
 
@@ -88,14 +88,17 @@ class GlobalExceptionHandlerTest {
         // handleException is the public entry point that dispatches to the framework's protected handlers.
         ResponseEntity<Object> malformed = handler.handleException(
                 new HttpMessageNotReadableException("bad json", new MockHttpInputMessage(new byte[0])), webRequest);
-        ResponseEntity<Object> missing = handler.handleException(
-                new MissingServletRequestParameterException("streamer", "String"), webRequest);
-        ResponseEntity<Object> unsupported = handler.handleException(
-                new HttpMediaTypeNotSupportedException("text/plain"), webRequest);
+        ResponseEntity<Object> missing =
+                handler.handleException(new MissingServletRequestParameterException("streamer", "String"), webRequest);
+        ResponseEntity<Object> unsupported =
+                handler.handleException(new HttpMediaTypeNotSupportedException("text/plain"), webRequest);
 
-        assertThat(((ProblemDetail) malformed.getBody()).getType()).hasToString("https://streamsense.dev/problems/malformed-request");
-        assertThat(((ProblemDetail) missing.getBody()).getType()).hasToString("https://streamsense.dev/problems/missing-parameter");
-        assertThat(((ProblemDetail) unsupported.getBody()).getType()).hasToString("https://streamsense.dev/problems/unsupported-media-type");
+        assertThat(((ProblemDetail) malformed.getBody()).getType())
+                .hasToString("https://streamsense.dev/problems/malformed-request");
+        assertThat(((ProblemDetail) missing.getBody()).getType())
+                .hasToString("https://streamsense.dev/problems/missing-parameter");
+        assertThat(((ProblemDetail) unsupported.getBody()).getType())
+                .hasToString("https://streamsense.dev/problems/unsupported-media-type");
         assertThat(((ProblemDetail) malformed.getBody()).getProperties()).containsEntry("service", "analytics-service");
         assertThat(((ProblemDetail) malformed.getBody()).getInstance()).hasToString("/api/anything");
     }

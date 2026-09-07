@@ -88,7 +88,9 @@ class RedisRateLimiterTest {
 
         limiter.acquire(bucket, 5, 60).block();
 
-        Long ttl = redis.getExpire(RedisRateLimiter.KEY_PREFIX + bucket + ":1775908800").block().toSeconds();
+        Long ttl = redis.getExpire(RedisRateLimiter.KEY_PREFIX + bucket + ":1775908800")
+                .block()
+                .toSeconds();
         assertThat(ttl).isBetween(1L, 2L);
     }
 

@@ -2,6 +2,11 @@ package com.streamsense.apigateway.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.streamsense.apigateway.ratelimit.InMemoryRateLimiter;
+import com.streamsense.apigateway.ratelimit.RateLimiter;
+import com.streamsense.apigateway.ratelimit.RedisRateLimiter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
@@ -11,17 +16,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.streamsense.apigateway.ratelimit.InMemoryRateLimiter;
-import com.streamsense.apigateway.ratelimit.RateLimiter;
-import com.streamsense.apigateway.ratelimit.RedisRateLimiter;
-
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-
 class RateLimitStoreConfigTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(RedisAutoConfiguration.class, RedisReactiveAutoConfiguration.class))
+            .withConfiguration(
+                    AutoConfigurations.of(RedisAutoConfiguration.class, RedisReactiveAutoConfiguration.class))
             // Spring Boot's default, stated here because the test depends on it: a second bean with an existing
             // name is an error, not an override.
             .withAllowBeanDefinitionOverriding(false)

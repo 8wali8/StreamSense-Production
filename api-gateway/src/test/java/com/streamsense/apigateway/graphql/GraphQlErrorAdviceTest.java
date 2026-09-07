@@ -97,18 +97,22 @@ class GraphQlErrorAdviceTest {
 
     @Test
     void downstreamValidationFailureIsTheCallersMistake() {
-        RECOMMENDATION_SERVICE.enqueue(new MockResponse().setResponseCode(400)
+        RECOMMENDATION_SERVICE.enqueue(new MockResponse()
+                .setResponseCode(400)
                 .addHeader("Content-Type", "application/problem+json")
                 .setBody("{\"type\":\"https://streamsense.dev/problems/validation-failed\",\"status\":400}"));
 
-        graphQlTester.document(RECOMMENDATIONS_QUERY)
+        graphQlTester
+                .document(RECOMMENDATIONS_QUERY)
                 .variable("streamer", "test")
                 .variable("limit", 3)
                 .execute()
                 .errors()
                 .satisfy(errors -> {
                     assertThat(errors).hasSize(1);
-                    assertThat(errors.get(0).getExtensions()).containsEntry("code", "BAD_REQUEST").containsEntry("status", 400);
+                    assertThat(errors.get(0).getExtensions())
+                            .containsEntry("code", "BAD_REQUEST")
+                            .containsEntry("status", 400);
                     assertThat(errors.get(0).getErrorType()).hasToString("BAD_REQUEST");
                     assertThat(errors.get(0).getMessage()).isEqualTo("Downstream service rejected the request");
                 });
@@ -118,31 +122,38 @@ class GraphQlErrorAdviceTest {
     void otherDownstreamClientErrorsAreNotTheCallersMistake() {
         RECOMMENDATION_SERVICE.enqueue(new MockResponse().setResponseCode(404).setBody("no such route"));
 
-        graphQlTester.document(RECOMMENDATIONS_QUERY)
+        graphQlTester
+                .document(RECOMMENDATIONS_QUERY)
                 .variable("streamer", "test")
                 .variable("limit", 3)
                 .execute()
                 .errors()
                 .satisfy(errors -> {
                     assertThat(errors).hasSize(1);
-                    assertThat(errors.get(0).getExtensions()).containsEntry("code", "DOWNSTREAM_ERROR").containsEntry("status", 404);
+                    assertThat(errors.get(0).getExtensions())
+                            .containsEntry("code", "DOWNSTREAM_ERROR")
+                            .containsEntry("status", 404);
                 });
     }
 
     @Test
     void undecodableDownstreamBodyIsADownstreamError() {
-        RECOMMENDATION_SERVICE.enqueue(new MockResponse().setResponseCode(200)
+        RECOMMENDATION_SERVICE.enqueue(new MockResponse()
+                .setResponseCode(200)
                 .addHeader("Content-Type", "application/json")
                 .setBody("{not json at all"));
 
-        graphQlTester.document(RECOMMENDATIONS_QUERY)
+        graphQlTester
+                .document(RECOMMENDATIONS_QUERY)
                 .variable("streamer", "test")
                 .variable("limit", 3)
                 .execute()
                 .errors()
                 .satisfy(errors -> {
                     assertThat(errors).hasSize(1);
-                    assertThat(errors.get(0).getExtensions()).containsEntry("code", "DOWNSTREAM_ERROR").containsEntry("reason", "undecodable_response");
+                    assertThat(errors.get(0).getExtensions())
+                            .containsEntry("code", "DOWNSTREAM_ERROR")
+                            .containsEntry("reason", "undecodable_response");
                     assertThat(errors.get(0).getMessage()).doesNotContain("not json");
                 });
     }

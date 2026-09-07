@@ -1,7 +1,8 @@
 package com.streamsense.apigateway.config;
 
+import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Map;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -13,10 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
-
-import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
-
-import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -57,20 +54,25 @@ public class GatewayAuthWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
-        JwtAuthTokenValidator.ValidationResult result = tokenValidator.validate(
-                exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION),
-                auth);
+        JwtAuthTokenValidator.ValidationResult result =
+                tokenValidator.validate(exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION), auth);
 
         if (result.valid()) {
             exchange.getResponse().getHeaders().set("X-StreamSense-Auth-Subject", result.subject());
             return chain.filter(exchange);
         }
 
-        meterRegistry.counter("streamsense_gateway_auth_rejections_total", "reason", result.reason()).increment();
+        meterRegistry
+                .counter("streamsense_gateway_auth_rejections_total", "reason", result.reason())
+                .increment();
         exchange.getResponse().getHeaders().set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
         // A problem+json body like every other StreamSense error; `error` and `reason` stay for existing clients.
-        return ProblemResponses.write(exchange, HttpStatus.UNAUTHORIZED, "unauthorized",
-                "Authentication failed: " + result.reason(), serviceName,
+        return ProblemResponses.write(
+                exchange,
+                HttpStatus.UNAUTHORIZED,
+                "unauthorized",
+                "Authentication failed: " + result.reason(),
+                serviceName,
                 Map.of("error", "unauthorized", "reason", result.reason()));
     }
 
