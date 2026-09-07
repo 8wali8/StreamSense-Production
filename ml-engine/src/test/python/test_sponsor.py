@@ -58,7 +58,8 @@ def test_sponsor_endpoint_uses_region_proposals_when_segmentation_enabled(make_c
     assert response.status_code == 200
     body = response.json()
     assert body["modelVersion"] == "proposal-aware-stub-v1"
-    assert body["x"] == 0.1 and body["width"] == 0.5
+    assert body["x"] == 0.1
+    assert body["width"] == 0.5
 
 
 def test_heuristic_segmentation_end_to_end(real_lightweight_client, tmp_path):

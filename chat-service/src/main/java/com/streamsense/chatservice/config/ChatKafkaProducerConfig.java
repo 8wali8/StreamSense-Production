@@ -16,11 +16,9 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 @Configuration
 public class ChatKafkaProducerConfig {
 
-    @Value("${spring.kafka.bootstrap-servers}")
-    private String bootstrapServers;
-
     @Bean
-    public ProducerFactory<String, ChatMessageEvent> chatProducerFactory() {
+    public ProducerFactory<String, ChatMessageEvent> chatProducerFactory(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
         Map<String, Object> configProps = new HashMap<>();
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -29,7 +27,8 @@ public class ChatKafkaProducerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, ChatMessageEvent> chatKafkaTemplate() {
-        return new KafkaTemplate<>(chatProducerFactory());
+    public KafkaTemplate<String, ChatMessageEvent> chatKafkaTemplate(
+            ProducerFactory<String, ChatMessageEvent> chatProducerFactory) {
+        return new KafkaTemplate<>(chatProducerFactory);
     }
 }

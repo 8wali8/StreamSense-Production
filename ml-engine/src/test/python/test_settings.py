@@ -87,7 +87,7 @@ def test_legacy_sponsor_backend_alias_selects_backend(monkeypatch):
 def test_invalid_numeric_value_fails_at_startup(monkeypatch):
     monkeypatch.setenv("STREAMSENSE_SENTIMENT_MAX_CHARS", "lots")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="lots"):
         SentimentSettings()
 
 

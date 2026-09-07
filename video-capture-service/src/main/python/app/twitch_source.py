@@ -3,7 +3,7 @@ import subprocess
 from app.process import run_bounded
 
 
-class TwitchStreamOffline(Exception):
+class TwitchStreamOfflineError(Exception):
     pass
 
 
@@ -39,7 +39,7 @@ class TwitchSourceResolver:
         output = f"{result.stdout}\n{result.stderr}".strip()
         if result.returncode != 0:
             if _looks_offline(output):
-                raise TwitchStreamOffline(f"Twitch source {label} is offline or unavailable")
+                raise TwitchStreamOfflineError(f"Twitch source {label} is offline or unavailable")
             raise TwitchStreamResolutionError(_safe_error(output))
 
         stream_url = result.stdout.strip().splitlines()[-1].strip() if result.stdout.strip() else ""

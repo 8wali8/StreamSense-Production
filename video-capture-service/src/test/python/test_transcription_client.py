@@ -30,9 +30,7 @@ def test_transcription_client_posts_audio(monkeypatch, tmp_path):
     monkeypatch.setattr("requests.post", fake_post)
     client = TranscriptionClient("http://ml-engine:8000", 30, "en")
 
-    result, latency_ms = client.transcribe(
-        audio_path, "austincs", "segment-1", 1710000000000, 1710000005000
-    )
+    result, latency_ms = client.transcribe(audio_path, "austincs", "segment-1", 1710000000000, 1710000005000)
 
     assert result.text == "hello stream"
     assert result.language == "en"

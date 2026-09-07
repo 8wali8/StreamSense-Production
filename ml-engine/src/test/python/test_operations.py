@@ -112,7 +112,10 @@ def test_force_failure_applies_to_every_inference_route(make_client):
     payloads = [
         ("/ml/sentiment", {"json": {"eventId": "e", "streamer": "s", "user": "u", "message": "hi", "timestamp": 1}}),
         ("/ml/relevance", {"json": {"streamer": "s", "text": "t", "sponsor": "Nike"}}),
-        ("/ml/sponsor", {"json": {"frameId": "f", "streamer": "s", "frameRef": "x", "frameSequence": 1, "capturedAt": 1}}),
+        (
+            "/ml/sponsor",
+            {"json": {"frameId": "f", "streamer": "s", "frameRef": "x", "frameSequence": 1, "capturedAt": 1}},
+        ),
         ("/ml/segment", {"json": {"frameRef": "x"}}),
         (
             "/ml/transcribe",

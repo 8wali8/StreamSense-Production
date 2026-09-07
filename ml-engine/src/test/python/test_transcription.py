@@ -38,7 +38,8 @@ def test_whisper_transcriber_returns_text_and_deletes_temp_file(monkeypatch):
     assert result.language == "en"
     assert result.confidence == pytest.approx(0.8)
     assert result.model_version == "faster-whisper-small.en-int8"
-    assert seen_paths and not any(Path(path).exists() for path in seen_paths)
+    assert seen_paths
+    assert not any(Path(path).exists() for path in seen_paths)
 
 
 def test_whisper_transcriber_returns_empty_text_for_silence(monkeypatch):
@@ -51,7 +52,9 @@ def test_whisper_transcriber_returns_empty_text_for_silence(monkeypatch):
 
     result = transcriber.transcribe_bytes(b"silent-wav", "silence.wav")
 
-    assert result.text == "" and result.language == "en" and result.confidence is None
+    assert result.text == ""
+    assert result.language == "en"
+    assert result.confidence is None
 
 
 def test_whisper_transcriber_wraps_invalid_audio_errors(monkeypatch):
@@ -101,7 +104,12 @@ def test_transcribe_endpoint_returns_valid_shape(make_client):
     )
 
     assert response.status_code == 200
-    assert response.json() == {"text": "hello stream", "language": "en", "confidence": 0.91, "modelVersion": "fake-whisper"}
+    assert response.json() == {
+        "text": "hello stream",
+        "language": "en",
+        "confidence": 0.91,
+        "modelVersion": "fake-whisper",
+    }
     assert registry.transcriber.calls == [(b"fake-wav", "segment.wav", "en")]
 
 

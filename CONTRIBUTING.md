@@ -18,7 +18,7 @@ StreamSense is a personal project run to production standards. Changes are welco
 | Area | Command |
 |---|---|
 | Java (per service) | `mvn -B -ntp clean verify` (tests, JaCoCo, enforcer) |
-| Python (per service) | `uv sync --locked && uv run ruff check src/main/python src/test/python && uv run pytest` |
+| Python (per service) | `uv sync --locked && uv run ruff check src/main/python src/test/python && uv run ruff format --check src/main/python src/test/python && uv run mypy && uv run pytest` |
 | Frontend | `npm ci && npm run codegen:check && npm run lint && npm run format:check && npm run test:coverage && npm run build` |
 | Schemas | `python tools/schema/check_compat.py --base origin/main` |
 | Kubernetes | `kubectl kustomize .` (copy `k8s/secrets/streamsense.env.example` to `streamsense.env` first) |

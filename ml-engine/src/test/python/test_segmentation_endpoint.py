@@ -13,7 +13,9 @@ def test_segment_endpoint_returns_region_proposals(real_lightweight_client, tmp_
     frame_path = tmp_path / "frame.png"
     _striped_frame(frame_path)
 
-    response = real_lightweight_client.post("/ml/segment", json={"frameId": "frame-1", "frameRef": f"file://{frame_path}"})
+    response = real_lightweight_client.post(
+        "/ml/segment", json={"frameId": "frame-1", "frameRef": f"file://{frame_path}"}
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -25,7 +27,9 @@ def test_segment_endpoint_returns_region_proposals(real_lightweight_client, tmp_
 
 
 def test_segment_endpoint_missing_frame_returns_503(client, tmp_path):
-    response = client.post("/ml/segment", json={"frameId": "frame-missing", "frameRef": f"file://{tmp_path / 'missing.png'}"})
+    response = client.post(
+        "/ml/segment", json={"frameId": "frame-missing", "frameRef": f"file://{tmp_path / 'missing.png'}"}
+    )
 
     assert response.status_code == 503
     assert response.json()["detail"] == "frame artifact read failed"

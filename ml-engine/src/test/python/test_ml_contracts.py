@@ -18,7 +18,13 @@ def violations(schema_name: str, document: dict) -> list[str]:
 
 
 def test_schema_valid_request_parses_into_the_model() -> None:
-    sample = {"eventId": "evt-1", "streamer": "streamer-1", "user": "user-1", "message": "hello", "timestamp": 1710000000000}
+    sample = {
+        "eventId": "evt-1",
+        "streamer": "streamer-1",
+        "user": "user-1",
+        "message": "hello",
+        "timestamp": 1710000000000,
+    }
     assert violations("ml-sentiment-request.schema.json", sample) == []
 
     request = SentimentRequest.model_validate(sample)

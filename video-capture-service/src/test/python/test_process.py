@@ -8,7 +8,9 @@ from app.process import run_bounded
 
 
 def test_run_bounded_returns_completed_process():
-    result = run_bounded([sys.executable, "-c", "import sys; print('out'); print('err', file=sys.stderr); sys.exit(3)"], 10)
+    result = run_bounded(
+        [sys.executable, "-c", "import sys; print('out'); print('err', file=sys.stderr); sys.exit(3)"], 10
+    )
 
     assert isinstance(result, subprocess.CompletedProcess)
     assert result.returncode == 3

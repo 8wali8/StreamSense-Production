@@ -103,9 +103,7 @@ def compute_sponsor_detection(
     frame_signature: str | None = None,
     proposal_signature: str | None = None,
 ) -> tuple[str, float, float, float, float, float]:
-    digest = hashlib.sha256(
-        _seed(frame_ref, streamer, frame_sequence, frame_signature, proposal_signature)
-    ).digest()
+    digest = hashlib.sha256(_seed(frame_ref, streamer, frame_sequence, frame_signature, proposal_signature)).digest()
 
     sponsor = SPONSORS[digest[0] % len(SPONSORS)]
     confidence = round(0.55 + (digest[1] / 255.0) * 0.44, 3)

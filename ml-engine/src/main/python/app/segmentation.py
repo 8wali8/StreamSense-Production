@@ -192,10 +192,13 @@ class SamSegmenter:
             logger.warning("SAM checkpoint missing and auto-download is disabled")
             return None
 
+        if not self.config.sam_checkpoint_url.startswith(("https://", "http://")):
+            logger.warning("SAM checkpoint URL must be http(s): %s", self.config.sam_checkpoint_url)
+            return None
         try:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             logger.info("downloading SAM checkpoint url=%s path=%s", self.config.sam_checkpoint_url, cache_path)
-            urllib.request.urlretrieve(self.config.sam_checkpoint_url, cache_path)
+            urllib.request.urlretrieve(self.config.sam_checkpoint_url, cache_path)  # noqa: S310 - scheme checked above
             return cache_path
         except Exception as exc:
             logger.warning("failed to download SAM checkpoint: %s", exc)

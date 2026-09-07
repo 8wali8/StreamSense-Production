@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
-class CaptureState(str, Enum):
+class CaptureState(str, Enum):  # noqa: UP042 - StrEnum would change str()/format output in logs and snapshots
     DISABLED = "DISABLED"
     STARTING = "STARTING"
     RESOLVING_STREAM = "RESOLVING_STREAM"

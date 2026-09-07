@@ -23,7 +23,7 @@ from app.kafka_publisher import (
 from app.status import CaptureState, CaptureStatusStore, ChannelStatus
 from app.storage import FrameStorage
 from app.transcription_client import TranscriptionClient, TranscriptionClientError
-from app.twitch_source import TwitchSourceResolver, TwitchStreamOffline, TwitchStreamResolutionError
+from app.twitch_source import TwitchSourceResolver, TwitchStreamOfflineError, TwitchStreamResolutionError
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,10 @@ class CaptureManager:
                 status.state = CaptureState.STOPPED
 
     def _capture_channel(self, channel: str, stop_event: threading.Event) -> None:
+        # start() and switch_channels() refuse to run without sinks; bind them once so the loop below is typed
+        storage, publisher = self.storage, self.publisher
+        if storage is None or publisher is None:
+            raise RuntimeError("storage and publisher are required when capture is enabled")
         status = self.status_store.statuses[channel]
         replay_alias = self.config.replay_aliases.get(channel)
         resolver = TwitchSourceResolver(
@@ -128,8 +132,10 @@ class CaptureManager:
         while not stop_event.is_set():
             self._set_state(channel, CaptureState.RESOLVING_STREAM)
             try:
-                hls_url = resolver.resolve_url(replay_alias.vod_url, channel) if replay_alias else resolver.resolve(channel)
-            except TwitchStreamOffline as exc:
+                hls_url = (
+                    resolver.resolve_url(replay_alias.vod_url, channel) if replay_alias else resolver.resolve(channel)
+                )
+            except TwitchStreamOfflineError as exc:
                 self._record_failure(channel, CaptureState.IDLE_OFFLINE, str(exc), "resolve", reconnect=False)
                 self._sleep(stop_event, self.config.reconnect_delay_seconds)
                 continue
@@ -152,7 +158,7 @@ class CaptureManager:
                 metrics.frames_captured.labels(channel=channel).inc()
 
                 object_key = self._object_key(channel, status.capture_session_id, sequence, frame_id, suffix)
-                stored = self.storage.store(captured_path, object_key, _content_type(suffix))
+                stored = storage.store(captured_path, object_key, _content_type(suffix))
                 metrics.storage_latency.labels(channel=channel).observe(stored.latency_ms)
                 status.frames_stored += 1
                 metrics.frames_stored.labels(channel=channel).inc()
@@ -174,7 +180,7 @@ class CaptureManager:
                     artifactSizeBytes=stored.size_bytes,
                     captureWorkerId=self.config.worker_id,
                 )
-                publish_latency_ms = self.publisher.publish(event)
+                publish_latency_ms = publisher.publish(event)
                 metrics.publish_latency.labels(channel=channel).observe(publish_latency_ms)
 
                 status.frames_published += 1
@@ -196,7 +202,13 @@ class CaptureManager:
                 if self.config.transcript_enabled:
                     transcript_sequence += 1
                     self._capture_transcript_segment(
-                        channel, hls_url, status, audio_sampler, transcript_sequence, replay_alias, replay_offset_seconds
+                        channel,
+                        hls_url,
+                        status,
+                        audio_sampler,
+                        transcript_sequence,
+                        replay_alias,
+                        replay_offset_seconds,
                     )
             except FrameCaptureError as exc:
                 if replay_alias and replay_alias.loop:
@@ -244,7 +256,13 @@ class CaptureManager:
             status.reconnect_attempts += 1
             metrics.reconnects.labels(channel=channel).inc()
         self._set_state(channel, state)
-        logger.warning("Twitch video capture issue channel=%s state=%s stage=%s error=%s", channel, state.value, stage, status.last_error)
+        logger.warning(
+            "Twitch video capture issue channel=%s state=%s stage=%s error=%s",
+            channel,
+            state.value,
+            stage,
+            status.last_error,
+        )
 
     def _capture_transcript_segment(
         self,

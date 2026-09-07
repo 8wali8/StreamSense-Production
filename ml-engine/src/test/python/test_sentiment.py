@@ -18,7 +18,9 @@ def payload(message: str = "this stream is great", event_id: str = "evt-123") ->
 
 def test_sentiment_endpoint_returns_valid_shape(make_client):
     settings = make_settings()
-    registry = FakeRegistry(settings=settings, sentiment=FakeSentiment(SentimentResult("POSITIVE", 0.87, "test-model-v1")))
+    registry = FakeRegistry(
+        settings=settings, sentiment=FakeSentiment(SentimentResult("POSITIVE", 0.87, "test-model-v1"))
+    )
     client, _ = make_client(registry)
 
     response = client.post("/ml/sentiment", json=payload())
@@ -56,8 +58,10 @@ def test_lexical_backend_end_to_end(real_lightweight_client):
     positive = real_lightweight_client.post("/ml/sentiment", json=payload("I love this stream, this is amazing")).json()
     negative = real_lightweight_client.post("/ml/sentiment", json=payload("this is awful and terrible")).json()
 
-    assert positive["label"] == "POSITIVE" and positive["score"] > 0
-    assert negative["label"] == "NEGATIVE" and negative["score"] < 0
+    assert positive["label"] == "POSITIVE"
+    assert positive["score"] > 0
+    assert negative["label"] == "NEGATIVE"
+    assert negative["score"] < 0
     assert positive["modelVersion"] == "lexical-v1"
 
 
@@ -107,5 +111,7 @@ def test_real_sentiment_model_when_enabled():
     positive = analyzer.analyze("I love this stream, this is amazing")
     negative = analyzer.analyze("this is awful and terrible")
 
-    assert positive.label == "POSITIVE" and positive.score > 0
-    assert negative.label == "NEGATIVE" and negative.score < 0
+    assert positive.label == "POSITIVE"
+    assert positive.score > 0
+    assert negative.label == "NEGATIVE"
+    assert negative.score < 0

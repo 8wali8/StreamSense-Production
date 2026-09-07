@@ -10,6 +10,11 @@
     <version>0.0.1-SNAPSHOT</version>
   </parent>
 
+  <properties>
+    <!-- measured line coverage 11.8% on the baseline run; floor two points below -->
+    <jacoco.minimum.line>0.09</jacoco.minimum.line>
+  </properties>
+
   <dependencies>
 
     <!-- config server -->
@@ -28,6 +33,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

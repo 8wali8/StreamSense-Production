@@ -8,6 +8,7 @@ the standard ``CompletedProcess`` so callers and tests keep using the familiar s
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -18,7 +19,7 @@ def run_bounded(args: list[str], timeout_seconds: float) -> subprocess.Completed
     popen_kwargs: dict = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "text": True}
     if os.name != "nt":
         popen_kwargs["start_new_session"] = True
-    process = subprocess.Popen(args, **popen_kwargs)
+    process = subprocess.Popen(args, **popen_kwargs)  # noqa: S603 - argv built from config, never a shell string
     try:
         stdout, stderr = process.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
@@ -36,7 +37,5 @@ def _kill_group(process: subprocess.Popen) -> None:
     if os.name == "nt":
         process.kill()
         return
-    try:
+    with contextlib.suppress(ProcessLookupError):
         os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass

@@ -26,20 +26,22 @@ class AudioSampler:
         ]
         if seek_seconds is not None:
             command.extend(["-ss", f"{max(0.0, seek_seconds):.3f}"])
-        command.extend([
-            "-i",
-            hls_url,
-            "-t",
-            str(self.duration_seconds),
-            "-vn",
-            "-ac",
-            "1",
-            "-ar",
-            "16000",
-            "-c:a",
-            "pcm_s16le",
-            str(output_path),
-        ])
+        command.extend(
+            [
+                "-i",
+                hls_url,
+                "-t",
+                str(self.duration_seconds),
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                str(output_path),
+            ]
+        )
 
         start = time.monotonic()
         try:
