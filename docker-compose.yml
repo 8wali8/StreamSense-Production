@@ -219,7 +219,7 @@ services:
       ml-engine:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health').read()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/ready').read()"]
       interval: 5s
       timeout: 5s
       retries: 20

@@ -170,7 +170,7 @@ In Docker, nginx serves the frontend at `http://localhost:3000` and proxies `/gr
 
 - Package root: `com.streamsense.<servicename>`
 - All Java services register with Eureka and pull from config-server
-- Health endpoint: `GET /actuator/health` (Python services: ml-engine `GET /ml/live`, `/ml/ready`, `/ml/info`, `/ml/health` (legacy); video-capture-service `GET /health`)
+- Health endpoint: `GET /actuator/health` (Python services: ml-engine `GET /ml/live`, `/ml/ready`, `/ml/info`, `/ml/health` (legacy); video-capture-service `GET /live`, `/ready`, `/health` (legacy))
 - Tracing: Micrometer + Zipkin
 - Kafka: Spring Kafka; consumers use `@KafkaListener`, producers use `KafkaTemplate`
 

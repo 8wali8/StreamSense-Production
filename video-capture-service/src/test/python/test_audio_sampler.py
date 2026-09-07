@@ -12,7 +12,7 @@ def test_audio_sampler_requires_non_empty_output(monkeypatch, tmp_path):
             handle.write(b"wav-bytes")
         return subprocess.CompletedProcess(args[0], 0, stdout="", stderr="")
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr("app.audio_sampler.run_bounded", fake_run)
 
     output, latency_ms = AudioSampler(5, 2).capture(
         "https://example.com/live.m3u8", tmp_path / "segment.wav"
@@ -34,7 +34,7 @@ def test_audio_sampler_adds_seek_for_replay(monkeypatch, tmp_path):
             handle.write(b"wav-bytes")
         return subprocess.CompletedProcess(args[0], 0, stdout="", stderr="")
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr("app.audio_sampler.run_bounded", fake_run)
 
     AudioSampler(5, 2).capture("https://example.com/vod.m3u8", tmp_path / "segment.wav", 12.25)
 
@@ -46,7 +46,7 @@ def test_audio_sampler_raises_on_ffmpeg_failure(monkeypatch, tmp_path):
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args[0], 1, stdout="", stderr="input failed")
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr("app.audio_sampler.run_bounded", fake_run)
 
     with pytest.raises(AudioCaptureError, match="input failed"):
         AudioSampler(5, 2).capture("https://example.com/live.m3u8", tmp_path / "segment.wav")
