@@ -1,14 +1,15 @@
 from types import SimpleNamespace
 
-import app.main as main_module
 import pytest
+from fastapi.testclient import TestClient
+
+import app.main as main_module
 from app.main import app
 from app.transcription import (
     TranscriptionError,
     TranscriptionResult,
     WhisperTranscriber,
 )
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

@@ -1,0 +1,60 @@
+[project]
+name = "streamsense-ml-engine"
+version = "0.1.0"
+description = "StreamSense ML inference service: sentiment, sponsor relevance, sponsor detection, segmentation, transcription"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    "python-multipart>=0.0.9,<1",
+    "boto3>=1.34,<2",
+    "pillow>=10,<12",
+    "numpy>=1.26,<2",
+    # CPU-only PyTorch from the PyTorch index (see [tool.uv.sources]); versions match the previous requirements.txt.
+    "torch==2.2.2+cpu",
+    "torchvision==0.17.2+cpu",
+    "transformers==4.40.2",
+    "huggingface-hub>=0.23,<1",
+    "safetensors>=0.4,<1",
+    "sentence-transformers==2.6.1",
+    "segment-anything>=1.0,<2",
+    "faster-whisper>=1.0,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+    "httpx>=0.27,<1",
+    "ruff==0.16.3",
+]
+
+[tool.uv]
+# The service is run from src/main/python via PYTHONPATH, not installed as a package.
+package = false
+# Resolve for the platforms the service is built (linux) and developed (windows, linux) on.
+environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[tool.pytest.ini_options]
+testpaths = ["src/test/python"]
+pythonpath = ["src/main/python"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI route parameters use File()/Depends() calls as argument defaults.
+"src/main/python/app/main.py" = ["B008"]
+# Segmentation deliberately catches broad exceptions to fall back to degraded output.
+"src/main/python/app/segmentation.py" = ["BLE001"]

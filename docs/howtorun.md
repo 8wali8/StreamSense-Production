@@ -13,6 +13,7 @@ Install:
 - Maven
 - Docker + Docker Compose
 - Node.js (frontend)
+- [uv](https://docs.astral.sh/uv/) (Python services: `uv sync --locked` inside `ml-engine/` or `video-capture-service/`)
 
 Optional debugging tools:
 

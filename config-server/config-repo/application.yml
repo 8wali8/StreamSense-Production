@@ -10,6 +10,10 @@ management:
   endpoint:
     prometheus:
       enabled: true
+    health:
+      # Exposes /actuator/health/liveness and /readiness for Kubernetes probes.
+      probes:
+        enabled: true
   tracing:
     sampling:
       probability: 1.0

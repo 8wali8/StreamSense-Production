@@ -70,7 +70,7 @@ See `docs/replay-runbook.md` for detailed startup, verification, and troubleshoo
   - sponsor transcript sentiment
   - video sponsor detections
 - Sponsor-specific sentiment can be empty even when raw chat/transcript exists. Do not hide raw transcript or raw chat based on sponsor-filtered emptiness.
-- Spring service `src/main/resources/application.yml` files are bootstrap-only. Runtime config lives in `config-server/config-repo/*.yml` and Kubernetes mirrors live in `k8s/config/config-server-config-repo.yaml`.
+- Spring service `src/main/resources/application.yml` files are bootstrap-only. Runtime config lives in `config-server/config-repo/*.yml`; Kubernetes generates its config-server ConfigMap from the same files (root `kustomization.yaml`, `kubectl apply -k .`).
 - Python `video-capture-service` does not consume Config Server, so replay aliases used there are mirrored as environment variables in Compose/Kubernetes.
 - Do not commit Twitch tokens, `.env.twitch.local`, captured frames, generated `target/**` build output, or local session notes.
 
