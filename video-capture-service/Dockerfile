@@ -24,6 +24,12 @@ COPY src/main/python ./src/main/python
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH=/app/src/main/python
 
+# Run as a dedicated non-root user; ffmpeg and streamlink scratch files go under HOME.
+RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home app \
+    && mkdir -p /tmp/app && chown -R 10001:10001 /app /tmp/app
+ENV HOME=/tmp/app
+USER 10001
+
 EXPOSE 8090
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8090"]

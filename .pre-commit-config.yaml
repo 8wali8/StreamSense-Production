@@ -1,0 +1,46 @@
+# Local checks that mirror CI's fast gates. Install once with `pip install pre-commit && pre-commit install`
+# (or `uvx pre-commit install`); run everything with `pre-commit run --all-files`.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+        exclude: ^(k8s/config/grafana-config\.yaml|k8s/config/prometheus-config\.yaml)$
+      - id: check-json
+        exclude: ^frontend/tsconfig.*\.json$
+      - id: detect-private-key
+      - id: end-of-file-fixer
+        exclude: ^frontend/src/graphql/generated\.ts$
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+        exclude: ^docs/planning/history/
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
+    hooks:
+      - id: ruff
+        files: ^(ml-engine|video-capture-service)/src/
+      - id: ruff-format
+        files: ^(ml-engine|video-capture-service)/src/
+
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.6
+    hooks:
+      - id: prettier
+        files: ^frontend/
+        exclude: ^frontend/(package-lock\.json|src/graphql/generated\.ts|coverage/|dist/)
+        additional_dependencies: ["prettier@3.9.6"]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.15.1
+    hooks:
+      - id: hadolint-docker

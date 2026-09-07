@@ -185,3 +185,11 @@ For the current replay workflow, prefer `tools/start-stack.ps1` and `docs/replay
 ## License
 
 MIT License
+
+## Contributing and security
+
+See `CONTRIBUTING.md` for the branch, commit, and verification conventions (they are what CI enforces) and `SECURITY.md` for how to report a vulnerability. Dependency updates arrive through Renovate (`renovate.json`); `pre-commit install` runs the fast checks locally.
+
+## License
+
+MIT, see `LICENSE`.

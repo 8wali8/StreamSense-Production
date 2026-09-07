@@ -20,6 +20,8 @@ ARG VITE_API_BASE_URL=""
 # Global: the placeholder appears in both connect-src and img-src of the same header line.
 RUN sed -i "s|__API_ORIGIN__|${VITE_API_BASE_URL}|g" /etc/nginx/streamsense-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+# The base image already runs as this user; stating it lets scanners see it.
+USER 101
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
+  CMD ["wget", "-qO-", "http://127.0.0.1:8080/healthz"]

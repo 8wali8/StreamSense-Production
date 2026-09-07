@@ -1,0 +1,11 @@
+# Review ownership. GitHub requests a review from the owner of any path a pull request touches.
+* @8wali8
+
+# Anything that changes what runs in production or how secrets are handled gets a second look.
+/docker-compose.yml @8wali8
+/k8s/ @8wali8
+/kustomization.yaml @8wali8
+/secrets/ @8wali8
+/config-server/config-repo/ @8wali8
+/.github/ @8wali8
+/renovate.json @8wali8
