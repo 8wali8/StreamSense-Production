@@ -5,10 +5,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
-@Component
-public class InMemoryRateLimiter {
+/**
+ * Per-instance fixed-window counters. Correct for a single gateway; behind a load balancer every replica counts
+ * separately, so the effective limit is multiplied by the replica count. Use {@link RedisRateLimiter} whenever
+ * more than one gateway instance can serve a client.
+ */
+public class InMemoryRateLimiter implements RateLimiter {
 
     private final Clock clock;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
@@ -22,7 +26,12 @@ public class InMemoryRateLimiter {
         this.clock = clock;
     }
 
-    public RateLimitDecision acquire(String bucketId, int requestLimit, int windowSeconds) {
+    @Override
+    public Mono<RateLimitDecision> acquire(String bucketId, int requestLimit, int windowSeconds) {
+        return Mono.fromSupplier(() -> acquireNow(bucketId, requestLimit, windowSeconds));
+    }
+
+    RateLimitDecision acquireNow(String bucketId, int requestLimit, int windowSeconds) {
         long nowEpochSecond = clock.instant().getEpochSecond();
         long windowStart = (nowEpochSecond / windowSeconds) * windowSeconds;
         long resetAt = windowStart + windowSeconds;
@@ -62,11 +71,7 @@ public class InMemoryRateLimiter {
         counters.entrySet().removeIf(entry -> entry.getValue().expiresAtEpochSecond() <= nowEpochSecond);
     }
 
-    public record RateLimitDecision(boolean allowed, int remaining, long resetAtEpochSeconds) {
-    }
-
     private static final class WindowCounter {
-
         private final long windowStartEpochSecond;
         private final long expiresAtEpochSecond;
         private int count;

@@ -12,6 +12,10 @@ public class GatewayEdgeProperties {
     private final Auth auth = new Auth();
     private final List<RateLimitRule> rateLimits = new ArrayList<>();
     private boolean rateLimitEnabled = true;
+    // Where the counters live: "redis" is shared by every replica, "memory" is per instance (local runs, tests).
+    private String rateLimitStore = "memory";
+    // When the store is unreachable, let requests through (true) or reject them (false).
+    private boolean rateLimitFailOpen = true;
     // How many X-Forwarded-For entries were appended by proxies we operate; 0 means the header is never trusted.
     private int trustedProxyHops = 0;
 
@@ -29,6 +33,22 @@ public class GatewayEdgeProperties {
 
     public void setRateLimitEnabled(boolean rateLimitEnabled) {
         this.rateLimitEnabled = rateLimitEnabled;
+    }
+
+    public String getRateLimitStore() {
+        return rateLimitStore;
+    }
+
+    public void setRateLimitStore(String rateLimitStore) {
+        this.rateLimitStore = rateLimitStore;
+    }
+
+    public boolean isRateLimitFailOpen() {
+        return rateLimitFailOpen;
+    }
+
+    public void setRateLimitFailOpen(boolean rateLimitFailOpen) {
+        this.rateLimitFailOpen = rateLimitFailOpen;
     }
 
     public int getTrustedProxyHops() {

@@ -163,6 +163,16 @@ spec:
                   optional: true
             - name: STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED
               value: "true"
+            # No init container waits for Redis: the store is fail-open, so a gateway must be able to
+            # start (and be rescheduled) while Redis is down, exactly as a running one keeps serving.
+            - name: STREAMSENSE_GATEWAY_RATE_LIMIT_STORE
+              value: redis
+            - name: STREAMSENSE_GATEWAY_RATE_LIMIT_FAIL_OPEN
+              value: "true"
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
             # Two proxies we operate can sit in front of the gateway: ingress-nginx, and the console's
             # nginx when a request comes through streamsense.local. ingress-nginx overwrites
             # X-Forwarded-For with the real client, the console appends the ingress address, so the

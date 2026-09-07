@@ -158,7 +158,7 @@ The gateway (`api-gateway/src/main/java/com/streamsense/apigateway/`) handles:
 - **GraphQL** — queries via Spring GraphQL (no mutations — writes go through REST routes)
 - **WebSocket subscriptions** — `graphql-transport-ws` protocol, real-time push to frontend
 - **Auth** — JWT validation filter
-- **Rate limiting** — in-memory fixed-window limiter (per gateway instance, not Redis-backed). Clients are keyed by socket address; `X-Forwarded-For` is only consulted when `streamsense.gateway.trusted-proxy-hops` > 0 (k8s sets 1 behind ingress-nginx, Compose 0)
+- **Rate limiting** — fixed-window limiter (`config/GatewayRateLimitWebFilter`, rules in `streamsense.gateway.rate-limits`) whose counters live in Redis (`ratelimit/RedisRateLimiter`, one Lua INCR+EXPIRE per request, shared by every replica; `streamsense.gateway.rate-limit-store=redis`, what Compose and Kubernetes run) or in memory per instance (`rate-limit-store=memory`, local runs and tests). If Redis is unreachable the limiter fails open by default (`rate-limit-fail-open`) and counts the outage in `streamsense_gateway_rate_limit_store_errors_total`. Clients are keyed by socket address; `X-Forwarded-For` is only consulted when `streamsense.gateway.trusted-proxy-hops` > 0 (k8s sets 1 behind ingress-nginx, Compose 0). `RedisRateLimiterTest` runs against a Redis Testcontainer and is skipped where Docker is unavailable.
 - **Routing** — Spring Cloud Gateway routes to downstream services
 
 The GraphQL schema lives in `api-gateway/src/main/resources/graphql/`; `docs/contracts/` describes the pipelines behind it.
