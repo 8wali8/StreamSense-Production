@@ -5,7 +5,6 @@ from app.segmentation import (
     SamSegmenter,
     SegmentationConfig,
     create_segmenter,
-    propose_regions,
 )
 
 
@@ -50,21 +49,19 @@ def test_region_proposal_clamps_to_normalized_frame_bounds():
     assert proposal.area_ratio == 0.4
 
 
-def test_default_segmentation_returns_no_proposals(monkeypatch):
-    monkeypatch.delenv("STREAMSENSE_SPONSOR_MODEL_BACKEND", raising=False)
+def test_default_segmentation_returns_no_proposals():
     image = Image.new("RGB", (4, 4), "white")
 
-    assert propose_regions(image) == []
+    assert create_segmenter(segmentation_config(backend="")).propose(image) == []
 
 
-def test_heuristic_segmentation_returns_bounded_visual_region(monkeypatch):
-    monkeypatch.setenv("STREAMSENSE_SPONSOR_MODEL_BACKEND", "heuristic")
+def test_heuristic_segmentation_returns_bounded_visual_region():
     image = Image.new("RGB", (8, 8), "white")
     for x in range(4):
         for y in range(8):
             image.putpixel((x, y), (0, 0, 0))
 
-    proposals = propose_regions(image)
+    proposals = create_segmenter(segmentation_config(backend="heuristic")).propose(image)
 
     assert len(proposals) == 1
     proposal = proposals[0]
@@ -76,28 +73,6 @@ def test_heuristic_segmentation_returns_bounded_visual_region(monkeypatch):
     assert 0.0 < proposal.height <= 1.0
     assert proposal.x + proposal.width <= 1.0
     assert proposal.y + proposal.height <= 1.0
-
-
-def test_segmentation_config_reads_environment(monkeypatch):
-    monkeypatch.setenv("STREAMSENSE_SEGMENTATION_BACKEND", "sam")
-    monkeypatch.setenv("STREAMSENSE_SAM_CHECKPOINT_PATH", "/models/sam-vit-b.pth")
-    monkeypatch.setenv("STREAMSENSE_SEGMENTATION_MODEL_VERSION", "sam-vit-b")
-    monkeypatch.setenv("STREAMSENSE_SEGMENTATION_CONFIDENCE_THRESHOLD", "0.42")
-    monkeypatch.setenv("STREAMSENSE_SEGMENTATION_IOU_THRESHOLD", "0.61")
-    monkeypatch.setenv("STREAMSENSE_SEGMENTATION_MAX_PROPOSALS", "7")
-    monkeypatch.setenv("STREAMSENSE_SAM_AUTO_DOWNLOAD", "false")
-    monkeypatch.setenv("STREAMSENSE_SAM_POINTS_PER_SIDE", "8")
-
-    config = SegmentationConfig.from_env()
-
-    assert config.backend == "sam"
-    assert config.model_path == "/models/sam-vit-b.pth"
-    assert config.model_version == "sam-vit-b"
-    assert config.confidence_threshold == 0.42
-    assert config.iou_threshold == 0.61
-    assert config.max_proposals == 7
-    assert config.sam_auto_download is False
-    assert config.sam_points_per_side == 8
 
 
 def test_create_segmenter_supports_sam_backend():
@@ -136,3 +111,21 @@ def test_sam_segmenter_returns_empty_without_checkpoint_when_download_disabled()
     segmenter = SamSegmenter(segmentation_config(sam_auto_download=False))
 
     assert segmenter.propose(Image.new("RGB", (4, 4), "white")) == []
+
+
+def test_sam_segmenter_attempts_to_load_only_once():
+    segmenter = SamSegmenter(segmentation_config(sam_auto_download=False))
+    calls = []
+    original = segmenter._build_mask_generator
+
+    def counting_build():
+        calls.append(1)
+        return original()
+
+    segmenter._build_mask_generator = counting_build
+    image = Image.new("RGB", (4, 4), "white")
+
+    assert segmenter.propose(image) == []
+    assert segmenter.propose(image) == []
+    assert len(calls) == 1
+    assert segmenter.is_loaded() is False

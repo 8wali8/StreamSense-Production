@@ -1,7 +1,7 @@
 import hashlib
 import logging
-import os
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
@@ -30,23 +30,6 @@ class SentimentConfig:
     max_chars: int
     preload: bool
 
-    @classmethod
-    def from_env(cls) -> "SentimentConfig":
-        return cls(
-            backend=os.getenv("STREAMSENSE_SENTIMENT_BACKEND", "transformers")
-            .strip()
-            .lower(),
-            model=os.getenv("STREAMSENSE_SENTIMENT_MODEL", DEFAULT_MODEL).strip()
-            or DEFAULT_MODEL,
-            device=os.getenv("STREAMSENSE_SENTIMENT_DEVICE", "cpu").strip() or "cpu",
-            cache_dir=os.getenv(
-                "STREAMSENSE_SENTIMENT_CACHE_DIR", DEFAULT_CACHE_DIR
-            ).strip()
-            or DEFAULT_CACHE_DIR,
-            max_chars=_env_int("STREAMSENSE_SENTIMENT_MAX_CHARS", 1000),
-            preload=_env_bool("STREAMSENSE_SENTIMENT_PRELOAD", False),
-        )
-
 
 class SentimentAnalyzer(Protocol):
     def analyze(self, message: str) -> SentimentResult:
@@ -62,6 +45,7 @@ class TransformersSentimentAnalyzer:
         self._config = config
         self._fallback = fallback
         self._classifier: Any | None = None
+        self._lock = threading.Lock()
 
         if config.preload:
             try:
@@ -88,10 +72,21 @@ class TransformersSentimentAnalyzer:
             logger.exception("sentiment transformer inference failed; using fallback")
             return self._fallback.analyze(message)
 
+    def is_loaded(self) -> bool:
+        return self._classifier is not None
+
+    def warm_up(self) -> None:
+        self._load_classifier()
+
     def _load_classifier(self) -> Any:
         if self._classifier is not None:
             return self._classifier
+        with self._lock:
+            if self._classifier is not None:
+                return self._classifier
+            return self._build_classifier()
 
+    def _build_classifier(self) -> Any:
         from transformers import (
             AutoModelForSequenceClassification,
             AutoTokenizer,
@@ -192,11 +187,7 @@ class StubSentimentAnalyzer:
         return SentimentResult(label, score, "stub-v1")
 
 
-def create_sentiment_analyzer(
-    config: SentimentConfig | None = None,
-) -> SentimentAnalyzer:
-    config = config or SentimentConfig.from_env()
-
+def create_sentiment_analyzer(config: SentimentConfig) -> SentimentAnalyzer:
     if config.backend == "transformers":
         return TransformersSentimentAnalyzer(
             config,
@@ -221,23 +212,6 @@ def preprocess_text(message: str, max_chars: int) -> str:
     if max_chars > 0:
         text = text[:max_chars]
     return text
-
-
-def analyze_sentiment(message: str) -> SentimentResult:
-    return _get_sentiment_analyzer().analyze(message)
-
-
-def compute_sentiment(message: str) -> tuple[str, float]:
-    result = analyze_sentiment(message)
-    return result.label, result.score
-
-
-def _get_sentiment_analyzer() -> SentimentAnalyzer:
-    global _sentiment_analyzer
-
-    if _sentiment_analyzer is None:
-        _sentiment_analyzer = create_sentiment_analyzer()
-    return _sentiment_analyzer
 
 
 def _extract_probabilities(output: Any) -> dict[str, float]:
@@ -284,24 +258,3 @@ def _pipeline_device(raw_device: str) -> int | str:
 
 def _clamp_score(score: float) -> float:
     return round(max(-1.0, min(1.0, score)), 3)
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw_value = os.getenv(name)
-    if raw_value is None:
-        return default
-    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int) -> int:
-    raw_value = os.getenv(name)
-    if raw_value is None:
-        return default
-    try:
-        return int(raw_value)
-    except ValueError:
-        logger.warning("invalid integer env %s=%r; using %s", name, raw_value, default)
-        return default
-
-
-_sentiment_analyzer: SentimentAnalyzer | None = None

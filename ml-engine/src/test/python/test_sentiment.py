@@ -1,166 +1,111 @@
 import os
 
 import pytest
-from fastapi.testclient import TestClient
 
-import app.main as main_module
-from app.main import app
-from app.sentiment import SentimentResult, analyze_sentiment, preprocess_text
-
-client = TestClient(app)
-
-
-def test_sentiment_endpoint_returns_valid_shape(monkeypatch):
-    monkeypatch.setattr(
-        main_module,
-        "analyze_sentiment",
-        lambda message: SentimentResult("POSITIVE", 0.87, "test-model-v1"),
-    )
-    payload = {
-        "eventId": "evt-123",
-        "streamer": "xqc",
-        "user": "wali",
-        "message": "this stream is great",
-        "timestamp": 1710000000000,
-    }
-
-    response = client.post("/ml/sentiment", json=payload)
-
-    assert response.status_code == 200
-
-    body = response.json()
-    assert "label" in body
-    assert "score" in body
-    assert "modelVersion" in body
-
-    assert body["label"] in ["POSITIVE", "NEUTRAL", "NEGATIVE"]
-    assert -1.0 <= body["score"] <= 1.0
-    assert body["modelVersion"] == "test-model-v1"
+from app.sentiment import (
+    LexicalFallbackSentimentAnalyzer,
+    SentimentConfig,
+    SentimentResult,
+    create_sentiment_analyzer,
+    preprocess_text,
+)
+from conftest import FakeRegistry, FakeSentiment, make_settings
 
 
-def test_positive_text_returns_positive_with_mock_analyzer(monkeypatch):
-    monkeypatch.setattr(
-        main_module,
-        "analyze_sentiment",
-        lambda message: SentimentResult("POSITIVE", 0.91, "test-model-v1"),
-    )
-    payload = {
-        "eventId": "evt-pos",
-        "streamer": "xqc",
-        "user": "wali",
-        "message": "I love this stream, this is amazing",
-        "timestamp": 1710000000000,
-    }
+def payload(message: str = "this stream is great", event_id: str = "evt-123") -> dict:
+    return {"eventId": event_id, "streamer": "xqc", "user": "wali", "message": message, "timestamp": 1710000000000}
 
-    response = client.post("/ml/sentiment", json=payload)
+
+def test_sentiment_endpoint_returns_valid_shape(make_client):
+    settings = make_settings()
+    registry = FakeRegistry(settings=settings, sentiment=FakeSentiment(SentimentResult("POSITIVE", 0.87, "test-model-v1")))
+    client, _ = make_client(registry)
+
+    response = client.post("/ml/sentiment", json=payload())
 
     assert response.status_code == 200
     body = response.json()
-    assert body["label"] == "POSITIVE"
-    assert body["score"] > 0
+    assert body == {"label": "POSITIVE", "score": 0.87, "modelVersion": "test-model-v1"}
+    assert registry.sentiment.calls == ["this stream is great"]
 
 
-def test_negative_text_returns_negative_with_mock_analyzer(monkeypatch):
-    monkeypatch.setattr(
-        main_module,
-        "analyze_sentiment",
-        lambda message: SentimentResult("NEGATIVE", -0.76, "test-model-v1"),
-    )
-    payload = {
-        "eventId": "evt-neg",
-        "streamer": "xqc",
-        "user": "wali",
-        "message": "this is awful and terrible",
-        "timestamp": 1710000000000,
-    }
+@pytest.mark.parametrize(
+    ("result", "expected_sign"),
+    [
+        (SentimentResult("POSITIVE", 0.91, "m"), 1),
+        (SentimentResult("NEGATIVE", -0.76, "m"), -1),
+        (SentimentResult("NEUTRAL", 0.02, "m"), 0),
+    ],
+)
+def test_endpoint_passes_analyzer_result_through(make_client, result, expected_sign):
+    client, registry = make_client()
+    registry.sentiment = FakeSentiment(result)
 
-    response = client.post("/ml/sentiment", json=payload)
+    body = client.post("/ml/sentiment", json=payload()).json()
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["label"] == "NEGATIVE"
-    assert body["score"] < 0
+    assert body["label"] == result.label
+    if expected_sign > 0:
+        assert body["score"] > 0
+    elif expected_sign < 0:
+        assert body["score"] < 0
+    else:
+        assert abs(body["score"]) < 0.1
 
 
-def test_neutral_text_returns_near_neutral_with_mock_analyzer(monkeypatch):
-    monkeypatch.setattr(
-        main_module,
-        "analyze_sentiment",
-        lambda message: SentimentResult("NEUTRAL", 0.02, "test-model-v1"),
-    )
-    payload = {
-        "eventId": "evt-neutral",
-        "streamer": "xqc",
-        "user": "wali",
-        "message": "the stream started at noon",
-        "timestamp": 1710000000000,
-    }
+def test_lexical_backend_end_to_end(real_lightweight_client):
+    positive = real_lightweight_client.post("/ml/sentiment", json=payload("I love this stream, this is amazing")).json()
+    negative = real_lightweight_client.post("/ml/sentiment", json=payload("this is awful and terrible")).json()
 
-    response = client.post("/ml/sentiment", json=payload)
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["label"] == "NEUTRAL"
-    assert abs(body["score"]) < 0.1
+    assert positive["label"] == "POSITIVE" and positive["score"] > 0
+    assert negative["label"] == "NEGATIVE" and negative["score"] < 0
+    assert positive["modelVersion"] == "lexical-v1"
 
 
 def test_preprocess_replaces_urls_and_mentions():
-    text = preprocess_text("  hey @viewer check https://example.com/test  ", 1000)
-
-    assert text == "hey @user check http"
+    assert preprocess_text("  hey @viewer check https://example.com/test  ", 1000) == "hey @user check http"
 
 
-def test_invalid_payload_returns_validation_error():
+def test_invalid_payload_returns_validation_error(client):
     response = client.post(
         "/ml/sentiment",
-        json={
-            "eventId": "evt-invalid",
-            "streamer": "xqc",
-            "user": "wali",
-            "timestamp": 1710000000000,
-        },
+        json={"eventId": "evt-invalid", "streamer": "xqc", "user": "wali", "timestamp": 1710000000000},
     )
 
     assert response.status_code == 422
 
 
-def test_force_failure_flag_returns_503(monkeypatch):
-    monkeypatch.setattr(main_module, "force_failure_enabled", lambda: True)
+def test_force_failure_flag_returns_503(make_client):
+    client, _ = make_client(ml_engine_force_failure=True)
 
-    response = client.post(
-        "/ml/sentiment",
-        json={
-            "eventId": "evt-force",
-            "streamer": "xqc",
-            "user": "wali",
-            "message": "this stream is great",
-            "timestamp": 1710000000000,
-        },
-    )
+    response = client.post("/ml/sentiment", json=payload(event_id="evt-force"))
 
     assert response.status_code == 503
     assert response.json()["detail"] == "forced ml-engine failure"
+
+
+def test_create_sentiment_analyzer_selects_backend_from_config():
+    config = SentimentConfig(backend="lexical", model="m", device="cpu", cache_dir="/tmp", max_chars=10, preload=False)
+
+    assert isinstance(create_sentiment_analyzer(config), LexicalFallbackSentimentAnalyzer)
 
 
 @pytest.mark.skipif(
     os.getenv("STREAMSENSE_RUN_REAL_SENTIMENT_TESTS") != "true",
     reason="real sentiment model test is opt-in",
 )
-def test_real_sentiment_model_when_enabled(monkeypatch):
-    monkeypatch.setenv("STREAMSENSE_SENTIMENT_BACKEND", "transformers")
-    monkeypatch.setenv(
-        "STREAMSENSE_SENTIMENT_MODEL",
-        "cardiffnlp/twitter-roberta-base-sentiment-latest",
+def test_real_sentiment_model_when_enabled():
+    config = SentimentConfig(
+        backend="transformers",
+        model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+        device="cpu",
+        cache_dir="/models/sentiment",
+        max_chars=1000,
+        preload=True,
     )
+    analyzer = create_sentiment_analyzer(config)
 
-    import app.sentiment as sentiment_module
+    positive = analyzer.analyze("I love this stream, this is amazing")
+    negative = analyzer.analyze("this is awful and terrible")
 
-    monkeypatch.setattr(sentiment_module, "_sentiment_analyzer", None)
-
-    positive = analyze_sentiment("I love this stream, this is amazing")
-    negative = analyze_sentiment("this is awful and terrible")
-
-    assert positive.label == "POSITIVE"
-    assert positive.score > 0
-    assert negative.label == "NEGATIVE"
-    assert negative.score < 0
+    assert positive.label == "POSITIVE" and positive.score > 0
+    assert negative.label == "NEGATIVE" and negative.score < 0

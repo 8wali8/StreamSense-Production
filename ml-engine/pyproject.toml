@@ -19,6 +19,8 @@ dependencies = [
     "sentence-transformers==2.6.1",
     "segment-anything>=1.0,<2",
     "faster-whisper>=1.0,<2",
+    "pydantic-settings>=2.5,<3",
+    "prometheus-client>=0.20,<1",
 ]
 
 [dependency-groups]
@@ -51,7 +53,7 @@ pythonpath = ["src/main/python"]
 line-length = 120
 
 [tool.ruff.lint.isort]
-known-first-party = ["app"]
+known-first-party = ["app", "conftest"]
 
 [tool.ruff.lint.per-file-ignores]
 # FastAPI route parameters use File()/Depends() calls as argument defaults.

@@ -1,5 +1,5 @@
 import logging
-import os
+import threading
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,55 +70,6 @@ class SegmentationConfig:
     sam_points_per_side: int
     min_area_ratio: float
 
-    @staticmethod
-    def from_env() -> "SegmentationConfig":
-        return SegmentationConfig(
-            backend=os.getenv(
-                "STREAMSENSE_SEGMENTATION_BACKEND",
-                os.getenv("STREAMSENSE_SPONSOR_MODEL_BACKEND", ""),
-            )
-            .strip()
-            .lower(),
-            model_path=os.getenv(
-                "STREAMSENSE_SAM_CHECKPOINT_PATH",
-                os.getenv("STREAMSENSE_SPONSOR_MODEL_PATH", ""),
-            ).strip()
-            or None,
-            model_version=os.getenv(
-                "STREAMSENSE_SEGMENTATION_MODEL_VERSION",
-                os.getenv("STREAMSENSE_SPONSOR_MODEL_VERSION", "sam-vit-b"),
-            ).strip()
-            or "sam-vit-b",
-            confidence_threshold=_float_env(
-                "STREAMSENSE_SEGMENTATION_CONFIDENCE_THRESHOLD",
-                _float_env("STREAMSENSE_SPONSOR_CONFIDENCE_THRESHOLD", 0.25),
-            ),
-            iou_threshold=_float_env(
-                "STREAMSENSE_SEGMENTATION_IOU_THRESHOLD",
-                _float_env("STREAMSENSE_SPONSOR_IOU_THRESHOLD", 0.5),
-            ),
-            max_proposals=_int_env(
-                "STREAMSENSE_SEGMENTATION_MAX_PROPOSALS",
-                _int_env("STREAMSENSE_SPONSOR_MAX_PROPOSALS", 20),
-            ),
-            model_input_size=_int_env(
-                "STREAMSENSE_SEGMENTATION_MODEL_INPUT_SIZE",
-                _int_env("STREAMSENSE_SPONSOR_MODEL_INPUT_SIZE", 640),
-            ),
-            class_labels=_csv_env(
-                "STREAMSENSE_SEGMENTATION_LABELS",
-                _csv_env("STREAMSENSE_SPONSOR_MODEL_LABELS", ("segment",)),
-            ),
-            sam_model_type=os.getenv("STREAMSENSE_SAM_MODEL_TYPE", "vit_b").strip() or "vit_b",
-            sam_checkpoint_url=os.getenv("STREAMSENSE_SAM_CHECKPOINT_URL", SAM_VIT_B_CHECKPOINT_URL).strip()
-            or SAM_VIT_B_CHECKPOINT_URL,
-            sam_cache_dir=os.getenv("STREAMSENSE_SAM_CACHE_DIR", "/models/sam").strip() or "/models/sam",
-            sam_device=os.getenv("STREAMSENSE_SAM_DEVICE", "cpu").strip() or "cpu",
-            sam_auto_download=_bool_env("STREAMSENSE_SAM_AUTO_DOWNLOAD", True),
-            sam_points_per_side=_int_env("STREAMSENSE_SAM_POINTS_PER_SIDE", 16),
-            min_area_ratio=_float_env("STREAMSENSE_SEGMENTATION_MIN_AREA_RATIO", 0.0005),
-        )
-
 
 class Segmenter(Protocol):
     def propose(self, image: Image.Image) -> list[RegionProposal]:
@@ -169,6 +120,14 @@ class SamSegmenter:
     def __init__(self, config: SegmentationConfig, mask_generator=None):
         self.config = config
         self._mask_generator = mask_generator
+        self._lock = threading.Lock()
+        self._load_attempted = mask_generator is not None
+
+    def is_loaded(self) -> bool:
+        return self._mask_generator is not None
+
+    def warm_up(self) -> None:
+        self._get_mask_generator()
 
     def propose(self, image: Image.Image) -> list[RegionProposal]:
         mask_generator = self._get_mask_generator()
@@ -187,7 +146,15 @@ class SamSegmenter:
     def _get_mask_generator(self):
         if self._mask_generator is not None:
             return self._mask_generator
+        with self._lock:
+            if self._mask_generator is None and not self._load_attempted:
+                # One attempt per process: a missing checkpoint or a broken install is logged once,
+                # not retried (and re-downloaded) on every request.
+                self._load_attempted = True
+                self._mask_generator = self._build_mask_generator()
+        return self._mask_generator
 
+    def _build_mask_generator(self):
         checkpoint = self._checkpoint_path()
         if checkpoint is None:
             return None
@@ -198,7 +165,7 @@ class SamSegmenter:
 
             sam = sam_model_registry[self.config.sam_model_type](checkpoint=str(checkpoint))
             sam.to(device=self.config.sam_device)
-            self._mask_generator = SamAutomaticMaskGenerator(
+            mask_generator = SamAutomaticMaskGenerator(
                 sam,
                 points_per_side=max(1, self.config.sam_points_per_side),
                 pred_iou_thresh=self.config.confidence_threshold,
@@ -209,7 +176,7 @@ class SamSegmenter:
             logger.warning("failed to initialize SAM segmentation model: %s", exc)
             return None
 
-        return self._mask_generator
+        return mask_generator
 
     def _checkpoint_path(self) -> Path | None:
         if self.config.model_path:
@@ -270,23 +237,12 @@ class SamSegmenter:
         ]
 
 
-def create_segmenter(config: SegmentationConfig | None = None) -> Segmenter:
-    resolved = config or SegmentationConfig.from_env()
-    if resolved.backend == "heuristic":
-        return HeuristicSegmenter(resolved)
-    if resolved.backend in {"sam", "segment-anything", "segment_anything"}:
-        return SamSegmenter(resolved)
+def create_segmenter(config: SegmentationConfig) -> Segmenter:
+    if config.backend == "heuristic":
+        return HeuristicSegmenter(config)
+    if config.backend in {"sam", "segment-anything", "segment_anything"}:
+        return SamSegmenter(config)
     return EmptySegmenter()
-
-
-def propose_regions(
-    image: Image.Image,
-    config: SegmentationConfig | None = None,
-) -> list[RegionProposal]:
-    segmenter = create_segmenter(config)
-    proposals = segmenter.propose(image)
-    max_proposals = (config or SegmentationConfig.from_env()).max_proposals
-    return proposals[: max(0, max_proposals)]
 
 
 def _mask_confidence(mask: dict) -> float:
@@ -299,38 +255,3 @@ def _mask_confidence(mask: dict) -> float:
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
-
-
-def _bool_env(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _float_env(name: str, default: float) -> float:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return default
-    try:
-        return float(value)
-    except ValueError:
-        return default
-
-
-def _int_env(name: str, default: int) -> int:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        return default
-
-
-def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return default
-    labels = tuple(item.strip() for item in value.split(",") if item.strip())
-    return labels or default
