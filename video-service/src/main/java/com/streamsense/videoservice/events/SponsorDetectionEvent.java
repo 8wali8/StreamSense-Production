@@ -175,6 +175,13 @@ public class SponsorDetectionEvent {
         this.videoTimestampMs = videoTimestampMs;
     }
 
+    /** The ml-engine fallback path reports this model version; it is the one fact {@code fallback} is derived from. */
+    public static final String FALLBACK_MODEL_VERSION = "fallback";
+
+    public static boolean isFallbackModelVersion(String modelVersion) {
+        return FALLBACK_MODEL_VERSION.equalsIgnoreCase(modelVersion);
+    }
+
     public Boolean getFallback() {
         return fallback;
     }

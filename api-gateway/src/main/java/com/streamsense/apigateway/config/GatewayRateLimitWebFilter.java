@@ -1,21 +1,24 @@
 package com.streamsense.apigateway.config;
 
-import com.streamsense.apigateway.ratelimit.RateLimiter;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+
 import org.springframework.cloud.gateway.support.ipresolver.RemoteAddressResolver;
 import org.springframework.cloud.gateway.support.ipresolver.XForwardedRemoteAddressResolver;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
+
+import com.streamsense.apigateway.ratelimit.RateLimiter;
+
+import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -27,19 +30,24 @@ public class GatewayRateLimitWebFilter implements WebFilter {
     private final GatewayEdgeProperties properties;
     private final RateLimiter rateLimiter;
     private final MeterRegistry meterRegistry;
+    private final String serviceName;
     private final RemoteAddressResolver addressResolver;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public GatewayRateLimitWebFilter(
-            GatewayEdgeProperties properties, RateLimiter rateLimiter, MeterRegistry meterRegistry) {
+            GatewayEdgeProperties properties,
+            RateLimiter rateLimiter,
+            MeterRegistry meterRegistry,
+            @Value("${spring.application.name:api-gateway}") String serviceName) {
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.meterRegistry = meterRegistry;
+        this.serviceName = serviceName;
         // X-Forwarded-For is client-controlled unless a proxy we operate appended it, so it is only consulted when
         // trusted hops are configured, and then only the entry the nearest trusted proxy added (read from the right).
         this.addressResolver = properties.getTrustedProxyHops() > 0
                 ? XForwardedRemoteAddressResolver.maxTrustedIndex(properties.getTrustedProxyHops())
-                : new RemoteAddressResolver() {};
+                : new RemoteAddressResolver() { };
     }
 
     @Override
@@ -55,17 +63,11 @@ public class GatewayRateLimitWebFilter implements WebFilter {
 
         String clientKey = resolveClientKey(exchange);
         return rateLimiter
-                .acquire(
-                        matchingRule.getId() + ":" + clientKey,
-                        matchingRule.getRequests(),
-                        matchingRule.getWindowSeconds())
+                .acquire(matchingRule.getId() + ":" + clientKey, matchingRule.getRequests(), matchingRule.getWindowSeconds())
                 .flatMap(decision -> apply(exchange, chain, matchingRule, decision));
     }
 
-    private Mono<Void> apply(
-            ServerWebExchange exchange,
-            WebFilterChain chain,
-            GatewayEdgeProperties.RateLimitRule matchingRule,
+    private Mono<Void> apply(ServerWebExchange exchange, WebFilterChain chain, GatewayEdgeProperties.RateLimitRule matchingRule,
             RateLimiter.RateLimitDecision decision) {
         exchange.getResponse().getHeaders().set("X-RateLimit-Limit", String.valueOf(matchingRule.getRequests()));
         exchange.getResponse().getHeaders().set("X-RateLimit-Remaining", String.valueOf(decision.remaining()));
@@ -73,27 +75,21 @@ public class GatewayRateLimitWebFilter implements WebFilter {
         if (decision.allowed()) {
             return chain.filter(exchange);
         }
-        meterRegistry
-                .counter(
-                        "streamsense_gateway_rate_limit_rejections_total",
-                        "limit",
-                        matchingRule.getId(),
-                        "path",
-                        matchingRule.getPath())
+        meterRegistry.counter(
+                "streamsense_gateway_rate_limit_rejections_total",
+                "limit", matchingRule.getId(),
+                "path", matchingRule.getPath())
                 .increment();
-        exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+
         exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(matchingRule.getWindowSeconds()));
-        String responseBody = "{\"error\":\"rate_limited\",\"limit\":\"" + matchingRule.getId() + "\"}";
-        return exchange.getResponse()
-                .writeWith(Mono.just(
-                        exchange.getResponse().bufferFactory().wrap(responseBody.getBytes(StandardCharsets.UTF_8))));
+        // A problem+json body like every other StreamSense error; `error` and `limit` stay for existing clients.
+        return ProblemResponses.write(exchange, HttpStatus.TOO_MANY_REQUESTS, "rate-limited",
+                "Rate limit '" + matchingRule.getId() + "' exceeded; retry after " + matchingRule.getWindowSeconds() + " seconds",
+                serviceName, Map.of("error", "rate_limited", "limit", matchingRule.getId()));
     }
 
     private GatewayEdgeProperties.RateLimitRule findMatchingRule(ServerWebExchange exchange) {
-        String method = exchange.getRequest().getMethod() != null
-                ? exchange.getRequest().getMethod().name()
-                : "GET";
+        String method = exchange.getRequest().getMethod() != null ? exchange.getRequest().getMethod().name() : "GET";
         String path = exchange.getRequest().getPath().value();
         List<GatewayEdgeProperties.RateLimitRule> rules = properties.getRateLimits();
         for (GatewayEdgeProperties.RateLimitRule rule : rules) {
