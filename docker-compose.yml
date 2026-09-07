@@ -36,9 +36,10 @@ services:
       - "8080:8080" # port for api-gateway
     environment:
       - STREAMSENSE_GATEWAY_AUTH_ENABLED=${STREAMSENSE_GATEWAY_AUTH_ENABLED:-false}
-      - STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET=${STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET:-}
       - STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED=${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:-true}
       - STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS=${STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS:-0}
+    secrets:
+      - STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -117,6 +118,8 @@ services:
     build: ./sentiment-service
     ports:
     - "8083:8083"
+    secrets:
+      - POSTGRES_PASSWORD
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -143,6 +146,8 @@ services:
     build: ./video-service
     ports:
     - "8084:8084"
+    secrets:
+      - POSTGRES_PASSWORD
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -199,8 +204,11 @@ services:
       STREAMSENSE_FRAME_STORAGE_BACKEND: ${STREAMSENSE_FRAME_STORAGE_BACKEND:-s3}
       STREAMSENSE_FRAME_STORAGE_BUCKET: ${STREAMSENSE_FRAME_STORAGE_BUCKET:-streamsense-frames}
       STREAMSENSE_FRAME_STORAGE_ENDPOINT: ${STREAMSENSE_FRAME_STORAGE_ENDPOINT:-http://minio:9000}
-      STREAMSENSE_FRAME_STORAGE_ACCESS_KEY: ${STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:-streamsense}
-      STREAMSENSE_FRAME_STORAGE_SECRET_KEY: ${STREAMSENSE_FRAME_STORAGE_SECRET_KEY:-streamsense}
+      STREAMSENSE_FRAME_STORAGE_ACCESS_KEY_FILE: /run/secrets/STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+      STREAMSENSE_FRAME_STORAGE_SECRET_KEY_FILE: /run/secrets/STREAMSENSE_FRAME_STORAGE_SECRET_KEY
+    secrets:
+      - STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+      - STREAMSENSE_FRAME_STORAGE_SECRET_KEY
     depends_on:
       kafka:
         condition: service_healthy
@@ -221,6 +229,8 @@ services:
     build: ./analytics-service
     ports:
       - "8085:8085"
+    secrets:
+      - POSTGRES_PASSWORD
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -252,7 +262,9 @@ services:
       - "3001:3000" # so it doesn't collide with frontend at 3000:3000
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/GRAFANA_ADMIN_PASSWORD
+    secrets:
+      - GRAFANA_ADMIN_PASSWORD
     volumes:
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -392,7 +404,9 @@ services:
     environment:
       POSTGRES_DB: streamsense
       POSTGRES_USER: streamsense
-      POSTGRES_PASSWORD: streamsense
+      POSTGRES_PASSWORD_FILE: /run/secrets/POSTGRES_PASSWORD
+    secrets:
+      - POSTGRES_PASSWORD
     ports:
       - "5432:5432"
     volumes:
@@ -422,8 +436,11 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: ${STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:-streamsense}
-      MINIO_ROOT_PASSWORD: ${STREAMSENSE_FRAME_STORAGE_SECRET_KEY:-streamsense}
+      MINIO_ROOT_USER_FILE: /run/secrets/STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/STREAMSENSE_FRAME_STORAGE_SECRET_KEY
+    secrets:
+      - STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+      - STREAMSENSE_FRAME_STORAGE_SECRET_KEY
     volumes:
       - minio-data:/data
 
@@ -435,8 +452,8 @@ services:
       ML_ENGINE_FORCE_FAILURE: ${ML_ENGINE_FORCE_FAILURE:-false}
       STREAMSENSE_FRAME_STORAGE_ENDPOINT: ${STREAMSENSE_FRAME_STORAGE_ENDPOINT:-http://minio:9000}
       STREAMSENSE_FRAME_STORAGE_REGION: ${STREAMSENSE_FRAME_STORAGE_REGION:-us-east-1}
-      STREAMSENSE_FRAME_STORAGE_ACCESS_KEY: ${STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:-streamsense}
-      STREAMSENSE_FRAME_STORAGE_SECRET_KEY: ${STREAMSENSE_FRAME_STORAGE_SECRET_KEY:-streamsense}
+      STREAMSENSE_FRAME_STORAGE_ACCESS_KEY_FILE: /run/secrets/STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+      STREAMSENSE_FRAME_STORAGE_SECRET_KEY_FILE: /run/secrets/STREAMSENSE_FRAME_STORAGE_SECRET_KEY
       STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ: ${STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ:-false}
       STREAMSENSE_SEGMENTATION_BACKEND: ${STREAMSENSE_SEGMENTATION_BACKEND:-sam}
       STREAMSENSE_SEGMENTATION_MAX_PROPOSALS: ${STREAMSENSE_SEGMENTATION_MAX_PROPOSALS:-20}
@@ -464,6 +481,9 @@ services:
       STREAMSENSE_RELEVANCE_CACHE_DIR: /models/relevance
       STREAMSENSE_RELEVANCE_MIN_SCORE: ${STREAMSENSE_RELEVANCE_MIN_SCORE:-0.50}
       STREAMSENSE_RELEVANCE_PRELOAD: ${STREAMSENSE_RELEVANCE_PRELOAD:-false}
+    secrets:
+      - STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+      - STREAMSENSE_FRAME_STORAGE_SECRET_KEY
     volumes:
       - whisper-models:/models/whisper
       - sam-models:/models/sam
@@ -475,6 +495,20 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+
+# Local credentials live in ./secrets/<NAME> (git-ignored). Run `make secrets` to create
+# them from the committed *.example files. Containers read them from /run/secrets/<NAME>.
+secrets:
+  POSTGRES_PASSWORD:
+    file: ./secrets/POSTGRES_PASSWORD
+  STREAMSENSE_FRAME_STORAGE_ACCESS_KEY:
+    file: ./secrets/STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+  STREAMSENSE_FRAME_STORAGE_SECRET_KEY:
+    file: ./secrets/STREAMSENSE_FRAME_STORAGE_SECRET_KEY
+  GRAFANA_ADMIN_PASSWORD:
+    file: ./secrets/GRAFANA_ADMIN_PASSWORD
+  STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET:
+    file: ./secrets/STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
 
 volumes:
   postgres-data:

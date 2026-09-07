@@ -128,9 +128,11 @@ Spring services load config from **config-server** at startup; each service's ow
 
 **If you change config that Kubernetes uses, mirror it in `k8s/config/config-server-config-repo.yaml`** — it duplicates the config-repo as a ConfigMap.
 
+**Secrets are never literal in committed files.** Compose mounts git-ignored `secrets/<NAME>` files at `/run/secrets/<NAME>` (`make secrets` creates any missing file with a random value; `make up` and `start-stack.ps1` do this automatically; the `*.example` files are placeholders). Spring services import `optional:configtree:/run/secrets/`, so a placeholder like `${POSTGRES_PASSWORD}` in config-repo resolves from the file or from an env var of the same name. Python services accept `<NAME>_FILE`. Kubernetes builds the hash-suffixed `streamsense-secrets` Secret from git-ignored `k8s/secrets/streamsense.env` via `secretGenerator` (so a changed value rolls the pods), and manifests use `secretKeyRef`. New credentials follow the same three paths.
+
 The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings).
 
-Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET`, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
+Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires the `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` secret file or key, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS`, `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
 
 ### Twitch VOD replay
 

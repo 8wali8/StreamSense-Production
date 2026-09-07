@@ -72,6 +72,40 @@ Run-Step "Check Docker" {
     docker compose version
 }
 
+Run-Step "Ensure local secrets" {
+    # Same rules as `make secrets`: a missing file whose Compose volume already exists means the volume
+    # holds an older credential, so stop and say so; every other missing file gets a fresh random value.
+    $project = if ($env:COMPOSE_PROJECT_NAME) { $env:COMPOSE_PROJECT_NAME } else { (Split-Path -Leaf (Get-Location)).ToLowerInvariant() }
+    foreach ($pair in @(@("POSTGRES_PASSWORD", "postgres-data"), @("STREAMSENSE_FRAME_STORAGE_ACCESS_KEY", "minio-data"), @("STREAMSENSE_FRAME_STORAGE_SECRET_KEY", "minio-data"))) {
+        $name, $volume = $pair
+        if (-not (Test-Path -LiteralPath "secrets/$name")) {
+            $existing = docker volume ls -q --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.volume=$volume" 2>$null
+            if ($existing) {
+                throw "secrets/$name is missing, but the Compose volume '$volume' already exists and was initialised with an older credential. Write that credential into secrets/$name to keep the data, or run 'make nuke' to discard the volume; then rerun."
+            }
+        }
+    }
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    Get-ChildItem -Path "secrets" -Filter "*.example" | ForEach-Object {
+        $name = $_.Name -replace "\.example$", ""
+        $target = Join-Path $_.DirectoryName $name
+        if (-not (Test-Path -LiteralPath $target)) {
+            $byteCount = switch ($name) {
+                "STREAMSENSE_FRAME_STORAGE_ACCESS_KEY" { 8 }
+                "STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET" { 32 }
+                default { 16 }
+            }
+            $buffer = New-Object byte[] $byteCount
+            $rng.GetBytes($buffer)
+            $value = ($buffer | ForEach-Object { $_.ToString("x2") }) -join ""
+            [System.IO.File]::WriteAllText($target, "$value`n")
+            "created $target with a random value"
+        }
+    }
+    $rng.Dispose()
+    "secrets present under ./secrets"
+}
+
 if ($TwitchEnv) {
     Run-Step "Load Twitch env" {
         Load-EnvFile $EnvFile

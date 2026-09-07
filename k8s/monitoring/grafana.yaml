@@ -41,7 +41,10 @@ spec:
             - name: GF_SECURITY_ADMIN_USER
               value: admin
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: admin
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: GRAFANA_ADMIN_PASSWORD
           ports:
             - containerPort: 3000
           volumeMounts:

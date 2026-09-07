@@ -147,6 +147,9 @@ jobs:
         with:
           version: 'v1.30.0'
 
+      - name: Create local secret files
+        run: make secrets
+
       - name: Validate kustomize renders without errors
         run: kubectl kustomize k8s > /dev/null
 
@@ -196,6 +199,9 @@ jobs:
           mvn -B -ntp -f sentiment-service/pom.xml -DskipTests package
           mvn -B -ntp -f video-service/pom.xml -DskipTests package
           mvn -B -ntp -f analytics-service/pom.xml -DskipTests package
+
+      - name: Create local secret files
+        run: make secrets
 
       - name: Validate docker compose config
         run: docker compose config

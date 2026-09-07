@@ -36,9 +36,15 @@ spec:
             - name: STREAMSENSE_FRAME_STORAGE_REGION
               value: us-east-1
             - name: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
-              value: streamsense
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
             - name: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
-              value: streamsense
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
             - name: STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ
               value: "false"
             - name: STREAMSENSE_WHISPER_MODEL

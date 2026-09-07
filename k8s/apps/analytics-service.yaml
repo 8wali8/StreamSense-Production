@@ -64,6 +64,11 @@ spec:
               value: kafka:9092
             - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
               value: "true"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: POSTGRES_PASSWORD
           ports:
             - containerPort: 8085
           readinessProbe:

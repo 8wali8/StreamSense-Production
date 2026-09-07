@@ -8,6 +8,10 @@ target/
 
 # Local secrets
 .env*.local
+secrets/*
+!secrets/README.md
+!secrets/*.example
+k8s/secrets/*.env
 
 # Node / frontend
 **/node_modules/
@@ -24,3 +28,6 @@ coverage/
 
 # OS
 .DS_Store
+
+# Local test logs written by tools/start-stack.ps1 and make test
+.testlogs/

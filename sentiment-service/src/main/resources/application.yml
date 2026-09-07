@@ -3,4 +3,8 @@ spring:
   application:
     name: sentiment-service
   config:
-    import: optional:configserver:${CONFIG_SERVER_URL:http://config-server:8888}
+    import:
+      - optional:configserver:${CONFIG_SERVER_URL:http://config-server:8888}
+      # Docker/Kubernetes file secrets: each file under /run/secrets becomes a property
+      # named after the file, so ${POSTGRES_PASSWORD} resolves from either env or a secret file.
+      - optional:configtree:/run/secrets/

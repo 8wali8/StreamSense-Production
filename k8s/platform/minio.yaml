@@ -39,9 +39,15 @@ spec:
             - :9001
           env:
             - name: MINIO_ROOT_USER
-              value: streamsense
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
             - name: MINIO_ROOT_PASSWORD
-              value: streamsense
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
           ports:
             - containerPort: 9000
             - containerPort: 9001
