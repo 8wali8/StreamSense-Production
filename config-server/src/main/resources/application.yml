@@ -1,8 +1,11 @@
 # config-server/src/main/resources/application.yml
 server:
+  shutdown: graceful
   port: 8888
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   application:
     name: config-server
 
@@ -16,6 +19,9 @@ spring:
           search-locations: ${CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS:file:./config-repo}
 
 logging:
+  structured:
+    format:
+      console: ${STREAMSENSE_LOG_FORMAT:ecs}
   pattern:
     level: "%5p [traceId=%X{traceId:-}, spanId=%X{spanId:-}, correlationId=%X{correlationId:-}]"
 

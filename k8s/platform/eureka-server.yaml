@@ -44,8 +44,6 @@ spec:
             limits:
               memory: 768Mi
           env:
-            - name: JAVA_TOOL_OPTIONS
-              value: "-XX:MaxRAMPercentage=75.0"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8761

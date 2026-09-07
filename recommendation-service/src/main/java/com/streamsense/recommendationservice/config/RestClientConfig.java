@@ -2,8 +2,8 @@ package com.streamsense.recommendationservice.config;
 
 import java.time.Duration;
 
-import org.springframework.boot.web.client.ClientHttpRequestFactories;
-import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,9 +19,9 @@ public class RestClientConfig {
     @Bean
     public RestClientCustomizer downstreamTimeoutRestClientCustomizer(StreamSenseProperties properties) {
         StreamSenseProperties.Services services = properties.getServices();
-        ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
+        ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
                 .withConnectTimeout(Duration.ofMillis(services.getConnectTimeoutMs()))
                 .withReadTimeout(Duration.ofMillis(services.getReadTimeoutMs()));
-        return builder -> builder.requestFactory(ClientHttpRequestFactories.get(settings));
+        return builder -> builder.requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings));
     }
 }

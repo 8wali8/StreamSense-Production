@@ -1,7 +1,10 @@
 server: # spring boot runs embedded server (Tomcat) by default
+  shutdown: graceful
   port: 8761 # conventional port for Eureka
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   application:
     name: eureka-server # sets the service name used by spring, if it was client would set the name it would register under
 
@@ -13,6 +16,9 @@ eureka:
     wait-time-in-ms-when-sync-empty: 0 # makes local startup smoother bc nothing to sync to
 
 logging:
+  structured:
+    format:
+      console: ${STREAMSENSE_LOG_FORMAT:ecs}
   pattern:
     level: "%5p [traceId=%X{traceId:-}, spanId=%X{spanId:-}, correlationId=%X{correlationId:-}]"
 

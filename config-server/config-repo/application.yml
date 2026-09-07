@@ -1,4 +1,17 @@
+server:
+  # Stop accepting requests, let in-flight work and Kafka listeners finish, then exit.
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
 logging:
+  # One JSON object per line (Elastic Common Schema); MDC keys such as correlationId and the
+  # Micrometer traceId/spanId are included automatically. Set to an empty value for plain text.
+  structured:
+    format:
+      console: ${STREAMSENSE_LOG_FORMAT:ecs}
   pattern:
     level: "%5p [traceId=%X{traceId:-}, spanId=%X{spanId:-}, correlationId=%X{correlationId:-}]"
 
