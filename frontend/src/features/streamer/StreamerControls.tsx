@@ -33,7 +33,9 @@ export function StreamerControls({ selection }: { selection: StreamerSelection }
           placeholder="Brand lift, renewal, risk review"
         />
       </label>
-      <button className="button-primary" onClick={() => void selection.analyzeStreamer()}>Load Console</button>
+      <button className="button-primary" onClick={() => void selection.analyzeStreamer()}>
+        Load Console
+      </button>
     </div>
   );
 }

@@ -1,39 +1,59 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { videoStatusCapturing } from "../test/fixtures";
+import { HttpResponse, http, restJson, server } from "../test/msw";
 import { VideoCaptureStatus } from "./VideoCaptureStatus";
 
 describe("VideoCaptureStatus", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it("shows capturing state", async () => {
+    server.use(restJson("get", "/api/video/capture/status", videoStatusCapturing));
+
+    render(<VideoCaptureStatus />);
+
+    expect(await screen.findByText("Video: capturing @testchannel")).toBeInTheDocument();
+  });
+
+  it("shows offline state and the last channel error as the tooltip", async () => {
+    server.use(
+      restJson("get", "/api/video/capture/status", {
+        ...videoStatusCapturing,
+        state: "IDLE_OFFLINE",
+        channelStatuses: [
+          {
+            channel: "testchannel",
+            state: "IDLE_OFFLINE",
+            lastError: "stream is offline",
+            lastTranscriptPreview: null,
+          },
+        ],
+      }),
+    );
+
+    render(<VideoCaptureStatus />);
+
+    expect(await screen.findByText("Video: stream offline")).toHaveAttribute("title", "stream is offline");
   });
 
   it("shows disabled state", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => ({ enabled: false, state: "DISABLED", channels: [], lastFrameAt: null }),
-    } as Response);
+    server.use(
+      restJson("get", "/api/video/capture/status", {
+        ...videoStatusCapturing,
+        enabled: false,
+        state: "DISABLED",
+        channels: ["disabled"],
+      }),
+    );
 
     render(<VideoCaptureStatus />);
 
-    await waitFor(() => expect(screen.getByText("Video: disabled")).toBeInTheDocument());
+    expect(await screen.findByText("Video: disabled")).toBeInTheDocument();
   });
 
-  it("shows capturing state", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => ({ enabled: true, state: "CAPTURING", channels: ["austincs"], lastFrameAt: 1710000000000 }),
-    } as Response);
+  it("shows unavailable when the request fails", async () => {
+    server.use(http.get("*/api/video/capture/status", () => HttpResponse.error()));
 
     render(<VideoCaptureStatus />);
 
-    await waitFor(() => expect(screen.getByText("Video: capturing @austincs")).toBeInTheDocument());
-  });
-
-  it("shows unavailable state on request failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
-
-    render(<VideoCaptureStatus />);
-
-    await waitFor(() => expect(screen.getByText("Video: status unavailable")).toBeInTheDocument());
+    expect(await screen.findByText("Video: status unavailable")).toBeInTheDocument();
   });
 });

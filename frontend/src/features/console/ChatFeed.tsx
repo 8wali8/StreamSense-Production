@@ -36,13 +36,17 @@ export function ChatFeed({ liveChat, chatSentiments, loading }: ChatFeedProps) {
             <div className="line-meta">
               <span>{formatTime(event.chatTimestamp)}</span>
               <span>{event.user}</span>
-              <span className={`analysis-chip ${analysisClass(event.label)}`}>{event.label} {formatScore(event.score)}</span>
+              <span className={`analysis-chip ${analysisClass(event.label)}`}>
+                {event.label} {formatScore(event.score)}
+              </span>
             </div>
             <p>{event.message}</p>
           </article>
         ))}
 
-        {!loading && liveChat.length === 0 && chatSentiments.length === 0 && <div className="empty-state">No chat signals yet.</div>}
+        {!loading && liveChat.length === 0 && chatSentiments.length === 0 && (
+          <div className="empty-state">No chat signals yet.</div>
+        )}
       </div>
     </section>
   );

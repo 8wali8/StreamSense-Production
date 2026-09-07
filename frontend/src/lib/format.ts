@@ -46,7 +46,12 @@ export function matchedContext(
 }
 
 /** Newest-first merge of live items over history, first occurrence of an id wins, capped at `limit`. */
-export function mergeById<T>(liveItems: readonly T[], historyItems: readonly T[], getId: (item: T) => string, limit: number): T[] {
+export function mergeById<T>(
+  liveItems: readonly T[],
+  historyItems: readonly T[],
+  getId: (item: T) => string,
+  limit: number,
+): T[] {
   const seen = new Set<string>();
   const merged: T[] = [];
 

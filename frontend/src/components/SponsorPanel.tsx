@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { OnSponsorDetectionSubscription, SponsorDetectionsQuery, SponsorDetectionsQueryVariables } from "../graphql/generated";
+import type {
+  OnSponsorDetectionSubscription,
+  SponsorDetectionsQuery,
+  SponsorDetectionsQueryVariables,
+} from "../graphql/generated";
 import { RECENT_SPONSOR_DETECTIONS_QUERY } from "../graphql/queries";
 import { ON_SPONSOR_DETECTION_SUBSCRIPTION } from "../graphql/subscriptions";
 import { useLiveFeed } from "../hooks/useLiveFeed";
@@ -27,7 +31,12 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
   const [localStreamer, setLocalStreamer] = useState("test");
   const activeStreamer = streamer ?? localStreamer;
 
-  const feed = useLiveFeed<SponsorDetectionsQuery, OnSponsorDetectionSubscription, SponsorDetectionsQueryVariables, SponsorDetectionEvent>({
+  const feed = useLiveFeed<
+    SponsorDetectionsQuery,
+    OnSponsorDetectionSubscription,
+    SponsorDetectionsQueryVariables,
+    SponsorDetectionEvent
+  >({
     query: RECENT_SPONSOR_DETECTIONS_QUERY,
     variables: { streamer: activeStreamer, limit: 20 },
     skip: !activeStreamer,
@@ -77,12 +86,17 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
             />
           </label>
 
-          <button className="button-primary" onClick={onLoad}>Load sponsors</button>
+          <button className="button-primary" onClick={onLoad}>
+            Load sponsors
+          </button>
         </div>
       )}
 
       <div className="status-line">
-        Status: {subscriptionError ? `subscription error (${subscriptionError.message})` : `live with auto-reconnect (streamer=${activeStreamer})`}
+        Status:{" "}
+        {subscriptionError
+          ? `subscription error (${subscriptionError.message})`
+          : `live with auto-reconnect (streamer=${activeStreamer})`}
       </div>
 
       <div className="metric-grid">
@@ -100,11 +114,12 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
               <div
                 title={`${event.sponsor} ${event.confidence.toFixed(2)}`}
                 className="trend-bar"
-                style={{ height: `${Math.max(10, Math.round(event.confidence * 100))}px`, background: sponsorTone(event.sponsor) }}
+                style={{
+                  height: `${Math.max(10, Math.round(event.confidence * 100))}px`,
+                  background: sponsorTone(event.sponsor),
+                }}
               />
-              <div className="trend-label">
-                {event.sponsor}
-              </div>
+              <div className="trend-label">{event.sponsor}</div>
             </div>
           ))}
         </div>
@@ -127,7 +142,9 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
               <div className="event-meta">
                 [{formatTime(event.capturedAt)}] seq={event.frameSequence} • frame={event.sourceFrameId}
               </div>
-              <span className="category-label" style={{ color: sponsorTone(event.sponsor) }}>{event.sponsor}</span>
+              <span className="category-label" style={{ color: sponsorTone(event.sponsor) }}>
+                {event.sponsor}
+              </span>
             </div>
 
             <strong>{event.frameRef}</strong>
@@ -137,7 +154,9 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
               <span className="tag">model={event.modelVersion}</span>
               {event.source && <span className="tag">source={event.source}</span>}
               {event.streamSessionId && <span className="tag">session={event.streamSessionId}</span>}
-              {event.videoTimestampMs != null && <span className="tag">videoTs={Math.round(event.videoTimestampMs / 1000)}s</span>}
+              {event.videoTimestampMs != null && (
+                <span className="tag">videoTs={Math.round(event.videoTimestampMs / 1000)}s</span>
+              )}
               <span className="tag">
                 box={event.x.toFixed(2)},{event.y.toFixed(2)} {event.width.toFixed(2)}x{event.height.toFixed(2)}
               </span>

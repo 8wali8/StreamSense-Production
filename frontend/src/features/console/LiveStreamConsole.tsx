@@ -27,7 +27,12 @@ export function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: Live
       />
 
       <aside className="stream-sidecar" aria-label="Transcript and chat analysis">
-        <TranscriptFeed lines={feeds.transcriptFeed} activeSponsor={activeSponsor} loading={feeds.transcript.loading} error={feeds.transcript.error} />
+        <TranscriptFeed
+          lines={feeds.transcriptFeed}
+          activeSponsor={activeSponsor}
+          loading={feeds.transcript.loading}
+          error={feeds.transcript.error}
+        />
         <SponsorSentimentFeed
           activeSponsor={activeSponsor}
           sponsorBrand={sponsorBrand}
@@ -35,7 +40,11 @@ export function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: Live
           transcriptSentiments={feeds.sponsorTranscriptSentiments}
           loading={feeds.sponsorSentimentLoading}
         />
-        <ChatFeed liveChat={feeds.liveChat} chatSentiments={feeds.chatSentiments} loading={feeds.chatSentimentLoading} />
+        <ChatFeed
+          liveChat={feeds.liveChat}
+          chatSentiments={feeds.chatSentiments}
+          loading={feeds.chatSentimentLoading}
+        />
       </aside>
     </section>
   );

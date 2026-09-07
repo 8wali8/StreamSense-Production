@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+import { HttpResponse, restProblem, restResolver, server } from "../test/msw";
 import { SegmentationPreview } from "./SegmentationPreview";
 
 const frame = {
@@ -16,71 +18,66 @@ const newerFrame = {
   capturedAt: 1710000010000,
 };
 
+const segmentation = {
+  modelVersion: "sam-vit-b",
+  frameWidth: 1280,
+  frameHeight: 720,
+  proposals: [
+    { label: "Proposal 1", confidence: 0.9, x: 0.1, y: 0.1, width: 0.2, height: 0.2, source: "sam", areaRatio: 0.04 },
+  ],
+};
+
 describe("SegmentationPreview", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("runs segmentation for the latest frame", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        modelVersion: "sam-vit-b",
-        frameWidth: 1280,
-        frameHeight: 720,
-        proposals: [
-          {
-            label: "region",
-            confidence: 0.96,
-            x: 0.1,
-            y: 0.2,
-            width: 0.3,
-            height: 0.4,
-            source: "sam",
-            areaRatio: 0.12,
-          },
-        ],
+  it("runs segmentation for the latest frame and keeps showing the segmented frame", async () => {
+    let requestBody: unknown;
+    server.use(
+      restResolver("post", "/ml/segment", async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json(segmentation);
       }),
-    } as Response);
+    );
+    const user = userEvent.setup();
 
     const { rerender } = render(<SegmentationPreview frame={frame} />);
+    await user.click(screen.getByRole("button", { name: "Run SAM" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Run SAM" }));
-
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
-      "/ml/segment",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ frameId: "frame-1", frameRef: "s3://streamsense-frames/test.png" }),
-      }),
-    ));
-    expect(await screen.findByText("Proposal 1")).toBeInTheDocument();
+    expect((await screen.findAllByText("Proposal 1")).length).toBeGreaterThan(0);
+    expect(requestBody).toEqual({ frameId: "frame-1", frameRef: "s3://streamsense-frames/test.png" });
     expect(screen.getByText("model=sam-vit-b")).toBeInTheDocument();
-    expect(screen.getByText("confidence=0.96")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Captured stream frame for segmentation" })).toHaveAttribute(
+    expect(screen.getByRole("img", { name: /captured stream frame/i })).toHaveAttribute(
       "src",
       "/api/video/capture/frame?frameRef=s3%3A%2F%2Fstreamsense-frames%2Ftest.png",
     );
 
     rerender(<SegmentationPreview frame={newerFrame} />);
 
-    expect(screen.getByRole("img", { name: "Captured stream frame for segmentation" })).toHaveAttribute(
-      "src",
-      "/api/video/capture/frame?frameRef=s3%3A%2F%2Fstreamsense-frames%2Ftest.png",
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: /captured stream frame/i })).toHaveAttribute(
+        "src",
+        "/api/video/capture/frame?frameRef=s3%3A%2F%2Fstreamsense-frames%2Ftest.png",
+      ),
     );
   });
 
-  it("renders segmentation errors", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 503 } as Response);
+  it("shows the ml-engine problem detail when segmentation fails", async () => {
+    server.use(restProblem("post", "/ml/segment", 503, "segmentation model is not loaded"));
+    const user = userEvent.setup();
 
     render(<SegmentationPreview frame={frame} />);
+    await user.click(screen.getByRole("button", { name: "Run SAM" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Run SAM" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "/ml/segment returned 503: segmentation model is not loaded",
+    );
+  });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("/ml/segment returned 503");
+  it("disables the button until a frame reference is available", async () => {
+    const user = userEvent.setup();
+
+    render(<SegmentationPreview />);
+
+    expect(screen.getByRole("button", { name: "Run SAM" })).toBeDisabled();
+    await user.type(screen.getByRole("textbox"), "frames/manual.png");
+    expect(screen.getByRole("button", { name: "Run SAM" })).toBeEnabled();
   });
 });

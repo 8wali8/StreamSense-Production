@@ -10,7 +10,13 @@ type SponsorSentimentFeedProps = {
 };
 
 /** Chat and transcript sentiment that the relevance model tied to the active sponsor. */
-export function SponsorSentimentFeed({ activeSponsor, sponsorBrand, chatSentiments, transcriptSentiments, loading }: SponsorSentimentFeedProps) {
+export function SponsorSentimentFeed({
+  activeSponsor,
+  sponsorBrand,
+  chatSentiments,
+  transcriptSentiments,
+  loading,
+}: SponsorSentimentFeedProps) {
   return (
     <section className="sidecar-panel chat-feed">
       <div className="sidecar-heading">
@@ -27,7 +33,9 @@ export function SponsorSentimentFeed({ activeSponsor, sponsorBrand, chatSentimen
             <div className="line-meta">
               <span>{formatTime(event.chatTimestamp)}</span>
               <span>{event.user}</span>
-              <span className={`analysis-chip ${analysisClass(event.label)}`}>{event.label} {formatScore(event.score)}</span>
+              <span className={`analysis-chip ${analysisClass(event.label)}`}>
+                {event.label} {formatScore(event.score)}
+              </span>
               <span className="analysis-chip analysis-live">{formatScore(event.relevanceScore)} match</span>
             </div>
             <p>{event.message}</p>
@@ -40,7 +48,9 @@ export function SponsorSentimentFeed({ activeSponsor, sponsorBrand, chatSentimen
             <div className="line-meta">
               <span>{formatTime(event.segmentEndedAt)}</span>
               <span>transcript</span>
-              <span className={`analysis-chip ${analysisClass(event.label)}`}>{event.label} {formatScore(event.score)}</span>
+              <span className={`analysis-chip ${analysisClass(event.label)}`}>
+                {event.label} {formatScore(event.score)}
+              </span>
               <span className="analysis-chip analysis-live">{formatScore(event.relevanceScore)} match</span>
             </div>
             <p>{event.text}</p>

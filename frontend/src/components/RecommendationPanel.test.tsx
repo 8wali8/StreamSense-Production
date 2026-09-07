@@ -1,53 +1,23 @@
-import { render, screen } from "@testing-library/react";
-import { useQuery } from "@apollo/client/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { renderWithApollo } from "../test/apollo";
+import { recommendation } from "../test/fixtures";
+import { graphqlData, graphqlError, graphqlPending, server } from "../test/msw";
 import { RecommendationPanel } from "./RecommendationPanel";
 
-vi.mock("@apollo/client/react", () => ({
-  useQuery: vi.fn(),
-}));
-
-const useQueryMock = vi.mocked(useQuery);
-
 describe("RecommendationPanel", () => {
-  beforeEach(() => {
-    useQueryMock.mockReset();
-  });
-
   it("renders the loading state", () => {
-    useQueryMock.mockReturnValue({ loading: true, data: undefined, error: undefined } as never);
+    server.use(graphqlPending("Recommendations"));
 
-    render(<RecommendationPanel />);
+    renderWithApollo(<RecommendationPanel />);
 
     expect(screen.getByText("Loading recommendations...")).toBeInTheDocument();
   });
 
   it("renders recommendation results with reasons and variant metadata", async () => {
-    useQueryMock.mockReturnValue({
-      loading: false,
-      error: undefined,
-      data: {
-        recommendations: [
-          {
-            recommendationId: "test:sponsor_alignment",
-            streamer: "test",
-            title: "Highlight Nike moments while they are landing",
-            category: "SPONSOR_ALIGNMENT",
-            score: 0.83,
-            reasonSummary: "Nike is the most visible sponsor in the recent window.",
-            reasons: [
-              "Nike appeared in 67% of recent sponsor detections.",
-              "Average confidence for Nike was 0.88.",
-            ],
-            experimentName: "recommendation-ranking-v1",
-            variantId: "balanced",
-            generatedAt: 1712890800000,
-          },
-        ],
-      },
-    } as never);
+    server.use(graphqlData("Recommendations", { recommendations: [recommendation()] }));
 
-    render(<RecommendationPanel />);
+    renderWithApollo(<RecommendationPanel />);
 
     expect(await screen.findByText("Highlight Nike moments while they are landing")).toBeInTheDocument();
     expect(screen.getByText("Nike is the most visible sponsor in the recent window.")).toBeInTheDocument();
@@ -56,26 +26,18 @@ describe("RecommendationPanel", () => {
   });
 
   it("renders the empty state", async () => {
-    useQueryMock.mockReturnValue({
-      loading: false,
-      error: undefined,
-      data: { recommendations: [] },
-    } as never);
+    server.use(graphqlData("Recommendations", { recommendations: [] }));
 
-    render(<RecommendationPanel />);
+    renderWithApollo(<RecommendationPanel />);
 
     expect(await screen.findByText("No recommendations yet.")).toBeInTheDocument();
   });
 
-  it("renders GraphQL errors", () => {
-    useQueryMock.mockReturnValue({
-      loading: false,
-      data: undefined,
-      error: new Error("recommendation service unavailable"),
-    } as never);
+  it("renders GraphQL errors", async () => {
+    server.use(graphqlError("Recommendations", "recommendation service unavailable"));
 
-    render(<RecommendationPanel />);
+    renderWithApollo(<RecommendationPanel />);
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Failed to load recommendations");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load recommendations");
   });
 });

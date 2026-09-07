@@ -20,7 +20,9 @@ export function TranscriptFeed({ lines, activeSponsor, loading, error }: Transcr
           <span className="eyebrow">Streamer audio</span>
           <h2>All transcript</h2>
         </div>
-        <span className="status-pill">{lines.length} lines · {sponsorCount} sponsor</span>
+        <span className="status-pill">
+          {lines.length} lines · {sponsorCount} sponsor
+        </span>
       </div>
 
       <div className="feed-stack">
@@ -36,11 +38,19 @@ export function TranscriptFeed({ lines, activeSponsor, loading, error }: Transcr
                 <span>{formatTime(line.at)}</span>
                 <span>seq {line.sequence}</span>
                 {line.source && <span>{line.source}</span>}
-                <span className={`analysis-chip ${analysisClass(analysis?.label)}`}>{analysis?.label ?? "pending"}</span>
-                {sponsorAnalysis && <span className="analysis-chip analysis-live">sponsor {formatScore(sponsorAnalysis.relevanceScore)}</span>}
+                <span className={`analysis-chip ${analysisClass(analysis?.label)}`}>
+                  {analysis?.label ?? "pending"}
+                </span>
+                {sponsorAnalysis && (
+                  <span className="analysis-chip analysis-live">
+                    sponsor {formatScore(sponsorAnalysis.relevanceScore)}
+                  </span>
+                )}
               </div>
               <p>{line.text}</p>
-              {sponsorAnalysis && <div className="line-meta">Matched {matchedContext(sponsorAnalysis, activeSponsor)}</div>}
+              {sponsorAnalysis && (
+                <div className="line-meta">Matched {matchedContext(sponsorAnalysis, activeSponsor)}</div>
+              )}
             </article>
           );
         })}

@@ -11,12 +11,15 @@ type StreamMetricsOverviewProps = {
 };
 
 export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) {
-  const { data, loading, error } = useQuery<StreamAnalyticsQuery, StreamAnalyticsQueryVariables>(STREAM_ANALYTICS_QUERY, {
-    variables: { streamer, windowMinutes: 15, bucketSeconds: 60 },
-    skip: !streamer,
-    fetchPolicy: "network-only",
-    pollInterval: 15000,
-  });
+  const { data, loading, error } = useQuery<StreamAnalyticsQuery, StreamAnalyticsQueryVariables>(
+    STREAM_ANALYTICS_QUERY,
+    {
+      variables: { streamer, windowMinutes: 15, bucketSeconds: 60 },
+      skip: !streamer,
+      fetchPolicy: "network-only",
+      pollInterval: 15000,
+    },
+  );
 
   const summary = data?.streamMetricsSummary;
   const buckets = data?.streamMetricsTimeseries ?? [];
@@ -29,7 +32,9 @@ export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) 
         <div>
           <div className="eyebrow">Product analytics</div>
           <h2>Stream Metrics Overview</h2>
-          <p>Backend aggregates over chat, sentiment, transcript voice sentiment, and sponsor detections for @{streamer}.</p>
+          <p>
+            Backend aggregates over chat, sentiment, transcript voice sentiment, and sponsor detections for @{streamer}.
+          </p>
         </div>
         <span className="status-pill">{summary ? `${summary.windowMinutes}m window` : "waiting"}</span>
       </div>
@@ -54,8 +59,16 @@ export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) 
           <div className="metric-grid">
             <MetricCard label="Chat/min" value={summary.chat.messagesPerMinute.toFixed(1)} tone="metric-blue" />
             <MetricCard label="Unique chatters" value={summary.chat.uniqueChatters} tone="metric-violet" />
-            <MetricCard label="Risk" value={riskLabel(summary.risk.level, summary.risk.score)} tone={riskTone(summary.risk.level)} />
-            <MetricCard label="Sponsor exposure" value={formatDuration(summary.sponsorExposure.estimatedExposureMs)} tone="metric-positive" />
+            <MetricCard
+              label="Risk"
+              value={riskLabel(summary.risk.level, summary.risk.score)}
+              tone={riskTone(summary.risk.level)}
+            />
+            <MetricCard
+              label="Sponsor exposure"
+              value={formatDuration(summary.sponsorExposure.estimatedExposureMs)}
+              tone="metric-positive"
+            />
           </div>
 
           <div className="analytics-layout">
@@ -80,7 +93,12 @@ export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) 
               <MetricRow label="Chat sentiment" value={formatSentiment(summary.chatSentiment)} />
               <MetricRow label="Voice sentiment" value={formatSentiment(summary.transcriptSentiment)} />
               <MetricRow label="Engagement spikes" value={`${summary.engagement.spikeCount}`} />
-              <MetricRow label="Top sponsor" value={topSponsor ? `${topSponsor.sponsor} (${formatDuration(topSponsor.estimatedExposureMs)})` : "None yet"} />
+              <MetricRow
+                label="Top sponsor"
+                value={
+                  topSponsor ? `${topSponsor.sponsor} (${formatDuration(topSponsor.estimatedExposureMs)})` : "None yet"
+                }
+              />
             </div>
           </div>
 
@@ -98,7 +116,6 @@ export function StreamMetricsOverview({ streamer }: StreamMetricsOverviewProps) 
     </section>
   );
 }
-
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (

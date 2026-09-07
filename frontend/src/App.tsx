@@ -27,16 +27,26 @@ export default function App() {
         </div>
 
         <nav className="nav-stack">
-          <a className="nav-item nav-item-active" href="#console">Live console</a>
-          <a className="nav-item" href="#metrics">Metrics</a>
-          <a className="nav-item" href="#evidence">Evidence</a>
-          <a className="nav-item" href="#roster">Roster</a>
+          <a className="nav-item nav-item-active" href="#console">
+            Live console
+          </a>
+          <a className="nav-item" href="#metrics">
+            Metrics
+          </a>
+          <a className="nav-item" href="#evidence">
+            Evidence
+          </a>
+          <a className="nav-item" href="#roster">
+            Roster
+          </a>
         </nav>
 
         <div className="sidebar-card">
           <span className="field-label">Active review</span>
           <strong>@{selectedStreamer}</strong>
-          <span>{displayBrand} / {campaignGoal || "No campaign goal"}</span>
+          <span>
+            {displayBrand} / {campaignGoal || "No campaign goal"}
+          </span>
         </div>
       </aside>
 
@@ -45,7 +55,10 @@ export default function App() {
           <div>
             <div className="eyebrow">Twitch sponsor monitoring</div>
             <h1>Live stream console</h1>
-            <p>Watch captured stream frames, chat, transcript, sponsor detections, and risk signals in the same operating view.</p>
+            <p>
+              Watch captured stream frames, chat, transcript, sponsor detections, and risk signals in the same operating
+              view.
+            </p>
           </div>
 
           <div className="command-status-row">
@@ -81,7 +94,10 @@ export default function App() {
           </ErrorBoundary>
         </section>
 
-        <Roster selectedStreamer={selectedStreamer} onSelect={(streamer) => void selection.selectPortfolioStreamer(streamer)} />
+        <Roster
+          selectedStreamer={selectedStreamer}
+          onSelect={(streamer) => void selection.selectPortfolioStreamer(streamer)}
+        />
       </main>
     </div>
   );

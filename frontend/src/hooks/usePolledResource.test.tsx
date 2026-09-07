@@ -23,7 +23,7 @@ describe("usePolledResource", () => {
   });
 
   it("loads immediately and again on every interval", async () => {
-    const load = vi.fn(async (streamer: string) => `${streamer}-${load.mock.calls.length}`);
+    const load = vi.fn((streamer: string) => Promise.resolve(`${streamer}-${load.mock.calls.length}`));
 
     render(<Probe load={load} streamer="test" />);
     await act(async () => {
@@ -39,7 +39,10 @@ describe("usePolledResource", () => {
   });
 
   it("keeps the last good data through a failure and reports the error", async () => {
-    const load = vi.fn<(streamer: string) => Promise<string>>().mockResolvedValueOnce("first").mockRejectedValueOnce(new Error("network down"));
+    const load = vi
+      .fn<(streamer: string) => Promise<string>>()
+      .mockResolvedValueOnce("first")
+      .mockRejectedValueOnce(new Error("network down"));
 
     render(<Probe load={load} streamer="test" />);
     await act(async () => {
@@ -54,7 +57,7 @@ describe("usePolledResource", () => {
   });
 
   it("drops data from a previous key when the key changes", async () => {
-    const load = vi.fn(async (streamer: string) => `data-for-${streamer}`);
+    const load = vi.fn((streamer: string) => Promise.resolve(`data-for-${streamer}`));
 
     const { rerender } = render(<Probe load={load} streamer="alpha" />);
     await act(async () => {
@@ -71,7 +74,7 @@ describe("usePolledResource", () => {
   });
 
   it("reloads on demand", async () => {
-    const load = vi.fn(async (streamer: string) => `${streamer}-${load.mock.calls.length}`);
+    const load = vi.fn((streamer: string) => Promise.resolve(`${streamer}-${load.mock.calls.length}`));
 
     render(<Probe load={load} streamer="test" />);
     await act(async () => {
