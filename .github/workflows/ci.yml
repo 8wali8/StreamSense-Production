@@ -45,6 +45,8 @@ jobs:
               - '.github/workflows/**'
             java-shared:
               - 'config-server/config-repo/**'
+              # The parent POM manages every version; a change there must rebuild every service.
+              - 'pom.xml'
               # The schema contract tests in chat-, sentiment-, and video-service read ../docs/schemas.
               - 'docs/schemas/**'
             eureka-server:
@@ -75,6 +77,7 @@ jobs:
               - 'kustomization.yaml'
             smoke:
               - 'docker-compose.yml'
+              - 'pom.xml'
               - 'makefile'
               - 'tools/**'
               - 'secrets/**'
