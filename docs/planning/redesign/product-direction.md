@@ -22,7 +22,7 @@ Built streamer-first: the streamer owns the channel (authorizes capture) and the
 | # | Question | Answer | Page |
 |---|---|---|---|
 | S1 | Is the sponsor getting what I promised, right now? | Exposure so far, mentions so far with sentiment, current risk | Streamer home, live strip |
-| S2 | What did the sponsor get from this stream? | Exposure minutes and share, mentions (voice + chat), mention sentiment, media value | Session report header |
+| S2 | What did the sponsor get from this stream? | Exposure minutes and share, mentions (voice + chat), mention sentiment, viewers; then a value section: media value with the formula shown (prominence-weighted logo viewer-minutes at a per-deal CPM, plus host reads at a per-listener rate), value against fee (private to the streamer), and direct response (tracked link clicks, chat command uses, channel point redemptions). Sentiment is never folded into the dollar figure. | Session report header and value section |
 | S3 | Show me the moments | One timeline: logo segments, voice mentions, chat bursts, negative spikes, VOD jump | Session report timeline |
 | S4 | Did anything risky happen near the brand? | Risk level with named factors, spikes on the same timeline | Session report, live strip |
 | S5 | How is this deal going overall? | Deal totals, per-stream trend, session list | Deal page |
@@ -47,7 +47,7 @@ Moved to `/ops`: streamer and sponsor form and runtime switching status; health,
 ## Model
 
 - Sponsor (durable): sponsorId, name, aliases[], semanticTerms[], detectionLabel. The in-memory relevance profile made durable.
-- Deal (new): dealId, streamer, sponsorId, startsAt, endsAt, promisedStreams?, shareToken.
+- Deal (new): dealId, streamer, sponsorId, startsAt, endsAt, promisedStreams?, shareToken, fee?, cpm, hostReadRate, trackedLink?, chatCommand?, channelPointReward?.
 - Session (needs a boundary): streamSessionId, streamer, twitchStreamId, startedAt, endedAt, title, category, peakViewers, averageViewers, dealId (derived). Today the id is minted per capture start, so restarting capture splits one stream into two.
 - Session metrics (exists per bucket): exposureMs, exposureShare, mentionCount, mentionSentiment, risk; new: mediaValue, moments[].
 
@@ -56,12 +56,13 @@ Moved to `/ops`: streamer and sponsor form and runtime switching status; health,
 1. **Now** Poll Twitch Helix streams per watched channel: live state, stream id, title, category, viewers. Opens and closes sessions; feeds media value.
 2. **Now** Sessions table and query in analytics-service (list by streamer and range, get by id with totals). Capture and chat carry the Helix stream id as the session id.
 3. **Now** Analytics queries by session id alone or absolute from/to on summary, timeseries, exposure, brand safety.
-4. **Next** Sponsor moments query: detection runs collapsed into segments plus relevant voice and chat lines with VOD timestamps. Client-side first is acceptable.
-5. **Next** Durable sponsors and deals with REST endpoints, seeded from config-repo. Creating a deal points relevance at the channel.
-6. **Next** Read-only share token on deals.
-7. **Later** Twitch OAuth for streamers.
+4. **Next** Direct response counters: chat-service counts uses of the deal's chat command and posts of its tracked link per session (chat is already ingested); a per-deal short link records clicks; channel point redemptions come from Twitch EventSub later. Media value needs only viewer counts plus the deal's CPM and rates.
+5. **Next** Sponsor moments query: detection runs collapsed into segments plus relevant voice and chat lines with VOD timestamps. Client-side first is acceptable.
+6. **Next** Durable sponsors and deals with REST endpoints, seeded from config-repo. Creating a deal points relevance at the channel.
+7. **Next** Read-only share token on deals.
+8. **Later** Twitch OAuth for streamers.
 
-The demo needs only the first three: the replay alias then yields a real session report from stored data.
+The demo needs only the first three (gap 4 is small and demo-worthy if time allows): the replay alias then yields a real session report from stored data.
 
 ## References per page
 
