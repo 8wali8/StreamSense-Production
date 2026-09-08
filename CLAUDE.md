@@ -31,6 +31,8 @@ make nuke            # docker compose down -v (removes volumes/data)
 
 Java Dockerfiles copy `target/*.jar` — after Java changes you must package jars before rebuilding images. `make up` does this for you; `make build` alone does not.
 
+`docker-compose.prod.yml` is the overlay for the hosted demo (`docs/planning/cloud-hosting.md`): layered over the base file it pulls the GHCR images at `STREAMSENSE_IMAGE_TAG` (default `main`) instead of building, publishes only the console on port 80 with the admin UIs on `127.0.0.1`, sets memory limits copied from the Kubernetes manifests, restarts containers with the machine, rotates logs, and turns gateway auth on with GraphiQL off. Twitch settings reach it through `docker compose --env-file <file>`, which feeds the base file's `${TWITCH_*}` interpolation. CI renders the pair in the smoke job; run `docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q` after touching either file.
+
 Third-party images are pinned as `name:tag@sha256:<digest>` in `docker-compose.yml`, `k8s/**`, and every `Dockerfile`; never add a floating tag such as `:latest` or `:16`. To bump one, pick the new tag, take the digest from `docker buildx imagetools inspect name:tag`, and update every occurrence (Renovate will do this once enabled).
 
 Twitch verification targets (`make twitch-up`, `twitch-video-up`, `twitch-transcript-up`, `twitch-analytics-up`, and matching `*-status` targets) load credentials from `.env.twitch.local` (not committed).

@@ -86,6 +86,7 @@ jobs:
               - 'kustomization.yaml'
             smoke:
               - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
               - 'pom.xml'
               - 'makefile'
               - 'tools/**'
@@ -453,6 +454,10 @@ jobs:
 
       - name: Validate docker compose config
         run: docker compose config
+
+      # The hosted-demo overlay (docs/planning/cloud-hosting.md) must keep rendering over the base file.
+      - name: Validate the production overlay renders
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
 
       - name: Build smoke images
         run: docker compose build eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service analytics-service video-capture-service api-gateway
