@@ -1,6 +1,6 @@
 # Product direction: from live console to sponsorship proof
 
-Draft 1, 2026-09-07. Shareable version: https://claude.ai/code/artifact/b8db5efc-29f9-49af-853a-ea57587607e7. Branch plan: `README.md` in this folder.
+Agreed 2026-09-08 (draft 2026-09-07). Shareable version: https://claude.ai/code/artifact/b8db5efc-29f9-49af-853a-ea57587607e7. Branch plan: `README.md` in this folder.
 
 ## Thesis
 
@@ -33,7 +33,7 @@ Brand-side stories are the mirror of S2 to S7 and exist to check the shared view
 
 ## Cuts
 
-Removed: campaign goal field; per-panel streamer inputs and load buttons; event IDs, model versions, frame refs, box coordinates, sequence numbers; experiment name and variant on recommendations; hard-coded roster with fake owner and risk.
+Removed: campaign goal field; per-panel streamer inputs and load buttons; event IDs, model versions, frame refs, box coordinates, sequence numbers; the recommendations panel (no story asks for it; the service is removed from the stack in a later branch); hard-coded roster with fake owner and risk.
 
 Moved to `/ops`: streamer and sponsor form and runtime switching status; health, ingestion, capture pills; raw event lists.
 
@@ -73,7 +73,7 @@ The demo needs only the first three: the replay alias then yields a real session
 
 ## Next steps
 
-1. Agree stories and cuts.
+1. Stories and cuts agreed 2026-09-08. Recommendations dropped entirely.
 2. Mock the four pages as a design canvas; session report in most detail.
 3. Start gaps 1 to 3 in parallel.
 4. Rebuild route by route: ops, session report against the replay alias, streamer home, deal page.
