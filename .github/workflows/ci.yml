@@ -606,8 +606,12 @@ jobs:
   publish-images:
     runs-on: ubuntu-latest
     needs: ci-ok
+    # Jobs upstream of ci-ok are skipped by the path filter (or, for sbom, on every ref but
+    # main), and without a status function here the implicit success() would skip this job
+    # with them. !cancelled() lets ci-ok's own verdict decide, as docker-smoke does.
     if: >-
-      needs.ci-ok.result == 'success'
+      !cancelled()
+      && needs.ci-ok.result == 'success'
       && (github.event_name == 'workflow_dispatch'
           || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     permissions:
