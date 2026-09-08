@@ -31,3 +31,11 @@ coverage/
 
 # Local test logs written by tools/start-stack.ps1 and make test
 .testlogs/
+
+# Terraform (terraform/): local state, variable values, provider binaries. The lock file is committed.
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/*.tfvars.example
+terraform/crash.log
