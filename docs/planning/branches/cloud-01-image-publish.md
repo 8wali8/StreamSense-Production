@@ -27,8 +27,9 @@ Image names: `ghcr.io/8wali8/streamsense/<service>:<sha>` and `:main`. The repos
 | Check | Command | Result |
 |---|---|---|
 | Workflow lint | `actionlint .github/workflows/ci.yml` (1.7.12) | clean |
-| Publish dry run | `gh workflow run ci.yml --ref cloud/01-image-publish`, then `gh run watch` | recorded below |
-| Anonymous pull | `docker pull ghcr.io/8wali8/streamsense/eureka-server:<sha>` with an empty Docker config | recorded below |
+| Publish dry run, first attempt | `gh workflow run ci.yml --ref cloud/01-image-publish` (run 34284934977, head 500a100) | every check green, `ci-ok` success, `publish-images` **skipped**: the implicit `success()` on a job whose ancestors include a skipped job (`sbom`); fixed in c78197d with `!cancelled()` |
+| Publish dry run, second attempt | same, run [34285998367](https://github.com/8wali8/StreamSense-Production/actions/runs/34285998367) (head c78197d) | every check green; all eleven `publish-images` entries success, 48 s to 117 s each (ml-engine the slowest), tagged `c78197dc5b706e5ddebceb64f379a407d50c7030`, no `main` tag |
+| Anonymous pull | `GET /v2/8wali8/streamsense/eureka-server/manifests/<sha>` with an anonymous registry token | HTTP 403 until the owner makes the packages public (see below); the pushes themselves are proven by the job logs |
 
 ## What to check by hand
 
