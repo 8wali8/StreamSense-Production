@@ -9,6 +9,7 @@ import type {
 import { SESSION_SUMMARY_QUERY, SESSIONS_QUERY } from "../../graphql/queries";
 import { describeError } from "../../lib/errors";
 import { LiveStreamConsole } from "../console/LiveStreamConsole";
+import { DealsPanel } from "../deals/DealsPanel";
 import { useStreamer } from "../streamer/streamer-context";
 import { HistoryPanel } from "./HistoryPanel";
 import { LiveStrip } from "./LiveStrip";
@@ -19,7 +20,7 @@ const LIVE_POLL_MS = 30_000;
 
 /**
  * The streamer's home: the live strip over the player and brand-mention feed, then the deals
- * placeholder and the history. Everything is about the channel the runtime is pointed at.
+ * and the history. Everything is about the channel the runtime is pointed at.
  */
 export function HomePage() {
   const { selectedStreamer, displayBrand } = useStreamer();
@@ -71,12 +72,9 @@ export function HomePage() {
         <LiveStreamConsole streamer={selectedStreamer} sponsorBrand={displayBrand} />
       </ErrorBoundary>
 
-      <section className="panel deals-placeholder" aria-label="Active deals">
-        <div className="panel-heading">
-          <h2>Active deals</h2>
-          <p>Deals with a sponsor, dates, and promised streams arrive in the next release.</p>
-        </div>
-      </section>
+      <ErrorBoundary label="deals">
+        <DealsPanel />
+      </ErrorBoundary>
 
       <ErrorBoundary label="history">
         <HistoryPanel

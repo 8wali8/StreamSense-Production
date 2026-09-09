@@ -45,6 +45,7 @@ function consoleHandlers() {
     graphqlData("RecentSponsorTranscriptSentiment", { recentSponsorTranscriptSentiment: [] }),
     graphqlData("StreamAnalytics", streamAnalytics()),
     graphqlData("Health", { health: "ok" }),
+    graphqlData("Deals", { deals: [] }),
     restJson("get", "/api/sentiment/transcript/recent", []),
     restJson("get", "/api/chat/twitch/status", twitchStatusConnected),
     restJson("get", "/api/video/capture/status", videoStatusCapturing),

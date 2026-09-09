@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Route, Routes } from "react-router";
 import { AppShell } from "./components/AppShell";
+import { DealPage } from "./features/deals/DealPage";
 import { HomePage } from "./features/home/HomePage";
 import { OpsPage } from "./features/ops/OpsPage";
 import { LatestSessionRedirect } from "./features/session/LatestSessionRedirect";
@@ -41,6 +42,7 @@ export function AppRoutes() {
           <Route path="sessions/:sessionId/mentions" element={<SessionMentionsPage />} />
           <Route path="sessions/:sessionId/risk" element={<SessionRiskPage />} />
           <Route path="sessions/:sessionId/stream" element={<SessionStreamPage />} />
+          <Route path="deals/:dealId" element={<DealPage />} />
           <Route path="ops" element={<OpsPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>

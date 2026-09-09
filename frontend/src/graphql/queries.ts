@@ -306,6 +306,7 @@ export const SESSION_SUMMARY_QUERY = gql`
         averageViewers
         viewerSamples
       }
+      dealId
       sponsor
       onScreenMs
       onScreenShare
@@ -429,6 +430,117 @@ export const SPONSOR_MOMENTS_QUERY = gql`
         title
         detail
         score
+      }
+    }
+  }
+`;
+
+export const DEALS_QUERY = gql`
+  query Deals($streamer: String, $limit: Int) {
+    deals(streamer: $streamer, limit: $limit) {
+      id
+      streamer
+      sponsor
+      startsAt
+      endsAt
+      promisedStreams
+      fee
+      currency
+      cpmPer30sEquivalent
+      hostReadRatePer1000
+      trackedLink
+      trackedLinkHost
+      chatCommand
+      channelPointReward
+      active
+      createdAt
+    }
+  }
+`;
+
+export const DEAL_QUERY = gql`
+  query Deal($id: ID!) {
+    deal(id: $id) {
+      id
+      streamer
+      sponsor
+      startsAt
+      endsAt
+      promisedStreams
+      fee
+      currency
+      cpmPer30sEquivalent
+      hostReadRatePer1000
+      trackedLink
+      trackedLinkHost
+      chatCommand
+      channelPointReward
+      active
+      createdAt
+    }
+  }
+`;
+
+export const DEAL_SUMMARY_QUERY = gql`
+  query DealSummary($id: ID!) {
+    dealSummary(id: $id) {
+      deal {
+        id
+        streamer
+        sponsor
+        startsAt
+        endsAt
+        promisedStreams
+        fee
+        currency
+        cpmPer30sEquivalent
+        hostReadRatePer1000
+        trackedLink
+        trackedLinkHost
+        chatCommand
+        channelPointReward
+        active
+        createdAt
+      }
+      totals {
+        streams
+        liveStreams
+        streamedMs
+        onScreenMs
+        onScreenShare
+        mentions
+        chatMentions
+        voiceMentions
+        mentionSentiment
+        averageViewers
+        logoValue
+        hostReadValue
+        mediaValue
+        commandUses
+        linkPosts
+      }
+      sessions {
+        session {
+          id
+          title
+          startedAt
+          endedAt
+          live
+          durationMs
+          averageViewers
+          peakViewers
+        }
+        onScreenMs
+        onScreenShare
+        mentions
+        mentionSentiment
+        averageViewers
+        risk {
+          level
+        }
+        value {
+          mediaValue
+        }
       }
     }
   }

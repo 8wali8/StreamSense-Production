@@ -76,6 +76,12 @@ export function SessionReportPage() {
           <p className="page-lede">
             {formatStart(session.startedAt)} · {formatDuration(session.durationMs)}
             {session.live ? " · live now" : ""}
+            {summary.dealId != null && (
+              <>
+                {" · "}
+                <Link to={`/deals/${summary.dealId}`}>Part of the {sponsor} deal</Link>
+              </>
+            )}
           </p>
         </div>
         <span className={riskClass(summary.risk.level)}>{riskLabel(summary.risk.level)}</span>

@@ -9,6 +9,7 @@ public class StreamSenseProperties {
     private final Analytics analytics = new Analytics();
     private final Processing processing = new Processing();
     private final Twitch twitch = new Twitch();
+    private final Services services = new Services();
 
     public Topics getTopics() {
         return topics;
@@ -24,6 +25,50 @@ public class StreamSenseProperties {
 
     public Twitch getTwitch() {
         return twitch;
+    }
+
+    public Services getServices() {
+        return services;
+    }
+
+    /** Other StreamSense services this one calls. */
+    public static class Services {
+        private final SentimentService sentimentService = new SentimentService();
+
+        public SentimentService getSentimentService() {
+            return sentimentService;
+        }
+    }
+
+    /** sentiment-service, for pointing relevance at a deal's sponsor. No base URL means no call. */
+    public static class SentimentService {
+        private String baseUrl;
+        private int connectTimeoutMs = 2000;
+        private int readTimeoutMs = 3000;
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
     }
 
     public static class Topics {

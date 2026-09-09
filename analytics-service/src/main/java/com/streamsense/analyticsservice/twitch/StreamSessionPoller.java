@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,16 +23,19 @@ public class StreamSessionPoller {
 
     private final TwitchHelixClient helixClient;
     private final StreamSessionService sessions;
+    private final Supplier<List<String>> dealStreamers;
     private final StreamSenseProperties.Helix helix;
     private final Clock clock;
 
     public StreamSessionPoller(
             TwitchHelixClient helixClient,
             StreamSessionService sessions,
+            Supplier<List<String>> dealStreamers,
             StreamSenseProperties.Helix helix,
             Clock clock) {
         this.helixClient = helixClient;
         this.sessions = sessions;
+        this.dealStreamers = dealStreamers;
         this.helix = helix;
         this.clock = clock;
     }
@@ -67,6 +71,9 @@ public class StreamSessionPoller {
         }
         long since = clock.millis() - helix.getWatchStreamersSeenWithinHours() * 3_600_000L;
         for (String streamer : sessions.streamersSeenSince(since)) {
+            watched.add(streamer.toLowerCase(Locale.ROOT));
+        }
+        for (String streamer : dealStreamers.get()) {
             watched.add(streamer.toLowerCase(Locale.ROOT));
         }
         return watched;

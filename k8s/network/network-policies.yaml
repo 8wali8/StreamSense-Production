@@ -414,6 +414,9 @@ spec:
         - podSelector:
             matchLabels:
               app: recommendation-service
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       ports:
         - port: 8083
   egress:
@@ -559,7 +562,7 @@ kind: NetworkPolicy
 metadata:
   name: analytics-service
   namespace: streamsense
-  # Kafka consumer, Postgres, and the Twitch Helix API (api.twitch.tv, id.twitch.tv) for stream sessions
+  # Kafka consumer, Postgres, sentiment-service (deal relevance), and the Twitch Helix API for stream sessions
 spec:
   podSelector:
     matchLabels:
@@ -619,6 +622,13 @@ spec:
               app: zipkin
       ports:
         - port: 9411
+    # creating a deal points sentiment-service's relevance scoring at its sponsor
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+      ports:
+        - port: 8083
     # public addresses only, for Twitch Helix: the private ranges cover the pod and service networks
     - to:
         - ipBlock:

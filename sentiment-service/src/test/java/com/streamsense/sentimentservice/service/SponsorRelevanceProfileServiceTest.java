@@ -1,15 +1,21 @@
 package com.streamsense.sentimentservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
+import com.streamsense.sentimentservice.persistence.SponsorRelevanceProfileEntity;
+import com.streamsense.sentimentservice.persistence.SponsorRelevanceProfileRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class SponsorRelevanceProfileServiceTest {
+
+    private final SponsorRelevanceProfileRepository repository = mock(SponsorRelevanceProfileRepository.class);
 
     private StreamSenseProperties propertiesWithRedBullSeed() {
         StreamSenseProperties properties = new StreamSenseProperties();
@@ -30,7 +36,8 @@ class SponsorRelevanceProfileServiceTest {
 
     @Test
     void seedConfiguredProfiles_activatesConfiguredStreamerProfile() {
-        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(propertiesWithRedBullSeed());
+        SponsorRelevanceProfileService service =
+                new SponsorRelevanceProfileService(propertiesWithRedBullSeed(), repository);
 
         service.seedConfiguredProfiles();
 
@@ -50,7 +57,7 @@ class SponsorRelevanceProfileServiceTest {
     void seedConfiguredProfiles_usesSeedMinScoreOverride() {
         StreamSenseProperties properties = propertiesWithRedBullSeed();
         properties.getSentiment().getRelevance().getSeeds().get(0).setMinScore(0.75d);
-        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(properties);
+        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(properties, repository);
 
         service.seedConfiguredProfiles();
 
@@ -68,7 +75,7 @@ class SponsorRelevanceProfileServiceTest {
         incomplete.setStreamer("   ");
         incomplete.setSponsor("Red Bull");
         properties.getSentiment().getRelevance().getSeeds().add(incomplete);
-        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(properties);
+        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(properties, repository);
 
         service.seedConfiguredProfiles();
 
@@ -77,8 +84,26 @@ class SponsorRelevanceProfileServiceTest {
     }
 
     @Test
+    void seedConfiguredProfiles_leavesAStoredProfileAlone() {
+        when(repository.findAll())
+                .thenReturn(List.of(new SponsorRelevanceProfileEntity(
+                        "redbull-testing", "Nike", List.of("nike"), List.of("shoes"), 0.6d, 1L)));
+        SponsorRelevanceProfileService service =
+                new SponsorRelevanceProfileService(propertiesWithRedBullSeed(), repository);
+
+        service.seedConfiguredProfiles();
+
+        Optional<SponsorRelevanceProfile> active = service.findActive("redbull-testing");
+        assertThat(active).isPresent();
+        assertThat(active.get().getSponsor()).isEqualTo("Nike");
+        assertThat(active.get().getAliases()).containsExactly("nike");
+        assertThat(active.get().getMinScore()).isEqualTo(0.6d);
+    }
+
+    @Test
     void update_overridesSeededProfileForSameStreamer() {
-        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(propertiesWithRedBullSeed());
+        SponsorRelevanceProfileService service =
+                new SponsorRelevanceProfileService(propertiesWithRedBullSeed(), repository);
         service.seedConfiguredProfiles();
 
         SponsorRelevanceUpdateRequest request = new SponsorRelevanceUpdateRequest();

@@ -2,6 +2,8 @@ package com.streamsense.apigateway.client;
 
 import com.streamsense.apigateway.analytics.AnalyticsRange;
 import com.streamsense.apigateway.analytics.BrandSafetyMetrics;
+import com.streamsense.apigateway.analytics.Deal;
+import com.streamsense.apigateway.analytics.DealSummary;
 import com.streamsense.apigateway.analytics.SessionSummary;
 import com.streamsense.apigateway.analytics.SponsorExposureMetric;
 import com.streamsense.apigateway.analytics.StreamMetricBucket;
@@ -28,6 +30,7 @@ public class AnalyticsServiceClient {
             new ParameterizedTypeReference<>() {};
     private static final ParameterizedTypeReference<List<StreamSession>> SESSION_LIST =
             new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<Deal>> DEAL_LIST = new ParameterizedTypeReference<>() {};
 
     private final WebClient webClient;
 
@@ -190,6 +193,44 @@ public class AnalyticsServiceClient {
                 })
                 .retrieve()
                 .bodyToMono(SessionSummary.class)
+                .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
+    }
+
+    /** A streamer's deals, or every deal when no streamer is given. */
+    public Mono<List<Deal>> deals(String streamer, Integer limit) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder.path("/api/analytics/deals");
+                    if (streamer != null && !streamer.isBlank()) {
+                        builder.queryParam("streamer", streamer);
+                    }
+                    if (limit != null) {
+                        builder.queryParam("limit", limit);
+                    }
+                    return builder.build();
+                })
+                .retrieve()
+                .bodyToMono(DEAL_LIST);
+    }
+
+    /** Empty when the deal does not exist. */
+    public Mono<Deal> deal(long id) {
+        return webClient
+                .get()
+                .uri("/api/analytics/deals/{id}", id)
+                .retrieve()
+                .bodyToMono(Deal.class)
+                .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
+    }
+
+    /** Empty when the deal does not exist. */
+    public Mono<DealSummary> dealSummary(long id) {
+        return webClient
+                .get()
+                .uri("/api/analytics/deals/{id}/summary", id)
+                .retrieve()
+                .bodyToMono(DealSummary.class)
                 .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
     }
 
