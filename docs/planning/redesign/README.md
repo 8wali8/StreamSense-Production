@@ -8,6 +8,10 @@ Sub-branches that do not depend on each other run in parallel. Dependencies: 03 
 
 Every change on this line must name the story (S1 to S7) it serves or the ops page it clears. Anything else is out of scope.
 
+## Status
+
+All seven sub-branches merged into `redesign/main` on 2026-09-09 (01 through 07, in order, each with its branch note in this directory). `redesign/main` has not been pushed; it goes to origin once the line is reviewed as a whole. Not on this line and still open: Twitch OAuth for streamers, removing recommendation-service, deepening the tests and raising the coverage floors back up, and the cloud move (which merges `main` into `redesign/main` once).
+
 ## Order and scope
 
 | Branch | Serves | Scope | Touches | Done when |
