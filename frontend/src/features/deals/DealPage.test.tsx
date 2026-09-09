@@ -6,6 +6,7 @@ import { AppRoutes } from "../../App";
 import { renderWithApollo } from "../../test/apollo";
 import { deal, dealSummary, streamAnalytics, twitchStatusConnected, videoStatusCapturing } from "../../test/fixtures";
 import { HttpResponse, graphqlData, restJson, restResolver, server } from "../../test/msw";
+import { SHARE_STORAGE_KEY } from "../../lib/share-token";
 
 function renderAt(path: string) {
   window.localStorage.setItem(
@@ -22,6 +23,44 @@ function renderAt(path: string) {
 describe("deals", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+
+  it("mints a share link for the owner, and a shared tab sees the deal without the fee or navigation", async () => {
+    let shared = false;
+    server.use(
+      graphqlData("DealSummary", { dealSummary: dealSummary() }),
+      restResolver("post", "/api/analytics/deals/3/share", () => {
+        shared = true;
+        server.use(
+          graphqlData("DealSummary", {
+            dealSummary: dealSummary({ deal: deal({ shareToken: "tok-abc" }) }),
+          }),
+        );
+        return HttpResponse.json({ dealId: 3, token: "tok-abc" });
+      }),
+    );
+    const user = userEvent.setup();
+    const owner = renderAt("/deals/3");
+
+    await user.click(await screen.findByRole("button", { name: "Share" }));
+    expect(await screen.findByLabelText("Share link")).toHaveValue("http://localhost:3000/deals/3?share=tok-abc");
+    expect(shared).toBe(true);
+    expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
+    owner.unmount();
+
+    // The sponsor opens the link: the gateway strips the fee, the app hides navigation and the share control.
+    window.sessionStorage.setItem(SHARE_STORAGE_KEY, "tok-abc");
+    server.use(
+      graphqlData("DealSummary", { dealSummary: dealSummary({ deal: deal({ fee: null, shareToken: null }) }) }),
+    );
+    renderAt("/deals/3");
+    expect(await screen.findByRole("heading", { name: "Red Bull" })).toBeInTheDocument();
+    expect(screen.getByText("Media value · estimate")).toBeInTheDocument();
+    expect(screen.queryByText(/fee/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Shared view")).toBeInTheDocument();
   });
 
   it("shows the deal's totals against the fee, the trend, and the streams inside it", async () => {
@@ -39,7 +78,7 @@ describe("deals", () => {
       "href",
       "/sessions/9?sponsor=Red%20Bull",
     );
-    expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Share" })).toBeEnabled();
   });
 
   it("creates a deal from the home page and lists it", async () => {

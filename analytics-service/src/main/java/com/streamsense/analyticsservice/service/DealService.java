@@ -4,6 +4,7 @@ import com.streamsense.analyticsservice.api.Deal;
 import com.streamsense.analyticsservice.api.DealCreateRequest;
 import com.streamsense.analyticsservice.api.DealSummary;
 import com.streamsense.analyticsservice.api.SessionSummary;
+import com.streamsense.analyticsservice.api.ShareLink;
 import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.api.SummaryOptions;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
@@ -12,7 +13,9 @@ import com.streamsense.analyticsservice.persistence.DealRepository;
 import com.streamsense.analyticsservice.relevance.SponsorRelevancePointer;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.SecureRandom;
 import java.time.Clock;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -30,6 +33,8 @@ public class DealService {
 
     static final int MAX_LIMIT = 200;
     private static final Pattern COMMAND = Pattern.compile("^![A-Za-z0-9_-]{1,63}$");
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final DealRepository deals;
     private final StreamSessionService sessions;
@@ -95,6 +100,7 @@ public class DealService {
                 trackedLink,
                 command,
                 clean(request.channelPointReward()),
+                null,
                 now);
         long id = deals.insert(row, now);
         DealRow stored = deals.findById(id).orElseThrow();
@@ -122,6 +128,37 @@ public class DealService {
     public Optional<Deal> get(long id) {
         long now = clock.millis();
         return deals.findById(id).map(row -> toApi(row, now));
+    }
+
+    /** The deal's share token, minted on first use and kept afterwards so a sent link keeps working. */
+    public Optional<ShareLink> share(long id) {
+        return deals.findById(id).map(deal -> {
+            if (deal.shareToken() != null) {
+                return new ShareLink(deal.id(), deal.shareToken());
+            }
+            byte[] bytes = new byte[24];
+            RANDOM.nextBytes(bytes);
+            String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            deals.updateShareToken(deal.id(), token, clock.millis());
+            return new ShareLink(deal.id(), token);
+        });
+    }
+
+    /** Clears the share token; every link carrying it stops working. */
+    public boolean unshare(long id) {
+        Optional<DealRow> found = deals.findById(id);
+        found.ifPresent(deal -> deals.updateShareToken(deal.id(), null, clock.millis()));
+        return found.isPresent();
+    }
+
+    /** The deal a share token opens, or empty when the token is unknown or revoked. */
+    public Optional<Deal> resolveShareToken(String token) {
+        String cleaned = clean(token);
+        if (cleaned == null || cleaned.length() > 64) {
+            return Optional.empty();
+        }
+        long now = clock.millis();
+        return deals.findByShareToken(cleaned).map(row -> toApi(row, now));
     }
 
     /** Streamers with a deal running now, for the Helix poller's watch list. */
@@ -262,6 +299,7 @@ public class DealService {
                 row.chatCommand(),
                 row.channelPointReward(),
                 row.covers(now),
+                row.shareToken(),
                 row.createdAt());
     }
 

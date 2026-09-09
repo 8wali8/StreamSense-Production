@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router";
 import { useStreamer } from "../features/streamer/streamer-context";
+import { readShareToken } from "../lib/share-token";
 
 function navClass({ isActive }: { isActive: boolean }): string {
   return isActive ? "nav-item nav-item-active" : "nav-item";
@@ -8,6 +9,32 @@ function navClass({ isActive }: { isActive: boolean }): string {
 /** Left navigation plus the routed page. The operations link sits at the bottom, away from customer pages. */
 export function AppShell() {
   const { selectedStreamer } = useStreamer();
+  const shared = readShareToken() != null;
+
+  if (shared) {
+    return (
+      <div className="app-shell">
+        <aside className="sidebar" aria-label="Shared view">
+          <div className="brand-lockup">
+            <div className="brand-mark">SS</div>
+            <div>
+              <div className="brand-name">StreamSense</div>
+              <div className="brand-kicker">Shared report</div>
+            </div>
+          </div>
+          <div className="sidebar-footer">
+            <div className="signed-in">
+              <span className="eyebrow">Read-only</span>
+              <strong>Shared by the streamer</strong>
+            </div>
+          </div>
+        </aside>
+        <main className="main-stage">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

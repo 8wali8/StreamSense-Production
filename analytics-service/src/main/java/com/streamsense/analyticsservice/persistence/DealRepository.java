@@ -19,7 +19,7 @@ public class DealRepository {
     private static final String COLUMNS =
             """
             id, streamer, sponsor, starts_at, ends_at, promised_streams, fee, currency, cpm_per_30s_equivalent,
-            host_read_rate_per_1000, tracked_link, chat_command, channel_point_reward, created_at
+            host_read_rate_per_1000, tracked_link, chat_command, channel_point_reward, share_token, created_at
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -106,6 +106,18 @@ public class DealRepository {
                 at);
     }
 
+    public Optional<DealRow> findByShareToken(String token) {
+        return jdbcTemplate
+                .query("select " + COLUMNS + " from deals where share_token = ?", this::mapRow, token)
+                .stream()
+                .findFirst();
+    }
+
+    /** Sets or clears (null) the share token. */
+    public void updateShareToken(long id, String token, long now) {
+        jdbcTemplate.update("update deals set share_token = ?, updated_at = ? where id = ?", token, now, id);
+    }
+
     private DealRow mapRow(ResultSet rs, int rowNum) throws SQLException {
         return new DealRow(
                 rs.getLong("id"),
@@ -121,6 +133,7 @@ public class DealRepository {
                 rs.getString("tracked_link"),
                 rs.getString("chat_command"),
                 rs.getString("channel_point_reward"),
+                rs.getString("share_token"),
                 rs.getLong("created_at"));
     }
 }

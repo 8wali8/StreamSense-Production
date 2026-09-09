@@ -1,6 +1,7 @@
 package com.streamsense.apigateway.config;
 
 import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
+import com.streamsense.apigateway.graphql.ShareLinkInterceptor;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -62,6 +63,12 @@ public class GatewayAuthWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
+        // A share link: no bearer, but a share token on a GraphQL query. ShareLinkInterceptor validates the
+        // token against analytics-service and restricts the request to that deal's read-only report queries.
+        if (isShareRequest(exchange.getRequest(), path)) {
+            return chain.filter(exchange);
+        }
+
         meterRegistry
                 .counter("streamsense_gateway_auth_rejections_total", "reason", result.reason())
                 .increment();
@@ -74,6 +81,14 @@ public class GatewayAuthWebFilter implements WebFilter {
                 "Authentication failed: " + result.reason(),
                 serviceName,
                 Map.of("error", "unauthorized", "reason", result.reason()));
+    }
+
+    private boolean isShareRequest(ServerHttpRequest request, String path) {
+        String token = request.getHeaders().getFirst(ShareLinkInterceptor.HEADER);
+        return path.equals(graphqlWebSocketPath)
+                && HttpMethod.POST.equals(request.getMethod())
+                && token != null
+                && !token.isBlank();
     }
 
     // Only a GET with the RFC 6455 upgrade headers is a handshake. The HTTP GraphQL endpoint is POST-only and a GET

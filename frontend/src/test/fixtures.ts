@@ -463,6 +463,7 @@ export function deal(overrides: Partial<DealFixture> = {}): DealFixture {
     chatCommand: "!redbull",
     channelPointReward: null,
     active: true,
+    shareToken: null,
     createdAt: 1788400000000,
     ...overrides,
   };

@@ -453,6 +453,7 @@ export const DEALS_QUERY = gql`
       chatCommand
       channelPointReward
       active
+      shareToken
       createdAt
     }
   }
@@ -476,6 +477,7 @@ export const DEAL_QUERY = gql`
       chatCommand
       channelPointReward
       active
+      shareToken
       createdAt
     }
   }
@@ -500,6 +502,7 @@ export const DEAL_SUMMARY_QUERY = gql`
         chatCommand
         channelPointReward
         active
+        shareToken
         createdAt
       }
       totals {

@@ -3,6 +3,7 @@ package com.streamsense.apigateway.graphql;
 import com.streamsense.apigateway.analytics.Deal;
 import com.streamsense.apigateway.analytics.DealSummary;
 import com.streamsense.apigateway.client.AnalyticsServiceClient;
+import graphql.GraphQLContext;
 import java.util.List;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
@@ -25,15 +26,32 @@ public class DealGraphqlController {
     }
 
     @QueryMapping
-    public Mono<Deal> deal(@Argument("id") String id) {
+    public Mono<Deal> deal(@Argument("id") String id, GraphQLContext context) {
         Long dealId = parseId(id);
-        return dealId == null ? Mono.empty() : analytics.deal(dealId);
+        if (dealId == null) {
+            return Mono.empty();
+        }
+        Deal shared = ShareLinkInterceptor.sharedDeal(context);
+        if (shared != null) {
+            return shared.id() == dealId ? Mono.just(shared.forSharedView()) : Mono.empty();
+        }
+        return analytics.deal(dealId);
     }
 
     @QueryMapping
-    public Mono<DealSummary> dealSummary(@Argument("id") String id) {
+    public Mono<DealSummary> dealSummary(@Argument("id") String id, GraphQLContext context) {
         Long dealId = parseId(id);
-        return dealId == null ? Mono.empty() : analytics.dealSummary(dealId);
+        if (dealId == null) {
+            return Mono.empty();
+        }
+        Deal shared = ShareLinkInterceptor.sharedDeal(context);
+        if (shared != null && shared.id() != dealId) {
+            return Mono.empty();
+        }
+        Mono<DealSummary> summary = analytics.dealSummary(dealId);
+        return shared == null
+                ? summary
+                : summary.map(s -> new DealSummary(s.deal().forSharedView(), s.totals(), s.sessions()));
     }
 
     private static Long parseId(String id) {

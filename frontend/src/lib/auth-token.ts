@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { shareHeaders, type ShareStorage } from "./share-token";
 
 export type TokenStorage = Pick<Storage, "getItem">;
 
@@ -15,8 +16,15 @@ export function readAuthToken(storage: TokenStorage | null = defaultStorage()): 
   return storage?.getItem(env.authTokenStorageKey) ?? null;
 }
 
-/** The Authorization header for REST calls, GraphQL over HTTP, and the WebSocket connectionParams. */
-export function authHeaders(storage: TokenStorage | null = defaultStorage()): Record<string, string> {
+/**
+ * The Authorization header for REST calls, GraphQL over HTTP, and the WebSocket connectionParams.
+ * Without a bearer token, a share token from the tab's session (a read-only share link) is sent instead.
+ */
+export function authHeaders(
+  storage: TokenStorage | null = defaultStorage(),
+  shareStorage?: ShareStorage | null,
+): Record<string, string> {
   const token = readAuthToken(storage);
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (token) return { Authorization: `Bearer ${token}` };
+  return shareStorage === undefined ? shareHeaders() : shareHeaders(shareStorage);
 }

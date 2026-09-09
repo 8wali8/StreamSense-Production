@@ -30,3 +30,9 @@ The profile relevance scoring uses per streamer (sponsor, aliases, semantic term
 - `GET /api/sentiment/relevance/sponsors` every stored profile.
 - `GET /api/sentiment/relevance/sponsors/{streamer}` the profile in effect, 404 when the channel has none.
 - `POST /api/sentiment/relevance/sponsors` replaces the channel's profile (`streamer`, `sponsor`, optional `aliases`, `semanticTerms`, `minScore`; the sponsor's configured aliases and terms are merged in). Unknown fields, including the retired `campaignGoal`, are ignored.
+
+## Share links
+
+A deal can be shared read-only. `POST /api/analytics/deals/{id}/share` mints the deal's share token (or returns the existing one, so a sent link keeps working), `DELETE /api/analytics/deals/{id}/share` revokes it, and `GET /api/analytics/share/{token}` resolves a token to its deal (404 when unknown or revoked). The token is on the deal as `shareToken`, private to the streamer like the fee.
+
+The console sends the token as the `X-StreamSense-Share` header on GraphQL requests when the tab has no bearer token (a link carries `?share=<token>`, kept in the tab's session storage). At the gateway, `GatewayAuthWebFilter` lets such a POST to `/graphql` through without a bearer token; nothing else (REST routes, subscriptions) is opened. `ShareLinkInterceptor` then resolves the token against analytics-service, allows only `deal`, `dealSummary`, `sessionSummary`, and `sponsorMoments`, and puts the deal on the GraphQL context, where the resolvers narrow to it: `deal` and `dealSummary` answer only for the shared deal and return it without `fee` or `shareToken`; `sessionSummary` and `sponsorMoments` are always about the deal's sponsor at the deal's terms and answer null for a session outside the deal. Refusals are GraphQL errors with `extensions.code` `SHARE_FORBIDDEN` (another query), `SHARE_TOKEN_INVALID` (unknown or revoked token), or `SHARE_UNAVAILABLE` (analytics-service unreachable).
