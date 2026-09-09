@@ -8,12 +8,11 @@ import { useConsoleFeeds } from "./useConsoleFeeds";
 type LiveStreamConsoleProps = {
   streamer: string;
   sponsorBrand: string;
-  campaignGoal: string;
 };
 
 /** The player with detections on the left, transcript / sponsor / chat feeds on the right. */
-export function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: LiveStreamConsoleProps) {
-  const activeSponsor = sponsorProfileFromInput(streamer, sponsorBrand, campaignGoal).sponsor;
+export function LiveStreamConsole({ streamer, sponsorBrand }: LiveStreamConsoleProps) {
+  const activeSponsor = sponsorProfileFromInput(streamer, sponsorBrand).sponsor;
   const feeds = useConsoleFeeds(streamer, activeSponsor);
 
   return (
@@ -21,7 +20,6 @@ export function LiveStreamConsole({ streamer, sponsorBrand, campaignGoal }: Live
       <StreamFrame
         streamer={streamer}
         sponsorBrand={sponsorBrand}
-        campaignGoal={campaignGoal}
         sponsors={feeds.sponsors}
         latestEventAt={feeds.latestEventAt}
       />

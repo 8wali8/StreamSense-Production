@@ -12,7 +12,6 @@ import type {
   RecentSentimentQuery,
   RecentTranscriptSegmentsQuery,
   RecentTranscriptSentimentQuery,
-  RecommendationsQuery,
   SponsorDetectionsQuery,
   StreamAnalyticsQuery,
 } from "../graphql/generated";
@@ -142,25 +141,6 @@ export function chatMessage(overrides: Partial<ChatMessageFixture> = {}): ChatMe
 }
 
 export type ChatMessageFixture = OnChatMessageSubscription["onChatMessage"] & { __typename: "ChatMessageEvent" };
-
-export function recommendation(overrides: Partial<RecommendationFixture> = {}): RecommendationFixture {
-  return {
-    __typename: "Recommendation",
-    recommendationId: "test:sponsor_alignment",
-    streamer: "test",
-    title: "Highlight Nike moments while they are landing",
-    category: "SPONSOR_ALIGNMENT",
-    score: 0.83,
-    reasonSummary: "Nike is the most visible sponsor in the recent window.",
-    reasons: ["Nike appeared in 67% of recent sponsor detections.", "Average confidence for Nike was 0.88."],
-    experimentName: "recommendation-ranking-v1",
-    variantId: "balanced",
-    generatedAt: 1712890800000,
-    ...overrides,
-  };
-}
-
-export type RecommendationFixture = RecommendationsQuery["recommendations"][number] & { __typename: "Recommendation" };
 
 /** The StreamAnalytics query result: summary plus one timeseries bucket. */
 /**

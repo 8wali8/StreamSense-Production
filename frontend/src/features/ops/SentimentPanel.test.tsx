@@ -9,7 +9,7 @@ describe("SentimentPanel", () => {
   it("renders the loading state", () => {
     server.use(graphqlPending("RecentSentiment"));
 
-    renderWithApollo(<SentimentPanel />);
+    renderWithApollo(<SentimentPanel streamer="test" />);
 
     expect(screen.getByText("Loading sentiment history...")).toBeInTheDocument();
   });
@@ -17,7 +17,7 @@ describe("SentimentPanel", () => {
   it("renders history results", async () => {
     server.use(graphqlData("RecentSentiment", { recentSentiment: [sentimentEvent()] }));
 
-    renderWithApollo(<SentimentPanel />);
+    renderWithApollo(<SentimentPanel streamer="test" />);
 
     expect(await screen.findByText("great stream")).toBeInTheDocument();
     expect(screen.getByText("POSITIVE")).toBeInTheDocument();
@@ -27,7 +27,7 @@ describe("SentimentPanel", () => {
   it("renders the empty state", async () => {
     server.use(graphqlData("RecentSentiment", { recentSentiment: [] }));
 
-    renderWithApollo(<SentimentPanel />);
+    renderWithApollo(<SentimentPanel streamer="test" />);
 
     expect(await screen.findByText("No sentiment history yet.")).toBeInTheDocument();
   });
@@ -35,7 +35,7 @@ describe("SentimentPanel", () => {
   it("renders GraphQL errors with the gateway's code translated", async () => {
     server.use(graphqlError("RecentSentiment", "Downstream service unavailable", "DOWNSTREAM_UNAVAILABLE"));
 
-    renderWithApollo(<SentimentPanel />);
+    renderWithApollo(<SentimentPanel streamer="test" />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Failed to load sentiment history: a downstream service is unavailable",
@@ -45,7 +45,7 @@ describe("SentimentPanel", () => {
   it("renders a live subscription event on top of history", async () => {
     server.use(graphqlData("RecentSentiment", { recentSentiment: [sentimentEvent()] }));
 
-    const apollo = renderWithApollo(<SentimentPanel />);
+    const apollo = renderWithApollo(<SentimentPanel streamer="test" />);
     expect(await screen.findByText("great stream")).toBeInTheDocument();
 
     act(() => {
@@ -88,7 +88,7 @@ describe("SentimentPanel", () => {
       }),
     );
 
-    renderWithApollo(<SentimentPanel />);
+    renderWithApollo(<SentimentPanel streamer="test" />);
 
     expect(await screen.findByText("ml fallback case")).toBeInTheDocument();
     expect(screen.getByText("NEUTRAL")).toBeInTheDocument();

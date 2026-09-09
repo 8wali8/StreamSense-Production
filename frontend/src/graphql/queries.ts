@@ -151,23 +151,6 @@ export const RECENT_SPONSOR_DETECTIONS_QUERY = gql`
   }
 `;
 
-export const RECOMMENDATIONS_QUERY = gql`
-  query Recommendations($streamer: String!, $limit: Int!) {
-    recommendations(streamer: $streamer, limit: $limit) {
-      recommendationId
-      streamer
-      title
-      category
-      score
-      reasonSummary
-      reasons
-      experimentName
-      variantId
-      generatedAt
-    }
-  }
-`;
-
 export const STREAM_ANALYTICS_QUERY = gql`
   query StreamAnalytics($streamer: String!, $windowMinutes: Int!, $bucketSeconds: Int!) {
     streamMetricsSummary(streamer: $streamer, windowMinutes: $windowMinutes) {

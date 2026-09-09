@@ -1,5 +1,4 @@
 import { describeError } from "../../lib/errors";
-import { useState } from "react";
 import type {
   OnSponsorDetectionSubscription,
   SponsorDetectionsQuery,
@@ -13,25 +12,8 @@ import { MetricCard } from "../../components/MetricCard";
 
 type SponsorDetectionEvent = SponsorDetectionsQuery["sponsorDetections"][number];
 
-function sponsorTone(sponsor: string): string {
-  if (sponsor === "UNKNOWN") return "#7a5c00";
-  if (sponsor === "Nike") return "#0f172a";
-  if (sponsor === "Red Bull") return "#1d4ed8";
-  if (sponsor === "Razer") return "#157f3b";
-  if (sponsor === "Prime") return "#7c3aed";
-  return "#0f766e";
-}
-
-type SponsorPanelProps = {
-  streamer?: string;
-  hideControls?: boolean;
-};
-
-export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelProps) {
-  const [streamerInput, setStreamerInput] = useState("test");
-  const [localStreamer, setLocalStreamer] = useState("test");
-  const activeStreamer = streamer ?? localStreamer;
-
+/** Raw sponsor detections with every diagnostic field, for checking what the detector produced. */
+export function SponsorPanel({ streamer }: { streamer: string }) {
   const feed = useLiveFeed<
     SponsorDetectionsQuery,
     OnSponsorDetectionSubscription,
@@ -39,25 +21,17 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
     SponsorDetectionEvent
   >({
     query: RECENT_SPONSOR_DETECTIONS_QUERY,
-    variables: { streamer: activeStreamer, limit: 20 },
-    skip: !activeStreamer,
+    variables: { streamer, limit: 20 },
+    skip: !streamer,
     selectHistory: (data) => data.sponsorDetections,
     subscription: ON_SPONSOR_DETECTION_SUBSCRIPTION,
-    subscriptionVariables: { streamer: activeStreamer },
+    subscriptionVariables: { streamer },
     selectEvent: (data) => data.onSponsorDetection,
     getId: (event) => event.detectionEventId,
     limit: 50,
-    resetKey: activeStreamer,
+    resetKey: streamer,
   });
   const { items: events, loading, error, subscriptionError } = feed;
-
-  function onLoad() {
-    const nextStreamer = streamerInput.trim();
-    if (!nextStreamer) {
-      return;
-    }
-    setLocalStreamer(nextStreamer);
-  }
 
   const averageConfidence =
     events.length === 0 ? 0 : events.reduce((sum, event) => sum + event.confidence, 0) / events.length;
@@ -66,42 +40,25 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
   const recentTrend = events.slice(0, 8);
 
   return (
-    <section className="dashboard-panel">
+    <section className="panel ops-section">
       <div className="panel-title-row panel-heading">
         <div>
-          <div className="eyebrow">Sponsor visibility</div>
-          <h2>Sponsors</h2>
-          <p>Recent sponsor detections with live video-capture updates for @{activeStreamer}.</p>
+          <div className="eyebrow">Raw events</div>
+          <h2>Sponsor detections</h2>
+          <p>Recent sponsor detections with live video-capture updates for @{streamer}.</p>
         </div>
         <span className="status-pill">{events.length} detections</span>
       </div>
-
-      {!hideControls && (
-        <div className="panel-actions">
-          <label>
-            <span className="field-label">Streamer</span>
-            <input
-              className="text-input"
-              value={streamerInput}
-              onChange={(event) => setStreamerInput(event.target.value)}
-            />
-          </label>
-
-          <button className="button-primary" onClick={onLoad}>
-            Load sponsors
-          </button>
-        </div>
-      )}
 
       <div className="status-line">
         Status:{" "}
         {subscriptionError
           ? `subscription error (${describeError(subscriptionError)})`
-          : `live with auto-reconnect (streamer=${activeStreamer})`}
+          : `live with auto-reconnect (streamer=${streamer})`}
       </div>
 
       <div className="metric-grid">
-        <MetricCard label="Detections" value={events.length} tone="metric-violet" />
+        <MetricCard label="Detections" value={events.length} tone="metric-teal" />
         <MetricCard label="Avg confidence" value={averageConfidence.toFixed(2)} tone="metric-blue" />
         <MetricCard label="Fallbacks" value={fallbackCount} tone="metric-neutral" />
       </div>
@@ -114,11 +71,8 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
             <div className="trend-bar-wrap" key={event.detectionEventId}>
               <div
                 title={`${event.sponsor} ${event.confidence.toFixed(2)}`}
-                className="trend-bar"
-                style={{
-                  height: `${Math.max(10, Math.round(event.confidence * 100))}px`,
-                  background: sponsorTone(event.sponsor),
-                }}
+                className={`trend-bar${event.sponsor === "UNKNOWN" ? " trend-bar-muted" : ""}`}
+                style={{ height: `${Math.max(10, Math.round(event.confidence * 100))}px` }}
               />
               <div className="trend-label">{event.sponsor}</div>
             </div>
@@ -143,9 +97,7 @@ export function SponsorPanel({ streamer, hideControls = false }: SponsorPanelPro
               <div className="event-meta">
                 [{formatTime(event.capturedAt)}] seq={event.frameSequence} • frame={event.sourceFrameId}
               </div>
-              <span className="category-label" style={{ color: sponsorTone(event.sponsor) }}>
-                {event.sponsor}
-              </span>
+              <span className="category-label">{event.sponsor}</span>
             </div>
 
             <strong>{event.frameRef}</strong>

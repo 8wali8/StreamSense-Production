@@ -400,14 +400,6 @@ export type SponsorDetectionsQueryVariables = Exact<{
 
 export type SponsorDetectionsQuery = { sponsorDetections: Array<{ detectionEventId: string, sourceFrameId: string, streamer: string, frameRef: string, frameSequence: number, capturedAt: number, processedAt: number, sponsor: string, confidence: number, modelVersion: string, x: number, y: number, width: number, height: number, source: string | null, channelLogin: string | null, streamSessionId: string | null, twitchStreamId: string | null, videoTimestampMs: number | null }> };
 
-export type RecommendationsQueryVariables = Exact<{
-  streamer: string;
-  limit: number;
-}>;
-
-
-export type RecommendationsQuery = { recommendations: Array<{ recommendationId: string, streamer: string, title: string, category: string, score: number, reasonSummary: string, reasons: Array<string>, experimentName: string, variantId: string, generatedAt: number }> };
-
 export type StreamAnalyticsQueryVariables = Exact<{
   streamer: string;
   windowMinutes: number;

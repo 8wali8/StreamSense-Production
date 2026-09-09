@@ -1,4 +1,3 @@
-import { SegmentationPreview } from "./SegmentationPreview";
 import { formatTime, percent } from "../../lib/format";
 import { twitchPlayerUrl } from "../streamer/streamer";
 import type { SponsorDetectionEvent } from "./useConsoleFeeds";
@@ -6,18 +5,17 @@ import type { SponsorDetectionEvent } from "./useConsoleFeeds";
 type StreamFrameProps = {
   streamer: string;
   sponsorBrand: string;
-  campaignGoal: string;
   sponsors: SponsorDetectionEvent[];
   latestEventAt: number | undefined;
 };
 
 /** The embedded Twitch player with the latest sponsor detections drawn over it. */
-export function StreamFrame({ streamer, sponsorBrand, campaignGoal, sponsors, latestEventAt }: StreamFrameProps) {
+export function StreamFrame({ streamer, sponsorBrand, sponsors, latestEventAt }: StreamFrameProps) {
   const latestFrame = sponsors.find((event) => event.frameRef);
   const frameOverlays = latestFrame
     ? sponsors.filter((event) => event.frameRef === latestFrame.frameRef).slice(0, 6)
     : [];
-  const topSponsor = sponsors.find((event) => event.sponsor !== "UNKNOWN") ?? latestFrame;
+  const topSponsor = sponsors.find((event) => event.sponsor !== "UNKNOWN");
 
   return (
     <div className="video-console-card">
@@ -25,7 +23,7 @@ export function StreamFrame({ streamer, sponsorBrand, campaignGoal, sponsors, la
         <div>
           <span className="live-dot">LIVE</span>
           <strong>@{streamer}</strong>
-          <span>{sponsorBrand}</span>
+          <span className="pill pill-teal">{sponsorBrand}</span>
         </div>
         <div className="video-clock">Last signal {formatTime(latestEventAt)}</div>
       </div>
@@ -39,21 +37,9 @@ export function StreamFrame({ streamer, sponsorBrand, campaignGoal, sponsors, la
           allowFullScreen
         />
 
-        <div className="video-overlay video-overlay-top-left">
-          <span>Campaign</span>
-          <strong>{campaignGoal || "Live review"}</strong>
-        </div>
-
         <div className="video-overlay video-overlay-bottom-left">
-          <span>Sponsor read</span>
-          <strong>
-            {topSponsor ? `${topSponsor.sponsor} ${(topSponsor.confidence * 100).toFixed(0)}%` : "No detection yet"}
-          </strong>
-        </div>
-
-        <div className="video-overlay video-overlay-bottom-right">
-          <span>Frame</span>
-          <strong>{latestFrame ? `#${latestFrame.frameSequence}` : "--"}</strong>
+          <span>On screen</span>
+          <strong>{topSponsor ? topSponsor.sponsor : "No sponsor yet"}</strong>
         </div>
 
         {frameOverlays.map((event) => (
@@ -71,8 +57,6 @@ export function StreamFrame({ streamer, sponsorBrand, campaignGoal, sponsors, la
           </div>
         ))}
       </div>
-
-      <SegmentationPreview frame={latestFrame} />
     </div>
   );
 }
