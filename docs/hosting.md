@@ -10,7 +10,7 @@ Cost while running is about $0.27 per hour for the VM plus a few dollars a month
 
 ## One-time setup
 
-On GitHub, once: the eleven packages under `ghcr.io/8wali8/streamsense/` are private after their first publish, and the VM pulls them anonymously. For each package open its page from your profile's Packages tab, then Package settings, Change visibility, Public. Until this is done the deploy stops at the image pull with `denied`. (The alternative, a `docker login ghcr.io` on the VM with a read-only token, is not scripted.)
+The eleven packages under `ghcr.io/8wali8/streamsense/` are public: they are pushed with the workflow token from a public repository, so they inherit its visibility, and the VM pulls them without credentials. If the repository is ever made private, the packages follow, and the deploy would then need a `docker login ghcr.io` on the VM with a read-only token (not scripted).
 
 On your machine:
 

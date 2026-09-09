@@ -15,7 +15,7 @@ CI built every image for the Compose smoke and threw them away. Nothing in the r
 - **`schema-compat` base fallback**: the job compared against `github.event.before`, which a manual dispatch does not have; it now falls back to `origin/main`.
 - **CLAUDE.md**: the CI parity paragraph describes the publish job and the image names.
 
-Image names: `ghcr.io/8wali8/streamsense/<service>:<sha>` and `:main`. The repository is public; after the first push each package is switched to public visibility once in the GitHub UI (Packages, the package, Package settings, Change visibility), after which `docker pull` needs no credentials. That is a one-time owner action GitHub does not expose to the workflow token.
+Image names: `ghcr.io/8wali8/streamsense/<service>:<sha>` and `:main`. Packages pushed with the workflow token from a public repository are linked to it and inherit its visibility, so `docker pull` needs no credentials; an anonymous manifest fetch of every `main` tag answers 200 after the first run on `main`. (An earlier version of this note said the owner had to make each package public by hand; that came from a probe made seconds after the very first branch push, before the link existed.)
 
 ## Deliberately left alone
 
@@ -31,10 +31,9 @@ Image names: `ghcr.io/8wali8/streamsense/<service>:<sha>` and `:main`. The repos
 | Workflow lint | `actionlint .github/workflows/ci.yml` (1.7.12) | clean |
 | Publish dry run, first attempt | `gh workflow run ci.yml --ref cloud/01-image-publish` (run 34284934977, head 500a100) | every check green, `ci-ok` success, `publish-images` **skipped**: the implicit `success()` on a job whose ancestors include a skipped job (`sbom`); fixed in c78197d with `!cancelled()` |
 | Publish dry run, second attempt | same, run [34285998367](https://github.com/8wali8/StreamSense-Production/actions/runs/34285998367) (head c78197d) | every check green; all eleven `publish-images` entries success, 48 s to 117 s each (ml-engine the slowest), tagged `c78197dc5b706e5ddebceb64f379a407d50c7030`, no `main` tag |
-| Anonymous pull | `GET /v2/8wali8/streamsense/eureka-server/manifests/<sha>` with an anonymous registry token | HTTP 403 until the owner makes the packages public (see below); the pushes themselves are proven by the job logs |
+| Anonymous pull | `GET /v2/8wali8/streamsense/<service>/manifests/main` with an anonymous registry token, after the first run on `main` (fc13412) | HTTP 200 for eureka-server, ml-engine, frontend; a probe seconds after the very first branch push had answered 403, which was the package not yet being linked, not private visibility |
 
 ## What to check by hand
 
 - The eleven packages appear under the owner's Packages page after the dispatched run, tagged with the branch head SHA and without a `main` tag.
-- Set each package to public once; until then a pull from a machine that is not logged in returns `denied`.
 - After this merges, the push to `main` publishes the same images and `promote-main` moves the eleven `main` tags to them; that run is the first proof of the promote job, which a branch dispatch cannot exercise.
