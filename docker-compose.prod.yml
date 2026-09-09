@@ -1,0 +1,216 @@
+# Production overlay for the hosted demo (docs/planning/cloud-hosting.md). Layer it over the base file:
+#
+#   docker compose --env-file /etc/streamsense/twitch.env -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+#
+# What it changes and why:
+# - Every service runs the image CI published to GitHub Container Registry for a tested commit
+#   (STREAMSENSE_IMAGE_TAG, default "main"); the VM never builds.
+# - No host port except the console on 80. The datastores and the service ports stay on the Compose
+#   network; the admin UIs (Grafana, Prometheus, Zipkin, Kafka UI, MinIO console) bind to 127.0.0.1
+#   and are reached over an SSH tunnel (docs/hosting.md).
+# - Memory limits copied from the Kubernetes manifests (k8s/**), so the JVMs size their heaps from the
+#   cgroup (-XX:MaxRAMPercentage=75) instead of from the whole machine. About 25 GiB in total.
+# - Containers restart with the VM and logs rotate, so a stopped-and-started VM comes back on its own.
+# - Gateway auth on (viewers use a token from tools/mint-jwt.py), GraphiQL off, one trusted proxy hop
+#   (the console's nginx sets X-Forwarded-For).
+# Twitch credentials and toggles come from the --env-file above: the base file interpolates
+# ${TWITCH_*} and ${STREAMSENSE_TWITCH_*} from the Compose environment, which is what --env-file feeds.
+
+x-prod: &prod
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "3"
+
+services:
+  eureka-server:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/eureka-server:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  config-server:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/config-server:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  api-gateway:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/api-gateway:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    environment:
+      - STREAMSENSE_GATEWAY_AUTH_ENABLED=true
+      - STREAMSENSE_GATEWAY_GRAPHIQL_ENABLED=false
+      - STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS=1
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  chat-service:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/chat-service:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  recommendation-service:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/recommendation-service:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  sentiment-service:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/sentiment-service:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  video-service:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/video-service:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  video-capture-service:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/video-capture-service:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  analytics-service:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/analytics-service:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  ml-engine:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/ml-engine:${STREAMSENSE_IMAGE_TAG:-main}
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+
+  frontend:
+    <<: *prod
+    image: ghcr.io/8wali8/streamsense/frontend:${STREAMSENSE_IMAGE_TAG:-main}
+    # The one public port. Port 80 on the host maps to the unprivileged nginx on 8080.
+    ports: !override
+      - "80:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  postgres:
+    <<: *prod
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  redis:
+    <<: *prod
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  minio:
+    <<: *prod
+    # API stays internal; the console is tunnel-only.
+    ports: !override
+      - "127.0.0.1:9001:9001"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  kafka:
+    <<: *prod
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  kafka-topics-init:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "1"
+
+  kafka-ui:
+    <<: *prod
+    ports: !override
+      - "127.0.0.1:8088:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  kafka-exporter:
+    <<: *prod
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  prometheus:
+    <<: *prod
+    ports: !override
+      - "127.0.0.1:9090:9090"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  grafana:
+    <<: *prod
+    ports: !override
+      - "127.0.0.1:3001:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  zipkin:
+    <<: *prod
+    ports: !override
+      - "127.0.0.1:9411:9411"
+    deploy:
+      resources:
+        limits:
+          memory: 768M

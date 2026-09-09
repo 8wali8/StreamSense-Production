@@ -151,6 +151,7 @@ Key docs for new contributors and agents:
 - `docs/planning/`: hardening branch notes and the earlier plans, reports, and session logs (`history/`).
 - `docs/replay-runbook.md`: how VOD replay works, how to start it, and how to verify it.
 - `docs/howtorun.md`: broader local runbook and historical verification notes.
+- `docs/hosting.md`: running the demo on a GCP VM (Terraform, published images, the deploy script).
 
 ## Tech Stack
 
