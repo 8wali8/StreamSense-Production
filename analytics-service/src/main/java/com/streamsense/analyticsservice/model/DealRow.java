@@ -15,6 +15,7 @@ public record DealRow(
         String trackedLink,
         String chatCommand,
         String channelPointReward,
+        String shareToken,
         long createdAt) {
 
     /** True while the deal's dates cover the instant. */

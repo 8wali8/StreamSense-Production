@@ -1797,3 +1797,24 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Share links ---------- */
+
+.share-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.share-url {
+  width: min(360px, 60vw);
+  height: 36px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.error-text {
+  color: var(--bad-text);
+  font-size: 12px;
+}

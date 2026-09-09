@@ -1,5 +1,5 @@
 import type { DealsQuery } from "../graphql/generated";
-import { apiFetch } from "../lib/api-client";
+import { apiFetch, apiSend } from "../lib/api-client";
 
 /** A deal as the gateway returns it; the REST create response has the same shape. */
 export type Deal = DealsQuery["deals"][number];
@@ -25,4 +25,16 @@ export type DealCreateRequest = {
 
 export function createDeal(request: DealCreateRequest): Promise<Deal> {
   return apiFetch<Deal>("/api/analytics/deals", { method: "POST", body: request });
+}
+
+export type ShareLink = { dealId: number; token: string };
+
+/** POST /api/analytics/deals/{id}/share: mints the deal's read-only share token, or returns the existing one. */
+export function createShareLink(dealId: string): Promise<ShareLink> {
+  return apiFetch<ShareLink>(`/api/analytics/deals/${encodeURIComponent(dealId)}/share`, { method: "POST" });
+}
+
+/** DELETE /api/analytics/deals/{id}/share: every link carrying the token stops working. */
+export function revokeShareLink(dealId: string): Promise<void> {
+  return apiSend(`/api/analytics/deals/${encodeURIComponent(dealId)}/share`, { method: "DELETE" });
 }

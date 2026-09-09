@@ -56,6 +56,32 @@ class GatewayAuthWebFilterIntegrationTest {
     }
 
     @Test
+    void aShareTokenPassesTheFilterOnGraphqlPostsOnly() {
+        // The token is checked by ShareLinkInterceptor against analytics-service; here it is unreachable, so the
+        // request is answered at the GraphQL layer (200 with an error), not rejected by the filter (401).
+        webTestClient()
+                .post()
+                .uri("/graphql")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(ShareLinkInterceptor.HEADER, "tok-abc")
+                .bodyValue("{\"query\":\"{ deal(id: \\\"3\\\") { id } }\"}")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.errors[0].extensions.code")
+                .isEqualTo("SHARE_UNAVAILABLE");
+
+        webTestClient()
+                .get()
+                .uri("/api/analytics/deals/3")
+                .header(ShareLinkInterceptor.HEADER, "tok-abc")
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
+    }
+
+    @Test
     void rejectsMalformedTokens() {
         webTestClient()
                 .post()

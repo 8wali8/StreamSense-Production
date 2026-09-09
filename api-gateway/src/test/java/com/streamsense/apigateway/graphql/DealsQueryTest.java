@@ -39,7 +39,7 @@ class DealsQueryTest {
             {"id": 3, "streamer": "redbull-testing", "sponsor": "Red Bull", "startsAt": 1788400000000,
              "endsAt": null, "promisedStreams": 4, "fee": 2500.0, "currency": "USD", "cpmPer30sEquivalent": 12.0,
              "hostReadRatePer1000": 15.0, "trackedLink": "https://www.redbull.com/f1", "trackedLinkHost": "redbull.com",
-             "chatCommand": "!redbull", "channelPointReward": null, "active": true, "createdAt": 1788400000000}
+             "chatCommand": "!redbull", "channelPointReward": null, "active": true, "shareToken": "tok-abc", "createdAt": 1788400000000}
             """;
 
     @DynamicPropertySource

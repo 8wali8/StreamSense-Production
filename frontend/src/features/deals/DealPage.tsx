@@ -12,7 +12,9 @@ import {
   formatStart,
 } from "../session/report-format";
 import { dealDates, feeMultiple, streamsProgress } from "./deal-format";
+import { readShareToken } from "../../lib/share-token";
 import { DealTrend } from "./DealTrend";
+import { ShareControl } from "./ShareControl";
 
 /** S5: how one deal is going. Totals, the trend, and every stream inside it. The share control waits for 07. */
 export function DealPage() {
@@ -50,6 +52,7 @@ export function DealPage() {
 
   const { deal, totals, sessions } = summary;
   const multiple = feeMultiple(totals.mediaValue, deal.fee);
+  const sharedView = readShareToken() != null;
   const sponsorQuery = `?sponsor=${encodeURIComponent(deal.sponsor)}`;
 
   return (
@@ -66,14 +69,13 @@ export function DealPage() {
         </div>
         <div className="deal-actions">
           <span className={deal.active ? "pill pill-teal" : "pill pill-dim"}>{deal.active ? "Active" : "Ended"}</span>
-          <button
-            className="button-secondary button-sm"
-            type="button"
-            disabled
-            title="Read-only share links arrive in the next release"
-          >
-            Share
-          </button>
+          {!sharedView && (
+            <ShareControl
+              dealId={deal.id}
+              shareToken={deal.shareToken ?? null}
+              onChanged={() => void query.refetch()}
+            />
+          )}
         </div>
       </header>
 

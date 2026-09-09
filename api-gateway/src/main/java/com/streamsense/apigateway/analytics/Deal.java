@@ -19,4 +19,28 @@ public record Deal(
         String chatCommand,
         String channelPointReward,
         boolean active,
-        long createdAt) {}
+        String shareToken,
+        long createdAt) {
+
+    /** The deal as a share link may see it: no fee, no token. */
+    public Deal forSharedView() {
+        return new Deal(
+                id,
+                streamer,
+                sponsor,
+                startsAt,
+                endsAt,
+                promisedStreams,
+                null,
+                currency,
+                cpmPer30sEquivalent,
+                hostReadRatePer1000,
+                trackedLink,
+                trackedLinkHost,
+                chatCommand,
+                channelPointReward,
+                active,
+                null,
+                createdAt);
+    }
+}

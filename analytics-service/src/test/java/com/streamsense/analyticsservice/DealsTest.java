@@ -1,6 +1,7 @@
 package com.streamsense.analyticsservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -119,6 +120,18 @@ class DealsTest {
                 .andExpect(jsonPath("$.totals.streams").value(1))
                 .andExpect(jsonPath("$.sessions[0].dealId").value(dealId));
         mockMvc.perform(get("/api/analytics/deals/999999")).andExpect(status().isNotFound());
+
+        // Sharing mints one token that stays stable, resolves to the deal, and stops resolving once revoked.
+        String token = deals.share(dealId).orElseThrow().token();
+        assertThat(deals.share(dealId).orElseThrow().token()).isEqualTo(token);
+        assertThat(token).hasSizeGreaterThanOrEqualTo(32);
+        mockMvc.perform(get("/api/analytics/share/" + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(dealId))
+                .andExpect(jsonPath("$.shareToken").value(token));
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId + "/share")).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/analytics/share/" + token)).andExpect(status().isNotFound());
+        assertThat(deals.get(dealId).orElseThrow().shareToken()).isNull();
 
         // Bad input is a 400 problem: a command with spaces, an end before the start, a relative link.
         mockMvc.perform(post("/api/analytics/deals")

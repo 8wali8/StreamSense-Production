@@ -224,6 +224,16 @@ public class AnalyticsServiceClient {
                 .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
     }
 
+    /** The deal a share token opens; empty when the token is unknown or revoked. */
+    public Mono<Deal> shareDeal(String token) {
+        return webClient
+                .get()
+                .uri("/api/analytics/share/{token}", token)
+                .retrieve()
+                .bodyToMono(Deal.class)
+                .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
+    }
+
     /** Empty when the deal does not exist. */
     public Mono<DealSummary> dealSummary(long id) {
         return webClient

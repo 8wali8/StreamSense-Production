@@ -228,6 +228,8 @@ type Deal {
   chatCommand: String
   channelPointReward: String
   active: Boolean!
+  # The read-only share token when the deal is shared; private to the streamer like the fee.
+  shareToken: String
   createdAt: Float!
 }
 
