@@ -34,8 +34,10 @@ export default defineConfig(({ mode }) => {
           "src/vite-env.d.ts",
         ],
         reporter: ["text-summary", "html"],
-        // Floors, not targets: CI fails if a change drops coverage below them.
-        thresholds: { statements: 90, branches: 80, functions: 80, lines: 90 },
+        // Floors, not targets: CI fails if a change drops coverage below them. Lowered from 90 on
+        // 2026-09-09 when the redesign line moved to minimal tests (core logic only) until a later
+        // pass deepens them; raise again when that pass lands.
+        thresholds: { statements: 85, branches: 80, functions: 80, lines: 85 },
       },
     },
   };

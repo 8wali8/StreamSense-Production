@@ -12,6 +12,8 @@ import type {
   RecentSentimentQuery,
   RecentTranscriptSegmentsQuery,
   RecentTranscriptSentimentQuery,
+  SessionSummaryQuery,
+  SponsorMomentsQuery,
   SponsorDetectionsQuery,
   StreamAnalyticsQuery,
 } from "../graphql/generated";
@@ -258,3 +260,181 @@ export const videoStatusCapturing = {
   lastTranscriptAt: null,
   channelStatuses: [{ channel: "testchannel", state: "CAPTURING", lastError: null, lastTranscriptPreview: null }],
 };
+
+/** The one-page report for the replay session, modelled on the approved prototype. */
+export function sessionSummary(overrides: Partial<SessionSummaryFixture> = {}): SessionSummaryFixture {
+  const base: SessionSummaryFixture = {
+    __typename: "SessionSummary",
+    session: {
+      __typename: "StreamSession",
+      id: "7",
+      streamer: "redbull-testing",
+      source: "CAPTURE",
+      twitchStreamId: "2750461300",
+      streamSessionId: "redbull-testing-2750461300",
+      title: "F1 Replay Night: Monza highlights",
+      category: "Formula 1",
+      startedAt: 1788816420000,
+      endedAt: 1788824460000,
+      live: false,
+      durationMs: 8040000,
+      peakViewers: 1842,
+      averageViewers: 1310,
+      viewerSamples: 134,
+    },
+    sponsor: "Red Bull",
+    onScreenMs: 2292000,
+    onScreenShare: 0.285,
+    mentions: 47,
+    chatMentions: 31,
+    voiceMentions: 16,
+    mentionSentiment: 0.62,
+    mentionPositiveShare: 0.81,
+    mentionNegativeShare: 0.06,
+    averageViewers: 1310,
+    peakViewers: 1842,
+    risk: {
+      __typename: "BrandSafetyMetrics",
+      level: "LOW",
+      score: 0.14,
+      factors: [{ __typename: "RiskFactor", name: "chatNegativeRatio", value: 0.09, weight: 0.35 }],
+    },
+    chat: {
+      __typename: "ChatMetrics",
+      totalMessages: 2984,
+      messagesPerMinute: 22.3,
+      uniqueChatters: 611,
+      peakMessagesPerMinute: 120,
+    },
+    chatSentiment: {
+      __typename: "SentimentMetricSummary",
+      positive: 1200,
+      neutral: 1500,
+      negative: 284,
+      averageScore: 0.44,
+      negativeRatio: 0.09,
+    },
+    transcriptSentiment: {
+      __typename: "SentimentMetricSummary",
+      positive: 40,
+      neutral: 50,
+      negative: 7,
+      averageScore: 0.38,
+      negativeRatio: 0.07,
+    },
+    engagement: { __typename: "EngagementMetrics", spikeCount: 3, latestSpikeAt: 1788821220000 },
+    value: {
+      __typename: "SessionValue",
+      logoValue: 874,
+      hostReadValue: 314,
+      mediaValue: 1190,
+      weightedLogoViewerMinutes: 36400,
+      averageProminence: 0.71,
+      cpmPer30sEquivalent: 12,
+      hostReadRatePer1000: 15,
+      basis: "logo: weighted viewer-minutes x 2 per 1,000 at CPM 12.0; host reads at 15.0",
+    },
+    response: {
+      __typename: "DirectResponse",
+      chatCommand: "!redbull",
+      commandUses: 137,
+      commandUsers: 91,
+      trackedLinkHost: "redbull.com",
+      linkPosts: 84,
+    },
+  };
+  return { ...base, ...overrides };
+}
+
+export type SessionSummaryFixture = WithTypenames<NonNullable<SessionSummaryQuery["sessionSummary"]>> & {
+  __typename: "SessionSummary";
+};
+
+/** The timeline behind the same report: two on-screen runs, two voice lines, one chat minute, one spike. */
+export function sponsorMoments(): WithTypenames<NonNullable<SponsorMomentsQuery["sponsorMoments"]>> & {
+  __typename: "SponsorMoments";
+} {
+  return {
+    __typename: "SponsorMoments",
+    sponsor: "Red Bull",
+    session: { __typename: "StreamSession", id: "7", startedAt: 1788816420000, durationMs: 8040000 },
+    segments: [
+      {
+        __typename: "ExposureSegment",
+        sponsor: "Red Bull",
+        startedAt: 1788816660000,
+        endedAt: 1788817020000,
+        offsetMs: 240000,
+        durationMs: 360000,
+        videoTimestampMs: 2040000,
+        detections: 36,
+        peakConfidence: 0.91,
+      },
+      {
+        __typename: "ExposureSegment",
+        sponsor: "Red Bull",
+        startedAt: 1788820320000,
+        endedAt: 1788821220000,
+        offsetMs: 3900000,
+        durationMs: 900000,
+        videoTimestampMs: null,
+        detections: 90,
+        peakConfidence: 0.95,
+      },
+    ],
+    voiceMentions: [
+      {
+        __typename: "VoiceMention",
+        sentimentEventId: "v1",
+        at: 1788817500000,
+        offsetMs: 1080000,
+        label: "POSITIVE",
+        score: 0.84,
+        text: "That Red Bull livery looks planted through every corner tonight.",
+      },
+      {
+        __typename: "VoiceMention",
+        sentimentEventId: "v2",
+        at: 1788822840000,
+        offsetMs: 6420000,
+        label: "NEGATIVE",
+        score: -0.71,
+        text: "Honestly the drink tastes like battery acid but the car is unreal.",
+      },
+    ],
+    chatMoments: [
+      {
+        __typename: "ChatMoment",
+        at: 1788821220000,
+        offsetMs: 4800000,
+        count: 38,
+        positiveShare: 0.84,
+        negativeShare: 0.03,
+        averageScore: 0.7,
+        sample: "Red Bull fans are eating well with this performance.",
+        user: "PodiumPush",
+      },
+    ],
+    riskSpikes: [
+      { __typename: "RiskSpike", at: 1788820560000, offsetMs: 4140000, chatNegativeRatio: 0.6, chatMessageCount: 21 },
+    ],
+    best: {
+      __typename: "HighlightMoment",
+      kind: "CHAT_BURST",
+      at: 1788821220000,
+      offsetMs: 4800000,
+      title: "Podium celebration, logo on screen 15 minutes",
+      detail: "38 brand mentions in a minute, 84% positive",
+      score: 31.9,
+    },
+    weakest: {
+      __typename: "HighlightMoment",
+      kind: "VOICE",
+      at: 1788822840000,
+      offsetMs: 6420000,
+      title: "Voice mention read as negative, -0.71",
+      detail: "Honestly the drink tastes like battery acid but the car is unreal.",
+      score: -0.71,
+    },
+  };
+}

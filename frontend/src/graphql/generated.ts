@@ -571,6 +571,43 @@ export type StreamAnalyticsQueryVariables = Exact<{
 
 export type StreamAnalyticsQuery = { streamMetricsSummary: { streamer: string, streamSessionId: string | null, windowMinutes: number, bucketSizeSeconds: number, windowStart: number, windowEnd: number, chat: { totalMessages: number, messagesPerMinute: number, uniqueChatters: number, peakMessagesPerMinute: number }, chatSentiment: { positive: number, neutral: number, negative: number, averageScore: number | null, negativeRatio: number | null }, transcriptSentiment: { positive: number, neutral: number, negative: number, averageScore: number | null, negativeRatio: number | null }, sponsorExposure: { totalDetections: number, acceptedDetections: number, estimatedExposureMs: number, topSponsors: Array<{ sponsor: string, detectionCount: number, acceptedDetectionCount: number, estimatedExposureMs: number, averageConfidence: number | null, maxConfidence: number | null, fallbackDetectionCount: number, lowConfidenceDetectionCount: number }> }, engagement: { spikeCount: number, latestSpikeAt: number | null }, risk: { level: string, score: number | null, factors: Array<{ name: string, value: number, weight: number }> }, dataQuality: { lowData: boolean, latestEventAt: number | null, aggregationLagMs: number | null } }, streamMetricsTimeseries: Array<{ bucketStart: number, bucketEnd: number, chatMessageCount: number, uniqueChatters: number, chatAverageScore: number | null, chatNegativeRatio: number | null, transcriptAverageScore: number | null, transcriptNegativeRatio: number | null, sponsorDetectionCount: number, estimatedSponsorExposureMs: number, engagementSpike: boolean, negativeSpike: boolean }> };
 
+export type SessionQueryVariables = Exact<{
+  id: string;
+}>;
+
+
+export type SessionQuery = { session: { id: string, streamer: string, source: string, twitchStreamId: string | null, streamSessionId: string | null, channelLogin: string | null, title: string | null, category: string | null, startedAt: number, endedAt: number | null, live: boolean, durationMs: number, peakViewers: number | null, averageViewers: number | null, viewerSamples: number } | null };
+
+export type SessionsQueryVariables = Exact<{
+  streamer: string;
+  from?: number | null | undefined;
+  to?: number | null | undefined;
+  limit?: number | null | undefined;
+}>;
+
+
+export type SessionsQuery = { sessions: Array<{ id: string, streamer: string, source: string, twitchStreamId: string | null, title: string | null, category: string | null, startedAt: number, endedAt: number | null, live: boolean, durationMs: number, peakViewers: number | null, averageViewers: number | null, viewerSamples: number }> };
+
+export type SessionSummaryQueryVariables = Exact<{
+  sessionId: string;
+  sponsor?: string | null | undefined;
+  chatCommand?: string | null | undefined;
+  trackedLinkHost?: string | null | undefined;
+  cpmPer30sEquivalent?: number | null | undefined;
+  hostReadRatePer1000?: number | null | undefined;
+}>;
+
+
+export type SessionSummaryQuery = { sessionSummary: { sponsor: string | null, onScreenMs: number, onScreenShare: number | null, mentions: number, chatMentions: number, voiceMentions: number, mentionSentiment: number | null, mentionPositiveShare: number | null, mentionNegativeShare: number | null, averageViewers: number | null, peakViewers: number | null, session: { id: string, streamer: string, source: string, twitchStreamId: string | null, streamSessionId: string | null, title: string | null, category: string | null, startedAt: number, endedAt: number | null, live: boolean, durationMs: number, peakViewers: number | null, averageViewers: number | null, viewerSamples: number }, risk: { level: string, score: number | null, factors: Array<{ name: string, value: number, weight: number }> }, chat: { totalMessages: number, messagesPerMinute: number, uniqueChatters: number, peakMessagesPerMinute: number }, chatSentiment: { positive: number, neutral: number, negative: number, averageScore: number | null, negativeRatio: number | null }, transcriptSentiment: { positive: number, neutral: number, negative: number, averageScore: number | null, negativeRatio: number | null }, engagement: { spikeCount: number, latestSpikeAt: number | null }, value: { logoValue: number | null, hostReadValue: number | null, mediaValue: number | null, weightedLogoViewerMinutes: number | null, averageProminence: number | null, cpmPer30sEquivalent: number, hostReadRatePer1000: number, basis: string }, response: { chatCommand: string | null, commandUses: number, commandUsers: number, trackedLinkHost: string | null, linkPosts: number } } | null };
+
+export type SponsorMomentsQueryVariables = Exact<{
+  sessionId: string;
+  sponsor?: string | null | undefined;
+}>;
+
+
+export type SponsorMomentsQuery = { sponsorMoments: { sponsor: string | null, session: { id: string, startedAt: number, durationMs: number }, segments: Array<{ sponsor: string, startedAt: number, endedAt: number, offsetMs: number, durationMs: number, videoTimestampMs: number | null, detections: number, peakConfidence: number }>, voiceMentions: Array<{ sentimentEventId: string, at: number, offsetMs: number, label: string, score: number, text: string }>, chatMoments: Array<{ at: number, offsetMs: number, count: number, positiveShare: number, negativeShare: number, averageScore: number, sample: string | null, user: string | null }>, riskSpikes: Array<{ at: number, offsetMs: number, chatNegativeRatio: number | null, chatMessageCount: number }>, best: { kind: string, at: number, offsetMs: number, title: string, detail: string, score: number } | null, weakest: { kind: string, at: number, offsetMs: number, title: string, detail: string, score: number } | null } | null };
+
 export type OnChatMessageSubscriptionVariables = Exact<{
   streamer: string;
 }>;

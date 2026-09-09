@@ -28,6 +28,13 @@ export function AppShell() {
             </svg>
             Home
           </NavLink>
+          <NavLink className={navClass} to="/sessions/latest">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 3h9l4 4v14H6z" />
+              <path d="M9 12h7M9 16h7" />
+            </svg>
+            Session report
+          </NavLink>
         </nav>
 
         <div className="sidebar-footer">

@@ -230,3 +230,206 @@ export const STREAM_ANALYTICS_QUERY = gql`
     }
   }
 `;
+
+export const SESSION_QUERY = gql`
+  query Session($id: ID!) {
+    session(id: $id) {
+      id
+      streamer
+      source
+      twitchStreamId
+      streamSessionId
+      channelLogin
+      title
+      category
+      startedAt
+      endedAt
+      live
+      durationMs
+      peakViewers
+      averageViewers
+      viewerSamples
+    }
+  }
+`;
+
+export const SESSIONS_QUERY = gql`
+  query Sessions($streamer: String!, $from: Float, $to: Float, $limit: Int) {
+    sessions(streamer: $streamer, from: $from, to: $to, limit: $limit) {
+      id
+      streamer
+      source
+      twitchStreamId
+      title
+      category
+      startedAt
+      endedAt
+      live
+      durationMs
+      peakViewers
+      averageViewers
+      viewerSamples
+    }
+  }
+`;
+
+export const SESSION_SUMMARY_QUERY = gql`
+  query SessionSummary(
+    $sessionId: ID!
+    $sponsor: String
+    $chatCommand: String
+    $trackedLinkHost: String
+    $cpmPer30sEquivalent: Float
+    $hostReadRatePer1000: Float
+  ) {
+    sessionSummary(
+      sessionId: $sessionId
+      sponsor: $sponsor
+      chatCommand: $chatCommand
+      trackedLinkHost: $trackedLinkHost
+      cpmPer30sEquivalent: $cpmPer30sEquivalent
+      hostReadRatePer1000: $hostReadRatePer1000
+    ) {
+      session {
+        id
+        streamer
+        source
+        twitchStreamId
+        streamSessionId
+        title
+        category
+        startedAt
+        endedAt
+        live
+        durationMs
+        peakViewers
+        averageViewers
+        viewerSamples
+      }
+      sponsor
+      onScreenMs
+      onScreenShare
+      mentions
+      chatMentions
+      voiceMentions
+      mentionSentiment
+      mentionPositiveShare
+      mentionNegativeShare
+      averageViewers
+      peakViewers
+      risk {
+        level
+        score
+        factors {
+          name
+          value
+          weight
+        }
+      }
+      chat {
+        totalMessages
+        messagesPerMinute
+        uniqueChatters
+        peakMessagesPerMinute
+      }
+      chatSentiment {
+        positive
+        neutral
+        negative
+        averageScore
+        negativeRatio
+      }
+      transcriptSentiment {
+        positive
+        neutral
+        negative
+        averageScore
+        negativeRatio
+      }
+      engagement {
+        spikeCount
+        latestSpikeAt
+      }
+      value {
+        logoValue
+        hostReadValue
+        mediaValue
+        weightedLogoViewerMinutes
+        averageProminence
+        cpmPer30sEquivalent
+        hostReadRatePer1000
+        basis
+      }
+      response {
+        chatCommand
+        commandUses
+        commandUsers
+        trackedLinkHost
+        linkPosts
+      }
+    }
+  }
+`;
+
+export const SPONSOR_MOMENTS_QUERY = gql`
+  query SponsorMoments($sessionId: ID!, $sponsor: String) {
+    sponsorMoments(sessionId: $sessionId, sponsor: $sponsor) {
+      sponsor
+      session {
+        id
+        startedAt
+        durationMs
+      }
+      segments {
+        sponsor
+        startedAt
+        endedAt
+        offsetMs
+        durationMs
+        videoTimestampMs
+        detections
+        peakConfidence
+      }
+      voiceMentions {
+        sentimentEventId
+        at
+        offsetMs
+        label
+        score
+        text
+      }
+      chatMoments {
+        at
+        offsetMs
+        count
+        positiveShare
+        negativeShare
+        averageScore
+        sample
+        user
+      }
+      riskSpikes {
+        at
+        offsetMs
+        chatNegativeRatio
+        chatMessageCount
+      }
+      best {
+        kind
+        at
+        offsetMs
+        title
+        detail
+        score
+      }
+      weakest {
+        kind
+        at
+        offsetMs
+        title
+        detail
+        score
+      }
+    }
+  }
+`;
