@@ -11,6 +11,7 @@ import { HttpResponse, graphqlData, restJson, restResolver, server } from "./tes
 function stackHandlers() {
   return [
     graphqlData("Health", { health: "ok" }),
+    graphqlData("Sessions", { sessions: [] }),
     graphqlData("StreamAnalytics", streamAnalytics()),
     graphqlData("SponsorDetections", { sponsorDetections: [] }),
     graphqlData("RecentSentiment", { recentSentiment: [] }),

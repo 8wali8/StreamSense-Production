@@ -10,26 +10,22 @@ type LiveStreamConsoleProps = {
   sponsorBrand: string;
 };
 
-/** The player with detections on the left, transcript / sponsor / chat feeds on the right. */
+/**
+ * The player with detections beside the brand-mention feed; the general chat and transcript sit
+ * in a drawer below, closed by default, because the brand is what the page is about.
+ */
 export function LiveStreamConsole({ streamer, sponsorBrand }: LiveStreamConsoleProps) {
   const activeSponsor = sponsorProfileFromInput(streamer, sponsorBrand).sponsor;
   const feeds = useConsoleFeeds(streamer, activeSponsor);
 
   return (
     <section className="stream-console" aria-label="Live stream analysis console">
-      <StreamFrame
-        streamer={streamer}
-        sponsorBrand={sponsorBrand}
-        sponsors={feeds.sponsors}
-        latestEventAt={feeds.latestEventAt}
-      />
-
-      <aside className="stream-sidecar" aria-label="Transcript and chat analysis">
-        <TranscriptFeed
-          lines={feeds.transcriptFeed}
-          activeSponsor={activeSponsor}
-          loading={feeds.transcript.loading}
-          error={feeds.transcript.error}
+      <div className="console-main">
+        <StreamFrame
+          streamer={streamer}
+          sponsorBrand={sponsorBrand}
+          sponsors={feeds.sponsors}
+          latestEventAt={feeds.latestEventAt}
         />
         <SponsorSentimentFeed
           activeSponsor={activeSponsor}
@@ -38,12 +34,24 @@ export function LiveStreamConsole({ streamer, sponsorBrand }: LiveStreamConsoleP
           transcriptSentiments={feeds.sponsorTranscriptSentiments}
           loading={feeds.sponsorSentimentLoading}
         />
-        <ChatFeed
-          liveChat={feeds.liveChat}
-          chatSentiments={feeds.chatSentiments}
-          loading={feeds.chatSentimentLoading}
-        />
-      </aside>
+      </div>
+
+      <details className="console-drawer">
+        <summary>All chat and transcript</summary>
+        <div className="console-drawer-body">
+          <TranscriptFeed
+            lines={feeds.transcriptFeed}
+            activeSponsor={activeSponsor}
+            loading={feeds.transcript.loading}
+            error={feeds.transcript.error}
+          />
+          <ChatFeed
+            liveChat={feeds.liveChat}
+            chatSentiments={feeds.chatSentiments}
+            loading={feeds.chatSentimentLoading}
+          />
+        </div>
+      </details>
     </section>
   );
 }
