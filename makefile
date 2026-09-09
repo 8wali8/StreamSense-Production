@@ -111,6 +111,10 @@ secrets:
 		name="$$(basename "$${example%.example}")"; target="secrets/$$name"; \
 		if [[ ! -f "$$target" ]]; then \
 			case "$$name" in \
+				TWITCH_CLIENT_ID|TWITCH_CLIENT_SECRET) \
+					: > "$$target" && chmod 644 "$$target"; \
+					echo "created empty $$target (paste the value from the Twitch developer console to enable Helix polling)"; \
+					continue ;; \
 				STREAMSENSE_FRAME_STORAGE_ACCESS_KEY) bytes=8 ;; \
 				STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET) bytes=32 ;; \
 				*) bytes=16 ;; \

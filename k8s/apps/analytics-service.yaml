@@ -148,6 +148,20 @@ spec:
                 secretKeyRef:
                   name: streamsense-secrets
                   key: POSTGRES_PASSWORD
+            - name: STREAMSENSE_TWITCH_HELIX_ENABLED
+              value: "false"
+            - name: TWITCH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: TWITCH_CLIENT_ID
+                  optional: true
+            - name: TWITCH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: TWITCH_CLIENT_SECRET
+                  optional: true
           ports:
             - containerPort: 8085
           readinessProbe:

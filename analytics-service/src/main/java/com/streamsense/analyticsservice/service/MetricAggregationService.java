@@ -22,6 +22,7 @@ public class MetricAggregationService {
     private final MetricBucketRepository metricBuckets;
     private final SponsorMetricBucketRepository sponsorBuckets;
     private final AnalyticsMetrics metrics;
+    private final StreamSessionService sessions;
     private final Clock clock;
 
     @Autowired
@@ -30,8 +31,9 @@ public class MetricAggregationService {
             ProcessedEventRepository processedEvents,
             MetricBucketRepository metricBuckets,
             SponsorMetricBucketRepository sponsorBuckets,
-            AnalyticsMetrics metrics) {
-        this(properties, processedEvents, metricBuckets, sponsorBuckets, metrics, Clock.systemUTC());
+            AnalyticsMetrics metrics,
+            StreamSessionService sessions) {
+        this(properties, processedEvents, metricBuckets, sponsorBuckets, metrics, sessions, Clock.systemUTC());
     }
 
     MetricAggregationService(
@@ -40,12 +42,14 @@ public class MetricAggregationService {
             MetricBucketRepository metricBuckets,
             SponsorMetricBucketRepository sponsorBuckets,
             AnalyticsMetrics metrics,
+            StreamSessionService sessions,
             Clock clock) {
         this.properties = properties;
         this.processedEvents = processedEvents;
         this.metricBuckets = metricBuckets;
         this.sponsorBuckets = sponsorBuckets;
         this.metrics = metrics;
+        this.sessions = sessions;
         this.clock = clock;
     }
 
@@ -75,6 +79,12 @@ public class MetricAggregationService {
                 streamer, sessionKey, bucketStart, bucketSizeSeconds(), event.getUser(), event.getTimestamp());
         recomputeSpikeFlags(streamer, sessionKey, bucketStart, now);
         metrics.bucketUpdated("chat");
+        sessions.recordActivity(
+                streamer,
+                clean(event.getStreamSessionId()),
+                clean(event.getTwitchStreamId()),
+                clean(event.getChannelLogin()),
+                event.getTimestamp());
         metrics.eventProcessed(topic);
         metrics.recordLag(topic, now - event.getTimestamp());
         return true;
@@ -111,6 +121,12 @@ public class MetricAggregationService {
                 now);
         recomputeSpikeFlags(streamer, sessionKey, bucketStart, now);
         metrics.bucketUpdated("chat_sentiment");
+        sessions.recordActivity(
+                streamer,
+                clean(event.getStreamSessionId()),
+                clean(event.getTwitchStreamId()),
+                clean(event.getChannelLogin()),
+                event.getChatTimestamp());
         metrics.eventProcessed(topic);
         metrics.recordLag(topic, now - event.getChatTimestamp());
         return true;
@@ -144,6 +160,7 @@ public class MetricAggregationService {
                 event.getScore(),
                 now);
         metrics.bucketUpdated("transcript_sentiment");
+        sessions.recordActivity(streamer, clean(event.getStreamSessionId()), null, null, event.getSegmentEndedAt());
         metrics.eventProcessed(topic);
         metrics.recordLag(topic, now - event.getSegmentStartedAt());
         return true;
@@ -185,6 +202,12 @@ public class MetricAggregationService {
                 properties.getAnalytics().getEstimatedSponsorExposureMsPerDetection(),
                 now);
         metrics.bucketUpdated("sponsor");
+        sessions.recordActivity(
+                streamer,
+                clean(event.getStreamSessionId()),
+                clean(event.getTwitchStreamId()),
+                clean(event.getChannelLogin()),
+                event.getCapturedAt());
         metrics.eventProcessed(topic);
         metrics.recordLag(topic, now - event.getCapturedAt());
         return true;

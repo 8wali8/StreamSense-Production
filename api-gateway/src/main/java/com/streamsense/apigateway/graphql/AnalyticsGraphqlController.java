@@ -4,6 +4,7 @@ import com.streamsense.apigateway.analytics.BrandSafetyMetrics;
 import com.streamsense.apigateway.analytics.SponsorExposureMetric;
 import com.streamsense.apigateway.analytics.StreamMetricBucket;
 import com.streamsense.apigateway.analytics.StreamMetricsSummary;
+import com.streamsense.apigateway.analytics.StreamSession;
 import com.streamsense.apigateway.client.AnalyticsServiceClient;
 import java.util.List;
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -51,5 +52,26 @@ public class AnalyticsGraphqlController {
             @Argument("streamSessionId") String streamSessionId,
             @Argument("windowMinutes") int windowMinutes) {
         return analyticsServiceClient.risk(streamer, streamSessionId, windowMinutes);
+    }
+
+    @QueryMapping
+    public Mono<List<StreamSession>> sessions(
+            @Argument("streamer") String streamer,
+            @Argument("from") Double from,
+            @Argument("to") Double to,
+            @Argument("limit") Integer limit) {
+        return analyticsServiceClient.sessions(
+                streamer, from == null ? null : from.longValue(), to == null ? null : to.longValue(), limit);
+    }
+
+    @QueryMapping
+    public Mono<StreamSession> session(@Argument("id") String id) {
+        long sessionId;
+        try {
+            sessionId = Long.parseLong(id);
+        } catch (NumberFormatException ex) {
+            return Mono.empty();
+        }
+        return analyticsServiceClient.session(sessionId);
     }
 }

@@ -84,3 +84,23 @@ type StreamMetricBucket {
   engagementSpike: Boolean!
   negativeSpike: Boolean!
 }
+
+# One stream. source is HELIX (seen live by the Twitch poller) or CAPTURE (derived from captured
+# events, what a replay alias produces). endedAt is null and live is true while the stream is on.
+type StreamSession {
+  id: ID!
+  streamer: String!
+  source: String!
+  twitchStreamId: String
+  streamSessionId: String
+  channelLogin: String
+  title: String
+  category: String
+  startedAt: Float!
+  endedAt: Float
+  live: Boolean!
+  durationMs: Float!
+  peakViewers: Int
+  averageViewers: Float
+  viewerSamples: Int!
+}

@@ -264,10 +264,15 @@ services:
     stop_grace_period: 30s
     environment:
       STREAMSENSE_LOG_FORMAT: ${STREAMSENSE_LOG_FORMAT-ecs}
+      # Twitch Helix polling for sessions and viewer counts; the credentials come from the secret files.
+      STREAMSENSE_TWITCH_HELIX_ENABLED: ${STREAMSENSE_TWITCH_HELIX_ENABLED:-false}
+      STREAMSENSE_TWITCH_HELIX_CHANNELS: ${STREAMSENSE_TWITCH_HELIX_CHANNELS:-}
     ports:
       - "8085:8085"
     secrets:
       - POSTGRES_PASSWORD
+      - TWITCH_CLIENT_ID
+      - TWITCH_CLIENT_SECRET
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -546,6 +551,10 @@ secrets:
     file: ./secrets/GRAFANA_ADMIN_PASSWORD
   STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET:
     file: ./secrets/STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
+  TWITCH_CLIENT_ID:
+    file: ./secrets/TWITCH_CLIENT_ID
+  TWITCH_CLIENT_SECRET:
+    file: ./secrets/TWITCH_CLIENT_SECRET
 
 volumes:
   postgres-data:
