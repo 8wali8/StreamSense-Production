@@ -41,7 +41,7 @@ Moved to `/ops`: streamer and sponsor form and runtime switching status; health,
 
 - `/` streamer home: live strip (player, detections, brand-mention feed; chat and transcript in a drawer), active deals, history. S1, S7.
 - `/deals/:dealId` deal page: header totals, per-stream trend, sessions list, share control. S5, S6.
-- `/sessions/:sessionId` session report: header numbers with risk, timeline, best and worst moment, brand mentions, stream context. S2, S3, S4, S6. This is the product; build first among customer pages.
+- `/sessions/:sessionId` session report, a one-pager: always visible are the title row with the risk pill, five headline numbers (on screen, mentions, sentiment, viewers, media value), the timeline with the selected moment, and the best and weakest moment as one line each. Everything else is a collapsed expandable row: how the value was estimated (with the private fee block), every brand mention, why risk is what it is (the named weighted factors), and the stream overall. S2, S3, S4, S6. This is the product; build first among customer pages.
 - `/ops` operations: pipeline status and replay controls, channel control form, sponsor profile editor, raw event tables. Build first overall because it is relocation.
 
 ## Model
