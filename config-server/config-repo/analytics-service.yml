@@ -32,6 +32,17 @@ streamsense:
     engagement-spike-trailing-window-minutes: ${STREAMSENSE_ANALYTICS_ENGAGEMENT_SPIKE_TRAILING_WINDOW_MINUTES:5}
     low-data-minimum-events: ${STREAMSENSE_ANALYTICS_LOW_DATA_MINIMUM_EVENTS:5}
     capture-session-idle-close-minutes: ${STREAMSENSE_ANALYTICS_CAPTURE_SESSION_IDLE_CLOSE_MINUTES:10}
+    max-range-hours: ${STREAMSENSE_ANALYTICS_MAX_RANGE_HOURS:48}
+    value:
+      # Media value assumptions for the session report; a deal overrides them per request.
+      cpm-per-30s-equivalent: ${STREAMSENSE_ANALYTICS_VALUE_CPM:12.0}
+      host-read-rate-per-1000: ${STREAMSENSE_ANALYTICS_VALUE_HOST_READ_RATE:15.0}
+      prominence-base: 0.5
+      prominence-area-scale: 10.0
+    response:
+      # Counted when a request names no command or link host; empty means none.
+      default-chat-command: ${STREAMSENSE_ANALYTICS_RESPONSE_CHAT_COMMAND:}
+      default-tracked-link-host: ${STREAMSENSE_ANALYTICS_RESPONSE_LINK_HOST:}
   twitch:
     helix:
       # Live state, title, category, and viewer counts per watched channel; needs the TWITCH_CLIENT_ID

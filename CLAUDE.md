@@ -97,7 +97,7 @@ See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`; the
 | recommendation-service | 8082 | Java | Recommendation summaries from platform signals |
 | sentiment-service | 8083 | Java | Kafka consumer → ml-engine sentiment/relevance → Kafka producer |
 | video-service | 8084 | Java | Frame events → ml-engine sponsor detection → Kafka producer |
-| analytics-service | 8085 | Java | Aggregates stream metrics from event streams; owns stream sessions (Twitch Helix poller or capture-derived) |
+| analytics-service | 8085 | Java | Aggregates stream metrics from event streams; owns stream sessions (Twitch Helix poller or capture-derived) and the session report summary |
 | video-capture-service | 8090 | Python | Twitch frame capture → MinIO, transcript audio → ml-engine |
 | ml-engine | 8000 | Python | FastAPI inference: sentiment, relevance, sponsor, segmentation, transcription |
 | frontend | 3000 | React/TS | Streamer home and operator page (Apollo Client, GraphQL subscriptions, react-router) |
@@ -194,7 +194,7 @@ Java tests are self-contained: test configs disable config-server and Eureka; in
 - `docs/howtorun.md` — local Docker Compose runbook (ports, startup order, troubleshooting)
 - `docs/architecture.md` — architecture diagram (README.md has a mermaid version)
 - `docs/kubernetes-kind.md` — Kubernetes/kind deployment guide
-- `docs/contracts/` — GraphQL API contracts (`sessions.md` for stream sessions: HELIX vs CAPTURE sources, the REST and GraphQL shapes)
+- `docs/contracts/` — GraphQL API contracts (`sessions.md` for stream sessions and the session report: HELIX vs CAPTURE sources, `sessionSummary` with its value and response arithmetic, `sponsorMoments`, and the session or range arguments the analytics queries accept)
 - `docs/schemas/` — one JSON Schema per Kafka event and ml-engine payload, with an index and the compatibility rules in its README
 - `docs/replay-runbook.md` — Twitch VOD replay workflow
 - `docs/planning/` — hardening branch notes (`branches/`) and earlier plans, reports, and session logs (`history/`, kept for context, not maintained)

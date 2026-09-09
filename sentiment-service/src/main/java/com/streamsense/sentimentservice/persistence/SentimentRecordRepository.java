@@ -13,4 +13,11 @@ public interface SentimentRecordRepository extends JpaRepository<SentimentRecord
 
     List<SentimentRecordEntity> findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseOrderByChatTimestampDesc(
             String streamer, String matchedSponsor, Pageable pageable);
+
+    List<SentimentRecordEntity> findByStreamerAndSponsorRelevantTrueAndChatTimestampBetweenOrderByChatTimestampAsc(
+            String streamer, long from, long to, Pageable pageable);
+
+    List<SentimentRecordEntity>
+            findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseAndChatTimestampBetweenOrderByChatTimestampAsc(
+                    String streamer, String matchedSponsor, long from, long to, Pageable pageable);
 }

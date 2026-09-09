@@ -17,6 +17,8 @@ public class SentimentAnalysisEvent {
     private String source;
     private String channelLogin;
     private String streamSessionId;
+    private Boolean sponsorRelevant;
+    private String matchedSponsor;
     private String twitchStreamId;
 
     public String getSentimentEventId() {
@@ -129,5 +131,21 @@ public class SentimentAnalysisEvent {
 
     public void setTwitchStreamId(String twitchStreamId) {
         this.twitchStreamId = twitchStreamId;
+    }
+
+    public Boolean getSponsorRelevant() {
+        return sponsorRelevant;
+    }
+
+    public void setSponsorRelevant(Boolean sponsorRelevant) {
+        this.sponsorRelevant = sponsorRelevant;
+    }
+
+    public String getMatchedSponsor() {
+        return matchedSponsor;
+    }
+
+    public void setMatchedSponsor(String matchedSponsor) {
+        this.matchedSponsor = matchedSponsor;
     }
 }

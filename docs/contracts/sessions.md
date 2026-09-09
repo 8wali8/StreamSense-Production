@@ -23,7 +23,26 @@ session(id: ID!): StreamSession
 
 `StreamSession`: `id`, `streamer`, `source` (`HELIX` or `CAPTURE`), `twitchStreamId`, `streamSessionId`, `channelLogin`, `title`, `category`, `startedAt`, `endedAt` (null while live), `live`, `durationMs` (to now while live), `peakViewers`, `averageViewers`, `viewerSamples` (viewer fields null or 0 until the poller has sampled).
 
+## Session report
+
+- `GET /api/analytics/sessions/{id}/summary?sponsor&chatCommand&trackedLinkHost&cpmPer30sEquivalent&hostReadRatePer1000` (analytics-service), every option optional. The sponsor defaults to the most visible one in the session. Returns exposure (`onScreenMs`, `onScreenShare`), mentions by channel with sentiment shares, viewers, risk, the stream baseline, `value` (logo value from prominence-weighted viewer-minutes at a CPM, host reads at a per-listener rate, null while the session has no viewer samples, with the `basis` spelled out), and `response` (uses and distinct users of the chat command, posts of the tracked link host). Chat commands, link hosts, sponsor mentions per channel, and detection box areas are counted per bucket at ingest; nothing is re-aggregated per session.
+- The four existing analytics endpoints (`summary`, `timeseries`, `sponsors`, `risk`) accept `sessionId` (a whole stream) or `from` and `to` (an absolute range, at most `max-range-hours`) instead of `windowMinutes`.
+- `GET /api/sentiment/sponsor/range` and `/api/sentiment/transcript/sponsor/range` (sentiment-service) and `GET /api/video/detections/range` (video-service) return the raw sponsor-relevant lines and detections in `[from, to]`, oldest first, for the timeline.
+
+GraphQL:
+
+```graphql
+sessionSummary(sessionId: ID!, sponsor: String, chatCommand: String, trackedLinkHost: String, cpmPer30sEquivalent: Float, hostReadRatePer1000: Float): SessionSummary
+sponsorMoments(sessionId: ID!, sponsor: String): SponsorMoments
+streamMetricsSummary(streamer: String!, streamSessionId: String, windowMinutes: Int, sessionId: ID, from: Float, to: Float): StreamMetricsSummary!
+```
+
+`sponsorMoments` is composed in the gateway: detections collapse into on-screen `segments` (a gap over 30 seconds starts a new one; `offsetMs` is from the session start, `videoTimestampMs` when capture recorded one), sponsor-relevant chat groups into per-minute `chatMoments`, voice lines are `voiceMentions`, buckets flagged as negative spikes are `riskSpikes`, `best` is the strongest positive chat minute, and `weakest` is the most negative mention when there is one.
+
 ## Configuration
+
+`streamsense.analytics.value.*` (`cpm-per-30s-equivalent`, `host-read-rate-per-1000`, `prominence-base`, `prominence-area-scale`) and `streamsense.analytics.response.*` (`default-chat-command`, `default-tracked-link-host`) are the summary defaults a request or, later, a deal overrides. `streamsense.analytics.max-range-hours` bounds absolute-range queries.
+
 
 `config-server/config-repo/analytics-service.yml`, `streamsense.twitch.helix.*`: `enabled`, `client-id`, `client-secret` (from the secrets), `base-url`, `token-url`, `poll-interval-ms`, `channels`, `watch-streamers-seen-within-hours`, `connect-timeout-ms`, `read-timeout-ms`, `token-refresh-margin-seconds`. `streamsense.analytics.capture-session-idle-close-minutes` closes idle capture sessions.
 

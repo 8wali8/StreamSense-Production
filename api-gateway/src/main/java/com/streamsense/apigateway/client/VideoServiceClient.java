@@ -43,4 +43,18 @@ public class VideoServiceClient {
                         streamer,
                         response != null ? response.size() : 0));
     }
+
+    public Mono<List<SponsorDetectionEvent>> detectionsInRange(String streamer, long from, long to, int limit) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/video/detections/range")
+                        .queryParam("streamer", streamer)
+                        .queryParam("from", from)
+                        .queryParam("to", to)
+                        .queryParam("limit", limit)
+                        .build())
+                .retrieve()
+                .bodyToMono(SPONSOR_LIST);
+    }
 }

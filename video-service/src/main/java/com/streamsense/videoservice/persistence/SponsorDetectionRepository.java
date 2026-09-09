@@ -7,4 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SponsorDetectionRepository extends JpaRepository<SponsorDetectionEntity, String> {
 
     List<SponsorDetectionEntity> findByStreamerOrderByCapturedAtDesc(String streamer, Pageable pageable);
+
+    List<SponsorDetectionEntity> findByStreamerAndCapturedAtBetweenOrderByCapturedAtAsc(
+            String streamer, long from, long to, Pageable pageable);
 }

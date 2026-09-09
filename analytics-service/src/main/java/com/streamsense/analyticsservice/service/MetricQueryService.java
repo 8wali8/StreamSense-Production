@@ -10,6 +10,7 @@ import com.streamsense.analyticsservice.api.SponsorExposureMetric;
 import com.streamsense.analyticsservice.api.SponsorExposureSummary;
 import com.streamsense.analyticsservice.api.StreamMetricBucket;
 import com.streamsense.analyticsservice.api.StreamMetricsSummary;
+import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.model.SponsorBucketMetric;
 import com.streamsense.analyticsservice.model.SponsorBucketTotals;
@@ -32,37 +33,43 @@ public class MetricQueryService {
     private final StreamSenseProperties properties;
     private final MetricBucketRepository metricBuckets;
     private final SponsorMetricBucketRepository sponsorBuckets;
+    private final StreamSessionService sessions;
     private final Clock clock;
 
     @Autowired
     public MetricQueryService(
             StreamSenseProperties properties,
             MetricBucketRepository metricBuckets,
-            SponsorMetricBucketRepository sponsorBuckets) {
-        this(properties, metricBuckets, sponsorBuckets, Clock.systemUTC());
+            SponsorMetricBucketRepository sponsorBuckets,
+            StreamSessionService sessions) {
+        this(properties, metricBuckets, sponsorBuckets, sessions, Clock.systemUTC());
     }
 
     MetricQueryService(
             StreamSenseProperties properties,
             MetricBucketRepository metricBuckets,
             SponsorMetricBucketRepository sponsorBuckets,
+            StreamSessionService sessions,
             Clock clock) {
         this.properties = properties;
         this.metricBuckets = metricBuckets;
         this.sponsorBuckets = sponsorBuckets;
+        this.sessions = sessions;
         this.clock = clock;
     }
 
     public StreamMetricsSummary summary(String streamer, String streamSessionId, Integer requestedWindowMinutes) {
-        QueryWindow window = window(streamer, streamSessionId, requestedWindowMinutes, null);
+        return summary(window(streamer, streamSessionId, requestedWindowMinutes, null));
+    }
+
+    public StreamMetricsSummary summary(QueryWindow window) {
         List<StreamBucketMetric> buckets = metricBuckets.findBuckets(
                 window.streamer(),
                 window.sessionKey(),
                 window.windowStart(),
                 window.windowEnd(),
                 window.bucketSizeSeconds());
-        List<SponsorExposureMetric> sponsorMetrics =
-                sponsorExposure(window.streamer(), window.streamSessionId(), window.windowMinutes());
+        List<SponsorExposureMetric> sponsorMetrics = sponsorExposure(window);
 
         long totalMessages =
                 buckets.stream().mapToLong(StreamBucketMetric::chatMessageCount).sum();
@@ -123,7 +130,10 @@ public class MetricQueryService {
 
     public List<StreamMetricBucket> timeseries(
             String streamer, String streamSessionId, Integer requestedWindowMinutes, Integer requestedBucketSeconds) {
-        QueryWindow window = window(streamer, streamSessionId, requestedWindowMinutes, requestedBucketSeconds);
+        return timeseries(window(streamer, streamSessionId, requestedWindowMinutes, requestedBucketSeconds));
+    }
+
+    public List<StreamMetricBucket> timeseries(QueryWindow window) {
         List<StreamBucketMetric> storedBuckets = metricBuckets.findBuckets(
                 window.streamer(),
                 window.sessionKey(),
@@ -158,7 +168,10 @@ public class MetricQueryService {
 
     public List<SponsorExposureMetric> sponsorExposure(
             String streamer, String streamSessionId, Integer requestedWindowMinutes) {
-        QueryWindow window = window(streamer, streamSessionId, requestedWindowMinutes, null);
+        return sponsorExposure(window(streamer, streamSessionId, requestedWindowMinutes, null));
+    }
+
+    public List<SponsorExposureMetric> sponsorExposure(QueryWindow window) {
         return sponsorBuckets
                 .findSponsorMetrics(
                         window.streamer(),
@@ -176,6 +189,60 @@ public class MetricQueryService {
 
     public BrandSafetyMetrics risk(String streamer, String streamSessionId, Integer requestedWindowMinutes) {
         return summary(streamer, streamSessionId, requestedWindowMinutes).risk();
+    }
+
+    /**
+     * The window a request asks for: a whole session by id, an absolute [from, to) range, or the
+     * trailing window ending now. A session id wins over from/to, which win over windowMinutes.
+     */
+    public QueryWindow resolve(
+            String streamer,
+            String streamSessionId,
+            Integer requestedWindowMinutes,
+            Integer requestedBucketSeconds,
+            Long sessionId,
+            Long from,
+            Long to) {
+        if (sessionId != null) {
+            StreamSession session = sessions.get(sessionId)
+                    .orElseThrow(() -> new IllegalArgumentException("session " + sessionId + " not found"));
+            String cleanedStreamer = cleanRequired(streamer, "streamer");
+            if (!cleanedStreamer.equalsIgnoreCase(session.streamer())) {
+                throw new IllegalArgumentException("session " + sessionId + " belongs to another streamer");
+            }
+            long end = session.endedAt() == null ? session.startedAt() + session.durationMs() : session.endedAt();
+            return rangeWindow(session.streamer(), session.startedAt(), end, requestedBucketSeconds);
+        }
+        if (from != null || to != null) {
+            if (from == null || to == null) {
+                throw new IllegalArgumentException("from and to must be given together");
+            }
+            return rangeWindow(streamer, from, to, requestedBucketSeconds);
+        }
+        return window(streamer, streamSessionId, requestedWindowMinutes, requestedBucketSeconds);
+    }
+
+    public QueryWindow rangeWindow(String streamer, long from, long to) {
+        return rangeWindow(streamer, from, to, null);
+    }
+
+    /** An absolute range, widened to whole buckets, with no session key filter. */
+    public QueryWindow rangeWindow(String streamer, long from, long to, Integer requestedBucketSeconds) {
+        String cleanedStreamer = cleanRequired(streamer, "streamer");
+        if (from >= to) {
+            throw new IllegalArgumentException("from must be before to");
+        }
+        int bucketSeconds = bucketSeconds(requestedBucketSeconds);
+        long bucketMs = bucketSeconds * 1000L;
+        long windowStart = Math.floorDiv(from, bucketMs) * bucketMs;
+        long windowEnd = Math.floorDiv(to - 1, bucketMs) * bucketMs + bucketMs;
+        long maxMs = properties.getAnalytics().getMaxRangeHours() * 3_600_000L;
+        if (windowEnd - windowStart > maxMs) {
+            throw new IllegalArgumentException(
+                    "range must not exceed " + properties.getAnalytics().getMaxRangeHours() + " hours");
+        }
+        int windowMinutes = (int) Math.max(1, (windowEnd - windowStart) / 60_000L);
+        return new QueryWindow(cleanedStreamer, null, null, windowMinutes, bucketSeconds, windowStart, windowEnd);
     }
 
     private StreamMetricBucket toResponseBucket(
@@ -367,13 +434,7 @@ public class MetricQueryService {
             throw new IllegalArgumentException("windowMinutes must be between 1 and "
                     + properties.getAnalytics().getMaxWindowMinutes());
         }
-        int bucketSeconds = requestedBucketSeconds == null
-                ? properties.getAnalytics().getBucketSizeSeconds()
-                : requestedBucketSeconds;
-        if (bucketSeconds != properties.getAnalytics().getBucketSizeSeconds()) {
-            throw new IllegalArgumentException(
-                    "only bucketSeconds=" + properties.getAnalytics().getBucketSizeSeconds() + " is supported");
-        }
+        int bucketSeconds = bucketSeconds(requestedBucketSeconds);
         long now = clock.millis();
         long bucketMs = bucketSeconds * 1000L;
         long windowEnd = Math.floorDiv(now, bucketMs) * bucketMs + bucketMs;
@@ -381,6 +442,17 @@ public class MetricQueryService {
         String cleanedSession = clean(streamSessionId);
         return new QueryWindow(
                 cleanedStreamer, cleanedSession, cleanedSession, windowMinutes, bucketSeconds, windowStart, windowEnd);
+    }
+
+    private int bucketSeconds(Integer requestedBucketSeconds) {
+        int bucketSeconds = requestedBucketSeconds == null
+                ? properties.getAnalytics().getBucketSizeSeconds()
+                : requestedBucketSeconds;
+        if (bucketSeconds != properties.getAnalytics().getBucketSizeSeconds()) {
+            throw new IllegalArgumentException(
+                    "only bucketSeconds=" + properties.getAnalytics().getBucketSizeSeconds() + " is supported");
+        }
+        return bucketSeconds;
     }
 
     private Double average(double sum, long count) {
@@ -425,7 +497,7 @@ public class MetricQueryService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private record QueryWindow(
+    public record QueryWindow(
             String streamer,
             String streamSessionId,
             String sessionKey,

@@ -1,6 +1,8 @@
 package com.streamsense.apigateway.client;
 
+import com.streamsense.apigateway.analytics.AnalyticsRange;
 import com.streamsense.apigateway.analytics.BrandSafetyMetrics;
+import com.streamsense.apigateway.analytics.SessionSummary;
 import com.streamsense.apigateway.analytics.SponsorExposureMetric;
 import com.streamsense.apigateway.analytics.StreamMetricBucket;
 import com.streamsense.apigateway.analytics.StreamMetricsSummary;
@@ -36,12 +38,18 @@ public class AnalyticsServiceClient {
     }
 
     public Mono<StreamMetricsSummary> summary(String streamer, String streamSessionId, int windowMinutes) {
+        return summary(streamer, streamSessionId, windowMinutes, AnalyticsRange.NONE);
+    }
+
+    public Mono<StreamMetricsSummary> summary(
+            String streamer, String streamSessionId, Integer windowMinutes, AnalyticsRange range) {
         return webClient
                 .get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder
                             .path("/api/analytics/streams/{streamer}/summary")
-                            .queryParam("windowMinutes", windowMinutes);
+                            .queryParamIfPresent("windowMinutes", java.util.Optional.ofNullable(windowMinutes));
+                    range.apply(builder);
                     if (streamSessionId != null && !streamSessionId.isBlank()) {
                         builder.queryParam("streamSessionId", streamSessionId);
                     }
@@ -55,13 +63,19 @@ public class AnalyticsServiceClient {
 
     public Mono<List<StreamMetricBucket>> timeseries(
             String streamer, String streamSessionId, int windowMinutes, int bucketSeconds) {
+        return timeseries(streamer, streamSessionId, windowMinutes, bucketSeconds, AnalyticsRange.NONE);
+    }
+
+    public Mono<List<StreamMetricBucket>> timeseries(
+            String streamer, String streamSessionId, Integer windowMinutes, int bucketSeconds, AnalyticsRange range) {
         return webClient
                 .get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder
                             .path("/api/analytics/streams/{streamer}/timeseries")
-                            .queryParam("windowMinutes", windowMinutes)
+                            .queryParamIfPresent("windowMinutes", java.util.Optional.ofNullable(windowMinutes))
                             .queryParam("bucketSeconds", bucketSeconds);
+                    range.apply(builder);
                     if (streamSessionId != null && !streamSessionId.isBlank()) {
                         builder.queryParam("streamSessionId", streamSessionId);
                     }
@@ -78,12 +92,18 @@ public class AnalyticsServiceClient {
 
     public Mono<List<SponsorExposureMetric>> sponsorExposure(
             String streamer, String streamSessionId, int windowMinutes) {
+        return sponsorExposure(streamer, streamSessionId, windowMinutes, AnalyticsRange.NONE);
+    }
+
+    public Mono<List<SponsorExposureMetric>> sponsorExposure(
+            String streamer, String streamSessionId, Integer windowMinutes, AnalyticsRange range) {
         return webClient
                 .get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder
                             .path("/api/analytics/streams/{streamer}/sponsors")
-                            .queryParam("windowMinutes", windowMinutes);
+                            .queryParamIfPresent("windowMinutes", java.util.Optional.ofNullable(windowMinutes));
+                    range.apply(builder);
                     if (streamSessionId != null && !streamSessionId.isBlank()) {
                         builder.queryParam("streamSessionId", streamSessionId);
                     }
@@ -94,12 +114,18 @@ public class AnalyticsServiceClient {
     }
 
     public Mono<BrandSafetyMetrics> risk(String streamer, String streamSessionId, int windowMinutes) {
+        return risk(streamer, streamSessionId, windowMinutes, AnalyticsRange.NONE);
+    }
+
+    public Mono<BrandSafetyMetrics> risk(
+            String streamer, String streamSessionId, Integer windowMinutes, AnalyticsRange range) {
         return webClient
                 .get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder
                             .path("/api/analytics/streams/{streamer}/risk")
-                            .queryParam("windowMinutes", windowMinutes);
+                            .queryParamIfPresent("windowMinutes", java.util.Optional.ofNullable(windowMinutes));
+                    range.apply(builder);
                     if (streamSessionId != null && !streamSessionId.isBlank()) {
                         builder.queryParam("streamSessionId", streamSessionId);
                     }
@@ -137,5 +163,47 @@ public class AnalyticsServiceClient {
                 .retrieve()
                 .bodyToMono(StreamSession.class)
                 .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
+    }
+
+    public Mono<SessionSummary> sessionSummary(
+            long id, String sponsor, String chatCommand, String trackedLinkHost, Double cpm, Double hostReadRate) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder.path("/api/analytics/sessions/{id}/summary");
+                    if (sponsor != null && !sponsor.isBlank()) {
+                        builder.queryParam("sponsor", sponsor);
+                    }
+                    if (chatCommand != null && !chatCommand.isBlank()) {
+                        builder.queryParam("chatCommand", chatCommand);
+                    }
+                    if (trackedLinkHost != null && !trackedLinkHost.isBlank()) {
+                        builder.queryParam("trackedLinkHost", trackedLinkHost);
+                    }
+                    if (cpm != null) {
+                        builder.queryParam("cpmPer30sEquivalent", cpm);
+                    }
+                    if (hostReadRate != null) {
+                        builder.queryParam("hostReadRatePer1000", hostReadRate);
+                    }
+                    return builder.build(id);
+                })
+                .retrieve()
+                .bodyToMono(SessionSummary.class)
+                .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
+    }
+
+    /** Buckets over an absolute range, for the report timeline. */
+    public Mono<List<StreamMetricBucket>> timeseriesInRange(String streamer, long from, long to, int bucketSeconds) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/analytics/streams/{streamer}/timeseries")
+                        .queryParam("from", from)
+                        .queryParam("to", to)
+                        .queryParam("bucketSeconds", bucketSeconds)
+                        .build(streamer))
+                .retrieve()
+                .bodyToMono(BUCKET_LIST);
     }
 }

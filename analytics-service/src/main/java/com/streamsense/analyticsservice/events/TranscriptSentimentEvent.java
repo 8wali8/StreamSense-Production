@@ -16,6 +16,8 @@ public class TranscriptSentimentEvent {
     private String modelVersion;
     private String transcriptModelVersion;
     private String streamSessionId;
+    private Boolean sponsorRelevant;
+    private String matchedSponsor;
     private long transcriptSequence;
 
     public String getSentimentEventId() {
@@ -120,5 +122,21 @@ public class TranscriptSentimentEvent {
 
     public void setTranscriptSequence(long transcriptSequence) {
         this.transcriptSequence = transcriptSequence;
+    }
+
+    public Boolean getSponsorRelevant() {
+        return sponsorRelevant;
+    }
+
+    public void setSponsorRelevant(Boolean sponsorRelevant) {
+        this.sponsorRelevant = sponsorRelevant;
+    }
+
+    public String getMatchedSponsor() {
+        return matchedSponsor;
+    }
+
+    public void setMatchedSponsor(String matchedSponsor) {
+        this.matchedSponsor = matchedSponsor;
     }
 }

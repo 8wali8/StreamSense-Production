@@ -137,4 +137,44 @@ public class SentimentServiceClient {
                         sponsor,
                         response != null ? response.size() : 0));
     }
+
+    public Mono<List<SentimentAnalysisEvent>> sponsorSentimentInRange(
+            String streamer, String sponsor, long from, long to, int limit) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder
+                            .path("/api/sentiment/sponsor/range")
+                            .queryParam("streamer", streamer)
+                            .queryParam("from", from)
+                            .queryParam("to", to)
+                            .queryParam("limit", limit);
+                    if (sponsor != null && !sponsor.isBlank()) {
+                        builder.queryParam("sponsor", sponsor);
+                    }
+                    return builder.build();
+                })
+                .retrieve()
+                .bodyToMono(SENTIMENT_LIST);
+    }
+
+    public Mono<List<TranscriptSentimentEvent>> sponsorTranscriptSentimentInRange(
+            String streamer, String sponsor, long from, long to, int limit) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder
+                            .path("/api/sentiment/transcript/sponsor/range")
+                            .queryParam("streamer", streamer)
+                            .queryParam("from", from)
+                            .queryParam("to", to)
+                            .queryParam("limit", limit);
+                    if (sponsor != null && !sponsor.isBlank()) {
+                        builder.queryParam("sponsor", sponsor);
+                    }
+                    return builder.build();
+                })
+                .retrieve()
+                .bodyToMono(TRANSCRIPT_SENTIMENT_LIST);
+    }
 }

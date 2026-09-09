@@ -115,6 +115,27 @@ public class StreamSenseProperties {
         private long lowDataMinimumEvents = 5;
         /** A capture session with no event for this long is closed at its last event. */
         private int captureSessionIdleCloseMinutes = 10;
+        /** Longest absolute range a query may ask for. */
+        private int maxRangeHours = 48;
+
+        private final Value value = new Value();
+        private final Response response = new Response();
+
+        public int getMaxRangeHours() {
+            return maxRangeHours;
+        }
+
+        public void setMaxRangeHours(int maxRangeHours) {
+            this.maxRangeHours = maxRangeHours;
+        }
+
+        public Value getValue() {
+            return value;
+        }
+
+        public Response getResponse() {
+            return response;
+        }
 
         public int getCaptureSessionIdleCloseMinutes() {
             return captureSessionIdleCloseMinutes;
@@ -351,6 +372,68 @@ public class StreamSenseProperties {
 
         public void setTokenRefreshMarginSeconds(long tokenRefreshMarginSeconds) {
             this.tokenRefreshMarginSeconds = tokenRefreshMarginSeconds;
+        }
+    }
+
+    /** Media value assumptions, overridable per request (and per deal once deals exist). */
+    public static class Value {
+        private double cpmPer30sEquivalent = 12.0d;
+        private double hostReadRatePer1000 = 15.0d;
+        private double prominenceBase = 0.5d;
+        private double prominenceAreaScale = 10.0d;
+
+        public double getCpmPer30sEquivalent() {
+            return cpmPer30sEquivalent;
+        }
+
+        public void setCpmPer30sEquivalent(double cpmPer30sEquivalent) {
+            this.cpmPer30sEquivalent = cpmPer30sEquivalent;
+        }
+
+        public double getHostReadRatePer1000() {
+            return hostReadRatePer1000;
+        }
+
+        public void setHostReadRatePer1000(double hostReadRatePer1000) {
+            this.hostReadRatePer1000 = hostReadRatePer1000;
+        }
+
+        public double getProminenceBase() {
+            return prominenceBase;
+        }
+
+        public void setProminenceBase(double prominenceBase) {
+            this.prominenceBase = prominenceBase;
+        }
+
+        public double getProminenceAreaScale() {
+            return prominenceAreaScale;
+        }
+
+        public void setProminenceAreaScale(double prominenceAreaScale) {
+            this.prominenceAreaScale = prominenceAreaScale;
+        }
+    }
+
+    /** Which chat command and link host to count when a request does not name them. */
+    public static class Response {
+        private String defaultChatCommand;
+        private String defaultTrackedLinkHost;
+
+        public String getDefaultChatCommand() {
+            return defaultChatCommand;
+        }
+
+        public void setDefaultChatCommand(String defaultChatCommand) {
+            this.defaultChatCommand = defaultChatCommand;
+        }
+
+        public String getDefaultTrackedLinkHost() {
+            return defaultTrackedLinkHost;
+        }
+
+        public void setDefaultTrackedLinkHost(String defaultTrackedLinkHost) {
+            this.defaultTrackedLinkHost = defaultTrackedLinkHost;
         }
     }
 }

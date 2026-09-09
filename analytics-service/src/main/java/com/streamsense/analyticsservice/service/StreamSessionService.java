@@ -3,6 +3,7 @@ package com.streamsense.analyticsservice.service;
 import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.model.StreamSessionRow;
+import com.streamsense.analyticsservice.model.ViewerSample;
 import com.streamsense.analyticsservice.persistence.StreamSessionRepository;
 import com.streamsense.analyticsservice.twitch.HelixStream;
 import java.time.Clock;
@@ -132,6 +133,10 @@ public class StreamSessionService {
             log.info("closed {} idle capture session(s)", closed);
         }
         return closed;
+    }
+
+    public List<ViewerSample> viewerSamples(long sessionId) {
+        return sessions.findViewerSamples(sessionId);
     }
 
     public List<String> streamersSeenSince(long since) {

@@ -1,6 +1,9 @@
 package com.streamsense.analyticsservice.controller;
 
+import com.streamsense.analyticsservice.api.SessionSummary;
 import com.streamsense.analyticsservice.api.StreamSession;
+import com.streamsense.analyticsservice.api.SummaryOptions;
+import com.streamsense.analyticsservice.service.SessionSummaryService;
 import com.streamsense.analyticsservice.service.StreamSessionService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -20,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class StreamSessionController {
 
     private final StreamSessionService sessions;
+    private final SessionSummaryService summaries;
 
-    public StreamSessionController(StreamSessionService sessions) {
+    public StreamSessionController(StreamSessionService sessions, SessionSummaryService summaries) {
         this.sessions = sessions;
+        this.summaries = summaries;
     }
 
     /** Sessions of a streamer overlapping [from, to) in epoch millis, newest first. */
@@ -39,5 +44,23 @@ public class StreamSessionController {
     public ResponseEntity<StreamSession> session(@PathVariable("id") long id) {
         return sessions.get(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound()
                 .build());
+    }
+
+    /** The one-page report for one session and sponsor; every option is optional. */
+    @GetMapping("/sessions/{id}/summary")
+    public ResponseEntity<SessionSummary> summary(
+            @PathVariable("id") long id,
+            @RequestParam(value = "sponsor", required = false) String sponsor,
+            @RequestParam(value = "chatCommand", required = false) String chatCommand,
+            @RequestParam(value = "trackedLinkHost", required = false) String trackedLinkHost,
+            @RequestParam(value = "cpmPer30sEquivalent", required = false) @Min(0) Double cpmPer30sEquivalent,
+            @RequestParam(value = "hostReadRatePer1000", required = false) @Min(0) Double hostReadRatePer1000) {
+        return summaries
+                .summary(
+                        id,
+                        new SummaryOptions(
+                                sponsor, chatCommand, trackedLinkHost, cpmPer30sEquivalent, hostReadRatePer1000))
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

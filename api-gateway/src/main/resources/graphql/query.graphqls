@@ -7,10 +7,15 @@ type Query {
   recentSponsorTranscriptSentiment(streamer: String!, sponsor: String, limit: Int!): [TranscriptSentimentEvent!]!
   recommendations(streamer: String!, limit: Int!): [Recommendation!]!
   sponsorDetections(streamer: String!, limit: Int!): [SponsorDetectionEvent!]!
-  streamMetricsSummary(streamer: String!, streamSessionId: String, windowMinutes: Int!): StreamMetricsSummary!
-  streamMetricsTimeseries(streamer: String!, streamSessionId: String, windowMinutes: Int!, bucketSeconds: Int!): [StreamMetricBucket!]!
-  sponsorExposureMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int!): [SponsorExposureMetric!]!
-  brandSafetyMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int!): BrandSafetyMetrics!
+  # windowMinutes is the trailing window ending now; sessionId (a whole stream) or from/to (an absolute range) win over it.
+  streamMetricsSummary(streamer: String!, streamSessionId: String, windowMinutes: Int, sessionId: ID, from: Float, to: Float): StreamMetricsSummary!
+  streamMetricsTimeseries(streamer: String!, streamSessionId: String, windowMinutes: Int, bucketSeconds: Int!, sessionId: ID, from: Float, to: Float): [StreamMetricBucket!]!
+  sponsorExposureMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int, sessionId: ID, from: Float, to: Float): [SponsorExposureMetric!]!
+  brandSafetyMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int, sessionId: ID, from: Float, to: Float): BrandSafetyMetrics!
   sessions(streamer: String!, from: Float, to: Float, limit: Int): [StreamSession!]!
   session(id: ID!): StreamSession
+  # The one-page session report for one sponsor (default: the most visible one). Every option is optional.
+  sessionSummary(sessionId: ID!, sponsor: String, chatCommand: String, trackedLinkHost: String, cpmPer30sEquivalent: Float, hostReadRatePer1000: Float): SessionSummary
+  # The report timeline: on-screen segments, voice mentions, chat moments, negative spikes, best and weakest moment.
+  sponsorMoments(sessionId: ID!, sponsor: String): SponsorMoments
 }

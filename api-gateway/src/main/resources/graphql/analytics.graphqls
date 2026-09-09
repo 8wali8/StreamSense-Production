@@ -104,3 +104,106 @@ type StreamSession {
   averageViewers: Float
   viewerSamples: Int!
 }
+
+# What the sponsor's exposure would have cost to buy. Null money fields mean no viewer samples yet.
+# The rates and basis are always present so the reader can see the assumptions.
+type SessionValue {
+  logoValue: Float
+  hostReadValue: Float
+  mediaValue: Float
+  weightedLogoViewerMinutes: Float
+  averageProminence: Float
+  cpmPer30sEquivalent: Float!
+  hostReadRatePer1000: Float!
+  basis: String!
+}
+
+type DirectResponse {
+  chatCommand: String
+  commandUses: Int!
+  commandUsers: Int!
+  trackedLinkHost: String
+  linkPosts: Int!
+}
+
+type SessionSummary {
+  session: StreamSession!
+  sponsor: String
+  onScreenMs: Float!
+  onScreenShare: Float
+  mentions: Int!
+  chatMentions: Int!
+  voiceMentions: Int!
+  mentionSentiment: Float
+  mentionPositiveShare: Float
+  mentionNegativeShare: Float
+  averageViewers: Float
+  peakViewers: Int
+  risk: BrandSafetyMetrics!
+  chat: ChatMetrics!
+  chatSentiment: SentimentMetricSummary!
+  transcriptSentiment: SentimentMetricSummary!
+  engagement: EngagementMetrics!
+  value: SessionValue!
+  response: DirectResponse!
+}
+
+# A run of consecutive detections of one sponsor. offsetMs is from the session start, for the VOD.
+type ExposureSegment {
+  sponsor: String!
+  startedAt: Float!
+  endedAt: Float!
+  offsetMs: Float!
+  durationMs: Float!
+  videoTimestampMs: Float
+  detections: Int!
+  peakConfidence: Float!
+}
+
+type VoiceMention {
+  sentimentEventId: ID!
+  at: Float!
+  offsetMs: Float!
+  label: String!
+  score: Float!
+  text: String!
+}
+
+# Sponsor-relevant chat lines grouped per minute.
+type ChatMoment {
+  at: Float!
+  offsetMs: Float!
+  count: Int!
+  positiveShare: Float!
+  negativeShare: Float!
+  averageScore: Float!
+  sample: String
+  user: String
+}
+
+type RiskSpike {
+  at: Float!
+  offsetMs: Float!
+  chatNegativeRatio: Float
+  chatMessageCount: Float!
+}
+
+type HighlightMoment {
+  kind: String!
+  at: Float!
+  offsetMs: Float!
+  title: String!
+  detail: String!
+  score: Float!
+}
+
+type SponsorMoments {
+  session: StreamSession!
+  sponsor: String
+  segments: [ExposureSegment!]!
+  voiceMentions: [VoiceMention!]!
+  chatMoments: [ChatMoment!]!
+  riskSpikes: [RiskSpike!]!
+  best: HighlightMoment
+  weakest: HighlightMoment
+}
