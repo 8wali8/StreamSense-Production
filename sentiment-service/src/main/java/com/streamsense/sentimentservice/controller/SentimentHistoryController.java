@@ -80,6 +80,37 @@ public class SentimentHistoryController {
         return sentimentService.getRecentSponsorTranscriptSentiment(streamer, sponsor, requestedLimit);
     }
 
+    /** Every sponsor-relevant chat line between two epoch-millis instants, oldest first. */
+    @GetMapping("/sponsor/range")
+    public List<SentimentAnalysisEvent> sponsorSentimentInRange(
+            @RequestParam("streamer") @NotBlank String streamer,
+            @RequestParam(value = "sponsor", required = false) String sponsor,
+            @RequestParam("from") long from,
+            @RequestParam("to") long to,
+            @RequestParam(value = "limit", required = false) @Min(1) @Max(2000) Integer limit) {
+        requireRange(from, to);
+        return sentimentService.getSponsorSentimentInRange(streamer, sponsor, from, to, limit != null ? limit : 500);
+    }
+
+    /** Every sponsor-relevant voice line between two epoch-millis instants, oldest first. */
+    @GetMapping("/transcript/sponsor/range")
+    public List<TranscriptSentimentEvent> sponsorTranscriptSentimentInRange(
+            @RequestParam("streamer") @NotBlank String streamer,
+            @RequestParam(value = "sponsor", required = false) String sponsor,
+            @RequestParam("from") long from,
+            @RequestParam("to") long to,
+            @RequestParam(value = "limit", required = false) @Min(1) @Max(2000) Integer limit) {
+        requireRange(from, to);
+        return sentimentService.getSponsorTranscriptSentimentInRange(
+                streamer, sponsor, from, to, limit != null ? limit : 500);
+    }
+
+    private static void requireRange(long from, long to) {
+        if (from >= to) {
+            throw new IllegalArgumentException("from must be before to");
+        }
+    }
+
     @PostMapping("/relevance/sponsors")
     public SponsorRelevanceProfile updateSponsorRelevance(
             @RequestBody @jakarta.validation.Valid SponsorRelevanceUpdateRequest request) {

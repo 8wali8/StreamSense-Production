@@ -1,5 +1,6 @@
 package com.streamsense.apigateway.graphql;
 
+import com.streamsense.apigateway.analytics.AnalyticsRange;
 import com.streamsense.apigateway.analytics.BrandSafetyMetrics;
 import com.streamsense.apigateway.analytics.SponsorExposureMetric;
 import com.streamsense.apigateway.analytics.StreamMetricBucket;
@@ -25,33 +26,49 @@ public class AnalyticsGraphqlController {
     public Mono<StreamMetricsSummary> streamMetricsSummary(
             @Argument("streamer") String streamer,
             @Argument("streamSessionId") String streamSessionId,
-            @Argument("windowMinutes") int windowMinutes) {
-        return analyticsServiceClient.summary(streamer, streamSessionId, windowMinutes);
+            @Argument("windowMinutes") Integer windowMinutes,
+            @Argument("sessionId") String sessionId,
+            @Argument("from") Double from,
+            @Argument("to") Double to) {
+        return analyticsServiceClient.summary(
+                streamer, streamSessionId, windowMinutes, AnalyticsRange.of(sessionId, from, to));
     }
 
     @QueryMapping
     public Mono<List<StreamMetricBucket>> streamMetricsTimeseries(
             @Argument("streamer") String streamer,
             @Argument("streamSessionId") String streamSessionId,
-            @Argument("windowMinutes") int windowMinutes,
-            @Argument("bucketSeconds") int bucketSeconds) {
-        return analyticsServiceClient.timeseries(streamer, streamSessionId, windowMinutes, bucketSeconds);
+            @Argument("windowMinutes") Integer windowMinutes,
+            @Argument("bucketSeconds") int bucketSeconds,
+            @Argument("sessionId") String sessionId,
+            @Argument("from") Double from,
+            @Argument("to") Double to) {
+        return analyticsServiceClient.timeseries(
+                streamer, streamSessionId, windowMinutes, bucketSeconds, AnalyticsRange.of(sessionId, from, to));
     }
 
     @QueryMapping
     public Mono<List<SponsorExposureMetric>> sponsorExposureMetrics(
             @Argument("streamer") String streamer,
             @Argument("streamSessionId") String streamSessionId,
-            @Argument("windowMinutes") int windowMinutes) {
-        return analyticsServiceClient.sponsorExposure(streamer, streamSessionId, windowMinutes);
+            @Argument("windowMinutes") Integer windowMinutes,
+            @Argument("sessionId") String sessionId,
+            @Argument("from") Double from,
+            @Argument("to") Double to) {
+        return analyticsServiceClient.sponsorExposure(
+                streamer, streamSessionId, windowMinutes, AnalyticsRange.of(sessionId, from, to));
     }
 
     @QueryMapping
     public Mono<BrandSafetyMetrics> brandSafetyMetrics(
             @Argument("streamer") String streamer,
             @Argument("streamSessionId") String streamSessionId,
-            @Argument("windowMinutes") int windowMinutes) {
-        return analyticsServiceClient.risk(streamer, streamSessionId, windowMinutes);
+            @Argument("windowMinutes") Integer windowMinutes,
+            @Argument("sessionId") String sessionId,
+            @Argument("from") Double from,
+            @Argument("to") Double to) {
+        return analyticsServiceClient.risk(
+                streamer, streamSessionId, windowMinutes, AnalyticsRange.of(sessionId, from, to));
     }
 
     @QueryMapping

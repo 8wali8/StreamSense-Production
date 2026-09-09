@@ -212,6 +212,35 @@ public class SentimentService {
         return records.stream().map(SentimentRecordEntity::toEvent).toList();
     }
 
+    /** Sponsor-relevant chat lines in [from, to], oldest first, for a session report. */
+    @Transactional(readOnly = true)
+    public List<SentimentAnalysisEvent> getSponsorSentimentInRange(
+            String streamer, String sponsor, long from, long to, int limit) {
+        var pageable = PageRequest.of(0, limit);
+        var records = sponsor == null || sponsor.isBlank()
+                ? repository.findByStreamerAndSponsorRelevantTrueAndChatTimestampBetweenOrderByChatTimestampAsc(
+                        streamer, from, to, pageable)
+                : repository
+                        .findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseAndChatTimestampBetweenOrderByChatTimestampAsc(
+                                streamer, sponsor.trim(), from, to, pageable);
+        return records.stream().map(SentimentRecordEntity::toEvent).toList();
+    }
+
+    /** Sponsor-relevant voice lines in [from, to], oldest first, for a session report. */
+    @Transactional(readOnly = true)
+    public List<TranscriptSentimentEvent> getSponsorTranscriptSentimentInRange(
+            String streamer, String sponsor, long from, long to, int limit) {
+        var pageable = PageRequest.of(0, limit);
+        var records = sponsor == null || sponsor.isBlank()
+                ? transcriptSentimentRepository
+                        .findByStreamerAndSponsorRelevantTrueAndSegmentEndedAtBetweenOrderBySegmentEndedAtAsc(
+                                streamer, from, to, pageable)
+                : transcriptSentimentRepository
+                        .findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseAndSegmentEndedAtBetweenOrderBySegmentEndedAtAsc(
+                                streamer, sponsor.trim(), from, to, pageable);
+        return records.stream().map(TranscriptSentimentRecordEntity::toEvent).toList();
+    }
+
     @Transactional(readOnly = true)
     public List<TranscriptSentimentEvent> getRecentSponsorTranscriptSentiment(
             String streamer, String sponsor, int requestedLimit) {

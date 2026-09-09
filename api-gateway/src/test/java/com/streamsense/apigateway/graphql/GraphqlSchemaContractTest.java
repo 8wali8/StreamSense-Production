@@ -61,6 +61,8 @@ class GraphqlSchemaContractTest {
                         "brandSafetyMetrics",
                         "sessions",
                         "session",
+                        "sessionSummary",
+                        "sponsorMoments",
                         "recommendations");
     }
 

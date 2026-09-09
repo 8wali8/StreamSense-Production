@@ -1,5 +1,6 @@
 package com.streamsense.analyticsservice.persistence;
 
+import com.streamsense.analyticsservice.model.SponsorBucketExposure;
 import com.streamsense.analyticsservice.model.SponsorBucketMetric;
 import com.streamsense.analyticsservice.model.SponsorBucketTotals;
 import java.sql.ResultSet;
@@ -35,6 +36,7 @@ public class SponsorMetricBucketRepository {
             boolean accepted,
             boolean fallback,
             long exposureMs,
+            double area,
             long now) {
         String normalizedSponsor = normalizeSponsor(sponsor);
         ensureBucket(
@@ -57,6 +59,7 @@ public class SponsorMetricBucketRepository {
                     estimated_exposure_ms = estimated_exposure_ms + ?,
                     confidence_sum = confidence_sum + ?,
                     max_confidence = case when max_confidence is null or max_confidence < ? then ? else max_confidence end,
+                    area_sum = area_sum + ?,
                     updated_at = ?
                 where streamer = ? and session_key = ? and bucket_start = ? and bucket_size_seconds = ? and sponsor = ?
                 """,
@@ -67,6 +70,7 @@ public class SponsorMetricBucketRepository {
                 confidence,
                 confidence,
                 confidence,
+                accepted ? area : 0.0d,
                 now,
                 streamer,
                 sessionKey,
@@ -122,6 +126,43 @@ public class SponsorMetricBucketRepository {
                 """
                         + sessionClause + " group by bucket_start order by bucket_start asc",
                 this::mapTotals,
+                args);
+    }
+
+    /** One sponsor's exposure per bucket (case-insensitive sponsor match), oldest first. */
+    public List<SponsorBucketExposure> findExposureByBucket(
+            String streamer,
+            String sessionKey,
+            long windowStart,
+            long windowEnd,
+            int bucketSizeSeconds,
+            String sponsor) {
+        String sessionClause = sessionKey == null ? "" : " and session_key = ?";
+        String lowered = sponsor.trim().toLowerCase(java.util.Locale.ROOT);
+        Object[] args = sessionKey == null
+                ? new Object[] {streamer, bucketSizeSeconds, windowStart, windowEnd, lowered}
+                : new Object[] {streamer, bucketSizeSeconds, windowStart, windowEnd, lowered, sessionKey};
+        return jdbcTemplate.query(
+                """
+                select bucket_start,
+                       sum(detection_count) as detection_count,
+                       sum(accepted_detection_count) as accepted_detection_count,
+                       sum(estimated_exposure_ms) as estimated_exposure_ms,
+                       sum(area_sum) as area_sum
+                from sponsor_metric_buckets
+                where streamer = ?
+                  and bucket_size_seconds = ?
+                  and bucket_start >= ?
+                  and bucket_start < ?
+                  and lower(sponsor) = ?
+                """
+                        + sessionClause + " group by bucket_start order by bucket_start asc",
+                (rs, rowNum) -> new SponsorBucketExposure(
+                        rs.getLong("bucket_start"),
+                        rs.getLong("detection_count"),
+                        rs.getLong("accepted_detection_count"),
+                        rs.getLong("estimated_exposure_ms"),
+                        rs.getDouble("area_sum")),
                 args);
     }
 

@@ -122,6 +122,16 @@ public class VideoProcessingService {
         return event;
     }
 
+    /** Detections between two epoch-millis instants, oldest first, for a session report. Not cached. */
+    @Transactional(readOnly = true)
+    public List<SponsorDetectionEvent> getDetectionsInRange(String streamer, long from, long to, int limit) {
+        return repository
+                .findByStreamerAndCapturedAtBetweenOrderByCapturedAtAsc(streamer, from, to, PageRequest.of(0, limit))
+                .stream()
+                .map(SponsorDetectionEntity::toEvent)
+                .toList();
+    }
+
     private List<SponsorDetectionEvent> loadRecentDetectionsFromDatabase(String streamer, int limit) {
         return videoMetrics.recordHistoryLookup("recentSponsorDetections", "db", () -> {
             List<SponsorDetectionEvent> recent =

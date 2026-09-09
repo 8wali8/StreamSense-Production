@@ -44,9 +44,48 @@ export type ChatMetrics = {
   uniqueChatters: Scalars['Float']['output'];
 };
 
+export type ChatMoment = {
+  at: Scalars['Float']['output'];
+  averageScore: Scalars['Float']['output'];
+  count: Scalars['Int']['output'];
+  negativeShare: Scalars['Float']['output'];
+  offsetMs: Scalars['Float']['output'];
+  positiveShare: Scalars['Float']['output'];
+  sample?: Maybe<Scalars['String']['output']>;
+  user?: Maybe<Scalars['String']['output']>;
+};
+
+export type DirectResponse = {
+  chatCommand?: Maybe<Scalars['String']['output']>;
+  commandUsers: Scalars['Int']['output'];
+  commandUses: Scalars['Int']['output'];
+  linkPosts: Scalars['Int']['output'];
+  trackedLinkHost?: Maybe<Scalars['String']['output']>;
+};
+
 export type EngagementMetrics = {
   latestSpikeAt?: Maybe<Scalars['Float']['output']>;
   spikeCount: Scalars['Float']['output'];
+};
+
+export type ExposureSegment = {
+  detections: Scalars['Int']['output'];
+  durationMs: Scalars['Float']['output'];
+  endedAt: Scalars['Float']['output'];
+  offsetMs: Scalars['Float']['output'];
+  peakConfidence: Scalars['Float']['output'];
+  sponsor: Scalars['String']['output'];
+  startedAt: Scalars['Float']['output'];
+  videoTimestampMs?: Maybe<Scalars['Float']['output']>;
+};
+
+export type HighlightMoment = {
+  at: Scalars['Float']['output'];
+  detail: Scalars['String']['output'];
+  kind: Scalars['String']['output'];
+  offsetMs: Scalars['Float']['output'];
+  score: Scalars['Float']['output'];
+  title: Scalars['String']['output'];
 };
 
 export type Query = {
@@ -59,18 +98,23 @@ export type Query = {
   recentTranscriptSentiment: Array<TranscriptSentimentEvent>;
   recommendations: Array<Recommendation>;
   session?: Maybe<StreamSession>;
+  sessionSummary?: Maybe<SessionSummary>;
   sessions: Array<StreamSession>;
   sponsorDetections: Array<SponsorDetectionEvent>;
   sponsorExposureMetrics: Array<SponsorExposureMetric>;
+  sponsorMoments?: Maybe<SponsorMoments>;
   streamMetricsSummary: StreamMetricsSummary;
   streamMetricsTimeseries: Array<StreamMetricBucket>;
 };
 
 
 export type QueryBrandSafetyMetricsArgs = {
+  from?: InputMaybe<Scalars['Float']['input']>;
+  sessionId?: InputMaybe<Scalars['ID']['input']>;
   streamSessionId?: InputMaybe<Scalars['String']['input']>;
   streamer: Scalars['String']['input'];
-  windowMinutes: Scalars['Int']['input'];
+  to?: InputMaybe<Scalars['Float']['input']>;
+  windowMinutes?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -117,6 +161,16 @@ export type QuerySessionArgs = {
 };
 
 
+export type QuerySessionSummaryArgs = {
+  chatCommand?: InputMaybe<Scalars['String']['input']>;
+  cpmPer30sEquivalent?: InputMaybe<Scalars['Float']['input']>;
+  hostReadRatePer1000?: InputMaybe<Scalars['Float']['input']>;
+  sessionId: Scalars['ID']['input'];
+  sponsor?: InputMaybe<Scalars['String']['input']>;
+  trackedLinkHost?: InputMaybe<Scalars['String']['input']>;
+};
+
+
 export type QuerySessionsArgs = {
   from?: InputMaybe<Scalars['Float']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -132,24 +186,39 @@ export type QuerySponsorDetectionsArgs = {
 
 
 export type QuerySponsorExposureMetricsArgs = {
+  from?: InputMaybe<Scalars['Float']['input']>;
+  sessionId?: InputMaybe<Scalars['ID']['input']>;
   streamSessionId?: InputMaybe<Scalars['String']['input']>;
   streamer: Scalars['String']['input'];
-  windowMinutes: Scalars['Int']['input'];
+  to?: InputMaybe<Scalars['Float']['input']>;
+  windowMinutes?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QuerySponsorMomentsArgs = {
+  sessionId: Scalars['ID']['input'];
+  sponsor?: InputMaybe<Scalars['String']['input']>;
 };
 
 
 export type QueryStreamMetricsSummaryArgs = {
+  from?: InputMaybe<Scalars['Float']['input']>;
+  sessionId?: InputMaybe<Scalars['ID']['input']>;
   streamSessionId?: InputMaybe<Scalars['String']['input']>;
   streamer: Scalars['String']['input'];
-  windowMinutes: Scalars['Int']['input'];
+  to?: InputMaybe<Scalars['Float']['input']>;
+  windowMinutes?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
 export type QueryStreamMetricsTimeseriesArgs = {
   bucketSeconds: Scalars['Int']['input'];
+  from?: InputMaybe<Scalars['Float']['input']>;
+  sessionId?: InputMaybe<Scalars['ID']['input']>;
   streamSessionId?: InputMaybe<Scalars['String']['input']>;
   streamer: Scalars['String']['input'];
-  windowMinutes: Scalars['Int']['input'];
+  to?: InputMaybe<Scalars['Float']['input']>;
+  windowMinutes?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type Recommendation = {
@@ -169,6 +238,13 @@ export type RiskFactor = {
   name: Scalars['String']['output'];
   value: Scalars['Float']['output'];
   weight: Scalars['Float']['output'];
+};
+
+export type RiskSpike = {
+  at: Scalars['Float']['output'];
+  chatMessageCount: Scalars['Float']['output'];
+  chatNegativeRatio?: Maybe<Scalars['Float']['output']>;
+  offsetMs: Scalars['Float']['output'];
 };
 
 export type SentimentAnalysisEvent = {
@@ -200,6 +276,39 @@ export type SentimentMetricSummary = {
   negativeRatio?: Maybe<Scalars['Float']['output']>;
   neutral: Scalars['Float']['output'];
   positive: Scalars['Float']['output'];
+};
+
+export type SessionSummary = {
+  averageViewers?: Maybe<Scalars['Float']['output']>;
+  chat: ChatMetrics;
+  chatMentions: Scalars['Int']['output'];
+  chatSentiment: SentimentMetricSummary;
+  engagement: EngagementMetrics;
+  mentionNegativeShare?: Maybe<Scalars['Float']['output']>;
+  mentionPositiveShare?: Maybe<Scalars['Float']['output']>;
+  mentionSentiment?: Maybe<Scalars['Float']['output']>;
+  mentions: Scalars['Int']['output'];
+  onScreenMs: Scalars['Float']['output'];
+  onScreenShare?: Maybe<Scalars['Float']['output']>;
+  peakViewers?: Maybe<Scalars['Int']['output']>;
+  response: DirectResponse;
+  risk: BrandSafetyMetrics;
+  session: StreamSession;
+  sponsor?: Maybe<Scalars['String']['output']>;
+  transcriptSentiment: SentimentMetricSummary;
+  value: SessionValue;
+  voiceMentions: Scalars['Int']['output'];
+};
+
+export type SessionValue = {
+  averageProminence?: Maybe<Scalars['Float']['output']>;
+  basis: Scalars['String']['output'];
+  cpmPer30sEquivalent: Scalars['Float']['output'];
+  hostReadRatePer1000: Scalars['Float']['output'];
+  hostReadValue?: Maybe<Scalars['Float']['output']>;
+  logoValue?: Maybe<Scalars['Float']['output']>;
+  mediaValue?: Maybe<Scalars['Float']['output']>;
+  weightedLogoViewerMinutes?: Maybe<Scalars['Float']['output']>;
 };
 
 export type SponsorDetectionEvent = {
@@ -240,6 +349,17 @@ export type SponsorExposureSummary = {
   estimatedExposureMs: Scalars['Float']['output'];
   topSponsors: Array<SponsorExposureMetric>;
   totalDetections: Scalars['Float']['output'];
+};
+
+export type SponsorMoments = {
+  best?: Maybe<HighlightMoment>;
+  chatMoments: Array<ChatMoment>;
+  riskSpikes: Array<RiskSpike>;
+  segments: Array<ExposureSegment>;
+  session: StreamSession;
+  sponsor?: Maybe<Scalars['String']['output']>;
+  voiceMentions: Array<VoiceMention>;
+  weakest?: Maybe<HighlightMoment>;
 };
 
 export type StreamMetricBucket = {
@@ -376,6 +496,15 @@ export type TranscriptSentimentEvent = {
   text: Scalars['String']['output'];
   transcriptModelVersion: Scalars['String']['output'];
   transcriptSequence: Scalars['Float']['output'];
+};
+
+export type VoiceMention = {
+  at: Scalars['Float']['output'];
+  label: Scalars['String']['output'];
+  offsetMs: Scalars['Float']['output'];
+  score: Scalars['Float']['output'];
+  sentimentEventId: Scalars['ID']['output'];
+  text: Scalars['String']['output'];
 };
 
 export type HealthQueryVariables = Exact<{ [key: string]: never; }>;

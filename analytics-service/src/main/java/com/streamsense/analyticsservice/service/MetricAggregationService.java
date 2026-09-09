@@ -6,8 +6,10 @@ import com.streamsense.analyticsservice.events.SentimentAnalysisEvent;
 import com.streamsense.analyticsservice.events.SponsorDetectionEvent;
 import com.streamsense.analyticsservice.events.TranscriptSentimentEvent;
 import com.streamsense.analyticsservice.metrics.AnalyticsMetrics;
+import com.streamsense.analyticsservice.persistence.ChatResponseRepository;
 import com.streamsense.analyticsservice.persistence.MetricBucketRepository;
 import com.streamsense.analyticsservice.persistence.ProcessedEventRepository;
+import com.streamsense.analyticsservice.persistence.SponsorMentionRepository;
 import com.streamsense.analyticsservice.persistence.SponsorMetricBucketRepository;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,8 @@ public class MetricAggregationService {
     private final SponsorMetricBucketRepository sponsorBuckets;
     private final AnalyticsMetrics metrics;
     private final StreamSessionService sessions;
+    private final SponsorMentionRepository mentions;
+    private final ChatResponseRepository responses;
     private final Clock clock;
 
     @Autowired
@@ -32,8 +36,19 @@ public class MetricAggregationService {
             MetricBucketRepository metricBuckets,
             SponsorMetricBucketRepository sponsorBuckets,
             AnalyticsMetrics metrics,
-            StreamSessionService sessions) {
-        this(properties, processedEvents, metricBuckets, sponsorBuckets, metrics, sessions, Clock.systemUTC());
+            StreamSessionService sessions,
+            SponsorMentionRepository mentions,
+            ChatResponseRepository responses) {
+        this(
+                properties,
+                processedEvents,
+                metricBuckets,
+                sponsorBuckets,
+                metrics,
+                sessions,
+                mentions,
+                responses,
+                Clock.systemUTC());
     }
 
     MetricAggregationService(
@@ -43,6 +58,8 @@ public class MetricAggregationService {
             SponsorMetricBucketRepository sponsorBuckets,
             AnalyticsMetrics metrics,
             StreamSessionService sessions,
+            SponsorMentionRepository mentions,
+            ChatResponseRepository responses,
             Clock clock) {
         this.properties = properties;
         this.processedEvents = processedEvents;
@@ -50,6 +67,8 @@ public class MetricAggregationService {
         this.sponsorBuckets = sponsorBuckets;
         this.metrics = metrics;
         this.sessions = sessions;
+        this.mentions = mentions;
+        this.responses = responses;
         this.clock = clock;
     }
 
@@ -78,6 +97,8 @@ public class MetricAggregationService {
         metricBuckets.insertChatter(
                 streamer, sessionKey, bucketStart, bucketSizeSeconds(), event.getUser(), event.getTimestamp());
         recomputeSpikeFlags(streamer, sessionKey, bucketStart, now);
+        recordChatSignals(
+                streamer, sessionKey, bucketStart, event.getMessage(), event.getUser(), event.getTimestamp(), now);
         metrics.bucketUpdated("chat");
         sessions.recordActivity(
                 streamer,
@@ -120,6 +141,16 @@ public class MetricAggregationService {
                 event.getScore(),
                 now);
         recomputeSpikeFlags(streamer, sessionKey, bucketStart, now);
+        recordMention(
+                streamer,
+                sessionKey,
+                bucketStart,
+                SponsorMentionRepository.CHANNEL_CHAT,
+                event.getSponsorRelevant(),
+                event.getMatchedSponsor(),
+                event.getLabel(),
+                event.getScore(),
+                now);
         metrics.bucketUpdated("chat_sentiment");
         sessions.recordActivity(
                 streamer,
@@ -156,6 +187,16 @@ public class MetricAggregationService {
                 sessionKey,
                 bucketStart,
                 bucketSizeSeconds(),
+                event.getLabel(),
+                event.getScore(),
+                now);
+        recordMention(
+                streamer,
+                sessionKey,
+                bucketStart,
+                SponsorMentionRepository.CHANNEL_VOICE,
+                event.getSponsorRelevant(),
+                event.getMatchedSponsor(),
                 event.getLabel(),
                 event.getScore(),
                 now);
@@ -200,6 +241,7 @@ public class MetricAggregationService {
                 accepted,
                 fallback,
                 properties.getAnalytics().getEstimatedSponsorExposureMsPerDetection(),
+                boxArea(event),
                 now);
         metrics.bucketUpdated("sponsor");
         sessions.recordActivity(
@@ -250,6 +292,44 @@ public class MetricAggregationService {
     private long bucketStart(long timestamp) {
         long bucketMs = bucketSizeSeconds() * 1000L;
         return Math.floorDiv(timestamp, bucketMs) * bucketMs;
+    }
+
+    private void recordChatSignals(
+            String streamer, String sessionKey, long bucketStart, String message, String user, long at, long now) {
+        String command = ChatSignals.command(message);
+        if (command != null) {
+            responses.incrementCommand(streamer, sessionKey, bucketStart, bucketSizeSeconds(), command, user, at, now);
+        }
+        for (String host : ChatSignals.linkHosts(message)) {
+            responses.incrementLink(streamer, sessionKey, bucketStart, bucketSizeSeconds(), host, now);
+        }
+    }
+
+    private void recordMention(
+            String streamer,
+            String sessionKey,
+            long bucketStart,
+            String channel,
+            Boolean sponsorRelevant,
+            String matchedSponsor,
+            String label,
+            double score,
+            long now) {
+        if (!Boolean.TRUE.equals(sponsorRelevant) || clean(matchedSponsor) == null) {
+            return;
+        }
+        mentions.increment(
+                streamer, sessionKey, bucketStart, bucketSizeSeconds(), matchedSponsor, channel, label, score, now);
+    }
+
+    /** Fraction of the frame the detection box covers, 0 when the event carried no box. */
+    private double boxArea(SponsorDetectionEvent event) {
+        if (event.getWidth() == null || event.getHeight() == null) {
+            return 0.0d;
+        }
+        double width = Math.max(0.0d, Math.min(1.0d, event.getWidth()));
+        double height = Math.max(0.0d, Math.min(1.0d, event.getHeight()));
+        return width * height;
     }
 
     private int bucketSizeSeconds() {
