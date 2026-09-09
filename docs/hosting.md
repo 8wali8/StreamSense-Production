@@ -10,6 +10,8 @@ Cost while running is about $0.27 per hour for the VM plus a few dollars a month
 
 ## One-time setup
 
+On GitHub, once: the eleven packages under `ghcr.io/8wali8/streamsense/` are private after their first publish, and the VM pulls them anonymously. For each package open its page from your profile's Packages tab, then Package settings, Change visibility, Public. Until this is done the deploy stops at the image pull with `denied`. (The alternative, a `docker login ghcr.io` on the VM with a read-only token, is not scripted.)
+
 On your machine:
 
 1. A GCP project with billing enabled. Note its id.
@@ -17,14 +19,15 @@ On your machine:
 3. Log in, twice: `gcloud auth login` for the CLI, `gcloud auth application-default login` for Terraform.
 4. In `terraform/`: copy `terraform.tfvars.example` to `terraform.tfvars`; set `project_id` and your public address as a `/32` in `allowed_ssh_cidrs` (`curl -4 ifconfig.me`). Leave `allowed_http_cidrs` alone to let anyone with the address and a token open the console, or list your viewers' addresses.
 5. `terraform init`, `terraform plan` (ten resources), `terraform apply`. The first apply also enables the Compute Engine API, which can take a minute.
-6. `terraform output`: the address, the console URL, and the `gcloud` commands to SSH, stop, and start. The VM's first boot installs Docker and clones the repository; give it two or three minutes.
+6. `terraform output`: the address, the console URL, and the `gcloud` commands to SSH, stop, and start. The VM's first boot installs Docker, clones the repository, and links the deploy script as `streamsense-deploy`; give it two or three minutes.
 
-Then the Twitch settings, once:
+Then the Twitch settings, once. The file holds OAuth tokens, so it is created readable by you alone, copied to a staging path only root can read once installed, and the staging copy is removed:
 
 ```bash
-cp tools/deploy/twitch.env.example twitch.env     # fill in the credentials and channels; never commit it
+(umask 077 && cp tools/deploy/twitch.env.example twitch.env)   # fill in the credentials and channels; never commit it
 gcloud compute scp twitch.env streamsense-demo:/tmp/twitch.env --zone us-central1-a
-gcloud compute ssh streamsense-demo --zone us-central1-a -- sudo install -m 0600 /tmp/twitch.env /etc/streamsense/twitch.env
+gcloud compute ssh streamsense-demo --zone us-central1-a -- \
+  'sudo install -m 0600 -o root -g root /tmp/twitch.env /etc/streamsense/twitch.env && rm -f /tmp/twitch.env'
 rm twitch.env
 ```
 
@@ -33,18 +36,20 @@ rm twitch.env
 On the VM (`terraform output ssh_command` prints the exact command):
 
 ```bash
-sudo /opt/streamsense/tools/deploy/deploy.sh
+sudo streamsense-deploy
 ```
 
-The script pulls the repository, refreshes the local secret files (`make secrets`, random values kept between runs), pulls the images at `STREAMSENSE_IMAGE_TAG` (default `main`), starts the stack with the overlay, and waits for every container to report healthy. The first run pulls about 4 GB of images and, once the services are up, ml-engine downloads its models on the first request for each backend (2 to 3 GB in total), so allow ten minutes before the console is fully useful. Later runs are a minute or two.
+`streamsense-deploy` is `/opt/streamsense/tools/deploy/deploy.sh`, linked into `/usr/local/bin` by the startup script.
+
+The script checks out the commit it will run (see Updating), refreshes the local secret files (`make secrets`, random values kept between runs), pulls the images at that tag, starts the stack with the overlay, and waits for every container the two Compose files define to report healthy. The first run pulls about 4 GB of images and, once the services are up, ml-engine downloads its models on the first request for each backend (2 to 3 GB in total), so allow ten minutes before the console is fully useful. Later runs are a minute or two.
 
 It then verifies through port 80 that the console answers, that the gateway refuses a call without a token, that it accepts one with a token, and that nothing but ports 22 and 80 listens on a public interface; and prints the URL and a 30-day token with the instruction for viewers.
 
-`sudo deploy.sh verify` repeats the checks; `sudo deploy.sh status` is `docker compose ps`; `sudo deploy.sh token` mints another token (`--ttl-seconds` to change the lifetime).
+`sudo streamsense-deploy verify` repeats the checks; `sudo streamsense-deploy status` is `docker compose ps`; `sudo streamsense-deploy token` mints another token (`--ttl-seconds` to change the lifetime).
 
 ## Sharing the console
 
-Send a viewer the URL and the token. The console reads its bearer token from browser local storage and has no entry field yet, so the viewer opens the URL once, opens the browser's developer tools console, and runs the line `deploy.sh` printed:
+Send a viewer the URL and the token. The console reads its bearer token from browser local storage and has no entry field yet, so the viewer opens the URL once, opens the browser's developer tools console, and runs the line `streamsense-deploy` printed:
 
 ```js
 localStorage.setItem("streamsense.authToken", "<token>"); location.reload();
@@ -61,16 +66,18 @@ gcloud compute instances stop streamsense-demo --zone us-central1-a
 gcloud compute instances start streamsense-demo --zone us-central1-a
 ```
 
-Every container has `restart: unless-stopped`, so a started VM brings the stack back on its own in a few minutes; `sudo deploy.sh verify` confirms it. Do not `terraform destroy` between demos: that removes the disk and the next apply starts from an empty stack with a cold model cache.
+Every container has `restart: unless-stopped`, so a started VM brings the stack back on its own in a few minutes; `sudo streamsense-deploy verify` confirms it. Do not `terraform destroy` between demos: that removes the disk and the next apply starts from an empty stack with a cold model cache.
 
 ## Updating
 
-Every merge to `main` publishes new images tagged with the commit SHA and moves the `main` tag. On the VM:
+Every merge to `main` publishes new images tagged with the commit SHA and, once all eleven have pushed, moves the `main` tags to them as one set. On the VM:
 
 ```bash
-sudo /opt/streamsense/tools/deploy/deploy.sh                       # latest main
-sudo STREAMSENSE_IMAGE_TAG=<sha> STREAMSENSE_REPO_REF=<sha> /opt/streamsense/tools/deploy/deploy.sh   # a specific commit
+sudo streamsense-deploy                                # latest main
+sudo STREAMSENSE_IMAGE_TAG=<sha> streamsense-deploy    # a specific commit, for example to roll back
 ```
+
+The tag decides the checkout too: the script checks out the same ref before starting, because the config-server serves `config-server/config-repo` from the checkout and that must be the config the images were built with. `STREAMSENSE_REPO_REF` overrides the ref when they must differ. A `STREAMSENSE_IMAGE_TAG=` line in `/etc/streamsense/twitch.env` pins the tag between runs; a value in the shell wins over it.
 
 Compose recreates only the containers whose image or configuration changed. Kafka, Postgres, and MinIO keep their volumes.
 
@@ -95,7 +102,7 @@ sudo docker compose --env-file /etc/streamsense/twitch.env -f docker-compose.yml
 sudo journalctl -u google-startup-scripts --no-pager | tail -50    # first-boot provisioning
 ```
 
-- **A container never turns healthy.** `deploy.sh` prints its last log lines on timeout. The usual causes are a service waiting on another (the gateway waits for everything) and, on the first run, ml-engine still downloading a model.
+- **A container never turns healthy.** `streamsense-deploy` prints its last log lines on timeout; a service listed as `missing` has no container at all (`docker compose ps --all`). The usual causes are a service waiting on another (the gateway waits for everything) and, on the first run, ml-engine still downloading a model.
 - **Video capture reports no frames.** Twitch sometimes refuses stream playlists to cloud address ranges. Check the capture log for a 403 or "content restricted" from streamlink. If so, the demo falls back to the VOD replay alias (`docs/replay-runbook.md`) and live capture stays on a home connection; there is no fix on the VM side.
 - **Out of memory.** `docker stats` shows each container against its limit from `docker-compose.prod.yml`. Raise a limit there in a branch rather than on the VM, so the change survives the next deploy.
 - **Out of disk.** `docker system df`; `docker image prune` removes superseded images. Model caches and data live in named volumes and are not pruned.

@@ -2,22 +2,23 @@
 # Deploys, verifies, and operates the hosted demo on the VM that terraform/ creates. Runs as root
 # (sudo) on the VM; docs/hosting.md is the runbook around it.
 #
-#   deploy.sh [deploy]   pull the repository, refresh secrets, pull the images, start the stack, verify
-#   deploy.sh verify     health of every container, then the console and the gateway through port 80
-#   deploy.sh token      print a bearer token for the console (TTL from --ttl-seconds, default 30 days)
-#   deploy.sh status     docker compose ps
+# The startup script links it as /usr/local/bin/streamsense-deploy.
+#
+#   streamsense-deploy [deploy]   pull the repository, refresh secrets, pull the images, start the stack, verify
+#   streamsense-deploy verify     health of every container, then the console and the gateway through port 80
+#   streamsense-deploy token      print a bearer token for the console (TTL from --ttl-seconds, default 30 days)
+#   streamsense-deploy status     docker compose ps
 #
 # Environment (all optional):
-#   STREAMSENSE_DIR        checkout to deploy from            (default /opt/streamsense)
-#   STREAMSENSE_ENV_FILE   Twitch settings, --env-file       (default /etc/streamsense/twitch.env)
-#   STREAMSENSE_REPO_REF   branch or tag to check out        (default main)
-#   STREAMSENSE_IMAGE_TAG  image tag to run: "main" or a SHA (default main)
+#   STREAMSENSE_DIR        checkout to deploy from                     (default /opt/streamsense)
+#   STREAMSENSE_ENV_FILE   Twitch settings, passed as --env-file      (default /etc/streamsense/twitch.env)
+#   STREAMSENSE_IMAGE_TAG  image tag to run: "main" or a commit SHA   (default: the env file's value, else main)
+#   STREAMSENSE_REPO_REF   git ref to check out                       (default: the image tag, so the
+#                          config-repo the config-server serves matches the images that read it)
 set -euo pipefail
 
 STREAMSENSE_DIR="${STREAMSENSE_DIR:-/opt/streamsense}"
 STREAMSENSE_ENV_FILE="${STREAMSENSE_ENV_FILE:-/etc/streamsense/twitch.env}"
-STREAMSENSE_REPO_REF="${STREAMSENSE_REPO_REF:-main}"
-export STREAMSENSE_IMAGE_TAG="${STREAMSENSE_IMAGE_TAG:-main}"
 HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-900}"
 
 log() { printf '\n== %s\n' "$*"; }
@@ -39,6 +40,17 @@ require_env_file() {
   chmod 0600 "$STREAMSENSE_ENV_FILE"
 }
 
+# Which images to run and which commit to check out. Compose gives the shell precedence over
+# --env-file, so the tag is exported only after the env file has had its say; the ref follows
+# the tag unless set explicitly, so config-server serves the config-repo of the commit the
+# images were built from (the base file bind-mounts it from the checkout).
+resolve_versions() {
+  local from_file
+  from_file="$(grep -E '^STREAMSENSE_IMAGE_TAG=' "$STREAMSENSE_ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '[:space:]"' || true)"
+  export STREAMSENSE_IMAGE_TAG="${STREAMSENSE_IMAGE_TAG:-${from_file:-main}}"
+  STREAMSENSE_REPO_REF="${STREAMSENSE_REPO_REF:-$STREAMSENSE_IMAGE_TAG}"
+}
+
 external_ip() {
   # GCE metadata server; falls back to the first address when not on GCE.
   curl -fsS -m 2 -H 'Metadata-Flavor: Google' \
@@ -52,7 +64,9 @@ hmac_secret() {
 
 mint_token() {
   local ttl="${1:-2592000}"
-  python3 "$STREAMSENSE_DIR/tools/mint-jwt.py" --secret "$(hmac_secret)" --subject demo-viewer --ttl-seconds "$ttl"
+  # The signing secret goes through the environment, never the command line (visible in /proc).
+  STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET="$(hmac_secret)" \
+    python3 "$STREAMSENSE_DIR/tools/mint-jwt.py" --subject demo-viewer --ttl-seconds "$ttl"
 }
 
 update_checkout() {
@@ -69,12 +83,16 @@ update_checkout() {
 wait_for_health() {
   log "Waiting up to ${HEALTH_TIMEOUT_SECONDS}s for every container to be healthy"
   local deadline=$(( $(date +%s) + HEALTH_TIMEOUT_SECONDS ))
-  local pending
+  local expected pending
+  # Every service the two files define must have a container; a missing one is not healthy.
+  expected="$(compose config --services | sort | tr '\n' ' ')"
   while :; do
     # One JSON object per line. A service with a healthcheck must report healthy; one without must
-    # be running; the topics init job must have exited 0.
-    pending="$(compose ps --all --format json | python3 -c '
-import json, sys
+    # be running; the topics init job must have exited 0; a service with no row is missing.
+    pending="$(compose ps --all --format json | EXPECTED="$expected" python3 -c '
+import json, os, sys
+expected = set(os.environ["EXPECTED"].split())
+seen = set()
 pending = []
 for line in sys.stdin:
     line = line.strip()
@@ -82,6 +100,7 @@ for line in sys.stdin:
         continue
     c = json.loads(line)
     service, state, health, code = c["Service"], c["State"], c.get("Health", ""), c.get("ExitCode", 0)
+    seen.add(service)
     if service == "kafka-topics-init":
         ok = state == "exited" and code == 0
     elif health:
@@ -91,6 +110,8 @@ for line in sys.stdin:
     if not ok:
         suffix = (":" + health) if health else ""
         pending.append(f"{service}({state}{suffix})")
+for service in sorted(expected - seen):
+    pending.append(f"{service}(missing)")
 print(" ".join(pending))
 ')"
     if [ -z "$pending" ]; then
@@ -101,6 +122,7 @@ print(" ".join(pending))
       echo "still not healthy: $pending" >&2
       compose ps
       for s in $pending; do
+        case "$s" in *"(missing)") continue ;; esac
         echo "--- last log lines of ${s%%(*}" >&2
         compose logs --no-color --tail 30 "${s%%(*}" >&2 || true
       done
@@ -165,13 +187,14 @@ console on http://$ip/ once and run:
 
   localStorage.setItem("streamsense.authToken", "$token"); location.reload();
 
-The token is valid for 30 days; run "deploy.sh token" for a new one.
+The token is valid for 30 days; run "streamsense-deploy token" for a new one.
 MSG
 }
 
 cmd_deploy() {
   require_root
   require_env_file
+  resolve_versions
   update_checkout
   cd "$STREAMSENSE_DIR"
   log "Refreshing local secrets (existing files are kept)"
@@ -188,6 +211,7 @@ cmd_deploy() {
 cmd_verify() {
   require_root
   require_env_file
+  resolve_versions
   cd "$STREAMSENSE_DIR"
   wait_for_health
   verify_edge
@@ -208,6 +232,7 @@ cmd_token() {
 cmd_status() {
   require_root
   require_env_file
+  resolve_versions
   cd "$STREAMSENSE_DIR"
   compose ps
 }
@@ -217,6 +242,6 @@ case "${1:-deploy}" in
   verify) cmd_verify ;;
   token) shift; cmd_token "$@" ;;
   status) cmd_status ;;
-  -h|--help|help) sed -n '2,17p' "$0" ;;
+  -h|--help|help) sed -n '2,19p' "$0" ;;
   *) die "unknown command ${1}; try deploy, verify, token, status" ;;
 esac
