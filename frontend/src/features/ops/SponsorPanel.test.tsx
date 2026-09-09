@@ -9,7 +9,7 @@ describe("SponsorPanel", () => {
   it("renders the loading state", () => {
     server.use(graphqlPending("SponsorDetections"));
 
-    renderWithApollo(<SponsorPanel />);
+    renderWithApollo(<SponsorPanel streamer="test" />);
 
     expect(screen.getByText("Loading sponsor history...")).toBeInTheDocument();
   });
@@ -17,7 +17,7 @@ describe("SponsorPanel", () => {
   it("renders history results", async () => {
     server.use(graphqlData("SponsorDetections", { sponsorDetections: [sponsorDetection()] }));
 
-    renderWithApollo(<SponsorPanel />);
+    renderWithApollo(<SponsorPanel streamer="test" />);
 
     expect(await screen.findByText("frames/test.png")).toBeInTheDocument();
     expect(screen.getAllByText("Nike").length).toBeGreaterThan(0);
@@ -28,7 +28,7 @@ describe("SponsorPanel", () => {
   it("renders the empty state", async () => {
     server.use(graphqlData("SponsorDetections", { sponsorDetections: [] }));
 
-    renderWithApollo(<SponsorPanel />);
+    renderWithApollo(<SponsorPanel streamer="test" />);
 
     expect(await screen.findByText("No sponsor detections yet.")).toBeInTheDocument();
   });
@@ -36,7 +36,7 @@ describe("SponsorPanel", () => {
   it("renders GraphQL errors", async () => {
     server.use(graphqlError("SponsorDetections", "video service unavailable"));
 
-    renderWithApollo(<SponsorPanel />);
+    renderWithApollo(<SponsorPanel streamer="test" />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load sponsor history");
   });
@@ -44,7 +44,7 @@ describe("SponsorPanel", () => {
   it("renders a live subscription event and counts fallbacks", async () => {
     server.use(graphqlData("SponsorDetections", { sponsorDetections: [] }));
 
-    const apollo = renderWithApollo(<SponsorPanel />);
+    const apollo = renderWithApollo(<SponsorPanel streamer="test" />);
     expect(await screen.findByText("No sponsor detections yet.")).toBeInTheDocument();
 
     act(() => {

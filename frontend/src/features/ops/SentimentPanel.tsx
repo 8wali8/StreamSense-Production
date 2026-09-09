@@ -1,5 +1,4 @@
 import { describeError } from "../../lib/errors";
-import { useState } from "react";
 import type {
   OnSentimentSubscription,
   RecentSentimentQuery,
@@ -8,21 +7,13 @@ import type {
 import { RECENT_SENTIMENT_QUERY } from "../../graphql/queries";
 import { ON_SENTIMENT_SUBSCRIPTION } from "../../graphql/subscriptions";
 import { useLiveFeed } from "../../hooks/useLiveFeed";
-import { formatTime, sentimentColor, sentimentLabelClass } from "../../lib/format";
+import { formatTime, sentimentLabelClass } from "../../lib/format";
 import { MetricCard } from "../../components/MetricCard";
 
 type SentimentAnalysisEvent = RecentSentimentQuery["recentSentiment"][number];
 
-type SentimentPanelProps = {
-  streamer?: string;
-  hideControls?: boolean;
-};
-
-export function SentimentPanel({ streamer, hideControls = false }: SentimentPanelProps) {
-  const [streamerInput, setStreamerInput] = useState("test");
-  const [localStreamer, setLocalStreamer] = useState("test");
-  const activeStreamer = streamer ?? localStreamer;
-
+/** Raw chat sentiment events with every diagnostic field, for checking what the pipeline produced. */
+export function SentimentPanel({ streamer }: { streamer: string }) {
   const feed = useLiveFeed<
     RecentSentimentQuery,
     OnSentimentSubscription,
@@ -30,25 +21,17 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
     SentimentAnalysisEvent
   >({
     query: RECENT_SENTIMENT_QUERY,
-    variables: { streamer: activeStreamer, limit: 20 },
-    skip: !activeStreamer,
+    variables: { streamer, limit: 20 },
+    skip: !streamer,
     selectHistory: (data) => data.recentSentiment,
     subscription: ON_SENTIMENT_SUBSCRIPTION,
-    subscriptionVariables: { streamer: activeStreamer },
+    subscriptionVariables: { streamer },
     selectEvent: (data) => data.onSentiment,
     getId: (event) => event.sentimentEventId,
     limit: 50,
-    resetKey: activeStreamer,
+    resetKey: streamer,
   });
   const { items: events, loading, error, subscriptionError } = feed;
-
-  function onLoad() {
-    const nextStreamer = streamerInput.trim();
-    if (!nextStreamer) {
-      return;
-    }
-    setLocalStreamer(nextStreamer);
-  }
 
   const counts = events.reduce(
     (acc, event) => {
@@ -63,38 +46,19 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
   const averageScore = events.length === 0 ? 0 : events.reduce((sum, event) => sum + event.score, 0) / events.length;
 
   return (
-    <section className="dashboard-panel">
+    <section className="panel ops-section">
       <div className="panel-title-row panel-heading">
         <div>
-          <div className="eyebrow">Audience intelligence</div>
-          <h2>Sentiment</h2>
-          <p>Recent history plus live sentiment updates for @{activeStreamer}.</p>
+          <div className="eyebrow">Raw events</div>
+          <h2>Chat sentiment</h2>
+          <p>Recent history plus live sentiment updates for @{streamer}.</p>
         </div>
         <span className="status-pill">{events.length} signals</span>
       </div>
 
-      {!hideControls && (
-        <div className="panel-actions">
-          <label>
-            <span className="field-label">Streamer</span>
-            <input
-              className="text-input"
-              value={streamerInput}
-              onChange={(event) => setStreamerInput(event.target.value)}
-            />
-          </label>
-
-          <button className="button-primary" onClick={onLoad}>
-            Load sentiment
-          </button>
-        </div>
-      )}
-
       <div className="status-line">
         Status:{" "}
-        {subscriptionError
-          ? `subscription error (${describeError(subscriptionError)})`
-          : `live (streamer=${activeStreamer})`}
+        {subscriptionError ? `subscription error (${describeError(subscriptionError)})` : `live (streamer=${streamer})`}
       </div>
 
       <div className="metric-grid">
@@ -121,12 +85,7 @@ export function SentimentPanel({ streamer, hideControls = false }: SentimentPane
               <div className="event-meta">
                 [{formatTime(event.chatTimestamp)}] {event.streamer} • source={event.sourceEventId}
               </div>
-              <span
-                className={`sentiment-label ${sentimentLabelClass(event.label)}`}
-                style={{ color: sentimentColor(event.label) }}
-              >
-                {event.label}
-              </span>
+              <span className={`sentiment-label ${sentimentLabelClass(event.label)}`}>{event.label}</span>
             </div>
 
             <strong>{event.user}</strong>

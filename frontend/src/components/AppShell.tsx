@@ -1,0 +1,53 @@
+import { NavLink, Outlet } from "react-router";
+import { useStreamer } from "../features/streamer/streamer-context";
+
+function navClass({ isActive }: { isActive: boolean }): string {
+  return isActive ? "nav-item nav-item-active" : "nav-item";
+}
+
+/** Left navigation plus the routed page. The operations link sits at the bottom, away from customer pages. */
+export function AppShell() {
+  const { selectedStreamer } = useStreamer();
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar" aria-label="Primary navigation">
+        <div className="brand-lockup">
+          <div className="brand-mark">SS</div>
+          <div>
+            <div className="brand-name">StreamSense</div>
+            <div className="brand-kicker">Sponsorship proof</div>
+          </div>
+        </div>
+
+        <nav className="nav-stack">
+          <NavLink className={navClass} to="/" end>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 11l9-8 9 8" />
+              <path d="M5 10v10h14V10" />
+            </svg>
+            Home
+          </NavLink>
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="signed-in">
+            <span className="eyebrow">Channel</span>
+            <strong>@{selectedStreamer}</strong>
+          </div>
+          <NavLink className={navClass} to="/ops">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
+            </svg>
+            Operations
+          </NavLink>
+        </div>
+      </aside>
+
+      <main className="main-stage">
+        <Outlet />
+      </main>
+    </div>
+  );
+}

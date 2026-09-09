@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeStreamerHandle, sponsorProfileFromInput, twitchPlayerUrl } from "./streamer";
+import { normalizeStreamerHandle, splitTerms, sponsorProfileFromInput, twitchPlayerUrl } from "./streamer";
 
 describe("streamer helpers", () => {
   it("normalises handles the way chat-service expects them", () => {
@@ -8,14 +8,18 @@ describe("streamer helpers", () => {
   });
 
   it("splits a sponsor input into the sponsor and its semantic terms", () => {
-    expect(sponsorProfileFromInput("@Test", "Red Bull, redbull, energy drink", "Launch")).toEqual({
+    expect(sponsorProfileFromInput("@Test", "Red Bull, redbull, energy drink")).toEqual({
       streamer: "test",
       sponsor: "Red Bull",
       aliases: [],
       semanticTerms: ["redbull", "energy drink"],
-      campaignGoal: "Launch",
     });
-    expect(sponsorProfileFromInput("test", "   ", "").sponsor).toBe("");
+    expect(sponsorProfileFromInput("test", "   ").sponsor).toBe("");
+  });
+
+  it("splits comma-separated terms and drops blanks", () => {
+    expect(splitTerms(" red bull, ,rb ,")).toEqual(["red bull", "rb"]);
+    expect(splitTerms("")).toEqual([]);
   });
 
   it("embeds the VOD for replay aliases and the live channel otherwise", () => {

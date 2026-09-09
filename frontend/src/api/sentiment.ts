@@ -12,13 +12,17 @@ export async function getRecentTranscriptSegments(streamer: string, limit: numbe
   return Array.isArray(segments) ? (segments as TranscriptSegment[]) : [];
 }
 
-/** POST /api/sentiment/relevance/sponsors: the sponsor profile relevance scoring uses for a streamer. */
+/**
+ * POST /api/sentiment/relevance/sponsors: the sponsor profile relevance scoring uses for a streamer.
+ * Aliases and semantic terms are merged with the ones configured for that sponsor in config-repo;
+ * `minScore` overrides the configured relevance threshold when given.
+ */
 export type SponsorProfile = {
   streamer: string;
   sponsor: string;
   aliases: string[];
   semanticTerms: string[];
-  campaignGoal: string;
+  minScore?: number;
 };
 
 export function updateSponsorProfile(profile: SponsorProfile): Promise<void> {
