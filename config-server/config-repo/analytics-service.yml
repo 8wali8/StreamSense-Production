@@ -43,6 +43,12 @@ streamsense:
       # Counted when a request names no command or link host; empty means none.
       default-chat-command: ${STREAMSENSE_ANALYTICS_RESPONSE_CHAT_COMMAND:}
       default-tracked-link-host: ${STREAMSENSE_ANALYTICS_RESPONSE_LINK_HOST:}
+  services:
+    sentiment-service:
+      # Creating a deal points relevance scoring at its sponsor for the channel; best effort, bounded.
+      base-url: http://sentiment-service:8083
+      connect-timeout-ms: 2000
+      read-timeout-ms: 3000
   twitch:
     helix:
       # Live state, title, category, and viewer counts per watched channel; needs the TWITCH_CLIENT_ID

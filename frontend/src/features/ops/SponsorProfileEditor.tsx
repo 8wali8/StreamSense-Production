@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { updateSponsorProfile } from "../../api/sentiment";
+import { useEffect, useState } from "react";
+import { getSponsorProfile, updateSponsorProfile } from "../../api/sentiment";
 import { describeError } from "../../lib/errors";
 import { splitTerms } from "../streamer/streamer";
 import { useStreamer } from "../streamer/streamer-context";
@@ -17,6 +17,37 @@ export function SponsorProfileEditor() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [stored, setStored] = useState<string | null>(null);
+
+  // What sentiment-service currently matches on for this channel; it survives restarts since 06.
+  useEffect(() => {
+    let cancelled = false;
+    setStored(null);
+    getSponsorProfile(selectedStreamer)
+      .then((profile) => {
+        if (cancelled) return;
+        if (!profile) {
+          setStored("No stored profile for this channel yet.");
+          return;
+        }
+        setSponsor(profile.sponsor);
+        setAliases(profile.aliases.join(", "));
+        setSemanticTerms(profile.semanticTerms.join(", "));
+        setMinScore(profile.minScore == null ? "" : String(profile.minScore));
+        setStored(
+          `Stored profile: ${profile.sponsor}, ${profile.aliases.length} aliases, ${profile.semanticTerms.length} terms.`,
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setStored(
+          `Could not read the stored profile: ${describeError(err instanceof Error ? err : new Error("unknown"))}`,
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStreamer]);
 
   async function save() {
     const name = sponsor.trim();
@@ -49,6 +80,7 @@ export function SponsorProfileEditor() {
           What relevance scoring matches on for @{selectedStreamer}. Merged with the terms configured for the sponsor.
         </p>
       </div>
+      {stored && <div className="status-line">{stored}</div>}
       <form
         className="form-grid"
         onSubmit={(event) => {

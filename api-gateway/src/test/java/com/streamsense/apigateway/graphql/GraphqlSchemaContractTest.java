@@ -63,6 +63,9 @@ class GraphqlSchemaContractTest {
                         "session",
                         "sessionSummary",
                         "sponsorMoments",
+                        "deals",
+                        "deal",
+                        "dealSummary",
                         "recommendations");
     }
 

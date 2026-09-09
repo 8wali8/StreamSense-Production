@@ -1,5 +1,6 @@
 package com.streamsense.analyticsservice.config;
 
+import com.streamsense.analyticsservice.service.DealService;
 import com.streamsense.analyticsservice.service.StreamSessionService;
 import com.streamsense.analyticsservice.twitch.StreamSessionPoller;
 import com.streamsense.analyticsservice.twitch.TwitchAppTokenProvider;
@@ -57,8 +58,15 @@ public class TwitchHelixConfig {
     @Bean
     @ConditionalOnProperty(prefix = "streamsense.twitch.helix", name = "enabled", havingValue = "true")
     public StreamSessionPoller streamSessionPoller(
-            TwitchHelixClient helixClient, StreamSessionService sessions, StreamSenseProperties properties) {
+            TwitchHelixClient helixClient,
+            StreamSessionService sessions,
+            DealService deals,
+            StreamSenseProperties properties) {
         return new StreamSessionPoller(
-                helixClient, sessions, properties.getTwitch().getHelix(), Clock.systemUTC());
+                helixClient,
+                sessions,
+                deals::streamersWithActiveDeals,
+                properties.getTwitch().getHelix(),
+                Clock.systemUTC());
     }
 }

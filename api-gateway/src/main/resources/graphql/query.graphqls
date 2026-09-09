@@ -18,4 +18,9 @@ type Query {
   sessionSummary(sessionId: ID!, sponsor: String, chatCommand: String, trackedLinkHost: String, cpmPer30sEquivalent: Float, hostReadRatePer1000: Float): SessionSummary
   # The report timeline: on-screen segments, voice mentions, chat moments, negative spikes, best and weakest moment.
   sponsorMoments(sessionId: ID!, sponsor: String): SponsorMoments
+  # Deals: a streamer's, or every deal without a streamer; newest start first.
+  deals(streamer: String, limit: Int): [Deal!]!
+  deal(id: ID!): Deal
+  # The deal with its totals over the sessions inside its dates and each of their reports.
+  dealSummary(id: ID!): DealSummary
 }

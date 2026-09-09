@@ -2,6 +2,7 @@ package com.streamsense.apigateway.analytics;
 
 public record SessionSummary(
         StreamSession session,
+        Long dealId,
         String sponsor,
         long onScreenMs,
         Double onScreenShare,

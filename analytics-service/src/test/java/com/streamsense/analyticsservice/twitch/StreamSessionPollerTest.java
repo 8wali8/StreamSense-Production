@@ -32,7 +32,7 @@ class StreamSessionPollerTest {
         when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of("racer", "redbull-testing"));
         HelixStream live = new HelixStream("41", "racer", "Monza night", "Formula 1", 1200, 1_799_999_000_000L);
         when(helix.liveStreams(any())).thenReturn(List.of(live));
-        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, config, clock);
+        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, List::of, config, clock);
 
         assertThat(poller.watchedChannels()).isEqualTo(Set.of("racer", "other", "redbull-testing"));
         poller.poll();
@@ -47,7 +47,7 @@ class StreamSessionPollerTest {
         config.setChannels(List.of("racer"));
         when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of());
         when(helix.liveStreams(any())).thenThrow(new IllegalStateException("twitch down"));
-        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, config, clock);
+        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, List::of, config, clock);
 
         poller.poll();
 
@@ -57,7 +57,7 @@ class StreamSessionPollerTest {
     @Test
     void nothingToWatchMeansNoCall() {
         when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of());
-        new StreamSessionPoller(helix, sessions, config, clock).poll();
+        new StreamSessionPoller(helix, sessions, List::of, config, clock).poll();
         verify(helix, never()).liveStreams(any());
     }
 }

@@ -128,6 +128,8 @@ type DirectResponse {
 
 type SessionSummary {
   session: StreamSession!
+  # The deal the session fell inside, when there is one; its terms filled what the request left out.
+  dealId: ID
   sponsor: String
   onScreenMs: Float!
   onScreenShare: Float
@@ -206,4 +208,52 @@ type SponsorMoments {
   riskSpikes: [RiskSpike!]!
   best: HighlightMoment
   weakest: HighlightMoment
+}
+
+# One sponsorship deal. fee is what the streamer is paid (private to them); the rates price the
+# exposure; trackedLinkHost and chatCommand are what chat is counted for. active while the dates cover now.
+type Deal {
+  id: ID!
+  streamer: String!
+  sponsor: String!
+  startsAt: Float!
+  endsAt: Float
+  promisedStreams: Int
+  fee: Float
+  currency: String!
+  cpmPer30sEquivalent: Float!
+  hostReadRatePer1000: Float!
+  trackedLink: String
+  trackedLinkHost: String
+  chatCommand: String
+  channelPointReward: String
+  active: Boolean!
+  createdAt: Float!
+}
+
+# Totals over the streams inside a deal's dates. Money is null until a stream had viewer samples;
+# mentionSentiment is weighted by mention count.
+type DealTotals {
+  streams: Int!
+  liveStreams: Int!
+  streamedMs: Float!
+  onScreenMs: Float!
+  onScreenShare: Float
+  mentions: Int!
+  chatMentions: Int!
+  voiceMentions: Int!
+  mentionSentiment: Float
+  averageViewers: Float
+  logoValue: Float
+  hostReadValue: Float
+  mediaValue: Float
+  commandUses: Int!
+  linkPosts: Int!
+}
+
+type DealSummary {
+  deal: Deal!
+  totals: DealTotals!
+  # Newest first.
+  sessions: [SessionSummary!]!
 }

@@ -8,6 +8,8 @@
  */
 
 import type {
+  DealSummaryQuery,
+  DealsQuery,
   OnChatMessageSubscription,
   RecentSentimentQuery,
   RecentTranscriptSegmentsQuery,
@@ -282,6 +284,7 @@ export function sessionSummary(overrides: Partial<SessionSummaryFixture> = {}): 
       averageViewers: 1310,
       viewerSamples: 134,
     },
+    dealId: null,
     sponsor: "Red Bull",
     onScreenMs: 2292000,
     onScreenShare: 0.285,
@@ -436,5 +439,106 @@ export function sponsorMoments(): WithTypenames<NonNullable<SponsorMomentsQuery[
       detail: "Honestly the drink tastes like battery acid but the car is unreal.",
       score: -0.71,
     },
+  };
+}
+
+export type DealFixture = WithTypenames<DealsQuery["deals"][number]> & { __typename: "Deal" };
+
+/** The Red Bull deal on the replay channel: four promised streams, a fee, a command, and a tracked link. */
+export function deal(overrides: Partial<DealFixture> = {}): DealFixture {
+  return {
+    __typename: "Deal",
+    id: "3",
+    streamer: "redbull-testing",
+    sponsor: "Red Bull",
+    startsAt: 1788400000000,
+    endsAt: 1790400000000,
+    promisedStreams: 4,
+    fee: 2500,
+    currency: "USD",
+    cpmPer30sEquivalent: 12,
+    hostReadRatePer1000: 15,
+    trackedLink: "https://www.redbull.com/f1",
+    trackedLinkHost: "redbull.com",
+    chatCommand: "!redbull",
+    channelPointReward: null,
+    active: true,
+    createdAt: 1788400000000,
+    ...overrides,
+  };
+}
+
+export type DealSummaryFixture = WithTypenames<NonNullable<DealSummaryQuery["dealSummary"]>> & {
+  __typename: "DealSummary";
+};
+
+/** Two finished streams inside the deal, totals over them. */
+export function dealSummary(overrides: Partial<DealSummaryFixture> = {}): DealSummaryFixture {
+  return {
+    __typename: "DealSummary",
+    deal: deal(),
+    totals: {
+      __typename: "DealTotals",
+      streams: 2,
+      liveStreams: 0,
+      streamedMs: 15000000,
+      onScreenMs: 3500000,
+      onScreenShare: 0.233,
+      mentions: 71,
+      chatMentions: 48,
+      voiceMentions: 23,
+      mentionSentiment: 0.58,
+      averageViewers: 1250,
+      logoValue: 2600,
+      hostReadValue: 900,
+      mediaValue: 3500,
+      commandUses: 210,
+      linkPosts: 120,
+    },
+    sessions: [
+      {
+        __typename: "SessionSummary",
+        session: {
+          __typename: "StreamSession",
+          id: "9",
+          title: "Singapore GP watch-along",
+          startedAt: 1789400000000,
+          endedAt: 1789406960000,
+          live: false,
+          durationMs: 6960000,
+          averageViewers: 1190,
+          peakViewers: 1600,
+        },
+        onScreenMs: 1208000,
+        onScreenShare: 0.174,
+        mentions: 24,
+        mentionSentiment: 0.51,
+        averageViewers: 1190,
+        risk: { __typename: "BrandSafetyMetrics", level: "LOW" },
+        value: { __typename: "SessionValue", mediaValue: 2310 },
+      },
+      {
+        __typename: "SessionSummary",
+        session: {
+          __typename: "StreamSession",
+          id: "7",
+          title: "F1 Replay Night: Monza highlights",
+          startedAt: 1788816420000,
+          endedAt: 1788824460000,
+          live: false,
+          durationMs: 8040000,
+          averageViewers: 1310,
+          peakViewers: 1842,
+        },
+        onScreenMs: 2292000,
+        onScreenShare: 0.285,
+        mentions: 47,
+        mentionSentiment: 0.62,
+        averageViewers: 1310,
+        risk: { __typename: "BrandSafetyMetrics", level: "LOW" },
+        value: { __typename: "SessionValue", mediaValue: 1190 },
+      },
+    ],
+    ...overrides,
   };
 }

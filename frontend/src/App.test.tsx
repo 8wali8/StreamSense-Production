@@ -25,6 +25,8 @@ function stackHandlers() {
     restJson("post", "/api/chat/twitch/channels", ["redbull-testing"]),
     restJson("post", "/api/video/capture/channels", { channels: ["redbull-testing"] }),
     restJson("post", "/api/sentiment/relevance/sponsors", {}),
+    restJson("get", "/api/sentiment/relevance/sponsors/*", null, 404),
+    graphqlData("Deals", { deals: [] }),
   ];
 }
 

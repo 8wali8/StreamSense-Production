@@ -1,9 +1,12 @@
 package com.streamsense.sentimentservice.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
 import java.util.ArrayList;
 import java.util.List;
 
+/** A profile update. Unknown fields (an older client's campaignGoal) are ignored. */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SponsorRelevanceUpdateRequest {
 
     @NotBlank
@@ -14,7 +17,6 @@ public class SponsorRelevanceUpdateRequest {
 
     private List<String> aliases = new ArrayList<>();
     private List<String> semanticTerms = new ArrayList<>();
-    private String campaignGoal;
     private Double minScore;
 
     public String getStreamer() {
@@ -47,14 +49,6 @@ public class SponsorRelevanceUpdateRequest {
 
     public void setSemanticTerms(List<String> semanticTerms) {
         this.semanticTerms = semanticTerms != null ? semanticTerms : new ArrayList<>();
-    }
-
-    public String getCampaignGoal() {
-        return campaignGoal;
-    }
-
-    public void setCampaignGoal(String campaignGoal) {
-        this.campaignGoal = campaignGoal;
     }
 
     public Double getMinScore() {

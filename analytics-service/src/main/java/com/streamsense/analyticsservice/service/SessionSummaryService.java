@@ -8,10 +8,12 @@ import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.api.SummaryOptions;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.model.CommandTotals;
+import com.streamsense.analyticsservice.model.DealRow;
 import com.streamsense.analyticsservice.model.SponsorBucketExposure;
 import com.streamsense.analyticsservice.model.SponsorMentionTotals;
 import com.streamsense.analyticsservice.model.ViewerSample;
 import com.streamsense.analyticsservice.persistence.ChatResponseRepository;
+import com.streamsense.analyticsservice.persistence.DealRepository;
 import com.streamsense.analyticsservice.persistence.SponsorMentionRepository;
 import com.streamsense.analyticsservice.persistence.SponsorMetricBucketRepository;
 import java.util.List;
@@ -31,6 +33,7 @@ public class SessionSummaryService {
     private final SponsorMetricBucketRepository sponsorBuckets;
     private final SponsorMentionRepository mentions;
     private final ChatResponseRepository responses;
+    private final DealRepository deals;
     private final StreamSenseProperties properties;
 
     public SessionSummaryService(
@@ -39,21 +42,25 @@ public class SessionSummaryService {
             SponsorMetricBucketRepository sponsorBuckets,
             SponsorMentionRepository mentions,
             ChatResponseRepository responses,
+            DealRepository deals,
             StreamSenseProperties properties) {
         this.sessions = sessions;
         this.metrics = metrics;
         this.sponsorBuckets = sponsorBuckets;
         this.mentions = mentions;
         this.responses = responses;
+        this.deals = deals;
         this.properties = properties;
     }
 
-    public Optional<SessionSummary> summary(long sessionId, SummaryOptions options) {
+    public Optional<SessionSummary> summary(long sessionId, SummaryOptions requested) {
         Optional<StreamSession> found = sessions.get(sessionId);
         if (found.isEmpty()) {
             return Optional.empty();
         }
         StreamSession session = found.get();
+        Optional<DealRow> deal = dealFor(session, requested);
+        SummaryOptions options = deal.map(d -> withDealDefaults(requested, d)).orElse(requested);
         long from = session.startedAt();
         long to = session.endedAt() == null ? session.startedAt() + session.durationMs() : session.endedAt();
         MetricQueryService.QueryWindow window = metrics.rangeWindow(session.streamer(), from, to);
@@ -107,6 +114,7 @@ public class SessionSummaryService {
 
         return Optional.of(new SessionSummary(
                 session,
+                deal.map(DealRow::id).orElse(null),
                 sponsor,
                 onScreenMs,
                 session.durationMs() <= 0 ? null : round((double) onScreenMs / session.durationMs()),
@@ -125,6 +133,33 @@ public class SessionSummaryService {
                 base.engagement(),
                 value,
                 response));
+    }
+
+    /** The newest deal on the channel covering the session's start; for the named sponsor when there is one. */
+    private Optional<DealRow> dealFor(StreamSession session, SummaryOptions requested) {
+        List<DealRow> covering = deals.findCovering(session.streamer(), session.startedAt());
+        String wanted = clean(requested.sponsor());
+        if (wanted != null) {
+            return covering.stream()
+                    .filter(row -> row.sponsor().equalsIgnoreCase(wanted))
+                    .findFirst();
+        }
+        return covering.stream().findFirst();
+    }
+
+    /** What the request left unspecified comes from the deal. */
+    private SummaryOptions withDealDefaults(SummaryOptions requested, DealRow deal) {
+        SummaryOptions fromDeal = DealService.optionsFor(deal);
+        return new SummaryOptions(
+                clean(requested.sponsor()) != null ? requested.sponsor() : fromDeal.sponsor(),
+                clean(requested.chatCommand()) != null ? requested.chatCommand() : fromDeal.chatCommand(),
+                clean(requested.trackedLinkHost()) != null ? requested.trackedLinkHost() : fromDeal.trackedLinkHost(),
+                requested.cpmPer30sEquivalent() != null
+                        ? requested.cpmPer30sEquivalent()
+                        : fromDeal.cpmPer30sEquivalent(),
+                requested.hostReadRatePer1000() != null
+                        ? requested.hostReadRatePer1000()
+                        : fromDeal.hostReadRatePer1000());
     }
 
     /**
