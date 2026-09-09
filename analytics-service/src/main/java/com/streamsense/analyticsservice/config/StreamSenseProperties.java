@@ -8,6 +8,7 @@ public class StreamSenseProperties {
     private final Topics topics = new Topics();
     private final Analytics analytics = new Analytics();
     private final Processing processing = new Processing();
+    private final Twitch twitch = new Twitch();
 
     public Topics getTopics() {
         return topics;
@@ -19,6 +20,10 @@ public class StreamSenseProperties {
 
     public Processing getProcessing() {
         return processing;
+    }
+
+    public Twitch getTwitch() {
+        return twitch;
     }
 
     public static class Topics {
@@ -108,6 +113,16 @@ public class StreamSenseProperties {
         private double engagementSpikeMultiplier = 2.0;
         private int engagementSpikeTrailingWindowMinutes = 5;
         private long lowDataMinimumEvents = 5;
+        /** A capture session with no event for this long is closed at its last event. */
+        private int captureSessionIdleCloseMinutes = 10;
+
+        public int getCaptureSessionIdleCloseMinutes() {
+            return captureSessionIdleCloseMinutes;
+        }
+
+        public void setCaptureSessionIdleCloseMinutes(int captureSessionIdleCloseMinutes) {
+            this.captureSessionIdleCloseMinutes = captureSessionIdleCloseMinutes;
+        }
 
         public int getBucketSizeSeconds() {
             return bucketSizeSeconds;
@@ -216,6 +231,126 @@ public class StreamSenseProperties {
 
         public void setMaxRetries(long maxRetries) {
             this.maxRetries = maxRetries;
+        }
+    }
+
+    public static class Twitch {
+        private final Helix helix = new Helix();
+
+        public Helix getHelix() {
+            return helix;
+        }
+    }
+
+    /** The Twitch Helix poller that turns live broadcasts into sessions with viewer counts. */
+    public static class Helix {
+        private boolean enabled = false;
+        private String clientId;
+        private String clientSecret;
+        private String baseUrl = "https://api.twitch.tv/helix";
+        private String tokenUrl = "https://id.twitch.tv/oauth2/token";
+        private long pollIntervalMs = 60_000L;
+        private long initialDelayMs = 15_000L;
+        private java.util.List<String> channels = new java.util.ArrayList<>();
+        private int watchStreamersSeenWithinHours = 24;
+        private int connectTimeoutMs = 2000;
+        private int readTimeoutMs = 5000;
+        private long tokenRefreshMarginSeconds = 60;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getClientId() {
+            return clientId;
+        }
+
+        public void setClientId(String clientId) {
+            this.clientId = clientId;
+        }
+
+        public String getClientSecret() {
+            return clientSecret;
+        }
+
+        public void setClientSecret(String clientSecret) {
+            this.clientSecret = clientSecret;
+        }
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public String getTokenUrl() {
+            return tokenUrl;
+        }
+
+        public void setTokenUrl(String tokenUrl) {
+            this.tokenUrl = tokenUrl;
+        }
+
+        public long getPollIntervalMs() {
+            return pollIntervalMs;
+        }
+
+        public void setPollIntervalMs(long pollIntervalMs) {
+            this.pollIntervalMs = pollIntervalMs;
+        }
+
+        public long getInitialDelayMs() {
+            return initialDelayMs;
+        }
+
+        public void setInitialDelayMs(long initialDelayMs) {
+            this.initialDelayMs = initialDelayMs;
+        }
+
+        public java.util.List<String> getChannels() {
+            return channels;
+        }
+
+        public void setChannels(java.util.List<String> channels) {
+            this.channels = channels == null ? new java.util.ArrayList<>() : channels;
+        }
+
+        public int getWatchStreamersSeenWithinHours() {
+            return watchStreamersSeenWithinHours;
+        }
+
+        public void setWatchStreamersSeenWithinHours(int watchStreamersSeenWithinHours) {
+            this.watchStreamersSeenWithinHours = watchStreamersSeenWithinHours;
+        }
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
+
+        public long getTokenRefreshMarginSeconds() {
+            return tokenRefreshMarginSeconds;
+        }
+
+        public void setTokenRefreshMarginSeconds(long tokenRefreshMarginSeconds) {
+            this.tokenRefreshMarginSeconds = tokenRefreshMarginSeconds;
         }
     }
 }

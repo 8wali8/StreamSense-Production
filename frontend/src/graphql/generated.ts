@@ -58,6 +58,8 @@ export type Query = {
   recentTranscriptSegments: Array<TranscriptSegmentEvent>;
   recentTranscriptSentiment: Array<TranscriptSentimentEvent>;
   recommendations: Array<Recommendation>;
+  session?: Maybe<StreamSession>;
+  sessions: Array<StreamSession>;
   sponsorDetections: Array<SponsorDetectionEvent>;
   sponsorExposureMetrics: Array<SponsorExposureMetric>;
   streamMetricsSummary: StreamMetricsSummary;
@@ -107,6 +109,19 @@ export type QueryRecentTranscriptSentimentArgs = {
 export type QueryRecommendationsArgs = {
   limit: Scalars['Int']['input'];
   streamer: Scalars['String']['input'];
+};
+
+
+export type QuerySessionArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QuerySessionsArgs = {
+  from?: InputMaybe<Scalars['Float']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  streamer: Scalars['String']['input'];
+  to?: InputMaybe<Scalars['Float']['input']>;
 };
 
 
@@ -256,6 +271,24 @@ export type StreamMetricsSummary = {
   windowEnd: Scalars['Float']['output'];
   windowMinutes: Scalars['Int']['output'];
   windowStart: Scalars['Float']['output'];
+};
+
+export type StreamSession = {
+  averageViewers?: Maybe<Scalars['Float']['output']>;
+  category?: Maybe<Scalars['String']['output']>;
+  channelLogin?: Maybe<Scalars['String']['output']>;
+  durationMs: Scalars['Float']['output'];
+  endedAt?: Maybe<Scalars['Float']['output']>;
+  id: Scalars['ID']['output'];
+  live: Scalars['Boolean']['output'];
+  peakViewers?: Maybe<Scalars['Int']['output']>;
+  source: Scalars['String']['output'];
+  startedAt: Scalars['Float']['output'];
+  streamSessionId?: Maybe<Scalars['String']['output']>;
+  streamer: Scalars['String']['output'];
+  title?: Maybe<Scalars['String']['output']>;
+  twitchStreamId?: Maybe<Scalars['String']['output']>;
+  viewerSamples: Scalars['Int']['output'];
 };
 
 export type Subscription = {

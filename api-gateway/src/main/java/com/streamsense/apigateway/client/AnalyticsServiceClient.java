@@ -4,6 +4,7 @@ import com.streamsense.apigateway.analytics.BrandSafetyMetrics;
 import com.streamsense.apigateway.analytics.SponsorExposureMetric;
 import com.streamsense.apigateway.analytics.StreamMetricBucket;
 import com.streamsense.apigateway.analytics.StreamMetricsSummary;
+import com.streamsense.apigateway.analytics.StreamSession;
 import com.streamsense.apigateway.config.DownstreamServicesProperties;
 import java.util.List;
 import org.slf4j.Logger;
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -21,6 +23,8 @@ public class AnalyticsServiceClient {
     private static final ParameterizedTypeReference<List<StreamMetricBucket>> BUCKET_LIST =
             new ParameterizedTypeReference<>() {};
     private static final ParameterizedTypeReference<List<SponsorExposureMetric>> SPONSOR_LIST =
+            new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<StreamSession>> SESSION_LIST =
             new ParameterizedTypeReference<>() {};
 
     private final WebClient webClient;
@@ -103,5 +107,35 @@ public class AnalyticsServiceClient {
                 })
                 .retrieve()
                 .bodyToMono(BrandSafetyMetrics.class);
+    }
+
+    public Mono<List<StreamSession>> sessions(String streamer, Long from, Long to, Integer limit) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder.path("/api/analytics/streams/{streamer}/sessions");
+                    if (from != null) {
+                        builder.queryParam("from", from);
+                    }
+                    if (to != null) {
+                        builder.queryParam("to", to);
+                    }
+                    if (limit != null) {
+                        builder.queryParam("limit", limit);
+                    }
+                    return builder.build(streamer);
+                })
+                .retrieve()
+                .bodyToMono(SESSION_LIST);
+    }
+
+    /** Empty when the session does not exist, so the GraphQL field resolves to null instead of an error. */
+    public Mono<StreamSession> session(long id) {
+        return webClient
+                .get()
+                .uri("/api/analytics/sessions/{id}", id)
+                .retrieve()
+                .bodyToMono(StreamSession.class)
+                .onErrorResume(WebClientResponseException.NotFound.class, ex -> Mono.empty());
     }
 }

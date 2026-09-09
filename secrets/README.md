@@ -17,6 +17,7 @@ Every missing file gets a fresh random value (hex from `openssl rand`), so a clo
 | `STREAMSENSE_FRAME_STORAGE_SECRET_KEY` | minio (root password), ml-engine, video-capture-service | Same as above. MinIO requires 8 to 40 characters; the generator writes 32. |
 | `GRAFANA_ADMIN_PASSWORD` | grafana | Wired as `GF_SECURITY_ADMIN_PASSWORD__FILE`. The admin username stays `admin`. |
 | `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` | api-gateway | Only read when `STREAMSENSE_GATEWAY_AUTH_ENABLED=true`, which requires at least 32 bytes; the generator writes 64. Pass the same value to `tools/mint-jwt.py` when minting tokens. |
+| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | analytics-service | The client id and secret of a registered Twitch application (dev.twitch.tv), for the Helix poller that turns live broadcasts into sessions with viewer counts. Not random: `make secrets` creates them empty, and polling stays off until both hold real values and `STREAMSENSE_TWITCH_HELIX_ENABLED=true`. |
 
 Values are read verbatim and trailing whitespace is trimmed, so a file may end with or without a newline.
 

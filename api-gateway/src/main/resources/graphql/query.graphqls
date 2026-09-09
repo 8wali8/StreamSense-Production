@@ -11,4 +11,6 @@ type Query {
   streamMetricsTimeseries(streamer: String!, streamSessionId: String, windowMinutes: Int!, bucketSeconds: Int!): [StreamMetricBucket!]!
   sponsorExposureMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int!): [SponsorExposureMetric!]!
   brandSafetyMetrics(streamer: String!, streamSessionId: String, windowMinutes: Int!): BrandSafetyMetrics!
+  sessions(streamer: String!, from: Float, to: Float, limit: Int): [StreamSession!]!
+  session(id: ID!): StreamSession
 }

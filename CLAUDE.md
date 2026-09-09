@@ -97,7 +97,7 @@ See `docs/kubernetes-kind.md` for cluster setup. Manifests are under `k8s/`; the
 | recommendation-service | 8082 | Java | Recommendation summaries from platform signals |
 | sentiment-service | 8083 | Java | Kafka consumer → ml-engine sentiment/relevance → Kafka producer |
 | video-service | 8084 | Java | Frame events → ml-engine sponsor detection → Kafka producer |
-| analytics-service | 8085 | Java | Aggregates stream metrics from event streams |
+| analytics-service | 8085 | Java | Aggregates stream metrics from event streams; owns stream sessions (Twitch Helix poller or capture-derived) |
 | video-capture-service | 8090 | Python | Twitch frame capture → MinIO, transcript audio → ml-engine |
 | ml-engine | 8000 | Python | FastAPI inference: sentiment, relevance, sponsor, segmentation, transcription |
 | frontend | 3000 | React/TS | Streamer home and operator page (Apollo Client, GraphQL subscriptions, react-router) |
@@ -148,7 +148,7 @@ Kubernetes reads the same files: the root `kustomization.yaml` generates the con
 
 The Python services (ml-engine, video-capture-service) do not use config-server or Eureka; they are configured via environment variables (see their entries in `docker-compose.yml` for the full catalog — ML model backends/caches, frame storage, transcript settings). In ml-engine every env read lives in `src/ml_engine/settings.py` (pydantic-settings, one class per `STREAMSENSE_<BACKEND>_` prefix, validated at start-up); routes receive settings and the `BackendRegistry` through FastAPI dependencies, so add config as a settings field, never as an `os.getenv` in a handler, and swap backends in tests with `app.dependency_overrides`, never by monkeypatching module globals.
 
-Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires the `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` secret file or key, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_STORE` (`redis`/`memory`), `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS` (Compose default `0`; the Kubernetes manifest sets `2` for the ingress plus console hops), `STREAMSENSE_GATEWAY_GRAPHIQL_ENABLED` (off by default; Compose turns it on for local exploration), `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`.
+Useful env toggles: `STREAMSENSE_GATEWAY_AUTH_ENABLED` (requires the `STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET` secret file or key, ≥32 bytes), `STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED`, `STREAMSENSE_GATEWAY_RATE_LIMIT_STORE` (`redis`/`memory`), `STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS` (Compose default `0`; the Kubernetes manifest sets `2` for the ingress plus console hops), `STREAMSENSE_GATEWAY_GRAPHIQL_ENABLED` (off by default; Compose turns it on for local exploration), `ML_ENGINE_FORCE_FAILURE`, `STREAMSENSE_TWITCH_CHAT_ENABLED`, `STREAMSENSE_TWITCH_VIDEO_ENABLED`, `STREAMSENSE_TWITCH_TRANSCRIPT_ENABLED`, `STREAMSENSE_TWITCH_HELIX_ENABLED` (analytics-service polls the Twitch Helix API for live state, title, category, and viewer counts; needs the `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` secret files of a registered Twitch application, which `make secrets` creates empty; `STREAMSENSE_TWITCH_HELIX_CHANNELS` adds logins to watch beyond the streamers with recent events).
 
 ### Twitch VOD replay
 
@@ -194,7 +194,7 @@ Java tests are self-contained: test configs disable config-server and Eureka; in
 - `docs/howtorun.md` — local Docker Compose runbook (ports, startup order, troubleshooting)
 - `docs/architecture.md` — architecture diagram (README.md has a mermaid version)
 - `docs/kubernetes-kind.md` — Kubernetes/kind deployment guide
-- `docs/contracts/` — GraphQL API contracts
+- `docs/contracts/` — GraphQL API contracts (`sessions.md` for stream sessions: HELIX vs CAPTURE sources, the REST and GraphQL shapes)
 - `docs/schemas/` — one JSON Schema per Kafka event and ml-engine payload, with an index and the compatibility rules in its README
 - `docs/replay-runbook.md` — Twitch VOD replay workflow
 - `docs/planning/` — hardening branch notes (`branches/`) and earlier plans, reports, and session logs (`history/`, kept for context, not maintained)
