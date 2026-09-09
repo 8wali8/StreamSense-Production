@@ -10,9 +10,14 @@ variable "region" {
 }
 
 variable "zone" {
-  description = "Zone for the VM; must be inside var.region."
+  description = "Zone for the VM; must be inside var.region (the subnetwork and the address are regional)."
   type        = string
   default     = "us-central1-a"
+
+  validation {
+    condition     = startswith(var.zone, "${var.region}-")
+    error_message = "zone must be inside region: for example region us-central1 and zone us-central1-a."
+  }
 }
 
 variable "instance_name" {

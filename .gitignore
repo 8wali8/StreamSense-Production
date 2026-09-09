@@ -37,5 +37,6 @@ terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/*.tfvars
+terraform/*.tfvars.json
 !terraform/*.tfvars.example
 terraform/crash.log
