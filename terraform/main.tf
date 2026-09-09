@@ -8,10 +8,16 @@ locals {
   network_tag = "${var.instance_name}-web"
 }
 
-# The Compute Engine API. disable_on_destroy is off so a `terraform destroy` removes the VM
-# without switching the API off under other resources in the project.
+# The APIs this module relies on: Compute Engine for everything, OS Login for the SSH path the
+# instance metadata requires. disable_on_destroy is off so a `terraform destroy` removes the VM
+# without switching the APIs off under other resources in the project.
 resource "google_project_service" "compute" {
   service            = "compute.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "oslogin" {
+  service            = "oslogin.googleapis.com"
   disable_on_destroy = false
 }
 
@@ -150,5 +156,6 @@ resource "google_compute_instance" "this" {
   depends_on = [
     google_compute_firewall.ssh,
     google_compute_firewall.http,
+    google_project_service.oslogin,
   ]
 }

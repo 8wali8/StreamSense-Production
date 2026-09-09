@@ -9,7 +9,7 @@ output "console_url" {
 }
 
 output "ssh_command" {
-  description = "SSH through OS Login."
+  description = "SSH through OS Login (the OS Login API is enabled by this module)."
   value       = "gcloud compute ssh ${google_compute_instance.this.name} --zone ${var.zone} --project ${var.project_id}"
 }
 

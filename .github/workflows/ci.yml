@@ -16,10 +16,12 @@ permissions:
   contents: read
   pull-requests: read
 
-# One run per pull request (newer pushes cancel the older run); runs on main
-# are never cancelled so every merge gets a complete result.
+# One run per pull request (newer pushes cancel the older run). Every push to main gets
+# its own group, so merges that land while an earlier run is still going are neither
+# cancelled nor collapsed into one pending run: each main commit gets a complete result
+# and its own published images.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -643,8 +645,10 @@ jobs:
 
   # ---------------------------------------------------------------------------------------------
   # Publish: after every check has passed on main (or on a manually dispatched ref), build the
-  # eleven service images once and push them to GitHub Container Registry, so a deployment pulls
-  # a tested SHA instead of building on the target machine. The token can only write packages here.
+  # eleven service images once and push them to GitHub Container Registry tagged with the commit
+  # SHA, so a deployment pulls a tested SHA instead of building on the target machine. The
+  # floating "main" tag is moved by promote-main below, only after all eleven pushes succeeded,
+  # so "main" never mixes images from different commits. The token can only write packages here.
   # ---------------------------------------------------------------------------------------------
   publish-images:
     runs-on: ubuntu-latest
@@ -705,27 +709,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Every push gets the commit SHA; main also moves the floating "main" tag. Branch runs
-      # (manual dispatch) leave "main" alone so a deployment that tracks it never picks up
-      # an unmerged image.
-      - name: Choose tags
-        id: tags
-        env:
-          ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          tags="${IMAGE}:${GITHUB_SHA}"
-          if [ "$ON_MAIN" = "true" ]; then
-            tags="${tags},${IMAGE}:main"
-          fi
-          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
-          echo "publishing ${tags}"
-
       - name: Build and push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.service }}
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
           # One image manifest per tag (no attestation index), so registries and scanners see a plain image.
           provenance: false
           cache-from: type=gha,scope=${{ matrix.service }}
@@ -733,3 +722,39 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+  # Move the eleven "main" tags to this commit's SHA images, as one step after every matrix
+  # entry succeeded. A branch run (manual dispatch) never gets here, so a deployment that
+  # tracks "main" never picks up an unmerged image; a partial publish leaves "main" on the
+  # previous complete set. imagetools re-tags the pushed manifests without a rebuild.
+  promote-main:
+    runs-on: ubuntu-latest
+    needs: publish-images
+    if: >-
+      !cancelled()
+      && needs.publish-images.result == 'success'
+      && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Point every main tag at this commit
+        env:
+          PREFIX: ghcr.io/${{ github.repository_owner }}/streamsense
+        run: |
+          for service in eureka-server config-server api-gateway chat-service recommendation-service \
+                         sentiment-service video-service analytics-service ml-engine video-capture-service frontend; do
+            docker buildx imagetools create --tag "${PREFIX}/${service}:main" "${PREFIX}/${service}:${GITHUB_SHA}"
+            echo "${service}:main -> ${GITHUB_SHA}"
+          done
