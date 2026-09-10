@@ -30,3 +30,11 @@
 		}
 	}
 }
+
+# Liveness for the Compose healthcheck: a loopback-only listener inside the container that
+# answers the same way whichever site address is configured above. (Probing port 80 with a bare
+# 127.0.0.1 host does not reach the domain site, so the check failed in HTTPS mode.)
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	respond /healthz "ok" 200
+}

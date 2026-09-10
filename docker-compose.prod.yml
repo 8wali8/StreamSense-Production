@@ -54,8 +54,8 @@ services:
       frontend:
         condition: service_healthy
     healthcheck:
-      # Caddy's static file server is not used; the listener itself is the check.
-      test: ["CMD", "wget", "-qO-", "--spider", "http://127.0.0.1:80/healthz"]
+      # The Caddyfile's loopback health site, independent of whether a domain is configured.
+      test: ["CMD", "wget", "-qO-", "--spider", "http://127.0.0.1:8081/healthz"]
       interval: 10s
       timeout: 5s
       retries: 12
