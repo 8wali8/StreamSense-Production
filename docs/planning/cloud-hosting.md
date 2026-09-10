@@ -62,6 +62,6 @@ Each of these is its own branch after 04 merges, in whatever order the experienc
 
 - **k3s on the same VM** using the existing `k8s/` manifests: image references move from `sprint9` to the GHCR tags, the `*.streamsense.local` ingress hosts become the VM address, and the default-deny network policies get enforced for real (k3s ships a policy controller). The biggest learning payoff.
 - **Google Artifact Registry** with Workload Identity Federation from GitHub Actions, replacing GHCR.
-- **A domain and Caddy** in front of the frontend for automatic TLS; the console then uses `wss` on its own.
+- **A domain and Caddy** in front of the frontend for automatic TLS; the console then uses `wss` on its own. Done in `cloud/05-domain-tls` (`branches/cloud-05-domain-tls.md`) for `streamsense.dev`.
 - **Image scanning in the publish job** (`trivy image` on each pushed image), deferred in `branches/14-supply-chain.md` until images lived in a registry.
 - **A budget alert** on the GCP project and a scheduled stop, so a forgotten VM costs a bounded amount.

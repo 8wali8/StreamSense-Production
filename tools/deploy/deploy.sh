@@ -5,7 +5,7 @@
 # The startup script links it as /usr/local/bin/streamsense-deploy.
 #
 #   streamsense-deploy [deploy]   pull the repository, refresh secrets, pull the images, start the stack, verify
-#   streamsense-deploy verify     health of every container, then the console and the gateway through port 80
+#   streamsense-deploy verify     health of every container, then the console and the gateway through the edge
 #   streamsense-deploy token      print a bearer token for the console (TTL from --ttl-seconds, default 30 days)
 #   streamsense-deploy status     docker compose ps
 #
@@ -15,6 +15,8 @@
 #   STREAMSENSE_IMAGE_TAG  image tag to run: "main" or a commit SHA   (default: the env file's value, else main)
 #   STREAMSENSE_REPO_REF   git ref to check out                       (default: the image tag, so the
 #                          config-repo the config-server serves matches the images that read it)
+#   STREAMSENSE_DOMAIN     name Caddy serves over HTTPS               (default: the env file's value, else
+#                          none, which means plain HTTP on the VM's address)
 set -euo pipefail
 
 STREAMSENSE_DIR="${STREAMSENSE_DIR:-/opt/streamsense}"
@@ -44,11 +46,40 @@ require_env_file() {
 # --env-file, so the tag is exported only after the env file has had its say; the ref follows
 # the tag unless set explicitly, so config-server serves the config-repo of the commit the
 # images were built from (the base file bind-mounts it from the checkout).
+env_file_value() {
+  grep -E "^$1=" "$STREAMSENSE_ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '[:space:]"' || true
+}
+
 resolve_versions() {
   local from_file
-  from_file="$(grep -E '^STREAMSENSE_IMAGE_TAG=' "$STREAMSENSE_ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '[:space:]"' || true)"
+  from_file="$(env_file_value STREAMSENSE_IMAGE_TAG)"
   export STREAMSENSE_IMAGE_TAG="${STREAMSENSE_IMAGE_TAG:-${from_file:-main}}"
   STREAMSENSE_REPO_REF="${STREAMSENSE_REPO_REF:-$STREAMSENSE_IMAGE_TAG}"
+  # The domain follows the same shell-then-file rule; empty means HTTP on the address.
+  from_file="$(env_file_value STREAMSENSE_DOMAIN)"
+  export STREAMSENSE_DOMAIN="${STREAMSENSE_DOMAIN:-$from_file}"
+}
+
+# Where viewers open the console, and how this script reaches the edge from inside the VM.
+console_url() {
+  if [ -n "$STREAMSENSE_DOMAIN" ]; then
+    echo "https://$STREAMSENSE_DOMAIN/"
+  else
+    echo "http://$(external_ip)/"
+  fi
+}
+
+# With a domain, Let's Encrypt must reach port 80 at the name, so the A record has to point at
+# this VM before the stack starts; catching that here beats a certificate error minutes later.
+require_dns() {
+  [ -n "$STREAMSENSE_DOMAIN" ] || return 0
+  local ip resolved
+  ip="$(external_ip)"
+  resolved="$(getent ahostsv4 "$STREAMSENSE_DOMAIN" | awk '{print $1}' | sort -u | tr '\n' ' ')"
+  case " $resolved" in
+    *" $ip "*) echo "DNS: $STREAMSENSE_DOMAIN -> $ip" ;;
+    *) die "DNS for $STREAMSENSE_DOMAIN resolves to '${resolved:-nothing}', not this VM ($ip); add or fix the A record and wait for it to propagate" ;;
+  esac
 }
 
 external_ip() {
@@ -134,19 +165,47 @@ print(" ".join(pending))
 }
 
 verify_edge() {
-  local ip base token
-  ip="$(external_ip)"
-  base="http://127.0.0.1"
-  log "Verifying the console and the gateway through port 80"
+  local base token
+  # Requests go to Caddy on this VM but carry the public name, so the certificate and the
+  # HTTPS redirect are exercised without depending on DNS from inside the VM.
+  local -a via=()
+  if [ -n "$STREAMSENSE_DOMAIN" ]; then
+    base="https://$STREAMSENSE_DOMAIN"
+    via=(--resolve "$STREAMSENSE_DOMAIN:443:127.0.0.1" --resolve "$STREAMSENSE_DOMAIN:80:127.0.0.1")
+    log "Verifying the console and the gateway through Caddy at $STREAMSENSE_DOMAIN"
 
-  if [ "$(curl -fsS -m 5 "$base/healthz")" != "ok" ]; then
-    die "console /healthz did not answer ok"
+    # The first start obtains the certificate from Let's Encrypt; allow it a few minutes.
+    local deadline=$(( $(date +%s) + 300 )) answer=""
+    while :; do
+      answer="$(curl -fsS -m 10 "${via[@]}" "$base/healthz" 2>/dev/null || true)"
+      [ "$answer" = "ok" ] && break
+      if [ "$(date +%s)" -ge "$deadline" ]; then
+        compose logs --no-color --tail 40 caddy >&2 || true
+        die "no valid certificate for $STREAMSENSE_DOMAIN after 5 minutes; see the caddy log above"
+      fi
+      echo "waiting for the certificate for $STREAMSENSE_DOMAIN"
+      sleep 15
+    done
+    echo "console /healthz over HTTPS: ok (certificate valid)"
+
+    local code
+    code="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${via[@]}" "http://$STREAMSENSE_DOMAIN/healthz")"
+    case "$code" in
+      301|308) echo "plain HTTP redirects to HTTPS: $code" ;;
+      *) die "expected a redirect from http://$STREAMSENSE_DOMAIN/, got $code" ;;
+    esac
+  else
+    base="http://127.0.0.1"
+    log "Verifying the console and the gateway through Caddy on port 80"
+    if [ "$(curl -fsS -m 5 "$base/healthz")" != "ok" ]; then
+      die "console /healthz did not answer ok"
+    fi
+    echo "console /healthz: ok"
   fi
-  echo "console /healthz: ok"
 
   # Auth is on: an unauthenticated GraphQL call must be refused.
   local code
-  code="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+  code="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${via[@]}" -H 'Content-Type: application/json' \
     -d '{"query":"query { health }"}' "$base/graphql")"
   if [ "$code" != "401" ]; then
     die "expected 401 without a token, got $code"
@@ -154,36 +213,36 @@ verify_edge() {
   echo "gateway without a token: 401 (auth is on)"
 
   token="$(mint_token 600)"
-  if ! curl -fsS -m 10 -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
+  if ! curl -fsS -m 10 "${via[@]}" -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
       -d '{"query":"query { health }"}' "$base/graphql" | grep -q '"health":"ok"'; then
     die "gateway did not answer the health query with a valid token"
   fi
   echo "gateway with a token: health ok"
 
-  # Only the console is reachable from outside; nothing else may listen on a public interface.
+  # Only Caddy is reachable from outside; nothing else may listen on a public interface.
   local exposed
-  exposed="$(ss -Hltn | awk '{print $4}' | grep -Ev '^(127\.0\.0\.1|\[::1\]|127\.0\.0\.53%lo|127\.0\.0\.54):' | grep -Ev ':(22|80)$' || true)"
+  exposed="$(ss -Hltn | awk '{print $4}' | grep -Ev '^(127\.0\.0\.1|\[::1\]|127\.0\.0\.53%lo|127\.0\.0\.54):' | grep -Ev ':(22|80|443)$' || true)"
   if [ -n "$exposed" ]; then
     die "unexpected public listeners: $exposed"
   fi
-  echo "public listeners: 22 and 80 only"
+  echo "public listeners: 22, 80, and 443 only"
   echo
-  echo "Console: http://$ip/"
+  echo "Console: $(console_url)"
 }
 
 print_sharing_instructions() {
-  local ip token
-  ip="$(external_ip)"
+  local url token
+  url="$(console_url)"
   token="$(mint_token)"
   cat <<MSG
 
 Share with a viewer:
 
-  URL    http://$ip/
+  URL    $url
   Token  $token
 
 The console reads its bearer token from local storage. In the browser, open the developer tools
-console on http://$ip/ once and run:
+console on $url once and run:
 
   localStorage.setItem("streamsense.authToken", "$token"); location.reload();
 
@@ -195,6 +254,7 @@ cmd_deploy() {
   require_root
   require_env_file
   resolve_versions
+  require_dns
   update_checkout
   cd "$STREAMSENSE_DIR"
   log "Refreshing local secrets (existing files are kept)"
@@ -242,6 +302,6 @@ case "${1:-deploy}" in
   verify) cmd_verify ;;
   token) shift; cmd_token "$@" ;;
   status) cmd_status ;;
-  -h|--help|help) sed -n '2,19p' "$0" ;;
+  -h|--help|help) sed -n '2,21p' "$0" ;;
   *) die "unknown command ${1}; try deploy, verify, token, status" ;;
 esac
