@@ -45,11 +45,13 @@ final class SponsorMomentsComposer {
         List<ExposureSegment> segments = segments(sponsor, detections, start, gapMs);
         List<VoiceMention> voiceMentions = voice.stream()
                 .filter(event -> matches(sponsor, event.getMatchedSponsor()))
-                .sorted(Comparator.comparingLong(TranscriptSentimentEvent::getSegmentEndedAt))
+                // Anchored at the segment's start: the words are somewhere inside the ten seconds that follow,
+                // so a VOD link there lands just before them rather than after them.
+                .sorted(Comparator.comparingLong(TranscriptSentimentEvent::getSegmentStartedAt))
                 .map(event -> new VoiceMention(
                         event.getSentimentEventId(),
-                        event.getSegmentEndedAt(),
-                        Math.max(0, event.getSegmentEndedAt() - start),
+                        event.getSegmentStartedAt(),
+                        Math.max(0, event.getSegmentStartedAt() - start),
                         event.getLabel(),
                         event.getScore(),
                         event.getText()))

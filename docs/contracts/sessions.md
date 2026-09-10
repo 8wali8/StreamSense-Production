@@ -38,7 +38,7 @@ sponsorMoments(sessionId: ID!, sponsor: String): SponsorMoments
 streamMetricsSummary(streamer: String!, streamSessionId: String, windowMinutes: Int, sessionId: ID, from: Float, to: Float): StreamMetricsSummary!
 ```
 
-`sponsorMoments` is composed in the gateway: detections collapse into on-screen `segments` (a gap over 30 seconds starts a new one; `offsetMs` is from the session start, `videoTimestampMs` when capture recorded one), sponsor-relevant chat groups into per-minute `chatMoments`, voice lines are `voiceMentions`, buckets flagged as negative spikes are `riskSpikes`, `best` is the strongest positive chat minute, and `weakest` is the most negative mention when there is one.
+`sponsorMoments` is composed in the gateway: detections collapse into on-screen `segments` (a gap over 30 seconds starts a new one; `offsetMs` is from the session start, `videoTimestampMs` when capture recorded one), sponsor-relevant chat groups into per-minute `chatMoments`, voice lines are `voiceMentions` (timed at the start of the ten-second transcript segment that contains them, so a VOD link lands just before the words), buckets flagged as negative spikes are `riskSpikes`, `best` is the strongest positive chat minute, and `weakest` is the most negative mention when there is one.
 
 ## Configuration
 
