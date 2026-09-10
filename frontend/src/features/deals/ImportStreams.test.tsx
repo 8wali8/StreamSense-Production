@@ -116,4 +116,27 @@ describe("ImportStreams", () => {
     expect(panel.getByText("Import failed: ffmpeg frame capture timed out")).toBeInTheDocument();
     expect(panel.getByRole("button", { name: "Resume" })).toBeEnabled();
   });
+
+  it("offers a retry when the capture service does not confirm an import", async () => {
+    window.localStorage.setItem(
+      "streamsense.selection",
+      JSON.stringify({ streamer: "redbull-testing", sponsor: "Red Bull" }),
+    );
+    server.use(
+      graphqlData("DealSummary", { dealSummary: dealSummary() }),
+      restJson("get", "/api/analytics/streams/redbull-testing/vods", [{ ...inside, sessionId: 12 }]),
+      // A session exists, but the capture service knows nothing about the import (a failed start, or a restart since).
+      restJson("get", "/api/video/capture/status", { ...videoStatusCapturing, imports: [] }),
+    );
+    renderWithApollo(
+      <MemoryRouter initialEntries={["/deals/3"]}>
+        <AppRoutes />
+      </MemoryRouter>,
+    );
+
+    const panel = within(await screen.findByLabelText("Earlier streams on Twitch"));
+    expect(await panel.findByText("Import not confirmed")).toBeInTheDocument();
+    expect(panel.getByRole("button", { name: "Retry import" })).toBeEnabled();
+    expect(panel.getByRole("link", { name: "Open report" })).toHaveAttribute("href", "/sessions/12");
+  });
 });

@@ -5,7 +5,6 @@ import com.streamsense.chatservice.api.VodChatImportStatus;
 import com.streamsense.chatservice.events.ChatMessageEvent;
 import com.streamsense.chatservice.service.ChatEventIngestService;
 import java.time.Instant;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -20,8 +19,11 @@ import org.springframework.stereotype.Service;
  * Imports a recording's chat: every comment Twitch still has for the VOD is published through the
  * normal ingest path at its original time ({@code baseTimeMs} plus the comment's offset), tagged
  * with the importer's session key and {@code TWITCH_VOD_IMPORT} as source. Event ids are derived
- * from the video and comment ids, so importing twice is idempotent downstream. One import runs per
- * recording at a time; the rest of the service is untouched by it.
+ * from the video and comment ids, so importing twice is idempotent downstream. Comments are
+ * published page by page as Twitch returns them and never held as a whole, so a busy recording
+ * costs the memory of one page, not of every comment. The status's {@code total} therefore grows
+ * with the import and equals {@code published} when it is done. One import runs per recording at
+ * a time; the rest of the service is untouched by it.
  */
 @Service
 public class TwitchVodChatImportService {
@@ -64,28 +66,27 @@ public class TwitchVodChatImportService {
 
     void run(String channel, String vodId, long baseTimeMs, String streamSessionId) {
         try {
-            List<TwitchVodChatComment> comments = commentClient.fetchComments(vodId, 0);
-            imports.put(vodId, status(vodId, channel, "RUNNING", 0, comments.size(), null));
-            int published = 0;
-            for (TwitchVodChatComment comment : comments) {
-                ChatMessageEvent event = new ChatMessageEvent(
-                        "vod-" + vodId + "-import-" + comment.id(),
-                        channel,
-                        comment.user(),
-                        comment.message(),
-                        baseTimeMs + Math.round(comment.offsetSeconds() * 1000.0));
-                event.setSource(SOURCE);
-                event.setChannelLogin(channel);
-                event.setStreamSessionId(streamSessionId);
-                event.setTwitchStreamId(vodId);
-                ingestService.ingestTwitch(event);
-                published++;
-                if (published % 500 == 0) {
-                    imports.put(vodId, status(vodId, channel, "RUNNING", published, comments.size(), null));
+            imports.put(vodId, status(vodId, channel, "RUNNING", 0, 0, null));
+            int[] published = {0};
+            commentClient.forEachPage(vodId, 0, page -> {
+                for (TwitchVodChatComment comment : page) {
+                    ChatMessageEvent event = new ChatMessageEvent(
+                            "vod-" + vodId + "-import-" + comment.id(),
+                            channel,
+                            comment.user(),
+                            comment.message(),
+                            baseTimeMs + Math.round(comment.offsetSeconds() * 1000.0));
+                    event.setSource(SOURCE);
+                    event.setChannelLogin(channel);
+                    event.setStreamSessionId(streamSessionId);
+                    event.setTwitchStreamId(vodId);
+                    ingestService.ingestTwitch(event);
+                    published[0]++;
                 }
-            }
-            imports.put(vodId, status(vodId, channel, "DONE", published, comments.size(), null));
-            log.info("VOD chat import finished vod={} channel={} comments={}", vodId, channel, published);
+                imports.put(vodId, status(vodId, channel, "RUNNING", published[0], published[0], null));
+            });
+            imports.put(vodId, status(vodId, channel, "DONE", published[0], published[0], null));
+            log.info("VOD chat import finished vod={} channel={} comments={}", vodId, channel, published[0]);
         } catch (RuntimeException ex) {
             log.warn("VOD chat import failed vod={} channel={} error={}", vodId, channel, ex.getMessage());
             VodChatImportStatus last = imports.get(vodId);

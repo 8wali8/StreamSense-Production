@@ -124,5 +124,32 @@ class VodImportTest {
                 .andExpect(jsonPath("$.session.viewerSamples").value(1));
         mockMvc.perform(post("/api/analytics/streams/" + STREAMER + "/vods/999/import"))
                 .andExpect(status().isBadRequest());
+
+        // A recording of a broadcast that was captured live is refused: its numbers are already in the reports.
+        long liveStart = createdAt + 30 * 24 * 3_600_000L;
+        ChatMessageEvent live = new ChatMessageEvent();
+        live.setEventId("live-chat-1");
+        live.setStreamer(STREAMER);
+        live.setUser("viewer");
+        live.setMessage("hello from the live stream");
+        live.setTimestamp(liveStart + 300_000L);
+        live.setStreamSessionId("capture-live-1");
+        aggregation.aggregateChatMessage("m", live);
+        HelixVideo recordingOfLive = new HelixVideo(
+                "2750461301",
+                null,
+                STREAMER,
+                "Spa",
+                liveStart,
+                3_600_000L,
+                "https://www.twitch.tv/videos/2750461301",
+                100);
+        when(helix.video("2750461301")).thenReturn(Optional.of(recordingOfLive));
+        mockMvc.perform(post("/api/analytics/streams/" + STREAMER + "/vods/2750461301/import"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("analyzed live")));
+        assertThat(sessions.list(STREAMER, liveStart, null, null))
+                .extracting(StreamSession::source)
+                .containsExactly("CAPTURE");
     }
 }

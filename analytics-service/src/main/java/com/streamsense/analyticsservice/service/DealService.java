@@ -19,14 +19,20 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Deals: create, list, read, and the roll-up of every session inside a deal's dates. Creating a
- * deal whose dates cover now points relevance scoring at its sponsor for the channel.
+ * Deals: create, list, read, and the roll-up of every session inside a deal's dates. A deal points
+ * relevance scoring at its sponsor for the channel from the moment it covers now: at creation when
+ * its dates already do, otherwise when {@link #activateStartedDeals()} sees it begin.
  */
 @Service
 public class DealService {
@@ -34,6 +40,7 @@ public class DealService {
     static final int MAX_LIMIT = 200;
     private static final Pattern COMMAND = Pattern.compile("^![A-Za-z0-9_-]{1,63}$");
 
+    private static final Logger log = LoggerFactory.getLogger(DealService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final DealRepository deals;
@@ -42,6 +49,8 @@ public class DealService {
     private final StreamSenseProperties properties;
     private final ObjectProvider<SponsorRelevancePointer> relevance;
     private final Clock clock;
+    /** Deals this instance has pointed relevance at; a restart points the running ones once more, which is harmless. */
+    private final Set<Long> activated = ConcurrentHashMap.newKeySet();
 
     @Autowired
     public DealService(
@@ -53,7 +62,8 @@ public class DealService {
         this(deals, sessions, summaries, properties, relevance, Clock.systemUTC());
     }
 
-    DealService(
+    /** For tests that need a fixed clock, for example to see a scheduled deal begin. */
+    public DealService(
             DealRepository deals,
             StreamSessionService sessions,
             SessionSummaryService summaries,
@@ -105,12 +115,39 @@ public class DealService {
         long id = deals.insert(row, now);
         DealRow stored = deals.findById(id).orElseThrow();
         if (stored.covers(now)) {
-            SponsorRelevancePointer pointer = relevance.getIfAvailable();
-            if (pointer != null) {
-                pointer.point(streamer, sponsor);
-            }
+            activate(stored);
         }
         return toApi(stored, now);
+    }
+
+    /**
+     * Points relevance at the sponsor of every deal that has begun since the last check: for each
+     * streamer with a running deal, the newest one covering now, once per deal. Runs every minute,
+     * so a deal scheduled for a future date takes effect within a minute of its start.
+     */
+    @Scheduled(fixedDelayString = "${streamsense.analytics.deal-activation-check-ms:60000}")
+    public int activateStartedDeals() {
+        long now = clock.millis();
+        int pointed = 0;
+        for (String streamer : deals.findStreamersWithDealCovering(now)) {
+            Optional<DealRow> current =
+                    deals.findCovering(streamer, now).stream().findFirst();
+            if (current.isPresent() && !activated.contains(current.get().id()) && activate(current.get())) {
+                pointed++;
+            }
+        }
+        return pointed;
+    }
+
+    private boolean activate(DealRow deal) {
+        activated.add(deal.id());
+        SponsorRelevancePointer pointer = relevance.getIfAvailable();
+        if (pointer == null) {
+            return false;
+        }
+        log.info("deal {} for @{} began: pointing relevance at {}", deal.id(), deal.streamer(), deal.sponsor());
+        pointer.point(deal.streamer(), deal.sponsor());
+        return true;
     }
 
     /** A streamer's deals, or every deal when no streamer is given; newest start first. */

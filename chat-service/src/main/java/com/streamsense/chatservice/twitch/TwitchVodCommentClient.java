@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -112,8 +113,13 @@ public class TwitchVodCommentClient {
         return Files.newInputStream(Path.of(fixturePath));
     }
 
-    List<TwitchVodChatComment> downloadComments(String vodId, double startOffsetSeconds) {
-        List<TwitchVodChatComment> comments = new ArrayList<>();
+    /**
+     * Walks the recording's comments page by page and hands each page to the consumer as soon as it
+     * arrives, retaining nothing: a whole VOD import can run in the memory of one page (about 60
+     * comments). Pages arrive in playback order. The alias replay path below still builds a list,
+     * because it loops over a short window many times.
+     */
+    public void forEachPage(String vodId, double startOffsetSeconds, Consumer<List<TwitchVodChatComment>> consumer) {
         String cursor = null;
         for (int page = 0; page < Math.max(1, properties.getMaxPages()); page++) {
             JsonNode root = requestPage(vodId, startOffsetSeconds, cursor);
@@ -123,6 +129,7 @@ public class TwitchVodCommentClient {
                 break;
             }
 
+            List<TwitchVodChatComment> comments = new ArrayList<>();
             for (JsonNode edge : edges) {
                 TwitchVodChatComment comment = parseComment(vodId, edge.path("node"));
                 if (comment != null) {
@@ -130,12 +137,18 @@ public class TwitchVodCommentClient {
                 }
                 cursor = edge.path("cursor").asText(cursor);
             }
+            comments.sort(Comparator.comparingDouble(TwitchVodChatComment::offsetSeconds));
+            consumer.accept(List.copyOf(comments));
 
             if (!commentsNode.path("pageInfo").path("hasNextPage").asBoolean(false) || cursor == null) {
                 break;
             }
         }
+    }
 
+    List<TwitchVodChatComment> downloadComments(String vodId, double startOffsetSeconds) {
+        List<TwitchVodChatComment> comments = new ArrayList<>();
+        forEachPage(vodId, startOffsetSeconds, comments::addAll);
         comments.sort(Comparator.comparingDouble(TwitchVodChatComment::offsetSeconds));
         return List.copyOf(comments);
     }

@@ -38,7 +38,8 @@ streamsense:
       endpoint: ${TWITCH_GQL_ENDPOINT:https://gql.twitch.tv/gql}
       client-id: ${TWITCH_GQL_CLIENT_ID:kimne78kx3ncx6brgo4mv6wki5h1ko}
       request-timeout-ms: ${TWITCH_GQL_REQUEST_TIMEOUT_MS:10000}
-      # A VOD import walks every page of the recording's chat; a page is about 60 comments.
+      # A VOD import walks every page of the recording's chat (about 60 comments each), publishing
+      # each page as it arrives and retaining none, so this cap bounds the walk, not memory.
       max-pages: ${TWITCH_GQL_MAX_PAGES:5000}
 
 spring:

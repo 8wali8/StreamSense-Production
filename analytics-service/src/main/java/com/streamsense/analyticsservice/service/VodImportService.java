@@ -5,6 +5,7 @@ import com.streamsense.analyticsservice.api.VodImport;
 import com.streamsense.analyticsservice.api.VodListing;
 import com.streamsense.analyticsservice.imports.CaptureReplayClient;
 import com.streamsense.analyticsservice.imports.ChatReplayClient;
+import com.streamsense.analyticsservice.model.StreamSessionRow;
 import com.streamsense.analyticsservice.persistence.StreamSessionRepository;
 import com.streamsense.analyticsservice.twitch.HelixVideo;
 import com.streamsense.analyticsservice.twitch.TwitchHelixClient;
@@ -80,6 +81,7 @@ public class VodImportService {
             throw new IllegalArgumentException("recording " + vodId + " has no duration yet");
         }
         String key = streamSessionId(login, vodId);
+        rejectIfAnalyzedLive(login, vodId, key, video.createdAt(), video.createdAt() + video.durationMs());
         StreamSession session = sessions.recordVod(
                 login,
                 video.id(),
@@ -123,6 +125,27 @@ public class VodImportService {
     /** The streamSessionId every replayed event of a recording carries. */
     static String streamSessionId(String login, String vodId) {
         return login + "-vod-" + vodId;
+    }
+
+    /**
+     * A capture session overlapping the recording's window means the broadcast's chat and frames
+     * were already analyzed live, and the reports sum every session in a window: replaying the
+     * recording on top would count that stream twice. Importing the same recording again is fine
+     * (its events carry the same ids and are deduplicated); a live capture is not.
+     */
+    private void rejectIfAnalyzedLive(String login, String vodId, String key, long from, long to) {
+        long now = System.currentTimeMillis();
+        for (StreamSessionRow row : sessionRows.findByStreamer(login, from, to, 50)) {
+            boolean liveCapture = StreamSessionService.SOURCE_CAPTURE.equals(row.source());
+            // An open capture session reaches at least as far as its last event.
+            long end = Math.max(row.endOr(now), row.lastSeenAt());
+            boolean overlaps = row.startedAt() < to && end > from;
+            if (liveCapture && overlaps && !key.equals(row.streamSessionId())) {
+                throw new IllegalStateException(
+                        "recording " + vodId + " overlaps a stream that was analyzed live (session " + row.id()
+                                + "); importing it would count that stream twice");
+            }
+        }
     }
 
     private TwitchHelixClient requireHelix() {

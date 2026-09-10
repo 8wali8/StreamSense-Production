@@ -91,6 +91,10 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
         const status = imports.get(vod.vodId);
         const label = importLabel(status);
         const problems = started[vod.vodId] ?? [];
+        // An import is complete only when the capture service says so. No status at all (a replay
+        // that never started, or a capture service restarted since) is as retryable as a failure;
+        // imports are idempotent, so retrying never double-counts.
+        const retryable = vod.sessionId != null && (!status || status.state === "FAILED");
         return (
           <div className="vod-row" key={vod.vodId}>
             <span>
@@ -104,14 +108,15 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
             {vod.sessionId != null ? (
               <span className="vod-actions">
                 {label && <em className={status?.state === "FAILED" ? "tone-warn" : "tone-muted"}>{label}</em>}
-                {status?.state === "FAILED" && (
+                {!status && <em className="tone-muted">Import not confirmed</em>}
+                {retryable && (
                   <button
                     className="button-secondary button-sm"
                     type="button"
                     disabled={busy !== null}
                     onClick={() => void start(vod)}
                   >
-                    Resume
+                    {busy === vod.vodId ? "Starting..." : status ? "Resume" : "Retry import"}
                   </button>
                 )}
                 <Link className="button-secondary button-sm" to={`/sessions/${vod.sessionId}`}>
