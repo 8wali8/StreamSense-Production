@@ -11,9 +11,24 @@ import org.springframework.stereotype.Repository;
 public class ChatResponseRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final boolean postgres;
 
     public ChatResponseRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+        this.postgres = Dialect.isPostgres(jdbcTemplate);
+    }
+
+    /** Inserts a row whose key may already exist; on Postgres the statement itself ignores the duplicate. */
+    private void insertIgnoringDuplicate(String insert, String conflictColumns, Object... args) {
+        if (postgres) {
+            jdbcTemplate.update(insert + " on conflict (" + conflictColumns + ") do nothing", args);
+            return;
+        }
+        try {
+            jdbcTemplate.update(insert, args);
+        } catch (DuplicateKeyException ex) {
+            // Row exists.
+        }
     }
 
     public void incrementCommand(
@@ -25,23 +40,20 @@ public class ChatResponseRepository {
             String username,
             long at,
             long now) {
-        try {
-            jdbcTemplate.update(
-                    """
-                    insert into chat_command_buckets
-                        (streamer, session_key, bucket_start, bucket_size_seconds, command, use_count, created_at, updated_at)
-                    values (?, ?, ?, ?, ?, 0, ?, ?)
-                    """,
-                    streamer,
-                    sessionKey,
-                    bucketStart,
-                    bucketSizeSeconds,
-                    command,
-                    now,
-                    now);
-        } catch (DuplicateKeyException ex) {
-            // Bucket exists.
-        }
+        insertIgnoringDuplicate(
+                """
+                insert into chat_command_buckets
+                    (streamer, session_key, bucket_start, bucket_size_seconds, command, use_count, created_at, updated_at)
+                values (?, ?, ?, ?, ?, 0, ?, ?)
+                """,
+                "streamer, session_key, bucket_start, bucket_size_seconds, command",
+                streamer,
+                sessionKey,
+                bucketStart,
+                bucketSizeSeconds,
+                command,
+                now,
+                now);
         jdbcTemplate.update(
                 """
                 update chat_command_buckets set use_count = use_count + 1, updated_at = ?
@@ -54,42 +66,37 @@ public class ChatResponseRepository {
                 bucketSizeSeconds,
                 command);
         if (username != null && !username.isBlank()) {
-            try {
-                jdbcTemplate.update(
-                        """
-                        insert into chat_command_users (streamer, session_key, command, username, first_seen_at)
-                        values (?, ?, ?, ?, ?)
-                        """,
-                        streamer,
-                        sessionKey,
-                        command,
-                        username.trim().toLowerCase(Locale.ROOT),
-                        at);
-            } catch (DuplicateKeyException ex) {
-                // Same person using the command again.
-            }
+            // Same person using the command again is not a new user.
+            insertIgnoringDuplicate(
+                    """
+                    insert into chat_command_users (streamer, session_key, command, username, first_seen_at)
+                    values (?, ?, ?, ?, ?)
+                    """,
+                    "streamer, session_key, command, username",
+                    streamer,
+                    sessionKey,
+                    command,
+                    username.trim().toLowerCase(Locale.ROOT),
+                    at);
         }
     }
 
     public void incrementLink(
             String streamer, String sessionKey, long bucketStart, int bucketSizeSeconds, String host, long now) {
-        try {
-            jdbcTemplate.update(
-                    """
-                    insert into chat_link_buckets
-                        (streamer, session_key, bucket_start, bucket_size_seconds, host, post_count, created_at, updated_at)
-                    values (?, ?, ?, ?, ?, 0, ?, ?)
-                    """,
-                    streamer,
-                    sessionKey,
-                    bucketStart,
-                    bucketSizeSeconds,
-                    host,
-                    now,
-                    now);
-        } catch (DuplicateKeyException ex) {
-            // Bucket exists.
-        }
+        insertIgnoringDuplicate(
+                """
+                insert into chat_link_buckets
+                    (streamer, session_key, bucket_start, bucket_size_seconds, host, post_count, created_at, updated_at)
+                values (?, ?, ?, ?, ?, 0, ?, ?)
+                """,
+                "streamer, session_key, bucket_start, bucket_size_seconds, host",
+                streamer,
+                sessionKey,
+                bucketStart,
+                bucketSizeSeconds,
+                host,
+                now,
+                now);
         jdbcTemplate.update(
                 """
                 update chat_link_buckets set post_count = post_count + 1, updated_at = ?

@@ -15,9 +15,11 @@ public class SponsorMentionRepository {
     public static final String CHANNEL_VOICE = "VOICE";
 
     private final JdbcTemplate jdbcTemplate;
+    private final boolean postgres;
 
     public SponsorMentionRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+        this.postgres = Dialect.isPostgres(jdbcTemplate);
     }
 
     public void increment(
@@ -31,13 +33,16 @@ public class SponsorMentionRepository {
             double score,
             long now) {
         String normalizedSponsor = sponsor.trim();
-        try {
+        String insert =
+                """
+                insert into sponsor_mention_buckets
+                    (streamer, session_key, bucket_start, bucket_size_seconds, sponsor, channel, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+        if (postgres) {
             jdbcTemplate.update(
-                    """
-                    insert into sponsor_mention_buckets
-                        (streamer, session_key, bucket_start, bucket_size_seconds, sponsor, channel, created_at, updated_at)
-                    values (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                    insert + " on conflict (streamer, session_key, bucket_start, bucket_size_seconds, sponsor, channel)"
+                            + " do nothing",
                     streamer,
                     sessionKey,
                     bucketStart,
@@ -46,8 +51,21 @@ public class SponsorMentionRepository {
                     channel,
                     now,
                     now);
-        } catch (DuplicateKeyException ex) {
-            // Bucket exists; fall through to the increment.
+        } else {
+            try {
+                jdbcTemplate.update(
+                        insert,
+                        streamer,
+                        sessionKey,
+                        bucketStart,
+                        bucketSizeSeconds,
+                        normalizedSponsor,
+                        channel,
+                        now,
+                        now);
+            } catch (DuplicateKeyException ex) {
+                // Bucket exists; fall through to the increment.
+            }
         }
         String upper = label == null ? "" : label.toUpperCase(Locale.ROOT);
         int positive = "POSITIVE".equals(upper) ? 1 : 0;

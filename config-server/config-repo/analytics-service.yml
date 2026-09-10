@@ -72,8 +72,9 @@ streamsense:
       # Comma-separated logins always polled; streamers with recent events are polled as well.
       channels: ${STREAMSENSE_TWITCH_HELIX_CHANNELS:}
       watch-streamers-seen-within-hours: ${STREAMSENSE_TWITCH_HELIX_WATCH_HOURS:24}
-      connect-timeout-ms: 2000
-      read-timeout-ms: 5000
+      # Generous: the container's first name lookup of api.twitch.tv can take seconds.
+      connect-timeout-ms: 5000
+      read-timeout-ms: 10000
       token-refresh-margin-seconds: 60
 
 spring:

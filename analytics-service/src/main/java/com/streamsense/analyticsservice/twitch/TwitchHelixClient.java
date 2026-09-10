@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
 
@@ -79,7 +80,7 @@ public class TwitchHelixClient {
         return get(uri, true);
     }
 
-    private JsonNode get(java.util.function.Function<UriBuilder, java.net.URI> uri, boolean retryOnUnauthorized) {
+    private JsonNode get(java.util.function.Function<UriBuilder, java.net.URI> uri, boolean retry) {
         try {
             return restClient
                     .get()
@@ -89,8 +90,14 @@ public class TwitchHelixClient {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (HttpClientErrorException ex) {
-            if (retryOnUnauthorized && ex.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+            if (retry && ex.getStatusCode() == HttpStatus.UNAUTHORIZED) {
                 tokens.invalidate();
+                return get(uri, false);
+            }
+            throw ex;
+        } catch (ResourceAccessException ex) {
+            // A slow name lookup or a dropped connection; one more try before giving up.
+            if (retry) {
                 return get(uri, false);
             }
             throw ex;
