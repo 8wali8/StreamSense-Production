@@ -27,6 +27,7 @@ from video_capture_service.kafka_publisher import EventPublisher
 from video_capture_service.status import CaptureState, CaptureStatusStore, ChannelStatus
 from video_capture_service.storage import FrameStorage, S3FrameStorage, create_storage
 from video_capture_service.transcription_client import TranscriptionClient
+from video_capture_service.vod_import import VodImportManager, VodImportRequest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [video-capture-service] %(message)s")
 logger = logging.getLogger(__name__)
@@ -34,6 +35,20 @@ logger = logging.getLogger(__name__)
 
 class ChannelSwitchRequest(BaseModel):
     channels: list[str] = Field(min_length=1, max_length=10)
+
+
+class VodReplayRequest(BaseModel):
+    """Import a recording with its original timestamps; see ``vod_import``."""
+
+    channel: str = Field(min_length=1, max_length=64)
+    vodId: str = Field(min_length=1, max_length=64)
+    vodUrl: str = Field(min_length=1, max_length=2048)
+    baseTimeMs: int = Field(ge=0)
+    durationSeconds: int = Field(ge=1)
+    streamSessionId: str = Field(min_length=1, max_length=255)
+    frameIntervalSeconds: int | None = Field(default=None, ge=1)
+    transcriptIntervalSeconds: int | None = Field(default=None, ge=0)
+    startOffsetSeconds: int = Field(default=0, ge=0)
 
 
 class CaptureRuntime:
@@ -47,6 +62,7 @@ class CaptureRuntime:
         self.transcript_publisher: EventPublisher | None = None
         self.transcription_client: TranscriptionClient | None = None
         self.manager: CaptureManager | None = None
+        self.imports: VodImportManager | None = None
         self.started = False
 
     def start(self) -> None:
@@ -77,10 +93,15 @@ class CaptureRuntime:
             self.transcript_publisher,
         )
         self.manager.start()
+        self.imports = VodImportManager(
+            config, self.storage, self.publisher, self.transcription_client, self.transcript_publisher
+        )
         self.started = True
 
     def stop(self) -> None:
         self.started = False
+        if self.imports is not None:
+            self.imports.stop()
         if self.manager is not None:
             self.manager.stop()
 
@@ -145,7 +166,46 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
 
     @app.get("/api/video/capture/status")
     def capture_status(request: Request) -> dict:
-        return get_runtime(request).status_store.snapshot()
+        runtime = get_runtime(request)
+        snapshot = runtime.status_store.snapshot()
+        snapshot["imports"] = runtime.imports.snapshot() if runtime.imports else []
+        return snapshot
+
+    @app.post("/api/video/capture/replay", status_code=202)
+    def replay_vod(request: Request, body: VodReplayRequest) -> dict:
+        runtime = get_runtime(request)
+        if runtime.imports is None:
+            raise HTTPException(status_code=503, detail="capture manager is not running")
+        config = runtime.manager.config if runtime.manager else runtime.config
+        vod_request = VodImportRequest(
+            channel=body.channel.strip().lower().lstrip("#@"),
+            vod_id=body.vodId.strip(),
+            vod_url=body.vodUrl.strip(),
+            base_time_ms=body.baseTimeMs,
+            duration_seconds=body.durationSeconds,
+            stream_session_id=body.streamSessionId.strip(),
+            frame_interval_seconds=body.frameIntervalSeconds or config.sample_interval_seconds,
+            transcript_interval_seconds=(
+                config.transcript_segment_duration_seconds
+                if body.transcriptIntervalSeconds is None
+                else body.transcriptIntervalSeconds
+            ),
+            start_offset_seconds=body.startOffsetSeconds,
+        )
+        try:
+            return runtime.imports.start(vod_request).as_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/video/capture/replay/{vodId}")
+    def replay_status(request: Request, vodId: str) -> dict:
+        runtime = get_runtime(request)
+        status = runtime.imports.status(vodId) if runtime.imports else None
+        if status is None:
+            raise HTTPException(status_code=404, detail="no import for that recording")
+        return status.as_dict()
 
     @app.post("/api/video/capture/channels")
     def switch_capture_channels(request: Request, body: ChannelSwitchRequest) -> dict:

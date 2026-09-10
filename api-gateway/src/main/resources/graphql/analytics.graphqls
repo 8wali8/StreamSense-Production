@@ -84,3 +84,180 @@ type StreamMetricBucket {
   engagementSpike: Boolean!
   negativeSpike: Boolean!
 }
+
+# One stream. source is HELIX (seen live by the Twitch poller), CAPTURE (derived from captured
+# events, what a replay alias produces), or VOD (imported from a Twitch recording). endedAt is null and live is true while the stream is on.
+type StreamSession {
+  id: ID!
+  streamer: String!
+  source: String!
+  twitchStreamId: String
+  streamSessionId: String
+  channelLogin: String
+  title: String
+  category: String
+  startedAt: Float!
+  endedAt: Float
+  live: Boolean!
+  durationMs: Float!
+  peakViewers: Int
+  averageViewers: Float
+  viewerSamples: Int!
+  # The Twitch recording the session was imported from (source VOD, or a Helix session imported afterwards).
+  vodId: String
+}
+
+# What the sponsor's exposure would have cost to buy. Null money fields mean no viewer samples yet.
+# The rates and basis are always present so the reader can see the assumptions.
+type SessionValue {
+  logoValue: Float
+  hostReadValue: Float
+  mediaValue: Float
+  weightedLogoViewerMinutes: Float
+  averageProminence: Float
+  cpmPer30sEquivalent: Float!
+  hostReadRatePer1000: Float!
+  basis: String!
+}
+
+type DirectResponse {
+  chatCommand: String
+  commandUses: Int!
+  commandUsers: Int!
+  trackedLinkHost: String
+  linkPosts: Int!
+}
+
+type SessionSummary {
+  session: StreamSession!
+  # The deal the session fell inside, when there is one; its terms filled what the request left out.
+  dealId: ID
+  sponsor: String
+  onScreenMs: Float!
+  onScreenShare: Float
+  mentions: Int!
+  chatMentions: Int!
+  voiceMentions: Int!
+  mentionSentiment: Float
+  mentionPositiveShare: Float
+  mentionNegativeShare: Float
+  averageViewers: Float
+  peakViewers: Int
+  risk: BrandSafetyMetrics!
+  chat: ChatMetrics!
+  chatSentiment: SentimentMetricSummary!
+  transcriptSentiment: SentimentMetricSummary!
+  engagement: EngagementMetrics!
+  value: SessionValue!
+  response: DirectResponse!
+}
+
+# A run of consecutive detections of one sponsor. offsetMs is from the session start, for the VOD.
+type ExposureSegment {
+  sponsor: String!
+  startedAt: Float!
+  endedAt: Float!
+  offsetMs: Float!
+  durationMs: Float!
+  videoTimestampMs: Float
+  detections: Int!
+  peakConfidence: Float!
+}
+
+type VoiceMention {
+  sentimentEventId: ID!
+  at: Float!
+  offsetMs: Float!
+  label: String!
+  score: Float!
+  text: String!
+}
+
+# Sponsor-relevant chat lines grouped per minute.
+type ChatMoment {
+  at: Float!
+  offsetMs: Float!
+  count: Int!
+  positiveShare: Float!
+  negativeShare: Float!
+  averageScore: Float!
+  sample: String
+  user: String
+}
+
+type RiskSpike {
+  at: Float!
+  offsetMs: Float!
+  chatNegativeRatio: Float
+  chatMessageCount: Float!
+}
+
+type HighlightMoment {
+  kind: String!
+  at: Float!
+  offsetMs: Float!
+  title: String!
+  detail: String!
+  score: Float!
+}
+
+type SponsorMoments {
+  session: StreamSession!
+  sponsor: String
+  segments: [ExposureSegment!]!
+  voiceMentions: [VoiceMention!]!
+  chatMoments: [ChatMoment!]!
+  riskSpikes: [RiskSpike!]!
+  best: HighlightMoment
+  weakest: HighlightMoment
+}
+
+# One sponsorship deal. fee is what the streamer is paid (private to them); the rates price the
+# exposure; trackedLinkHost and chatCommand are what chat is counted for. active while the dates cover now.
+type Deal {
+  id: ID!
+  streamer: String!
+  sponsor: String!
+  startsAt: Float!
+  endsAt: Float
+  promisedStreams: Int
+  fee: Float
+  currency: String!
+  cpmPer30sEquivalent: Float!
+  hostReadRatePer1000: Float!
+  trackedLink: String
+  trackedLinkHost: String
+  chatCommand: String
+  channelPointReward: String
+  active: Boolean!
+  # The read-only share token when the deal is shared; private to the streamer like the fee.
+  shareToken: String
+  createdAt: Float!
+}
+
+# Totals over the streams inside a deal's dates. Money is null until a stream had viewer samples;
+# mentionSentiment is weighted by mention count.
+type DealTotals {
+  streams: Int!
+  liveStreams: Int!
+  streamedMs: Float!
+  onScreenMs: Float!
+  onScreenShare: Float
+  mentions: Int!
+  chatMentions: Int!
+  voiceMentions: Int!
+  mentionSentiment: Float
+  averageViewers: Float
+  logoValue: Float
+  hostReadValue: Float
+  mediaValue: Float
+  commandUses: Int!
+  linkPosts: Int!
+}
+
+type DealSummary {
+  deal: Deal!
+  totals: DealTotals!
+  # Newest first.
+  sessions: [SessionSummary!]!
+}

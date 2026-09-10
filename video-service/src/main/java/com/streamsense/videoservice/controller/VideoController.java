@@ -77,6 +77,19 @@ public class VideoController {
         return videoProcessingService.getRecentDetections(streamer, requestedLimit);
     }
 
+    /** Every detection between two epoch-millis instants, oldest first. */
+    @GetMapping("/detections/range")
+    public List<SponsorDetectionEvent> detectionsInRange(
+            @RequestParam("streamer") @NotBlank String streamer,
+            @RequestParam("from") long from,
+            @RequestParam("to") long to,
+            @RequestParam(value = "limit", required = false) @Min(1) @Max(5000) Integer limit) {
+        if (from >= to) {
+            throw new IllegalArgumentException("from must be before to");
+        }
+        return videoProcessingService.getDetectionsInRange(streamer, from, to, limit != null ? limit : 2000);
+    }
+
     private static String firstNonBlank(String... values) {
         for (String value : values) {
             if (value != null && !value.isBlank()) {

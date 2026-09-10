@@ -59,6 +59,13 @@ class GraphqlSchemaContractTest {
                         "streamMetricsTimeseries",
                         "sponsorExposureMetrics",
                         "brandSafetyMetrics",
+                        "sessions",
+                        "session",
+                        "sessionSummary",
+                        "sponsorMoments",
+                        "deals",
+                        "deal",
+                        "dealSummary",
                         "recommendations");
     }
 

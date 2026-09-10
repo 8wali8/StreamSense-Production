@@ -16,6 +16,12 @@ function describeGraphQlCode(code: unknown, extensions: Record<string, unknown>)
         : "a downstream service returned an error";
     case "BAD_REQUEST":
       return "the request was rejected as invalid";
+    case "SHARE_TOKEN_INVALID":
+      return "this share link is no longer valid";
+    case "SHARE_FORBIDDEN":
+      return "this share link does not open that page";
+    case "SHARE_UNAVAILABLE":
+      return "the share link could not be checked";
     default:
       return null;
   }

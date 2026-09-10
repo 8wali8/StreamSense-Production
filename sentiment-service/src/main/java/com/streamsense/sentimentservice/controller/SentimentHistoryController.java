@@ -12,8 +12,10 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -78,6 +80,53 @@ public class SentimentHistoryController {
             @RequestParam(value = "limit", required = false) @Min(1) @Max(100) Integer limit) {
         int requestedLimit = limit != null ? limit : properties.getHistory().getDefaultLimit();
         return sentimentService.getRecentSponsorTranscriptSentiment(streamer, sponsor, requestedLimit);
+    }
+
+    /** Every sponsor-relevant chat line between two epoch-millis instants, oldest first. */
+    @GetMapping("/sponsor/range")
+    public List<SentimentAnalysisEvent> sponsorSentimentInRange(
+            @RequestParam("streamer") @NotBlank String streamer,
+            @RequestParam(value = "sponsor", required = false) String sponsor,
+            @RequestParam("from") long from,
+            @RequestParam("to") long to,
+            @RequestParam(value = "limit", required = false) @Min(1) @Max(2000) Integer limit) {
+        requireRange(from, to);
+        return sentimentService.getSponsorSentimentInRange(streamer, sponsor, from, to, limit != null ? limit : 500);
+    }
+
+    /** Every sponsor-relevant voice line between two epoch-millis instants, oldest first. */
+    @GetMapping("/transcript/sponsor/range")
+    public List<TranscriptSentimentEvent> sponsorTranscriptSentimentInRange(
+            @RequestParam("streamer") @NotBlank String streamer,
+            @RequestParam(value = "sponsor", required = false) String sponsor,
+            @RequestParam("from") long from,
+            @RequestParam("to") long to,
+            @RequestParam(value = "limit", required = false) @Min(1) @Max(2000) Integer limit) {
+        requireRange(from, to);
+        return sentimentService.getSponsorTranscriptSentimentInRange(
+                streamer, sponsor, from, to, limit != null ? limit : 500);
+    }
+
+    private static void requireRange(long from, long to) {
+        if (from >= to) {
+            throw new IllegalArgumentException("from must be before to");
+        }
+    }
+
+    /** Every streamer's stored profile. */
+    @GetMapping("/relevance/sponsors")
+    public List<SponsorRelevanceProfile> sponsorRelevanceProfiles() {
+        return sponsorRelevanceProfileService.list();
+    }
+
+    /** The profile in effect for one streamer, 404 when the channel has none. */
+    @GetMapping("/relevance/sponsors/{streamer}")
+    public ResponseEntity<SponsorRelevanceProfile> sponsorRelevanceProfile(
+            @PathVariable("streamer") @NotBlank String streamer) {
+        return sponsorRelevanceProfileService
+                .findActive(streamer)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/relevance/sponsors")

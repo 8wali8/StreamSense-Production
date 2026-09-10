@@ -8,8 +8,8 @@ export function Health() {
     fetchPolicy: "no-cache",
   });
 
-  if (loading) return <div className="health-pill">Health: loading...</div>;
-  if (error) return <div className="health-pill">Health: error - {describeError(error)}</div>;
+  if (loading) return <div className="health-pill health-pill-pending">Health: loading...</div>;
+  if (error) return <div className="health-pill health-pill-error">Health: error - {describeError(error)}</div>;
 
   return <div className="health-pill">Health: {data?.health ?? "(no data)"}</div>;
 }

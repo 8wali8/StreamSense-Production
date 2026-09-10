@@ -14,4 +14,12 @@ public interface TranscriptSentimentRecordRepository extends JpaRepository<Trans
     List<TranscriptSentimentRecordEntity>
             findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseOrderBySegmentEndedAtDesc(
                     String streamer, String matchedSponsor, Pageable pageable);
+
+    List<TranscriptSentimentRecordEntity>
+            findByStreamerAndSponsorRelevantTrueAndSegmentEndedAtBetweenOrderBySegmentEndedAtAsc(
+                    String streamer, long from, long to, Pageable pageable);
+
+    List<TranscriptSentimentRecordEntity>
+            findByStreamerAndSponsorRelevantTrueAndMatchedSponsorIgnoreCaseAndSegmentEndedAtBetweenOrderBySegmentEndedAtAsc(
+                    String streamer, String matchedSponsor, long from, long to, Pageable pageable);
 }

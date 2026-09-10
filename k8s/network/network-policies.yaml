@@ -273,6 +273,9 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       ports:
         - port: 8081
   egress:
@@ -414,6 +417,9 @@ spec:
         - podSelector:
             matchLabels:
               app: recommendation-service
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       ports:
         - port: 8083
   egress:
@@ -559,7 +565,7 @@ kind: NetworkPolicy
 metadata:
   name: analytics-service
   namespace: streamsense
-  # Kafka consumer, Postgres
+  # Kafka consumer, Postgres, sentiment-service (deal relevance), and the Twitch Helix API for stream sessions
 spec:
   podSelector:
     matchLabels:
@@ -619,6 +625,36 @@ spec:
               app: zipkin
       ports:
         - port: 9411
+    # creating a deal points sentiment-service's relevance scoring at its sponsor
+    - to:
+        - podSelector:
+            matchLabels:
+              app: sentiment-service
+      ports:
+        - port: 8083
+    # a VOD import replays the recording's chat and its frames and audio through these two
+    - to:
+        - podSelector:
+            matchLabels:
+              app: chat-service
+      ports:
+        - port: 8081
+    - to:
+        - podSelector:
+            matchLabels:
+              app: video-capture-service
+      ports:
+        - port: 8090
+    # public addresses only, for Twitch Helix: the private ranges cover the pod and service networks
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -639,6 +675,9 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       ports:
         - port: 8090
   egress:

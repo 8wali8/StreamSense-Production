@@ -31,6 +31,51 @@ streamsense:
     engagement-spike-multiplier: ${STREAMSENSE_ANALYTICS_ENGAGEMENT_SPIKE_MULTIPLIER:2.0}
     engagement-spike-trailing-window-minutes: ${STREAMSENSE_ANALYTICS_ENGAGEMENT_SPIKE_TRAILING_WINDOW_MINUTES:5}
     low-data-minimum-events: ${STREAMSENSE_ANALYTICS_LOW_DATA_MINIMUM_EVENTS:5}
+    capture-session-idle-close-minutes: ${STREAMSENSE_ANALYTICS_CAPTURE_SESSION_IDLE_CLOSE_MINUTES:10}
+    max-range-hours: ${STREAMSENSE_ANALYTICS_MAX_RANGE_HOURS:48}
+    value:
+      # Media value assumptions for the session report; a deal overrides them per request.
+      cpm-per-30s-equivalent: ${STREAMSENSE_ANALYTICS_VALUE_CPM:12.0}
+      host-read-rate-per-1000: ${STREAMSENSE_ANALYTICS_VALUE_HOST_READ_RATE:15.0}
+      prominence-base: 0.5
+      prominence-area-scale: 10.0
+    response:
+      # Counted when a request names no command or link host; empty means none.
+      default-chat-command: ${STREAMSENSE_ANALYTICS_RESPONSE_CHAT_COMMAND:}
+      default-tracked-link-host: ${STREAMSENSE_ANALYTICS_RESPONSE_LINK_HOST:}
+  services:
+    sentiment-service:
+      # Creating a deal points relevance scoring at its sponsor for the channel; best effort, bounded.
+      base-url: http://sentiment-service:8083
+      connect-timeout-ms: 2000
+      read-timeout-ms: 3000
+    # A VOD import replays the recording's chat and its frames and audio through these two services.
+    chat-service:
+      base-url: http://chat-service:8081
+      connect-timeout-ms: 2000
+      read-timeout-ms: 5000
+    video-capture-service:
+      base-url: http://video-capture-service:8090
+      connect-timeout-ms: 2000
+      read-timeout-ms: 5000
+  twitch:
+    helix:
+      # Live state, title, category, and viewer counts per watched channel; needs the TWITCH_CLIENT_ID
+      # and TWITCH_CLIENT_SECRET secrets (configtree) of a registered Twitch application.
+      enabled: ${STREAMSENSE_TWITCH_HELIX_ENABLED:false}
+      client-id: ${TWITCH_CLIENT_ID:}
+      client-secret: ${TWITCH_CLIENT_SECRET:}
+      base-url: ${TWITCH_HELIX_BASE_URL:https://api.twitch.tv/helix}
+      token-url: ${TWITCH_OAUTH_TOKEN_URL:https://id.twitch.tv/oauth2/token}
+      poll-interval-ms: ${STREAMSENSE_TWITCH_HELIX_POLL_INTERVAL_MS:60000}
+      initial-delay-ms: ${STREAMSENSE_TWITCH_HELIX_INITIAL_DELAY_MS:15000}
+      # Comma-separated logins always polled; streamers with recent events are polled as well.
+      channels: ${STREAMSENSE_TWITCH_HELIX_CHANNELS:}
+      watch-streamers-seen-within-hours: ${STREAMSENSE_TWITCH_HELIX_WATCH_HOURS:24}
+      # Generous: the container's first name lookup of api.twitch.tv can take seconds.
+      connect-timeout-ms: 5000
+      read-timeout-ms: 10000
+      token-refresh-margin-seconds: 60
 
 spring:
   kafka:

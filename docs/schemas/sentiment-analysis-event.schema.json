@@ -105,7 +105,7 @@
         "string",
         "null"
       ],
-      "description": "Where the event came from: TWITCH (live), TWITCH_VOD_REPLAY, MANUAL, or a future source"
+      "description": "Where the event came from: TWITCH (live), TWITCH_VOD_REPLAY, TWITCH_VOD_IMPORT (a recording imported with its original timestamps), MANUAL, or a future source"
     },
     "channelLogin": {
       "type": [

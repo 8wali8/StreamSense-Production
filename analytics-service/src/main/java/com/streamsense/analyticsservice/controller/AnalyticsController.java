@@ -5,6 +5,7 @@ import com.streamsense.analyticsservice.api.SponsorExposureMetric;
 import com.streamsense.analyticsservice.api.StreamMetricBucket;
 import com.streamsense.analyticsservice.api.StreamMetricsSummary;
 import com.streamsense.analyticsservice.service.MetricQueryService;
+import com.streamsense.analyticsservice.service.MetricQueryService.QueryWindow;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -31,8 +32,13 @@ public class AnalyticsController {
     public StreamMetricsSummary summary(
             @PathVariable("streamer") @NotBlank String streamer,
             @RequestParam(value = "streamSessionId", required = false) String streamSessionId,
-            @RequestParam(value = "windowMinutes", required = false) @Min(1) @Max(1440) Integer windowMinutes) {
-        return metricQueryService.summary(streamer, streamSessionId, windowMinutes);
+            @RequestParam(value = "windowMinutes", required = false) @Min(1) @Max(1440) Integer windowMinutes,
+            @RequestParam(value = "sessionId", required = false) Long sessionId,
+            @RequestParam(value = "from", required = false) Long from,
+            @RequestParam(value = "to", required = false) Long to,
+            @RequestParam(value = "bucketSeconds", required = false) @Min(60) @Max(60) Integer bucketSeconds) {
+        return metricQueryService.summary(
+                window(streamer, streamSessionId, windowMinutes, bucketSeconds, sessionId, from, to));
     }
 
     @GetMapping("/timeseries")
@@ -40,23 +46,49 @@ public class AnalyticsController {
             @PathVariable("streamer") @NotBlank String streamer,
             @RequestParam(value = "streamSessionId", required = false) String streamSessionId,
             @RequestParam(value = "windowMinutes", required = false) @Min(1) @Max(1440) Integer windowMinutes,
+            @RequestParam(value = "sessionId", required = false) Long sessionId,
+            @RequestParam(value = "from", required = false) Long from,
+            @RequestParam(value = "to", required = false) Long to,
             @RequestParam(value = "bucketSeconds", required = false) @Min(60) @Max(60) Integer bucketSeconds) {
-        return metricQueryService.timeseries(streamer, streamSessionId, windowMinutes, bucketSeconds);
+        return metricQueryService.timeseries(
+                window(streamer, streamSessionId, windowMinutes, bucketSeconds, sessionId, from, to));
     }
 
     @GetMapping("/sponsors")
     public List<SponsorExposureMetric> sponsors(
             @PathVariable("streamer") @NotBlank String streamer,
             @RequestParam(value = "streamSessionId", required = false) String streamSessionId,
-            @RequestParam(value = "windowMinutes", required = false) @Min(1) @Max(1440) Integer windowMinutes) {
-        return metricQueryService.sponsorExposure(streamer, streamSessionId, windowMinutes);
+            @RequestParam(value = "windowMinutes", required = false) @Min(1) @Max(1440) Integer windowMinutes,
+            @RequestParam(value = "sessionId", required = false) Long sessionId,
+            @RequestParam(value = "from", required = false) Long from,
+            @RequestParam(value = "to", required = false) Long to,
+            @RequestParam(value = "bucketSeconds", required = false) @Min(60) @Max(60) Integer bucketSeconds) {
+        return metricQueryService.sponsorExposure(
+                window(streamer, streamSessionId, windowMinutes, bucketSeconds, sessionId, from, to));
     }
 
     @GetMapping("/risk")
     public BrandSafetyMetrics risk(
             @PathVariable("streamer") @NotBlank String streamer,
             @RequestParam(value = "streamSessionId", required = false) String streamSessionId,
-            @RequestParam(value = "windowMinutes", required = false) @Min(1) @Max(1440) Integer windowMinutes) {
-        return metricQueryService.risk(streamer, streamSessionId, windowMinutes);
+            @RequestParam(value = "windowMinutes", required = false) @Min(1) @Max(1440) Integer windowMinutes,
+            @RequestParam(value = "sessionId", required = false) Long sessionId,
+            @RequestParam(value = "from", required = false) Long from,
+            @RequestParam(value = "to", required = false) Long to,
+            @RequestParam(value = "bucketSeconds", required = false) @Min(60) @Max(60) Integer bucketSeconds) {
+        return metricQueryService
+                .summary(window(streamer, streamSessionId, windowMinutes, bucketSeconds, sessionId, from, to))
+                .risk();
+    }
+
+    private QueryWindow window(
+            String streamer,
+            String streamSessionId,
+            Integer windowMinutes,
+            Integer bucketSeconds,
+            Long sessionId,
+            Long from,
+            Long to) {
+        return metricQueryService.resolve(streamer, streamSessionId, windowMinutes, bucketSeconds, sessionId, from, to);
     }
 }

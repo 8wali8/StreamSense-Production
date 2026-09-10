@@ -3,9 +3,13 @@ package com.streamsense.sentimentservice.service;
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
+import com.streamsense.sentimentservice.persistence.SponsorRelevanceProfileEntity;
+import com.streamsense.sentimentservice.persistence.SponsorRelevanceProfileRepository;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -14,21 +18,35 @@ import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+/**
+ * The sponsor profile relevance scoring uses per streamer. Profiles live in the database and are
+ * mirrored in memory for the hot path; the configured seeds only fill in streamers that have no
+ * stored profile yet, so an operator's or a deal's choice survives a restart.
+ */
 @Service
 public class SponsorRelevanceProfileService {
 
     private final StreamSenseProperties properties;
+    private final SponsorRelevanceProfileRepository repository;
     private final ConcurrentMap<String, SponsorRelevanceProfile> activeProfiles = new ConcurrentHashMap<>();
 
-    public SponsorRelevanceProfileService(StreamSenseProperties properties) {
+    public SponsorRelevanceProfileService(
+            StreamSenseProperties properties, SponsorRelevanceProfileRepository repository) {
         this.properties = properties;
+        this.repository = repository;
     }
 
     @PostConstruct
     public void seedConfiguredProfiles() {
+        for (SponsorRelevanceProfileEntity stored : repository.findAll()) {
+            activeProfiles.put(normalize(stored.getStreamer()), toProfile(stored));
+        }
         for (StreamSenseProperties.Seed seed :
                 properties.getSentiment().getRelevance().getSeeds()) {
             if (clean(seed.getStreamer()) == null || clean(seed.getSponsor()) == null) {
+                continue;
+            }
+            if (activeProfiles.containsKey(normalize(seed.getStreamer()))) {
                 continue;
             }
             SponsorRelevanceUpdateRequest request = new SponsorRelevanceUpdateRequest();
@@ -46,37 +64,60 @@ public class SponsorRelevanceProfileService {
         return Optional.ofNullable(activeProfiles.get(normalize(streamer)));
     }
 
+    /** Every stored profile, by streamer. */
+    public List<SponsorRelevanceProfile> list() {
+        return activeProfiles.values().stream()
+                .sorted(Comparator.comparing(SponsorRelevanceProfile::getStreamer))
+                .toList();
+    }
+
     public SponsorRelevanceProfile update(SponsorRelevanceUpdateRequest request) {
         SponsorRelevanceProfile profile = new SponsorRelevanceProfile();
-        profile.setStreamer(clean(request.getStreamer()));
+        profile.setStreamer(normalize(request.getStreamer()));
         profile.setSponsor(clean(request.getSponsor()));
         profile.setAliases(mergedTerms(configuredAliases(profile.getSponsor()), request.getAliases()));
-        profile.setSemanticTerms(mergedTerms(
-                configuredSemanticTerms(profile.getSponsor()),
-                request.getSemanticTerms(),
-                campaignGoalTerms(request.getCampaignGoal())));
+        profile.setSemanticTerms(
+                mergedTerms(configuredSemanticTerms(profile.getSponsor()), request.getSemanticTerms()));
         profile.setMinScore(
                 request.getMinScore() != null
                         ? request.getMinScore()
                         : properties.getSentiment().getRelevance().getMinScore());
-        activeProfiles.put(normalize(profile.getStreamer()), profile);
+        repository.save(new SponsorRelevanceProfileEntity(
+                profile.getStreamer(),
+                profile.getSponsor(),
+                profile.getAliases(),
+                profile.getSemanticTerms(),
+                profile.getMinScore(),
+                System.currentTimeMillis()));
+        activeProfiles.put(profile.getStreamer(), profile);
         return profile;
     }
 
     public void clear() {
+        repository.deleteAll();
         activeProfiles.clear();
     }
 
-    private java.util.List<String> configuredAliases(String sponsor) {
-        return configuredSponsor(sponsor)
-                .map(StreamSenseProperties.Sponsor::getAliases)
-                .orElseGet(java.util.List::of);
+    private static SponsorRelevanceProfile toProfile(SponsorRelevanceProfileEntity stored) {
+        SponsorRelevanceProfile profile = new SponsorRelevanceProfile();
+        profile.setStreamer(stored.getStreamer());
+        profile.setSponsor(stored.getSponsor());
+        profile.setAliases(new ArrayList<>(stored.aliasList()));
+        profile.setSemanticTerms(new ArrayList<>(stored.semanticTermList()));
+        profile.setMinScore(stored.getMinScore());
+        return profile;
     }
 
-    private java.util.List<String> configuredSemanticTerms(String sponsor) {
+    private List<String> configuredAliases(String sponsor) {
+        return configuredSponsor(sponsor)
+                .map(StreamSenseProperties.Sponsor::getAliases)
+                .orElseGet(List::of);
+    }
+
+    private List<String> configuredSemanticTerms(String sponsor) {
         return configuredSponsor(sponsor)
                 .map(StreamSenseProperties.Sponsor::getSemanticTerms)
-                .orElseGet(java.util.List::of);
+                .orElseGet(List::of);
     }
 
     private Optional<StreamSenseProperties.Sponsor> configuredSponsor(String sponsor) {
@@ -87,9 +128,9 @@ public class SponsorRelevanceProfileService {
     }
 
     @SafeVarargs
-    private final java.util.List<String> mergedTerms(java.util.List<String>... termGroups) {
+    private final List<String> mergedTerms(List<String>... termGroups) {
         Set<String> terms = new LinkedHashSet<>();
-        for (java.util.List<String> group : termGroups) {
+        for (List<String> group : termGroups) {
             if (group == null) {
                 continue;
             }
@@ -101,11 +142,6 @@ public class SponsorRelevanceProfileService {
             }
         }
         return new ArrayList<>(terms);
-    }
-
-    private java.util.List<String> campaignGoalTerms(String campaignGoal) {
-        String cleaned = clean(campaignGoal);
-        return cleaned == null ? java.util.List.of() : java.util.List.of(cleaned);
     }
 
     private String normalize(String value) {

@@ -111,6 +111,10 @@ secrets:
 		name="$$(basename "$${example%.example}")"; target="secrets/$$name"; \
 		if [[ ! -f "$$target" ]]; then \
 			case "$$name" in \
+				TWITCH_CLIENT_ID|TWITCH_CLIENT_SECRET) \
+					: > "$$target" && chmod 644 "$$target"; \
+					echo "created empty $$target (paste the value from the Twitch developer console to enable Helix polling)"; \
+					continue ;; \
 				STREAMSENSE_FRAME_STORAGE_ACCESS_KEY) bytes=8 ;; \
 				STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET) bytes=32 ;; \
 				*) bytes=16 ;; \
@@ -121,7 +125,7 @@ secrets:
 		fi; \
 	done; \
 	if [[ ! -f k8s/secrets/streamsense.env ]]; then \
-		awk -F= '/^[A-Z_]+=/ { cmd = "cat secrets/" $$1; cmd | getline value; close(cmd); print $$1 "=" value; next } { print }' \
+		awk -F= '/^[A-Z_]+=/ { cmd = "cat secrets/" $$1; value = ""; cmd | getline value; close(cmd); print $$1 "=" value; next } { print }' \
 			k8s/secrets/streamsense.env.example > k8s/secrets/streamsense.env && chmod 644 k8s/secrets/streamsense.env; \
 		echo "created k8s/secrets/streamsense.env with the same values"; \
 	fi
