@@ -27,11 +27,12 @@ Branches 01 to 03 produced images, an overlay, and a VM, but no repeatable way t
 | Script syntax and lint | `bash -n tools/deploy/deploy.sh`; `shellcheck -S style tools/deploy/deploy.sh` (0.11.0) | clean |
 | Health-wait parser | the embedded Python run against sample `docker compose ps --format json` lines (healthy, running without healthcheck, exited 0 init, unhealthy, plus an expected service with no row) | reports exactly the unhealthy entries and the missing one |
 | Version resolution | `resolve_versions` with a tag in the env file, with a shell value and an explicit ref, and with neither | file value used with the ref following it; shell value wins and the explicit ref is kept; `main` for both |
-| Cloud | `terraform apply`, Twitch env copied, `sudo deploy.sh`, `deploy.sh verify`, a live capture session, `docker stats` | not run from the agent's environment (no GCP credentials); the steps are in `docs/hosting.md` and this table is to be completed by the owner on the first deploy |
+| Cloud, first deploy | Twitch env installed as in the runbook, then `sudo streamsense-deploy` on the fresh VM (2026-09-10) | exit 0 after about 8 minutes: image pulls, every container healthy on the first health-wait pass (the frontend was the last, `starting` for one poll), `/healthz` ok, 401 without a token, `health: ok` with one, public listeners 22 and 80 only; the same four checks repeated from outside the VM |
+| Cloud, resource use at idle | `docker stats --no-stream`, `free -h`, `df -h` right after the deploy | host 5.4 GiB used of 31 GiB, disk 14 GB of 96 GB; the highest container against its limit was kafka-ui at 65 % (335 MiB of 512 MiB), the JVMs sit at 17 to 36 %, ml-engine at 50 MiB because no model had been requested yet; no limit needs raising before a live session is measured |
 
 ## What to check by hand
 
 1. Follow `docs/hosting.md` one-time setup through `terraform apply`, then copy the Twitch env and run `sudo streamsense-deploy`. Expect the health wait to take several minutes on the first run and the four edge checks to pass.
 2. Open the URL in a browser, set the token as printed, and confirm the console shows the health pills green and live chat for the configured channel.
-3. Watch `docker stats` for ten minutes of live capture with transcripts on and note the peak of ml-engine, video-capture-service, and the JVMs against the limits in `docker-compose.prod.yml`; if one sits above 80 percent of its limit, raise it in a branch.
+3. Watch `docker stats` for ten minutes of live capture with transcripts on and note the peak of ml-engine, video-capture-service, and the JVMs against the limits in `docker-compose.prod.yml`; if one sits above 80 percent of its limit, raise it in a branch. (Idle numbers are in the table above; the live session is still to be measured.)
 4. Stop and start the VM with the Terraform outputs; `sudo streamsense-deploy verify` should pass without a redeploy.

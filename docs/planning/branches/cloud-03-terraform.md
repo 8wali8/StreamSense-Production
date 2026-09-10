@@ -38,7 +38,7 @@ Nothing in the repository described a machine to run the overlay from branch 02 
 | tflint | `tflint --chdir terraform --init && tflint --chdir terraform` (0.64.0, google ruleset 0.39.0) | clean |
 | Misconfiguration gate | `trivy fs --scanners misconfig --severity HIGH,CRITICAL --exit-code 1 terraform` (0.74.0) | 0 findings after the inline suppression (1 before: `AVD-GCP-0031`) |
 | Workflow lint | `actionlint .github/workflows/ci.yml` | clean |
-| Cloud | `terraform apply` in the owner's project | not run from the agent's environment (no GCP credentials); the commands are below and branch 04 records the result |
+| Cloud | `terraform init`, `plan`, `apply` in project `project-896ea82f-08b8-4260-a24` on 2026-09-10 (Terraform 1.16.1 and gcloud 584 installed under `~/.local` in WSL, no root) | 11 added, 0 changed, 0 destroyed in about 90 s; the Compute and OS Login APIs were already enabled; static address 35.193.171.122; the startup script had Docker 29.8 and Compose 5.5 installed and the repository cloned within 20 s of the first SSH probe; `gcloud compute ssh` through OS Login worked on the first try from the allowed `/32` |
 
 ## What to check by hand
 
