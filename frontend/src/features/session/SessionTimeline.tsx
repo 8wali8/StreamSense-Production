@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { formatOffset, vodUrl } from "./report-format";
+import { formatOffset, vodUrl, type VodSession } from "./report-format";
 import { buildTimeline, type TimelineInput, type TimelineMoment } from "./timeline";
 
 type SessionTimelineProps = {
   sponsor: string;
-  session: { source: string; twitchStreamId?: string | null };
+  session: VodSession;
   input: TimelineInput;
 };
 

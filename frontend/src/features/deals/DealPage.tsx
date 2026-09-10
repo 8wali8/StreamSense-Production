@@ -14,6 +14,7 @@ import {
 import { dealDates, feeMultiple, streamsProgress } from "./deal-format";
 import { readShareToken } from "../../lib/share-token";
 import { DealTrend } from "./DealTrend";
+import { ImportStreams } from "./ImportStreams";
 import { ShareControl } from "./ShareControl";
 
 /** S5: how one deal is going. Totals, the trend, and every stream inside it. The share control waits for 07. */
@@ -119,6 +120,15 @@ export function DealPage() {
           value: entry.onScreenMs,
         }))}
       />
+
+      {!sharedView && (
+        <ImportStreams
+          streamer={deal.streamer}
+          startsAt={deal.startsAt}
+          endsAt={deal.endsAt ?? null}
+          onImported={() => void query.refetch()}
+        />
+      )}
 
       <section className="panel past-streams" aria-label="Streams in this deal">
         <div className="panel-heading">

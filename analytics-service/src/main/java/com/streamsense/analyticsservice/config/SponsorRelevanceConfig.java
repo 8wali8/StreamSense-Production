@@ -17,8 +17,7 @@ public class SponsorRelevanceConfig {
     @ConditionalOnProperty(prefix = "streamsense.services.sentiment-service", name = "base-url")
     public SponsorRelevancePointer sponsorRelevancePointer(
             RestClient.Builder builder, StreamSenseProperties properties) {
-        StreamSenseProperties.SentimentService sentiment =
-                properties.getServices().getSentimentService();
+        StreamSenseProperties.Endpoint sentiment = properties.getServices().getSentimentService();
         ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
                 .withConnectTimeout(Duration.ofMillis(sentiment.getConnectTimeoutMs()))
                 .withReadTimeout(Duration.ofMillis(sentiment.getReadTimeoutMs()));

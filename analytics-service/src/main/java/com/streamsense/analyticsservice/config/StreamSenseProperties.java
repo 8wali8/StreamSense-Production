@@ -31,17 +31,30 @@ public class StreamSenseProperties {
         return services;
     }
 
-    /** Other StreamSense services this one calls. */
+    /** Other StreamSense services this one calls. No base URL means the call is never made. */
     public static class Services {
-        private final SentimentService sentimentService = new SentimentService();
+        private final Endpoint sentimentService = new Endpoint();
+        private final Endpoint chatService = new Endpoint();
+        private final Endpoint videoCaptureService = new Endpoint();
 
-        public SentimentService getSentimentService() {
+        /** sentiment-service, for pointing relevance at a deal's sponsor. */
+        public Endpoint getSentimentService() {
             return sentimentService;
+        }
+
+        /** chat-service, for replaying a recording's chat into a VOD import. */
+        public Endpoint getChatService() {
+            return chatService;
+        }
+
+        /** video-capture-service, for replaying a recording's frames and audio into a VOD import. */
+        public Endpoint getVideoCaptureService() {
+            return videoCaptureService;
         }
     }
 
-    /** sentiment-service, for pointing relevance at a deal's sponsor. No base URL means no call. */
-    public static class SentimentService {
+    /** A bounded HTTP endpoint of another StreamSense service. */
+    public static class Endpoint {
         private String baseUrl;
         private int connectTimeoutMs = 2000;
         private int readTimeoutMs = 3000;

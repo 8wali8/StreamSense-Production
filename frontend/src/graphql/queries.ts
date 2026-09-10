@@ -249,6 +249,7 @@ export const SESSION_QUERY = gql`
       peakViewers
       averageViewers
       viewerSamples
+      vodId
     }
   }
 `;
@@ -269,6 +270,7 @@ export const SESSIONS_QUERY = gql`
       peakViewers
       averageViewers
       viewerSamples
+      vodId
     }
   }
 `;
@@ -305,6 +307,7 @@ export const SESSION_SUMMARY_QUERY = gql`
         peakViewers
         averageViewers
         viewerSamples
+        vodId
       }
       dealId
       sponsor

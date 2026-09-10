@@ -31,6 +31,7 @@ public class StreamSessionService {
 
     public static final String SOURCE_HELIX = "HELIX";
     public static final String SOURCE_CAPTURE = "CAPTURE";
+    public static final String SOURCE_VOD = "VOD";
 
     private static final Logger log = LoggerFactory.getLogger(StreamSessionService.class);
     private static final int MAX_LIMIT = 200;
@@ -61,6 +62,10 @@ public class StreamSessionService {
         long now = clock.millis();
         Optional<StreamSessionRow> existing = sessions.find(streamer, SOURCE_CAPTURE, key);
         if (existing.isEmpty()) {
+            // Events replayed from a recording carry the imported session's key; its bounds come from Twitch.
+            if (sessions.findByStreamSessionId(streamer, key).isPresent()) {
+                return;
+            }
             sessions.insert(
                     streamer,
                     SOURCE_CAPTURE,
@@ -81,6 +86,44 @@ public class StreamSessionService {
         if (startedAt != row.startedAt() || lastSeenAt != row.lastSeenAt() || !row.isOpen()) {
             sessions.touch(row.id(), startedAt, lastSeenAt, now);
         }
+    }
+
+    /**
+     * A recording being imported: the session its replayed events will land in. A Helix session of the
+     * same broadcast is reused; otherwise a closed VOD session with Twitch's bounds is created. The
+     * streamer's viewer figure, when given, becomes the session's one viewer sample.
+     */
+    @Transactional
+    public StreamSession recordVod(
+            String streamer,
+            String vodId,
+            String streamId,
+            String title,
+            long createdAt,
+            long durationMs,
+            String streamSessionId,
+            Integer averageViewers) {
+        long now = clock.millis();
+        String login = streamer.toLowerCase(Locale.ROOT);
+        Optional<StreamSessionRow> existing = sessions.findByVodId(login, vodId);
+        if (existing.isEmpty() && streamId != null) {
+            existing = sessions.find(login, SOURCE_HELIX, streamId);
+        }
+        long id;
+        if (existing.isPresent()) {
+            id = existing.get().id();
+            sessions.attachVod(id, vodId, streamSessionId, title, now);
+        } else {
+            id = sessions.insert(
+                    login, SOURCE_VOD, vodId, streamId, streamSessionId, login, title, null, createdAt, createdAt, now);
+            sessions.attachVod(id, vodId, streamSessionId, title, now);
+            sessions.close(id, createdAt + Math.max(0, durationMs), now);
+        }
+        StreamSessionRow row = sessions.findById(id).orElseThrow();
+        if (averageViewers != null && row.viewerSamples() == 0) {
+            sessions.addViewerSample(id, row.startedAt(), averageViewers, now);
+        }
+        return get(id).orElseThrow();
     }
 
     /** A Helix poll saw this broadcast live: open it if new, and record the viewer sample. */
@@ -158,8 +201,9 @@ public class StreamSessionService {
         long now = clock.millis();
         // Over-fetch so hidden capture sessions do not shrink the page below the limit.
         List<StreamSessionRow> rows = sessions.findByStreamer(cleaned, from, to, Math.min(MAX_LIMIT * 2, limit * 4));
-        List<StreamSessionRow> helix =
-                rows.stream().filter(row -> SOURCE_HELIX.equals(row.source())).toList();
+        List<StreamSessionRow> helix = rows.stream()
+                .filter(row -> SOURCE_HELIX.equals(row.source()) || SOURCE_VOD.equals(row.source()))
+                .toList();
         List<StreamSession> result = new ArrayList<>();
         for (StreamSessionRow row : rows) {
             if (SOURCE_CAPTURE.equals(row.source()) && overlapsAny(row, helix, now)) {
@@ -201,7 +245,8 @@ public class StreamSessionService {
                 Math.max(0, end - row.startedAt()),
                 row.peakViewers(),
                 average == null ? null : Math.round(average * 10.0d) / 10.0d,
-                row.viewerSamples());
+                row.viewerSamples(),
+                row.vodId());
     }
 
     private String clean(String value) {

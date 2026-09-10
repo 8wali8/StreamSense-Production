@@ -17,7 +17,7 @@ public class SponsorRelevancePointer {
 
     private final RestClient restClient;
 
-    public SponsorRelevancePointer(RestClient.Builder builder, StreamSenseProperties.SentimentService sentiment) {
+    public SponsorRelevancePointer(RestClient.Builder builder, StreamSenseProperties.Endpoint sentiment) {
         this.restClient = builder.baseUrl(sentiment.getBaseUrl()).build();
     }
 

@@ -20,6 +20,35 @@ import org.springframework.web.client.RestClient;
 /** Token handling and response parsing against a local stand-in for id.twitch.tv and api.twitch.tv. */
 class TwitchHelixClientTest {
 
+    @org.junit.jupiter.api.Test
+    void parsesArchivesWithTheirDurations() {
+        com.fasterxml.jackson.databind.JsonNode body;
+        try {
+            body = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readTree(
+                            """
+                            {"data": [{"id": "2750461300", "stream_id": "41", "user_login": "Racer", "title": "Monza",
+                                       "created_at": "2026-09-01T18:00:00Z", "duration": "3h2m1s",
+                                       "url": "https://www.twitch.tv/videos/2750461300", "view_count": 1200},
+                                      {"id": "", "duration": "1h"}]}
+                            """);
+        } catch (java.io.IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+        java.util.List<HelixVideo> videos = TwitchHelixClient.parseVideos(body);
+        org.assertj.core.api.Assertions.assertThat(videos).hasSize(1);
+        HelixVideo video = videos.get(0);
+        org.assertj.core.api.Assertions.assertThat(video.userLogin()).isEqualTo("racer");
+        org.assertj.core.api.Assertions.assertThat(video.streamId()).isEqualTo("41");
+        org.assertj.core.api.Assertions.assertThat(video.durationMs()).isEqualTo(((3 * 60 + 2) * 60 + 1) * 1000L);
+        org.assertj.core.api.Assertions.assertThat(video.createdAt())
+                .isEqualTo(java.time.Instant.parse("2026-09-01T18:00:00Z").toEpochMilli());
+        org.assertj.core.api.Assertions.assertThat(TwitchHelixClient.parseDuration("45m"))
+                .isEqualTo(2_700_000L);
+        org.assertj.core.api.Assertions.assertThat(TwitchHelixClient.parseDuration("garbage"))
+                .isZero();
+    }
+
     private HttpServer server;
     private final AtomicInteger tokenRequests = new AtomicInteger();
     private final List<String> authorizations = new ArrayList<>();

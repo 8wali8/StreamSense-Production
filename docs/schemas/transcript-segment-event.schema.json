@@ -53,7 +53,7 @@
     },
     "source": {
       "type": "string",
-      "description": "TWITCH for live capture, TWITCH_VOD_REPLAY for replay"
+      "description": "TWITCH for live capture, TWITCH_VOD_REPLAY for replay, TWITCH_VOD_IMPORT for a recording imported with its original timestamps"
     },
     "channelLogin": {
       "type": "string"

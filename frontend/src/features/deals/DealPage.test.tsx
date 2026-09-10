@@ -8,6 +8,14 @@ import { deal, dealSummary, streamAnalytics, twitchStatusConnected, videoStatusC
 import { HttpResponse, graphqlData, restJson, restResolver, server } from "../../test/msw";
 import { SHARE_STORAGE_KEY } from "../../lib/share-token";
 
+/** The deal page's owner view also lists the channel's recordings and polls the capture status. */
+function dealPageHandlers() {
+  return [
+    restJson("get", "/api/analytics/streams/redbull-testing/vods", []),
+    restJson("get", "/api/video/capture/status", videoStatusCapturing),
+  ];
+}
+
 function renderAt(path: string) {
   window.localStorage.setItem(
     "streamsense.selection",
@@ -29,6 +37,7 @@ describe("deals", () => {
   it("mints a share link for the owner, and a shared tab sees the deal without the fee or navigation", async () => {
     let shared = false;
     server.use(
+      ...dealPageHandlers(),
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restResolver("post", "/api/analytics/deals/3/share", () => {
         shared = true;
@@ -64,7 +73,7 @@ describe("deals", () => {
   });
 
   it("shows the deal's totals against the fee, the trend, and the streams inside it", async () => {
-    server.use(graphqlData("DealSummary", { dealSummary: dealSummary() }));
+    server.use(...dealPageHandlers(), graphqlData("DealSummary", { dealSummary: dealSummary() }));
     renderAt("/deals/3");
 
     expect(await screen.findByRole("heading", { name: "Red Bull" })).toBeInTheDocument();

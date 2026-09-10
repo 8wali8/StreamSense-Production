@@ -16,7 +16,8 @@ public record StreamSessionRow(
         long lastSeenAt,
         Integer peakViewers,
         long viewerSum,
-        int viewerSamples) {
+        int viewerSamples,
+        String vodId) {
 
     public boolean isOpen() {
         return endedAt == null;

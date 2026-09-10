@@ -8,6 +8,7 @@ import {
   formatShare,
   formatStart,
   vodUrl,
+  type VodSession,
 } from "./report-format";
 import { SessionTimeline } from "./SessionTimeline";
 import { useSessionReport } from "./useSessionReport";
@@ -180,7 +181,7 @@ type MomentCardProps = {
   kind: "best" | "weakest";
   label: string;
   moment: { offsetMs: number; title: string; detail: string } | null;
-  session: { source: string; twitchStreamId?: string | null };
+  session: VodSession;
 };
 
 function MomentCard({ kind, label, moment, session }: MomentCardProps) {

@@ -57,8 +57,8 @@ class GatewayAuthWebFilterIntegrationTest {
 
     @Test
     void aShareTokenPassesTheFilterOnGraphqlPostsOnly() {
-        // The token is checked by ShareLinkInterceptor against analytics-service; here it is unreachable, so the
-        // request is answered at the GraphQL layer (200 with an error), not rejected by the filter (401).
+        // The token is checked by ShareLinkInterceptor against analytics-service, so the request is answered at
+        // the GraphQL layer (200 with an error), not rejected by the filter (401).
         webTestClient()
                 .post()
                 .uri("/graphql")
@@ -69,8 +69,10 @@ class GatewayAuthWebFilterIntegrationTest {
                 .expectStatus()
                 .isOk()
                 .expectBody()
+                // Refused at the GraphQL layer: unreachable analytics (SHARE_UNAVAILABLE) or, when something
+                // answers on the configured port, an unknown token (SHARE_TOKEN_INVALID).
                 .jsonPath("$.errors[0].extensions.code")
-                .isEqualTo("SHARE_UNAVAILABLE");
+                .value(org.hamcrest.Matchers.startsWith("SHARE_"));
 
         webTestClient()
                 .get()

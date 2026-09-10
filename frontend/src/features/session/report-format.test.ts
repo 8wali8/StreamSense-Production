@@ -21,6 +21,9 @@ describe("report formatting", () => {
       "https://www.twitch.tv/videos/2750461300?t=1h2m5s",
     );
     expect(vodUrl({ source: "HELIX", twitchStreamId: "41" }, 1000)).toBeNull();
+    expect(vodUrl({ source: "HELIX", twitchStreamId: "41", vodId: "99" }, 1000)).toBe(
+      "https://www.twitch.tv/videos/99?t=0h0m1s",
+    );
     expect(vodUrl({ source: "CAPTURE", twitchStreamId: null }, 1000)).toBeNull();
   });
 });
