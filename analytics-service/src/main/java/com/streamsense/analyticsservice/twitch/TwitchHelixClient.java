@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -42,7 +43,7 @@ public class TwitchHelixClient {
     private final TwitchAppTokenProvider tokens;
     private final StreamSenseProperties.Helix helix;
     private final Clock clock;
-    private volatile long pausedUntil;
+    private final AtomicLong pausedUntil = new AtomicLong();
 
     public TwitchHelixClient(
             RestClient.Builder builder, TwitchAppTokenProvider tokens, StreamSenseProperties.Helix helix) {
@@ -59,7 +60,7 @@ public class TwitchHelixClient {
 
     /** Epoch milliseconds until which requests are refused after a 429; zero when not paused. */
     long pausedUntil() {
-        return pausedUntil;
+        return pausedUntil.get();
     }
 
     /** Every live stream among the given logins. Channels that are offline are simply absent. */
@@ -110,9 +111,9 @@ public class TwitchHelixClient {
     }
 
     private JsonNode get(java.util.function.Function<UriBuilder, java.net.URI> uri, boolean retry) {
-        long now = clock.millis();
-        if (now < pausedUntil) {
-            throw new HelixRateLimitedException(pausedUntil);
+        long until = pausedUntil.get();
+        if (clock.millis() < until) {
+            throw new HelixRateLimitedException(until);
         }
         try {
             return restClient
@@ -128,7 +129,7 @@ public class TwitchHelixClient {
                 return get(uri, false);
             }
             if (ex.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
-                throw pause(ex, now);
+                throw pause(ex);
             }
             throw ex;
         } catch (ResourceAccessException ex) {
@@ -140,9 +141,14 @@ public class TwitchHelixClient {
         }
     }
 
-    private HelixRateLimitedException pause(HttpClientErrorException ex, long now) {
-        long until = resetAt(ex, now);
-        pausedUntil = until;
+    /**
+     * Record a 429. The clock is read here, after the answer arrived, so a relative {@code Retry-After}
+     * counts from Twitch's answer rather than from when the request (and maybe a token fetch) began.
+     * The deadline only ever moves later: the poller and import requests share this client, and a
+     * late-arriving 429 with an earlier reset must not cut short a pause another answer set.
+     */
+    HelixRateLimitedException pause(HttpClientErrorException ex) {
+        long until = pausedUntil.accumulateAndGet(resetAt(ex, clock.millis()), Math::max);
         log.warn("helix answered 429; pausing requests until {}", Instant.ofEpochMilli(until));
         return new HelixRateLimitedException(until);
     }

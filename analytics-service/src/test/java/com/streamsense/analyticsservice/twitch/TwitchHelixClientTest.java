@@ -180,6 +180,26 @@ class TwitchHelixClientTest {
                 .isEqualTo(1);
     }
 
+    @Test
+    void thePauseCountsFromTheAnswerAndOnlyEverMovesLater() {
+        StreamSenseProperties.Helix helix = new StreamSenseProperties.Helix();
+        helix.setRateLimitBackoffMs(45_000L);
+        MutableClock clock = new MutableClock(1_800_000_000_000L);
+        TwitchHelixClient client = new TwitchHelixClient(
+                RestClient.builder(), new TwitchAppTokenProvider(RestClient.builder(), helix, clock), helix, clock);
+
+        // A relative Retry-After is measured from when the 429 is read, not from before the request.
+        long start = clock.millis();
+        clock.advanceMillis(4_000L);
+        assertThat(client.pause(tooMany(null, "10")).retryAtMillis()).isEqualTo(start + 14_000L);
+
+        // The poller and an import request share the client: a later 429 with an earlier reset (or a
+        // shorter fallback) leaves the longer pause in place; a later reset extends it.
+        assertThat(client.pause(tooMany(null, "3")).retryAtMillis()).isEqualTo(start + 14_000L);
+        assertThat(client.pause(tooMany(null, null)).retryAtMillis()).isEqualTo(start + 4_000L + 45_000L);
+        assertThat(client.pausedUntil()).isEqualTo(start + 4_000L + 45_000L);
+    }
+
     private static org.springframework.web.client.HttpClientErrorException tooMany(String reset, String retryAfter) {
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         if (reset != null) {

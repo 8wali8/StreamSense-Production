@@ -20,6 +20,7 @@ Helix budgets requests per application: 800 points a minute, visible in the `Rat
 - `StreamSessionPollerTest`: a rate-limited client closes nothing and the next poll still runs.
 - `GlobalExceptionHandlerTest` and `VodImportTest`: the 503, its type, detail, and `Retry-After`, unit and through MockMvc.
 - `mvn verify` on analytics-service from WSL (Maven 3.9.16, `-Dmaven.gitcommitid.skip=true` because the plugin cannot read a Windows worktree's gitdir): 40 tests, Spotless and ArchUnit clean, JaCoCo floor met. `kubectl kustomize .` and a strict duplicate-key parse of the config file.
+- Review round (Codex, two P2s, both fixed): the clock for a relative `Retry-After` is read when the 429 arrives, not before the request and a possible token fetch; and the pause deadline is an atomic max, because the poller and import requests share the client and a late 429 with an earlier reset must not shorten a pause another answer set. `thePauseCountsFromTheAnswerAndOnlyEverMovesLater` covers both. 41 tests after the round.
 - Not observed against the real API: Twitch has not returned a 429 to this application (one poll a minute for one to a few dozen logins is far below 800 points). The header names and the epoch-seconds format of `Ratelimit-Reset` were read off real 200 answers on 2026-09-10.
 
 ## Deliberately left alone
