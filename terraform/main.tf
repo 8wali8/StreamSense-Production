@@ -51,6 +51,8 @@ resource "google_compute_firewall" "ssh" {
   }
 }
 
+# The console: 80 for plain HTTP and the Let's Encrypt HTTP-01 challenge, 443 for HTTPS
+# (TCP) and HTTP/3 (UDP). Caddy owns all three on the VM.
 resource "google_compute_firewall" "http" {
   name          = "${var.instance_name}-allow-http"
   network       = google_compute_network.this.name
@@ -60,7 +62,12 @@ resource "google_compute_firewall" "http" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80"]
+    ports    = ["80", "443"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["443"]
   }
 }
 

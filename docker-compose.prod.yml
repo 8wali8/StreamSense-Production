@@ -5,16 +5,20 @@
 # What it changes and why:
 # - Every service runs the image CI published to GitHub Container Registry for a tested commit
 #   (STREAMSENSE_IMAGE_TAG, default "main"); the VM never builds.
-# - No host port except the console on 80. The datastores and the service ports stay on the Compose
-#   network; the admin UIs (Grafana, Prometheus, Zipkin, Kafka UI, MinIO console) bind to 127.0.0.1
-#   and are reached over an SSH tunnel (docs/hosting.md).
+# - Caddy is the only thing listening on a public port (80 and 443). With STREAMSENSE_DOMAIN set it
+#   serves that name over HTTPS with a Let's Encrypt certificate it manages itself and redirects
+#   port 80; without it, plain HTTP on 80 for the VM's address (tools/deploy/caddy/Caddyfile).
+#   Behind it the console's nginx, the datastores, and the service ports stay on the Compose network;
+#   the admin UIs (Grafana, Prometheus, Zipkin, Kafka UI, MinIO console) bind to 127.0.0.1 and are
+#   reached over an SSH tunnel (docs/hosting.md).
 # - Memory limits copied from the Kubernetes manifests (k8s/**), so the JVMs size their heaps from the
 #   cgroup (-XX:MaxRAMPercentage=75) instead of from the whole machine. About 25 GiB in total.
 # - Containers restart with the VM and logs rotate, so a stopped-and-started VM comes back on its own.
-# - Gateway auth on (viewers use a token from tools/mint-jwt.py), GraphiQL off, one trusted proxy hop
-#   (the console's nginx sets X-Forwarded-For).
-# Twitch credentials and toggles come from the --env-file above: the base file interpolates
-# ${TWITCH_*} and ${STREAMSENSE_TWITCH_*} from the Compose environment, which is what --env-file feeds.
+# - Gateway auth on (viewers use a token from tools/mint-jwt.py), GraphiQL off, two trusted proxy hops
+#   (Caddy sets X-Forwarded-For and the console's nginx appends its own).
+# Twitch credentials and toggles, the domain, and the image tag come from the --env-file above: the
+# base file interpolates ${TWITCH_*} and ${STREAMSENSE_TWITCH_*} from the Compose environment, which
+# is what --env-file feeds, and this file interpolates ${STREAMSENSE_DOMAIN} and ${STREAMSENSE_IMAGE_TAG}.
 
 x-prod: &prod
   restart: unless-stopped
@@ -25,6 +29,42 @@ x-prod: &prod
       max-file: "3"
 
 services:
+  # The edge. Certificates and Caddy's own state persist in named volumes, so a stop and start (or
+  # a redeploy) never asks Let's Encrypt for a new certificate. Runs as root inside the container
+  # only to bind 80 and 443; every other capability is dropped.
+  caddy:
+    <<: *prod
+    image: caddy:2.11.4@sha256:13ba145cba2f3e28fa801994876e4c086d1b95d5aa2a520a734765ffb6b12017
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # The Caddyfile's site address: the domain (HTTPS), or ":80" (plain HTTP) when there is none.
+      STREAMSENSE_DOMAIN: ${STREAMSENSE_DOMAIN:-:80}
+    volumes:
+      - ./tools/deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      # Caddy's static file server is not used; the listener itself is the check.
+      test: ["CMD", "wget", "-qO-", "--spider", "http://127.0.0.1:80/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   eureka-server:
     <<: *prod
     image: ghcr.io/8wali8/streamsense/eureka-server:${STREAMSENSE_IMAGE_TAG:-main}
@@ -50,7 +90,7 @@ services:
     environment:
       - STREAMSENSE_GATEWAY_AUTH_ENABLED=true
       - STREAMSENSE_GATEWAY_GRAPHIQL_ENABLED=false
-      - STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS=1
+      - STREAMSENSE_GATEWAY_TRUSTED_PROXY_HOPS=2
     deploy:
       resources:
         limits:
@@ -122,9 +162,8 @@ services:
   frontend:
     <<: *prod
     image: ghcr.io/8wali8/streamsense/frontend:${STREAMSENSE_IMAGE_TAG:-main}
-    # The one public port. Port 80 on the host maps to the unprivileged nginx on 8080.
-    ports: !override
-      - "80:8080"
+    # Reached only through Caddy; nothing published on the host.
+    ports: !reset []
     deploy:
       resources:
         limits:
@@ -214,3 +253,7 @@ services:
       resources:
         limits:
           memory: 768M
+
+volumes:
+  caddy-data:
+  caddy-config:
