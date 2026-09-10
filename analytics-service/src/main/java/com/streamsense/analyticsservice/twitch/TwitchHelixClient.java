@@ -158,23 +158,25 @@ public class TwitchHelixClient {
      * {@code Retry-After} (seconds), whichever is present and sane, else the configured back-off.
      */
     long resetAt(HttpClientErrorException ex, long now) {
-        long fallback = now + Math.max(0, helix.getRateLimitBackoffMs());
+        // Bounds are checked in seconds before any conversion: an absurd but parseable header value
+        // times 1000 would overflow to a negative that slips under the cap.
+        long maxPauseSeconds = MAX_PAUSE_MS / 1000;
         String reset =
                 ex.getResponseHeaders() == null ? null : ex.getResponseHeaders().getFirst("Ratelimit-Reset");
         Long resetAt = parseLong(reset);
         if (resetAt != null) {
-            long until = resetAt * 1000L;
-            if (until > now && until - now <= MAX_PAUSE_MS) {
-                return until;
+            long aheadSeconds = resetAt - now / 1000;
+            if (aheadSeconds > 0 && aheadSeconds <= maxPauseSeconds) {
+                return resetAt * 1000L;
             }
         }
         String retryAfter =
                 ex.getResponseHeaders() == null ? null : ex.getResponseHeaders().getFirst("Retry-After");
         Long seconds = parseLong(retryAfter);
-        if (seconds != null && seconds > 0 && seconds * 1000L <= MAX_PAUSE_MS) {
+        if (seconds != null && seconds > 0 && seconds <= maxPauseSeconds) {
             return now + seconds * 1000L;
         }
-        return fallback;
+        return now + Math.min(MAX_PAUSE_MS, Math.max(0, helix.getRateLimitBackoffMs()));
     }
 
     private static Long parseLong(String value) {

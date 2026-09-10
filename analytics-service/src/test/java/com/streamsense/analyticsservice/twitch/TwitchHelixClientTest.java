@@ -174,6 +174,12 @@ class TwitchHelixClientTest {
         assertThat(client.resetAt(tooMany("1799999990", null), now)).isEqualTo(now + 45_000L);
         assertThat(client.resetAt(tooMany("1800003600", null), now)).isEqualTo(now + 45_000L);
         assertThat(client.resetAt(tooMany("soon", "later"), now)).isEqualTo(now + 45_000L);
+        // Values that would overflow when multiplied by 1000 are out of range, not negative pauses.
+        String huge = Long.toString(Long.MAX_VALUE / 500);
+        assertThat(client.resetAt(tooMany(huge, null), now)).isEqualTo(now + 45_000L);
+        assertThat(client.resetAt(tooMany(null, huge), now)).isEqualTo(now + 45_000L);
+        assertThat(client.resetAt(tooMany(Long.toString(Long.MIN_VALUE), Long.toString(Long.MIN_VALUE)), now))
+                .isEqualTo(now + 45_000L);
         assertThat(new HelixRateLimitedException(now + 1_500L).retryAfterSeconds(now))
                 .isEqualTo(2);
         assertThat(new HelixRateLimitedException(now - 1L).retryAfterSeconds(now))
