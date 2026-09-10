@@ -1,5 +1,7 @@
 package com.streamsense.videoservice.service;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.streamsense.videoservice.cache.RecentSponsorDetectionsCache;
 import com.streamsense.videoservice.client.MlEngineClient;
 import com.streamsense.videoservice.config.StreamSenseProperties;
@@ -99,7 +101,10 @@ public class VideoProcessingService {
 
     private SponsorDetectionEvent buildDetectionEvent(FrameData frame, MlSponsorResponse response) {
         SponsorDetectionEvent event = new SponsorDetectionEvent();
-        event.setDetectionEventId(UUID.randomUUID().toString());
+        // Derived from the frame, so a frame processed twice (a retried delivery, a resumed VOD import)
+        // yields the same detection event and analytics counts it once.
+        event.setDetectionEventId(UUID.nameUUIDFromBytes(("detection:" + frame.getFrameId()).getBytes(UTF_8))
+                .toString());
         event.setSourceFrameId(frame.getFrameId());
         event.setStreamer(frame.getStreamer());
         event.setFrameRef(frame.getFrameRef());

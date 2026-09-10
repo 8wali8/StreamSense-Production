@@ -14,9 +14,8 @@ import logging
 import tempfile
 import threading
 import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from video_capture_service.audio_sampler import AudioCaptureError, AudioSampler
@@ -34,6 +33,10 @@ from video_capture_service.twitch_source import TwitchSourceResolver, TwitchStre
 logger = logging.getLogger(__name__)
 
 SOURCE = "TWITCH_VOD_IMPORT"
+# An import spans a whole recording; Twitch throttling or a flaky link must not end it after a few misses.
+MAX_CONSECUTIVE_FAILURES = 20
+FAILURE_BACKOFF_SECONDS = 5
+MAX_BACKOFF_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,8 @@ class VodImportRequest:
     stream_session_id: str
     frame_interval_seconds: int
     transcript_interval_seconds: int
+    """Where to start; a resumed import continues from where the failed one stopped."""
+    start_offset_seconds: int = 0
 
 
 @dataclass
@@ -78,13 +83,15 @@ class VodImportStatus:
         }
 
 
-def import_schedule(duration_seconds: int, frame_interval: int, transcript_interval: int) -> list[tuple[int, bool]]:
+def import_schedule(
+    duration_seconds: int, frame_interval: int, transcript_interval: int, start_offset: int = 0
+) -> list[tuple[int, bool]]:
     """Every offset a frame is sampled at, and whether a transcript segment starts there too."""
     if duration_seconds <= 0 or frame_interval <= 0:
         return []
     schedule: list[tuple[int, bool]] = []
-    next_transcript = 0
-    for offset in range(0, duration_seconds, frame_interval):
+    next_transcript = max(0, start_offset)
+    for offset in range(max(0, start_offset), duration_seconds, frame_interval):
         transcribe = transcript_interval > 0 and offset >= next_transcript
         if transcribe:
             next_transcript = offset + transcript_interval
@@ -122,8 +129,14 @@ class VodImportManager:
             current = self.statuses.get(request.vod_id)
             if current is not None and current.state in {"QUEUED", "RUNNING"}:
                 raise RuntimeError(f"import of VOD {request.vod_id} is already running")
+            if current is not None and current.state in {"FAILED", "STOPPED"} and request.start_offset_seconds == 0:
+                # Pick up where the failed run stopped; ids are deterministic, so an overlap is harmless.
+                request = replace(request, start_offset_seconds=current.offset_seconds)
             status = VodImportStatus(
-                vod_id=request.vod_id, channel=request.channel, duration_seconds=request.duration_seconds
+                vod_id=request.vod_id,
+                channel=request.channel,
+                duration_seconds=request.duration_seconds,
+                offset_seconds=request.start_offset_seconds,
             )
             self.statuses[request.vod_id] = status
         self._executor.submit(self._run, request, status)
@@ -165,7 +178,10 @@ class VodImportManager:
         transcript_sequence = 0
         try:
             for offset, transcribe in import_schedule(
-                request.duration_seconds, request.frame_interval_seconds, request.transcript_interval_seconds
+                request.duration_seconds,
+                request.frame_interval_seconds,
+                request.transcript_interval_seconds,
+                request.start_offset_seconds,
             ):
                 if self.stop_event.is_set():
                     status.state = "STOPPED"
@@ -189,10 +205,13 @@ class VodImportManager:
                 except Exception as exc:  # noqa: BLE001 - the import must reach the end; failures are counted
                     consecutive_failures += 1
                     self._failure(status, f"at {offset}s: {exc}")
-                if consecutive_failures >= self.config.max_consecutive_failures:
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                     status.state = "FAILED"
                     logger.warning("VOD import gave up vod=%s after %s failures", request.vod_id, consecutive_failures)
                     return
+                if consecutive_failures > 0:
+                    # Twitch throttles bursts of HLS seeks and the link can drop; wait before the next sample.
+                    self.stop_event.wait(min(MAX_BACKOFF_SECONDS, FAILURE_BACKOFF_SECONDS * consecutive_failures))
             status.offset_seconds = request.duration_seconds
             status.state = "DONE"
             logger.info(
@@ -218,7 +237,9 @@ class VodImportManager:
         sequence: int,
         suffix: str,
     ) -> None:
-        frame_id = str(uuid.uuid4())
+        # Deterministic per offset: a resumed import re-samples the same frame id, and video-service derives
+        # the detection id from it, so analytics never counts an offset twice.
+        frame_id = f"vod-{request.vod_id}-f{offset}"
         temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{frame_id}.{suffix}"
         try:
             captured_path, _ = sampler.capture(hls_url, temp_path, float(offset))
@@ -263,7 +284,7 @@ class VodImportManager:
         client, publisher = self.transcription_client, self.transcript_publisher
         if client is None or publisher is None:
             return
-        segment_id = str(uuid.uuid4())
+        segment_id = f"vod-{request.vod_id}-a{offset}"
         temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{segment_id}.wav"
         started_at = request.base_time_ms + offset * 1000
         ended_at = started_at + self.config.transcript_segment_duration_seconds * 1000

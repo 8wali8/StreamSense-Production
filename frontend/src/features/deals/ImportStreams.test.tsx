@@ -87,13 +87,13 @@ describe("ImportStreams", () => {
           {
             vodId: "2750461300",
             channel: "redbull-testing",
-            state: "RUNNING",
+            state: "FAILED",
             offsetSeconds: 1800,
             durationSeconds: 7200,
             framesPublished: 180,
             transcriptSegmentsPublished: 0,
-            failures: 0,
-            lastError: null,
+            failures: 20,
+            lastError: "ffmpeg frame capture timed out",
           },
         ],
       }),
@@ -112,6 +112,8 @@ describe("ImportStreams", () => {
 
     expect(await panel.findByRole("link", { name: "Open report" })).toHaveAttribute("href", "/sessions/12");
     expect(request).toEqual({ averageViewers: 850 });
-    expect(panel.getByText("Importing · 25%")).toBeInTheDocument();
+    // The capture service reports the import stopped; it can be resumed from where it was.
+    expect(panel.getByText("Import failed: ffmpeg frame capture timed out")).toBeInTheDocument();
+    expect(panel.getByRole("button", { name: "Resume" })).toBeEnabled();
   });
 });
