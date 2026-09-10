@@ -10,7 +10,7 @@ Every change on this line must name the story (S1 to S7) it serves or the ops pa
 
 ## Status
 
-All seven planned sub-branches merged into `redesign/main` on 2026-09-09 (01 through 07, in order, each with its branch note in this directory), followed by 08 (importing past streams from Twitch recordings, added the same day for streamers who join mid-deal). `redesign/main` has not been pushed; it goes to origin once the line is reviewed as a whole. Not on this line and still open: Twitch OAuth for streamers, removing recommendation-service, deepening the tests and raising the coverage floors back up, and the cloud move (which merges `main` into `redesign/main` once).
+All seven planned sub-branches merged into `redesign/main` on 2026-09-09 (01 through 07, in order, each with its branch note in this directory), followed by 08 (importing past streams from Twitch recordings, added the same day for streamers who join mid-deal). On 2026-09-10 `main` (the cloud line: image publishing, the production overlay, the Terraform VM, the deploy script, Caddy with HTTPS at streamsense.dev) was merged into `redesign/main` once, with no conflicts (only CLAUDE.md was touched by both, in different places), the Helix credentials were documented for the VM (`tools/deploy/twitch.env.example`, `docs/hosting.md`), and the branch was pushed for its pull request to `main`. Not on this line and still open: Twitch OAuth for streamers, removing recommendation-service, and deepening the tests and raising the coverage floors back up.
 
 ## Order and scope
 

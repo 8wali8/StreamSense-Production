@@ -31,6 +31,15 @@ gcloud compute ssh streamsense-demo --zone us-central1-a -- \
 rm twitch.env
 ```
 
+Two credentials are secret files rather than env lines: the Twitch application client id and secret that analytics-service uses for Helix polling (`STREAMSENSE_TWITCH_HELIX_ENABLED`) and for listing a channel's recordings to import. `make secrets`, which the deploy runs, creates them empty, and with the toggle off nothing reads them. To turn Helix on, write the values on the VM once and redeploy:
+
+```bash
+gcloud compute ssh streamsense-demo --zone us-central1-a
+sudo sh -c 'umask 077; printf "%s" "<client id>" > /opt/streamsense/secrets/TWITCH_CLIENT_ID; printf "%s" "<client secret>" > /opt/streamsense/secrets/TWITCH_CLIENT_SECRET; chmod 644 /opt/streamsense/secrets/TWITCH_CLIENT_*'
+```
+
+(`644` because the container reads them as its own non-root user; the directory itself is `0700`.) Then set `STREAMSENSE_TWITCH_HELIX_ENABLED=true` in `/etc/streamsense/twitch.env` and run `sudo streamsense-deploy`.
+
 ## Deploy
 
 On the VM (`terraform output ssh_command` prints the exact command):

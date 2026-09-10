@@ -86,7 +86,9 @@ describe("App", () => {
     expect(window.localStorage.getItem("streamsense.selection")).toContain("redbull-testing");
     await user.click(screen.getByRole("link", { name: /home/i }));
     expect(await screen.findByRole("heading", { name: "@redbull-testing" })).toBeInTheDocument();
-  });
+    // Types a channel name and walks two routes with the full app rendered; under a loaded
+    // machine (the whole suite in parallel) it has exceeded the 5 s default.
+  }, 15_000);
 
   it("parses the sponsor profile fields before sending them", async () => {
     let received: unknown = null;
