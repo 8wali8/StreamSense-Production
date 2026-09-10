@@ -1,11 +1,13 @@
 name: CI
 
 # Runs once per change: on pull requests, and on pushes to main after merge.
-# Pushing a branch without a pull request does not run CI.
+# Pushing a branch without a pull request does not run CI. A manual dispatch runs
+# the same checks for the chosen ref and then publishes its images (see publish-images).
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 # Least privilege: the default token can only read the repository and, for the
 # change-detection job, the pull request's file list. Jobs that ever need more
@@ -14,10 +16,12 @@ permissions:
   contents: read
   pull-requests: read
 
-# One run per pull request (newer pushes cancel the older run); runs on main
-# are never cancelled so every merge gets a complete result.
+# One run per pull request (newer pushes cancel the older run). Every push to main gets
+# its own group, so merges that land while an earlier run is still going are neither
+# cancelled nor collapsed into one pending run: each main commit gets a complete result
+# and its own published images.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -78,12 +82,15 @@ jobs:
             frontend:
               - 'frontend/**'
               - 'api-gateway/src/main/resources/graphql/**'
+            terraform:
+              - 'terraform/**'
             k8s:
               - 'k8s/**'
               # The root kustomization is the canonical entry point (it generates the config-server ConfigMap).
               - 'kustomization.yaml'
             smoke:
               - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
               - 'pom.xml'
               - 'makefile'
               - 'tools/**'
@@ -240,8 +247,9 @@ jobs:
 
       - name: Check event schemas stay backward compatible
         env:
-          # Pull requests compare against the target branch; pushes to main against the previous commit.
-          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+          # Pull requests compare against the target branch; pushes to main against the previous commit;
+          # a manual dispatch (no "before" commit) against main.
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before || 'origin/main' }}
         run: python3 tools/schema/check_compat.py --base "$BASE"
 
   frontend-checks:
@@ -324,6 +332,46 @@ jobs:
                   print(f'INVALID: {name}: {e}', file=sys.stderr)
                   sys.exit(1)
           "
+
+  # The GCP resources for the hosted demo (terraform/, docs/planning/cloud-hosting.md): formatting,
+  # a validate against the pinned provider, and tflint with the Google ruleset. The Trivy
+  # misconfiguration gate below scans the same files.
+  terraform-checks:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.run_all == 'true' || contains(fromJSON(needs.changes.outputs.changes), 'terraform')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.16.1"
+
+      - name: Check formatting
+        working-directory: terraform
+        run: terraform fmt -check -recursive -diff
+
+      - name: Validate against the locked provider
+        working-directory: terraform
+        run: |
+          terraform init -backend=false -input=false -lockfile=readonly
+          terraform validate
+
+      - name: Set up tflint
+        uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef # v6.3.1
+        with:
+          tflint_version: "v0.64.0"
+
+      - name: Lint
+        env:
+          # Lets tflint fetch the pinned Google ruleset without hitting the anonymous rate limit.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --chdir terraform --init
+          tflint --chdir terraform --format compact
 
   # ---------------------------------------------------------------------------------------------
   # Supply chain: Dockerfile lint, vulnerability and misconfiguration scan, and an SBOM on main.
@@ -451,6 +499,10 @@ jobs:
       - name: Validate docker compose config
         run: docker compose config
 
+      # The hosted-demo overlay (docs/planning/cloud-hosting.md) must keep rendering over the base file.
+      - name: Validate the production overlay renders
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+
       - name: Build smoke images
         run: docker compose build eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service analytics-service video-capture-service api-gateway
 
@@ -577,6 +629,7 @@ jobs:
       - security-scan
       - sbom
       - validate-k8s-manifests
+      - terraform-checks
       - docker-smoke
     if: always()
     steps:
@@ -589,3 +642,119 @@ jobs:
 
       - name: Report success
         run: echo "every job passed or was skipped by the path filter"
+
+  # ---------------------------------------------------------------------------------------------
+  # Publish: after every check has passed on main (or on a manually dispatched ref), build the
+  # eleven service images once and push them to GitHub Container Registry tagged with the commit
+  # SHA, so a deployment pulls a tested SHA instead of building on the target machine. The
+  # floating "main" tag is moved by promote-main below, only after all eleven pushes succeeded,
+  # so "main" never mixes images from different commits. The token can only write packages here.
+  # ---------------------------------------------------------------------------------------------
+  publish-images:
+    runs-on: ubuntu-latest
+    needs: ci-ok
+    # Jobs upstream of ci-ok are skipped by the path filter (or, for sbom, on every ref but
+    # main), and without a status function here the implicit success() would skip this job
+    # with them. !cancelled() lets ci-ok's own verdict decide, as docker-smoke does.
+    if: >-
+      !cancelled()
+      && needs.ci-ok.result == 'success'
+      && (github.event_name == 'workflow_dispatch'
+          || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - eureka-server
+          - config-server
+          - api-gateway
+          - chat-service
+          - recommendation-service
+          - sentiment-service
+          - video-service
+          - analytics-service
+          - ml-engine
+          - video-capture-service
+          - frontend
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/streamsense/${{ matrix.service }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Java 21
+        if: hashFiles(format('{0}/pom.xml', matrix.service)) != ''
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # The Java Dockerfiles copy target/*.jar; the Python and frontend images build from source.
+      - name: Package the service jar
+        if: hashFiles(format('{0}/pom.xml', matrix.service)) != ''
+        run: mvn -B -ntp -f ${{ matrix.service }}/pom.xml -DskipTests package
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.service }}
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          # One image manifest per tag (no attestation index), so registries and scanners see a plain image.
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # Move the eleven "main" tags to this commit's SHA images, as one step after every matrix
+  # entry succeeded. A branch run (manual dispatch) never gets here, so a deployment that
+  # tracks "main" never picks up an unmerged image; a partial publish leaves "main" on the
+  # previous complete set. imagetools re-tags the pushed manifests without a rebuild.
+  promote-main:
+    runs-on: ubuntu-latest
+    needs: publish-images
+    if: >-
+      !cancelled()
+      && needs.publish-images.result == 'success'
+      && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Point every main tag at this commit
+        env:
+          PREFIX: ghcr.io/${{ github.repository_owner }}/streamsense
+        run: |
+          for service in eureka-server config-server api-gateway chat-service recommendation-service \
+                         sentiment-service video-service analytics-service ml-engine video-capture-service frontend; do
+            docker buildx imagetools create --tag "${PREFIX}/${service}:main" "${PREFIX}/${service}:${GITHUB_SHA}"
+            echo "${service}:main -> ${GITHUB_SHA}"
+          done
