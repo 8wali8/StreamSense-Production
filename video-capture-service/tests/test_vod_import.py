@@ -10,6 +10,8 @@ def test_schedule_samples_every_frame_interval_and_transcribes_on_the_stride():
     assert schedule == [(0, True), (10, False), (20, True), (30, False)]
     assert import_schedule(35, 10, 0) == [(0, False), (10, False), (20, False), (30, False)]
     assert import_schedule(0, 10, 10) == []
+    # A resumed import starts at the last offset and transcribes from there.
+    assert import_schedule(35, 10, 20, 20) == [(20, True), (30, False)]
 
 
 def test_replay_is_refused_while_capture_is_disabled(monkeypatch):

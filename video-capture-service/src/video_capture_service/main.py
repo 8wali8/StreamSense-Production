@@ -48,6 +48,7 @@ class VodReplayRequest(BaseModel):
     streamSessionId: str = Field(min_length=1, max_length=255)
     frameIntervalSeconds: int | None = Field(default=None, ge=1)
     transcriptIntervalSeconds: int | None = Field(default=None, ge=0)
+    startOffsetSeconds: int = Field(default=0, ge=0)
 
 
 class CaptureRuntime:
@@ -189,6 +190,7 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
                 if body.transcriptIntervalSeconds is None
                 else body.transcriptIntervalSeconds
             ),
+            start_offset_seconds=body.startOffsetSeconds,
         )
         try:
             return runtime.imports.start(vod_request).as_dict()

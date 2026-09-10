@@ -103,7 +103,17 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
             </span>
             {vod.sessionId != null ? (
               <span className="vod-actions">
-                {label && <em className="tone-muted">{label}</em>}
+                {label && <em className={status?.state === "FAILED" ? "tone-warn" : "tone-muted"}>{label}</em>}
+                {status?.state === "FAILED" && (
+                  <button
+                    className="button-secondary button-sm"
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => void start(vod)}
+                  >
+                    Resume
+                  </button>
+                )}
                 <Link className="button-secondary button-sm" to={`/sessions/${vod.sessionId}`}>
                   Open report
                 </Link>

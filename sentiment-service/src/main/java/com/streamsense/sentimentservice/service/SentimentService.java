@@ -1,5 +1,7 @@
 package com.streamsense.sentimentservice.service;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.streamsense.sentimentservice.cache.RecentSentimentCache;
 import com.streamsense.sentimentservice.client.MlEngineClient;
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
@@ -257,7 +259,10 @@ public class SentimentService {
 
     static SentimentAnalysisEvent buildSentimentEvent(ChatMessageEvent event, MlSentimentResponse response) {
         SentimentAnalysisEvent sentimentEvent = new SentimentAnalysisEvent();
-        sentimentEvent.setSentimentEventId(UUID.randomUUID().toString());
+        // Derived from the chat event, so a message scored twice (a retried delivery, a resumed VOD import)
+        // yields the same sentiment event and analytics counts it once.
+        sentimentEvent.setSentimentEventId(UUID.nameUUIDFromBytes(("sentiment:" + event.getEventId()).getBytes(UTF_8))
+                .toString());
         sentimentEvent.setSourceEventId(event.getEventId());
         sentimentEvent.setStreamer(event.getStreamer());
         sentimentEvent.setUser(event.getUser());
@@ -297,7 +302,9 @@ public class SentimentService {
     private TranscriptSentimentEvent buildTranscriptSentimentEvent(
             TranscriptSegmentEvent event, MlSentimentResponse response) {
         TranscriptSentimentEvent sentimentEvent = new TranscriptSentimentEvent();
-        sentimentEvent.setSentimentEventId(UUID.randomUUID().toString());
+        sentimentEvent.setSentimentEventId(
+                UUID.nameUUIDFromBytes(("transcript-sentiment:" + event.getSegmentId()).getBytes(UTF_8))
+                        .toString());
         sentimentEvent.setSegmentId(event.getSegmentId());
         sentimentEvent.setStreamer(event.getStreamer());
         sentimentEvent.setText(event.getText());
