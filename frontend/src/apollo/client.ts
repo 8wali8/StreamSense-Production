@@ -15,15 +15,17 @@ export function makeWsUrl(location: BrowserLocation = window.location): string {
 }
 
 // Same token source as the REST client (src/lib/api-client.ts), so every transport stays in lockstep.
-export function buildConnectionParams(storage: TokenStorage = window.localStorage): Headers {
+// `storage` left undefined means the browser's local storage, resolved per request so a token entered
+// after the client was created is picked up, and a browser that blocks storage still gets a client.
+export function buildConnectionParams(storage?: TokenStorage | null): Headers {
   return authHeaders(storage);
 }
 
-export function buildAuthHeaders(previousHeaders?: Headers, storage: TokenStorage = window.localStorage): Headers {
+export function buildAuthHeaders(previousHeaders?: Headers, storage?: TokenStorage | null): Headers {
   return { ...(previousHeaders ?? {}), ...buildConnectionParams(storage) };
 }
 
-export function createAuthLink(storage: TokenStorage = window.localStorage): SetContextLink {
+export function createAuthLink(storage?: TokenStorage | null): SetContextLink {
   return new SetContextLink((previousContext) => ({
     headers: buildAuthHeaders(previousContext.headers as Headers | undefined, storage),
   }));
@@ -31,7 +33,7 @@ export function createAuthLink(storage: TokenStorage = window.localStorage): Set
 
 export function buildWsClientOptions(
   location: BrowserLocation = window.location,
-  storage: TokenStorage = window.localStorage,
+  storage?: TokenStorage | null,
 ): ClientOptions {
   return {
     url: makeWsUrl(location),

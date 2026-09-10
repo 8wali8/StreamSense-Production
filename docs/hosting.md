@@ -52,9 +52,9 @@ sudo streamsense-deploy
 
 The script checks out the commit it will run (see Updating), refreshes the local secret files (`make secrets`, random values kept between runs), pulls the images at that tag, starts the stack with the overlay, and waits for every container the two Compose files define to report healthy. The first run pulls about 4 GB of images and, once the services are up, ml-engine downloads its models on the first request for each backend (2 to 3 GB in total), so allow ten minutes before the console is fully useful. Later runs are a minute or two.
 
-It then verifies through Caddy that the console answers (over HTTPS with a valid certificate when a domain is set, and that plain HTTP redirects), that the gateway refuses a call without a token, that it accepts one with a token, and that nothing but ports 22, 80, and 443 listens on a public interface; and prints the URL and a 30-day token with the instruction for viewers.
+It then verifies through Caddy that the console answers (over HTTPS with a valid certificate when a domain is set, and that plain HTTP redirects), that the gateway refuses a call without a token, that it accepts one with a token, and that nothing but ports 22, 80, and 443 listens on a public interface; and prints a 30-day access link for viewers.
 
-`sudo streamsense-deploy verify` repeats the checks; `sudo streamsense-deploy status` is `docker compose ps`; `sudo streamsense-deploy token` mints another token (`--ttl-seconds` to change the lifetime).
+`sudo streamsense-deploy verify` repeats the checks; `sudo streamsense-deploy status` is `docker compose ps`; `sudo streamsense-deploy link` mints another access link and `sudo streamsense-deploy token` a bare token (`--ttl-seconds` on either to change the lifetime).
 
 ## Domain and HTTPS
 
@@ -70,13 +70,13 @@ What changes for security: the console is now findable by name and will be probe
 
 ## Sharing the console
 
-Send a viewer the URL and the token. The console reads its bearer token from browser local storage and has no entry field yet, so the viewer opens the URL once, opens the browser's developer tools console, and runs the line `streamsense-deploy` printed:
+Send a viewer the access link `streamsense-deploy` printed:
 
-```js
-localStorage.setItem("streamsense.authToken", "<token>"); location.reload();
+```
+https://streamsense.dev/#token=<token>
 ```
 
-Until they do, the console loads but every panel reports the gateway's 401. Anyone with a token can read everything the console shows and use the manual ingest routes within the rate limits; hand tokens to people you would hand the address to.
+Opening it signs that browser in: the console keeps the token in local storage and removes it from the address bar, so a copied or bookmarked URL does not carry it on. The token sits in the URL fragment, which browsers never send, so it does not appear in Caddy's or nginx's access logs. Without a token, or once it has run out, the console shows a sign-in page instead of the app; the link (or the bare token) pasted there signs in as well, and the sidebar's Access entry shows how long it is good for and signs out. Anyone with a link can read everything the console shows and use the manual ingest routes within the rate limits; hand links to people you would hand a password to.
 
 ## Between demos
 

@@ -1,7 +1,7 @@
-import { CombinedGraphQLErrors } from "@apollo/client/errors";
+import { CombinedGraphQLErrors, ServerError } from "@apollo/client/errors";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "./api-client";
-import { describeError } from "./errors";
+import { NO_ACCESS_MESSAGE, describeError } from "./errors";
 
 describe("describeError", () => {
   it("prefers the REST problem detail", () => {
@@ -39,6 +39,15 @@ describe("describeError", () => {
     expect(describeError(unavailable)).toBe("sentiment-service is unavailable");
     expect(describeError(failed)).toBe("analytics-service answered 503");
     expect(describeError(badRequest)).toBe("the request was rejected as invalid");
+  });
+
+  it("tells a viewer without a valid token to use their access link", () => {
+    expect(describeError(new ApiError("/api/chat/twitch/status", 401, null))).toBe(NO_ACCESS_MESSAGE);
+    const gatewayRefused = new ServerError("Response not successful: Received status code 401", {
+      response: new Response(null, { status: 401 }),
+      bodyText: "",
+    });
+    expect(describeError(gatewayRefused)).toBe(NO_ACCESS_MESSAGE);
   });
 
   it("keeps the raw GraphQL message for unknown codes and plain errors", () => {
