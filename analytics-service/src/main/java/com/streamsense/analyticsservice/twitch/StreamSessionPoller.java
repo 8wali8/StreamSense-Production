@@ -56,6 +56,10 @@ public class StreamSessionPoller {
             int closed = sessions.closeHelixSessionsNotLive(
                     watched, live.stream().map(HelixStream::id).toList());
             log.debug("helix poll watched={} live={} closed={}", watched.size(), live.size(), closed);
+        } catch (HelixRateLimitedException ex) {
+            // The client logged the 429 once and refuses requests until the budget refills; open
+            // sessions simply keep their last sample until the next poll that gets through.
+            log.debug("helix poll skipped: {}", ex.getMessage());
         } catch (RuntimeException ex) {
             // The next poll retries; a Twitch outage must not stop the scheduler.
             log.warn("helix poll failed: {}", ex.getMessage());

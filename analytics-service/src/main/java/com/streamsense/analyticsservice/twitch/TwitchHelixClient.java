@@ -2,6 +2,7 @@ package com.streamsense.analyticsservice.twitch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -10,27 +11,55 @@ import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
 
-/** The documented Twitch Helix API: which watched channels are live, with title, category, and viewers. */
+/**
+ * The documented Twitch Helix API: which watched channels are live, with title, category, and viewers.
+ *
+ * <p>Helix budgets requests per application (800 points a minute, observed in the {@code Ratelimit-*}
+ * headers). When it answers 429 the client stops sending until the bucket refills, as told by
+ * {@code Ratelimit-Reset} (epoch seconds) or {@code Retry-After}, falling back to the configured
+ * back-off; every call in between fails fast with {@link HelixRateLimitedException} so the poller
+ * and the import panel wait instead of spending the next minute's budget on retries.
+ */
 public class TwitchHelixClient {
+
+    private static final Logger log = LoggerFactory.getLogger(TwitchHelixClient.class);
 
     /** Helix accepts up to 100 user_login values per request. */
     static final int MAX_LOGINS_PER_REQUEST = 100;
 
+    /** A reset header further away than this is treated as bogus and replaced by the configured back-off. */
+    static final long MAX_PAUSE_MS = 5 * 60_000L;
+
     private final RestClient restClient;
     private final TwitchAppTokenProvider tokens;
     private final StreamSenseProperties.Helix helix;
+    private final Clock clock;
+    private volatile long pausedUntil;
 
     public TwitchHelixClient(
             RestClient.Builder builder, TwitchAppTokenProvider tokens, StreamSenseProperties.Helix helix) {
+        this(builder, tokens, helix, Clock.systemUTC());
+    }
+
+    public TwitchHelixClient(
+            RestClient.Builder builder, TwitchAppTokenProvider tokens, StreamSenseProperties.Helix helix, Clock clock) {
         this.restClient = builder.baseUrl(helix.getBaseUrl()).build();
         this.tokens = tokens;
         this.helix = helix;
+        this.clock = clock;
+    }
+
+    /** Epoch milliseconds until which requests are refused after a 429; zero when not paused. */
+    long pausedUntil() {
+        return pausedUntil;
     }
 
     /** Every live stream among the given logins. Channels that are offline are simply absent. */
@@ -39,7 +68,7 @@ public class TwitchHelixClient {
         List<HelixStream> streams = new ArrayList<>();
         for (int start = 0; start < distinct.size(); start += MAX_LOGINS_PER_REQUEST) {
             List<String> chunk = distinct.subList(start, Math.min(distinct.size(), start + MAX_LOGINS_PER_REQUEST));
-            streams.addAll(parse(fetchStreams(chunk, true)));
+            streams.addAll(parse(get(uri -> streamsUri(uri, chunk))));
         }
         return streams;
     }
@@ -81,6 +110,10 @@ public class TwitchHelixClient {
     }
 
     private JsonNode get(java.util.function.Function<UriBuilder, java.net.URI> uri, boolean retry) {
+        long now = clock.millis();
+        if (now < pausedUntil) {
+            throw new HelixRateLimitedException(pausedUntil);
+        }
         try {
             return restClient
                     .get()
@@ -94,6 +127,9 @@ public class TwitchHelixClient {
                 tokens.invalidate();
                 return get(uri, false);
             }
+            if (ex.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                throw pause(ex, now);
+            }
             throw ex;
         } catch (ResourceAccessException ex) {
             // A slow name lookup or a dropped connection; one more try before giving up.
@@ -101,6 +137,48 @@ public class TwitchHelixClient {
                 return get(uri, false);
             }
             throw ex;
+        }
+    }
+
+    private HelixRateLimitedException pause(HttpClientErrorException ex, long now) {
+        long until = resetAt(ex, now);
+        pausedUntil = until;
+        log.warn("helix answered 429; pausing requests until {}", Instant.ofEpochMilli(until));
+        return new HelixRateLimitedException(until);
+    }
+
+    /**
+     * When to resume: Twitch's {@code Ratelimit-Reset} (epoch seconds, the documented header) or
+     * {@code Retry-After} (seconds), whichever is present and sane, else the configured back-off.
+     */
+    long resetAt(HttpClientErrorException ex, long now) {
+        long fallback = now + Math.max(0, helix.getRateLimitBackoffMs());
+        String reset =
+                ex.getResponseHeaders() == null ? null : ex.getResponseHeaders().getFirst("Ratelimit-Reset");
+        Long resetAt = parseLong(reset);
+        if (resetAt != null) {
+            long until = resetAt * 1000L;
+            if (until > now && until - now <= MAX_PAUSE_MS) {
+                return until;
+            }
+        }
+        String retryAfter =
+                ex.getResponseHeaders() == null ? null : ex.getResponseHeaders().getFirst("Retry-After");
+        Long seconds = parseLong(retryAfter);
+        if (seconds != null && seconds > 0 && seconds * 1000L <= MAX_PAUSE_MS) {
+            return now + seconds * 1000L;
+        }
+        return fallback;
+    }
+
+    private static Long parseLong(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException ex) {
+            return null;
         }
     }
 
@@ -140,24 +218,6 @@ public class TwitchHelixClient {
         long minutes = matcher.group(2) == null ? 0 : Long.parseLong(matcher.group(2));
         long seconds = matcher.group(3) == null ? 0 : Long.parseLong(matcher.group(3));
         return ((hours * 60 + minutes) * 60 + seconds) * 1000L;
-    }
-
-    private JsonNode fetchStreams(List<String> logins, boolean retryOnUnauthorized) {
-        try {
-            return restClient
-                    .get()
-                    .uri(uri -> streamsUri(uri, logins))
-                    .header("Client-Id", helix.getClientId())
-                    .header("Authorization", "Bearer " + tokens.token())
-                    .retrieve()
-                    .body(JsonNode.class);
-        } catch (HttpClientErrorException ex) {
-            if (retryOnUnauthorized && ex.getStatusCode() == HttpStatus.UNAUTHORIZED) {
-                tokens.invalidate();
-                return fetchStreams(logins, false);
-            }
-            throw ex;
-        }
     }
 
     private java.net.URI streamsUri(UriBuilder uri, List<String> logins) {

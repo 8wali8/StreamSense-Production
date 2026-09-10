@@ -1,8 +1,10 @@
 package com.streamsense.analyticsservice.twitch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
+import com.streamsense.analyticsservice.config.TwitchHelixConfig;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -53,6 +55,7 @@ class TwitchHelixClientTest {
     private final AtomicInteger tokenRequests = new AtomicInteger();
     private final List<String> authorizations = new ArrayList<>();
     private boolean rejectFirstStreamsCall;
+    private String rateLimitResetHeader;
 
     @BeforeEach
     void start() throws IOException {
@@ -69,6 +72,12 @@ class TwitchHelixClientTest {
             if (rejectFirstStreamsCall) {
                 rejectFirstStreamsCall = false;
                 respond(exchange, 401, "{\"error\":\"Unauthorized\"}");
+                return;
+            }
+            if (rateLimitResetHeader != null) {
+                exchange.getResponseHeaders().add("Ratelimit-Reset", rateLimitResetHeader);
+                exchange.getResponseHeaders().add("Ratelimit-Remaining", "0");
+                respond(exchange, 429, "{\"error\":\"Too Many Requests\"}");
                 return;
             }
             respond(
@@ -114,6 +123,110 @@ class TwitchHelixClientTest {
         assertThat(client.liveStreams(List.of("racer"))).hasSize(1);
         assertThat(tokenRequests.get()).isEqualTo(2);
         assertThat(authorizations).endsWith("Bearer token-1", "Bearer token-2");
+    }
+
+    @Test
+    void aTooManyRequestsAnswerPausesEveryCallUntilTheResetTime() {
+        StreamSenseProperties.Helix helix = new StreamSenseProperties.Helix();
+        String base = "http://127.0.0.1:" + server.getAddress().getPort();
+        helix.setClientId("client");
+        helix.setClientSecret("secret");
+        helix.setBaseUrl(base + "/helix");
+        helix.setTokenUrl(base + "/oauth2/token");
+        MutableClock clock = new MutableClock(1_800_000_000_000L);
+        TwitchAppTokenProvider tokens = new TwitchAppTokenProvider(RestClient.builder(), helix, clock);
+        // The production request factory: without it Apache HttpClient would quietly resend the 429 itself.
+        RestClient.Builder builder = RestClient.builder().requestFactory(TwitchHelixConfig.twitchRequestFactory(helix));
+        TwitchHelixClient client = new TwitchHelixClient(builder, tokens, helix, clock);
+        long resetSeconds = 1_800_000_000L + 30;
+        rateLimitResetHeader = Long.toString(resetSeconds);
+
+        assertThatThrownBy(() -> client.liveStreams(List.of("racer")))
+                .isInstanceOf(HelixRateLimitedException.class)
+                .satisfies(ex -> assertThat(((HelixRateLimitedException) ex).retryAtMillis())
+                        .isEqualTo(resetSeconds * 1000L));
+        assertThat(client.pausedUntil()).isEqualTo(resetSeconds * 1000L);
+        rateLimitResetHeader = null;
+
+        // Still paused: no request reaches Twitch, whichever endpoint is asked.
+        assertThatThrownBy(() -> client.liveStreams(List.of("racer"))).isInstanceOf(HelixRateLimitedException.class);
+        assertThatThrownBy(() -> client.archives("racer", 5)).isInstanceOf(HelixRateLimitedException.class);
+        assertThat(authorizations).hasSize(1);
+
+        clock.advanceMillis(31_000L);
+        assertThat(client.liveStreams(List.of("racer"))).hasSize(1);
+        assertThat(authorizations).hasSize(2);
+    }
+
+    @Test
+    void resetTimeComesFromTheHeadersOrTheConfiguredBackoff() {
+        StreamSenseProperties.Helix helix = new StreamSenseProperties.Helix();
+        helix.setRateLimitBackoffMs(45_000L);
+        MutableClock clock = new MutableClock(1_800_000_000_000L);
+        TwitchHelixClient client = new TwitchHelixClient(
+                RestClient.builder(), new TwitchAppTokenProvider(RestClient.builder(), helix, clock), helix, clock);
+        long now = clock.millis();
+
+        assertThat(client.resetAt(tooMany(null, null), now)).isEqualTo(now + 45_000L);
+        assertThat(client.resetAt(tooMany("1800000020", null), now)).isEqualTo(now + 20_000L);
+        assertThat(client.resetAt(tooMany(null, "7"), now)).isEqualTo(now + 7_000L);
+        // A reset in the past, an hour away, or unparsable falls back rather than stalling or spinning.
+        assertThat(client.resetAt(tooMany("1799999990", null), now)).isEqualTo(now + 45_000L);
+        assertThat(client.resetAt(tooMany("1800003600", null), now)).isEqualTo(now + 45_000L);
+        assertThat(client.resetAt(tooMany("soon", "later"), now)).isEqualTo(now + 45_000L);
+        assertThat(new HelixRateLimitedException(now + 1_500L).retryAfterSeconds(now))
+                .isEqualTo(2);
+        assertThat(new HelixRateLimitedException(now - 1L).retryAfterSeconds(now))
+                .isEqualTo(1);
+    }
+
+    private static org.springframework.web.client.HttpClientErrorException tooMany(String reset, String retryAfter) {
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        if (reset != null) {
+            headers.add("Ratelimit-Reset", reset);
+        }
+        if (retryAfter != null) {
+            headers.add("Retry-After", retryAfter);
+        }
+        return org.springframework.web.client.HttpClientErrorException.create(
+                org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
+                "Too Many Requests",
+                headers,
+                new byte[0],
+                StandardCharsets.UTF_8);
+    }
+
+    /** A clock the test moves by hand. */
+    private static final class MutableClock extends Clock {
+        private long millis;
+
+        MutableClock(long millis) {
+            this.millis = millis;
+        }
+
+        void advanceMillis(long delta) {
+            millis += delta;
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return java.time.ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public java.time.Instant instant() {
+            return java.time.Instant.ofEpochMilli(millis);
+        }
+
+        @Override
+        public long millis() {
+            return millis;
+        }
     }
 
     private static void respond(com.sun.net.httpserver.HttpExchange exchange, int status, String json)
