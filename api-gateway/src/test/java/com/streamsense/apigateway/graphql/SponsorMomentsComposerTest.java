@@ -128,8 +128,9 @@ class SponsorMomentsComposerTest {
         event.setSentimentEventId("v-" + at);
         event.setStreamer("racer");
         event.setText(text);
-        event.setSegmentStartedAt(at - 3_000L);
-        event.setSegmentEndedAt(at);
+        // A mention is timed at its segment start, where the words begin.
+        event.setSegmentStartedAt(at);
+        event.setSegmentEndedAt(at + 10_000L);
         event.setLabel(label);
         event.setScore(score);
         event.setSponsorRelevant(true);
