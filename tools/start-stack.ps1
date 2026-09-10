@@ -79,6 +79,12 @@ Run-Step "Ensure local secrets" {
         $name = $_.Name -replace "\.example$", ""
         $target = Join-Path $_.DirectoryName $name
         if (-not (Test-Path -LiteralPath $target)) {
+            if ($name -in @("TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET")) {
+                # Real Twitch application credentials, never random: empty keeps Helix polling off.
+                [System.IO.File]::WriteAllText($target, "")
+                "created empty $target (paste the value from the Twitch developer console to enable Helix polling)"
+                return
+            }
             $byteCount = switch ($name) {
                 "STREAMSENSE_FRAME_STORAGE_ACCESS_KEY" { 8 }
                 "STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET" { 32 }

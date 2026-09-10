@@ -125,7 +125,7 @@ secrets:
 		fi; \
 	done; \
 	if [[ ! -f k8s/secrets/streamsense.env ]]; then \
-		awk -F= '/^[A-Z_]+=/ { cmd = "cat secrets/" $$1; cmd | getline value; close(cmd); print $$1 "=" value; next } { print }' \
+		awk -F= '/^[A-Z_]+=/ { cmd = "cat secrets/" $$1; value = ""; cmd | getline value; close(cmd); print $$1 "=" value; next } { print }' \
 			k8s/secrets/streamsense.env.example > k8s/secrets/streamsense.env && chmod 644 k8s/secrets/streamsense.env; \
 		echo "created k8s/secrets/streamsense.env with the same values"; \
 	fi
