@@ -15,4 +15,5 @@ public record StreamSession(
         long durationMs,
         Integer peakViewers,
         Double averageViewers,
-        int viewerSamples) {}
+        int viewerSamples,
+        String vodId) {}

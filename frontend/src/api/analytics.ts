@@ -27,6 +27,39 @@ export function createDeal(request: DealCreateRequest): Promise<Deal> {
   return apiFetch<Deal>("/api/analytics/deals", { method: "POST", body: request });
 }
 
+/** GET /api/analytics/streams/{streamer}/vods: the channel's recordings on Twitch, newest first. */
+export type VodListing = {
+  vodId: string;
+  streamId: string | null;
+  title: string | null;
+  createdAt: number;
+  durationMs: number;
+  url: string | null;
+  viewCount: number;
+  /** The session the recording was imported into, once it has been. */
+  sessionId: number | null;
+};
+
+export function listVods(streamer: string, limit = 20): Promise<VodListing[]> {
+  return apiFetch<VodListing[]>(`/api/analytics/streams/${encodeURIComponent(streamer)}/vods`, { params: { limit } });
+}
+
+/** POST .../vods/{vodId}/import: creates the session and starts the chat and capture replays. */
+export type VodImport = {
+  session: { id: string | number };
+  streamSessionId: string;
+  chatReplayStarted: boolean;
+  captureReplayStarted: boolean;
+  problems: string[];
+};
+
+export function importVod(streamer: string, vodId: string, averageViewers?: number): Promise<VodImport> {
+  return apiFetch<VodImport>(
+    `/api/analytics/streams/${encodeURIComponent(streamer)}/vods/${encodeURIComponent(vodId)}/import`,
+    { method: "POST", body: averageViewers == null ? {} : { averageViewers } },
+  );
+}
+
 export type ShareLink = { dealId: number; token: string };
 
 /** POST /api/analytics/deals/{id}/share: mints the deal's read-only share token, or returns the existing one. */

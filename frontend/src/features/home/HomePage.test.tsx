@@ -21,6 +21,7 @@ const finished = {
   peakViewers: 1842,
   averageViewers: 1310,
   viewerSamples: 134,
+  vodId: null,
 };
 
 const live = {

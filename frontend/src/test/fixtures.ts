@@ -283,6 +283,7 @@ export function sessionSummary(overrides: Partial<SessionSummaryFixture> = {}): 
       peakViewers: 1842,
       averageViewers: 1310,
       viewerSamples: 134,
+      vodId: null,
     },
     dealId: null,
     sponsor: "Red Bull",

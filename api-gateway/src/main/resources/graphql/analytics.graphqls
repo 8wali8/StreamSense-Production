@@ -85,8 +85,8 @@ type StreamMetricBucket {
   negativeSpike: Boolean!
 }
 
-# One stream. source is HELIX (seen live by the Twitch poller) or CAPTURE (derived from captured
-# events, what a replay alias produces). endedAt is null and live is true while the stream is on.
+# One stream. source is HELIX (seen live by the Twitch poller), CAPTURE (derived from captured
+# events, what a replay alias produces), or VOD (imported from a Twitch recording). endedAt is null and live is true while the stream is on.
 type StreamSession {
   id: ID!
   streamer: String!
@@ -103,6 +103,8 @@ type StreamSession {
   peakViewers: Int
   averageViewers: Float
   viewerSamples: Int!
+  # The Twitch recording the session was imported from (source VOD, or a Helix session imported afterwards).
+  vodId: String
 }
 
 # What the sponsor's exposure would have cost to buy. Null money fields mean no viewer samples yet.

@@ -13,6 +13,20 @@ export type VideoCaptureStatus = {
     lastError: string | null;
     lastTranscriptPreview: string | null;
   }>;
+  /** Recordings being imported with their original timestamps (see features/deals/ImportStreams). */
+  imports?: VodImportStatus[];
+};
+
+export type VodImportStatus = {
+  vodId: string;
+  channel: string;
+  state: string;
+  offsetSeconds: number;
+  durationSeconds: number;
+  framesPublished: number;
+  transcriptSegmentsPublished: number;
+  failures: number;
+  lastError: string | null;
 };
 
 export function getVideoCaptureStatus(): Promise<VideoCaptureStatus> {

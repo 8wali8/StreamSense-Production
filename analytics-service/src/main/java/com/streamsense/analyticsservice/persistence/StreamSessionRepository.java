@@ -21,7 +21,7 @@ public class StreamSessionRepository {
     private static final String COLUMNS =
             """
             id, streamer, source, session_ref, twitch_stream_id, stream_session_id, channel_login, title, category,
-            started_at, ended_at, last_seen_at, peak_viewers, viewer_sum, viewer_samples
+            started_at, ended_at, last_seen_at, peak_viewers, viewer_sum, viewer_samples, vod_id
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -81,6 +81,71 @@ public class StreamSessionRepository {
                 source,
                 sessionRef);
         return rows.stream().findFirst();
+    }
+
+    /** The session an event's streamSessionId belongs to, whatever its source. */
+    public Optional<StreamSessionRow> findByStreamSessionId(String streamer, String streamSessionId) {
+        return jdbcTemplate
+                .query(
+                        "select " + COLUMNS + " from stream_sessions where streamer = ? and stream_session_id = ?",
+                        this::mapRow,
+                        streamer,
+                        streamSessionId)
+                .stream()
+                .findFirst();
+    }
+
+    public Optional<StreamSessionRow> findByVodId(String streamer, String vodId) {
+        return jdbcTemplate
+                .query(
+                        "select " + COLUMNS + " from stream_sessions where streamer = ? and vod_id = ?",
+                        this::mapRow,
+                        streamer,
+                        vodId)
+                .stream()
+                .findFirst();
+    }
+
+    /** Marks a session as read from a VOD: its video id, the event key its imported events carry, and a title if none. */
+    public void attachVod(long id, String vodId, String streamSessionId, String title, long now) {
+        jdbcTemplate.update(
+                """
+                update stream_sessions
+                set vod_id = ?, stream_session_id = ?, title = coalesce(title, ?), updated_at = ?
+                where id = ?
+                """,
+                vodId,
+                streamSessionId,
+                title,
+                now,
+                id);
+    }
+
+    /** One viewer sample from outside the poller (a figure the streamer supplied for an imported VOD). */
+    public void addViewerSample(long id, long sampledAt, int viewerCount, long now) {
+        jdbcTemplate.update(
+                """
+                update stream_sessions
+                set peak_viewers = case when peak_viewers is null or peak_viewers < ? then ? else peak_viewers end,
+                    viewer_sum = viewer_sum + ?,
+                    viewer_samples = viewer_samples + 1,
+                    updated_at = ?
+                where id = ?
+                """,
+                viewerCount,
+                viewerCount,
+                viewerCount,
+                now,
+                id);
+        try {
+            jdbcTemplate.update(
+                    "insert into stream_session_viewers (session_id, sampled_at, viewer_count) values (?, ?, ?)",
+                    id,
+                    sampledAt,
+                    viewerCount);
+        } catch (DuplicateKeyException ex) {
+            // Already sampled at that instant; the first sample stands.
+        }
     }
 
     public Optional<StreamSessionRow> findById(long id) {
@@ -214,6 +279,7 @@ public class StreamSessionRepository {
                 rs.getLong("last_seen_at"),
                 rs.getObject("peak_viewers", Integer.class),
                 rs.getLong("viewer_sum"),
-                rs.getInt("viewer_samples"));
+                rs.getInt("viewer_samples"),
+                rs.getString("vod_id"));
     }
 }

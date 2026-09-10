@@ -273,6 +273,9 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       ports:
         - port: 8081
   egress:
@@ -629,6 +632,19 @@ spec:
               app: sentiment-service
       ports:
         - port: 8083
+    # a VOD import replays the recording's chat and its frames and audio through these two
+    - to:
+        - podSelector:
+            matchLabels:
+              app: chat-service
+      ports:
+        - port: 8081
+    - to:
+        - podSelector:
+            matchLabels:
+              app: video-capture-service
+      ports:
+        - port: 8090
     # public addresses only, for Twitch Helix: the private ranges cover the pod and service networks
     - to:
         - ipBlock:
@@ -659,6 +675,9 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       ports:
         - port: 8090
   egress:

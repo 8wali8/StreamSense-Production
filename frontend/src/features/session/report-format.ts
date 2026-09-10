@@ -63,21 +63,23 @@ export function formatStart(startedAt: number): string {
   });
 }
 
-type VodSession = { source: string; twitchStreamId?: string | null };
+export type VodSession = { source: string; twitchStreamId?: string | null; vodId?: string | null };
 
 /**
- * A link that opens the recording at a moment. Only a capture session of a replay alias carries a
- * VOD id today (its twitchStreamId); a Helix session's stream id is not a video id, so no link.
+ * A link that opens the recording at a moment: an imported session carries its video id; a capture
+ * session of a replay alias carries one as its twitchStreamId; a Helix session's stream id is not a
+ * video id, so a live-watched stream has no link until it is imported.
  */
 export function vodUrl(session: VodSession, offsetMs: number): string | null {
-  if (session.source !== "CAPTURE" || !session.twitchStreamId || !/^\d+$/.test(session.twitchStreamId)) {
+  const videoId = session.vodId ?? (session.source === "CAPTURE" ? session.twitchStreamId : null);
+  if (!videoId || !/^\d+$/.test(videoId)) {
     return null;
   }
   const total = Math.max(0, Math.floor(offsetMs / 1000));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
-  return `https://www.twitch.tv/videos/${session.twitchStreamId}?t=${hours}h${minutes}m${seconds}s`;
+  return `https://www.twitch.tv/videos/${videoId}?t=${hours}h${minutes}m${seconds}s`;
 }
 
 /** Plain-language names for the risk factors the analytics service reports. */

@@ -1818,3 +1818,59 @@ p {
   color: var(--bad-text);
   font-size: 12px;
 }
+
+/* ---------- Importing recordings ---------- */
+
+.vod-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.vod-row strong {
+  display: block;
+  font-weight: 500;
+}
+
+.vod-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.vod-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vod-actions em {
+  font-style: normal;
+  font-size: 12px;
+}
+
+.viewers-input {
+  width: 120px;
+  height: 36px;
+  font-size: 13px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .vod-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

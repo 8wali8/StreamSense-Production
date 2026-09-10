@@ -2,7 +2,8 @@ package com.streamsense.analyticsservice.api;
 
 /**
  * One stream as the API reports it. {@code source} is HELIX when the Twitch poller saw the
- * broadcast and CAPTURE when the session was derived from captured events; {@code live} is true
+ * broadcast, CAPTURE when the session was derived from captured events, and VOD when it was
+ * imported from a Twitch recording ({@code vodId}, also set on a Helix session imported afterwards); {@code live} is true
  * while no end has been recorded. Viewer figures are null until the poller has sampled them.
  */
 public record StreamSession(
@@ -20,4 +21,5 @@ public record StreamSession(
         long durationMs,
         Integer peakViewers,
         Double averageViewers,
-        int viewerSamples) {}
+        int viewerSamples,
+        String vodId) {}

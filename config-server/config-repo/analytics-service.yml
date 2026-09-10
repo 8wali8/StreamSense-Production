@@ -49,6 +49,15 @@ streamsense:
       base-url: http://sentiment-service:8083
       connect-timeout-ms: 2000
       read-timeout-ms: 3000
+    # A VOD import replays the recording's chat and its frames and audio through these two services.
+    chat-service:
+      base-url: http://chat-service:8081
+      connect-timeout-ms: 2000
+      read-timeout-ms: 5000
+    video-capture-service:
+      base-url: http://video-capture-service:8090
+      connect-timeout-ms: 2000
+      read-timeout-ms: 5000
   twitch:
     helix:
       # Live state, title, category, and viewer counts per watched channel; needs the TWITCH_CLIENT_ID

@@ -32,7 +32,8 @@ class SponsorMomentsComposerTest {
                 3_600_000L,
                 1500,
                 1200.0,
-                30);
+                30,
+                null);
         List<SponsorDetectionEvent> detections = List.of(
                 detection("Red Bull", START + 10_000L, 0.8, 1_800_000L),
                 detection("Red Bull", START + 20_000L, 0.9, null),
@@ -81,8 +82,8 @@ class SponsorMomentsComposerTest {
     @Test
     void noSponsorMeansAnyRelevantLineAndNoHighlightsWhenNothingQualifies() {
         StreamSession session = new StreamSession(
-                8L, "racer", "CAPTURE", null, "racer-1", "racer", null, null, START, null, true, 60_000L, null, null,
-                0);
+                8L, "racer", "CAPTURE", null, "racer-1", "racer", null, null, START, null, true, 60_000L, null, null, 0,
+                null);
         SponsorMoments moments = SponsorMomentsComposer.compose(
                 session,
                 null,
