@@ -22,6 +22,6 @@ public class CaptureReplayClient {
         body.put("baseTimeMs", baseTimeMs);
         body.put("durationSeconds", durationMs / 1000);
         body.put("streamSessionId", streamSessionId);
-        restClient.post().uri("/api/video/replay").body(body).retrieve().toBodilessEntity();
+        restClient.post().uri("/api/video/capture/replay").body(body).retrieve().toBodilessEntity();
     }
 }

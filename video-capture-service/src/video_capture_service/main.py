@@ -170,7 +170,7 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
         snapshot["imports"] = runtime.imports.snapshot() if runtime.imports else []
         return snapshot
 
-    @app.post("/api/video/replay", status_code=202)
+    @app.post("/api/video/capture/replay", status_code=202)
     def replay_vod(request: Request, body: VodReplayRequest) -> dict:
         runtime = get_runtime(request)
         if runtime.imports is None:
@@ -197,7 +197,7 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    @app.get("/api/video/replay/{vodId}")
+    @app.get("/api/video/capture/replay/{vodId}")
     def replay_status(request: Request, vodId: str) -> dict:
         runtime = get_runtime(request)
         status = runtime.imports.status(vodId) if runtime.imports else None

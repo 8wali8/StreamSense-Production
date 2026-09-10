@@ -17,7 +17,7 @@ def test_replay_is_refused_while_capture_is_disabled(monkeypatch):
     monkeypatch.delenv("TWITCH_VIDEO_CHANNELS", raising=False)
     with TestClient(create_app(CaptureConfig.from_env())) as client:
         response = client.post(
-            "/api/video/replay",
+            "/api/video/capture/replay",
             json={
                 "channel": "racer",
                 "vodId": "2750461300",
@@ -28,5 +28,5 @@ def test_replay_is_refused_while_capture_is_disabled(monkeypatch):
             },
         )
         assert response.status_code == 409
-        assert client.get("/api/video/replay/2750461300").status_code == 404
+        assert client.get("/api/video/capture/replay/2750461300").status_code == 404
         assert client.get("/api/video/capture/status").json()["imports"] == []
