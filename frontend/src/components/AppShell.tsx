@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router";
+import { AccessPanel } from "../features/access/AccessPanel";
 import { useStreamer } from "../features/streamer/streamer-context";
 import { readShareToken } from "../lib/share-token";
 
@@ -69,6 +70,7 @@ export function AppShell() {
             <span className="eyebrow">Channel</span>
             <strong>@{selectedStreamer}</strong>
           </div>
+          <AccessPanel />
           <NavLink className={navClass} to="/ops">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="3" />

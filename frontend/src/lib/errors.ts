@@ -1,7 +1,10 @@
-import { CombinedGraphQLErrors } from "@apollo/client/errors";
+import { CombinedGraphQLErrors, ServerError } from "@apollo/client/errors";
 import { ApiError } from "./api-client";
 
 export type ErrorLike = { message: string } | Error | null | undefined;
+
+/** What the gateway's 401 means to a viewer: the console has no token it accepts. */
+export const NO_ACCESS_MESSAGE = "this console needs an access link; open the one you were sent";
 
 /** Human-readable text for the gateway's `extensions.code` values (see api-gateway GraphQlErrorAdvice). */
 function describeGraphQlCode(code: unknown, extensions: Record<string, unknown>): string | null {
@@ -34,7 +37,10 @@ function describeGraphQlCode(code: unknown, extensions: Record<string, unknown>)
 export function describeError(error: ErrorLike): string {
   if (!error) return "unknown error";
   if (error instanceof ApiError) {
-    return error.problem?.detail ?? error.message;
+    return error.status === 401 ? NO_ACCESS_MESSAGE : (error.problem?.detail ?? error.message);
+  }
+  if (ServerError.is(error) && error.statusCode === 401) {
+    return NO_ACCESS_MESSAGE;
   }
   if (CombinedGraphQLErrors.is(error)) {
     const described = error.errors

@@ -8,6 +8,9 @@ export const SHARE_HEADER = "X-StreamSense-Share";
 
 export type ShareStorage = Pick<Storage, "getItem" | "setItem">;
 
+/** The token from this page load's URL, kept when session storage is blocked or refuses the write. */
+let tokenInMemory: string | null = null;
+
 function defaultStorage(): ShareStorage | null {
   try {
     return typeof window === "undefined" ? null : window.sessionStorage;
@@ -25,11 +28,12 @@ export function shareTokenFromSearch(search: string): string | null {
 /** Remember the token from the URL for this tab; returns the token in effect afterwards. */
 export function captureShareToken(search: string, storage: ShareStorage | null = defaultStorage()): string | null {
   const fromUrl = shareTokenFromSearch(search);
-  if (fromUrl && storage) {
+  if (fromUrl) {
+    tokenInMemory = fromUrl;
     try {
-      storage.setItem(SHARE_STORAGE_KEY, fromUrl);
+      storage?.setItem(SHARE_STORAGE_KEY, fromUrl);
     } catch {
-      // Storage can be blocked; the header is still sent for this render from the URL.
+      // Storage can be blocked; the in-memory copy serves this page load.
     }
   }
   return fromUrl ?? readShareToken(storage);
@@ -37,9 +41,9 @@ export function captureShareToken(search: string, storage: ShareStorage | null =
 
 export function readShareToken(storage: ShareStorage | null = defaultStorage()): string | null {
   try {
-    return storage?.getItem(SHARE_STORAGE_KEY) ?? null;
+    return storage?.getItem(SHARE_STORAGE_KEY) ?? tokenInMemory;
   } catch {
-    return null;
+    return tokenInMemory;
   }
 }
 

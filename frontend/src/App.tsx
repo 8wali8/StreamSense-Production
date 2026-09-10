@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Route, Routes } from "react-router";
 import { AppShell } from "./components/AppShell";
+import { AccessGate } from "./features/access/AccessGate";
 import { DealPage } from "./features/deals/DealPage";
 import { HomePage } from "./features/home/HomePage";
 import { OpsPage } from "./features/ops/OpsPage";
@@ -12,6 +13,7 @@ import {
 } from "./features/session/SessionDetailPages";
 import { SessionReportPage } from "./features/session/SessionReportPage";
 import { StreamerProvider } from "./features/streamer/StreamerProvider";
+import { captureAccessLink } from "./lib/auth-token";
 import { captureShareToken, readShareToken } from "./lib/share-token";
 
 function NotFound() {
@@ -73,11 +75,14 @@ export function AppRoutes() {
 }
 
 export default function App() {
-  // A share link carries its token in the URL; keep it for the tab before anything renders.
+  // An access link or a share link carries its token in the URL; keep it before anything renders.
+  captureAccessLink(window);
   captureShareToken(window.location.search);
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <AccessGate>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AccessGate>
   );
 }

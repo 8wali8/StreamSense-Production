@@ -16,10 +16,19 @@ describe("share-token", () => {
     const storage = memoryStorage();
     expect(shareTokenFromSearch("?share=abc%20d&x=1")).toBe("abc d");
     expect(shareTokenFromSearch("?x=1")).toBeNull();
+    expect(shareHeaders(memoryStorage())).toEqual({});
     expect(captureShareToken("?share=tok-1", storage)).toBe("tok-1");
     expect(captureShareToken("", storage)).toBe("tok-1");
     expect(shareHeaders(storage)).toEqual({ "X-StreamSense-Share": "tok-1" });
-    expect(shareHeaders(memoryStorage())).toEqual({});
+  });
+
+  it("keeps the token for this page load when session storage refuses it", () => {
+    const refuse = () => {
+      throw new Error("storage is blocked");
+    };
+    const storage = { getItem: refuse, setItem: refuse };
+    expect(captureShareToken("?share=tok-2", storage)).toBe("tok-2");
+    expect(shareHeaders(storage)).toEqual({ "X-StreamSense-Share": "tok-2" });
   });
 
   it("builds the link a streamer sends", () => {

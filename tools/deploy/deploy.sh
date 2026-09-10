@@ -6,7 +6,8 @@
 #
 #   streamsense-deploy [deploy]   pull the repository, refresh secrets, pull the images, start the stack, verify
 #   streamsense-deploy verify     health of every container, then the console and the gateway through the edge
-#   streamsense-deploy token      print a bearer token for the console (TTL from --ttl-seconds, default 30 days)
+#   streamsense-deploy link       print an access link for the console (TTL from --ttl-seconds, default 30 days)
+#   streamsense-deploy token      print a bare bearer token instead (same options)
 #   streamsense-deploy status     docker compose ps
 #
 # Environment (all optional):
@@ -230,23 +231,23 @@ verify_edge() {
   echo "Console: $(console_url)"
 }
 
+# The token travels in the URL fragment: the browser never sends a fragment, so it stays out of
+# Caddy's and nginx's access logs, and the console drops it from the address bar once it has it.
+access_link() {
+  echo "$(console_url)#token=$(mint_token "${1:-2592000}")"
+}
+
 print_sharing_instructions() {
-  local url token
-  url="$(console_url)"
-  token="$(mint_token)"
   cat <<MSG
 
 Share with a viewer:
 
-  URL    $url
-  Token  $token
+  $(access_link)
 
-The console reads its bearer token from local storage. In the browser, open the developer tools
-console on $url once and run:
-
-  localStorage.setItem("streamsense.authToken", "$token"); location.reload();
-
-The token is valid for 30 days; run "streamsense-deploy token" for a new one.
+Opening the link signs that browser in: the console keeps the token and removes it from the address
+bar. The console's sign-in page also accepts the link pasted whole. The link is valid for 30 days;
+run "streamsense-deploy link" for a new one. Anyone holding the link can read everything the console
+shows, so send it the way you would send a password.
 MSG
 }
 
@@ -277,8 +278,7 @@ cmd_verify() {
   verify_edge
 }
 
-cmd_token() {
-  require_root
+ttl_option() {
   local ttl=2592000
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -286,7 +286,19 @@ cmd_token() {
       *) die "unknown option $1" ;;
     esac
   done
-  mint_token "$ttl"
+  echo "$ttl"
+}
+
+cmd_token() {
+  require_root
+  mint_token "$(ttl_option "$@")"
+}
+
+cmd_link() {
+  require_root
+  require_env_file
+  resolve_versions
+  access_link "$(ttl_option "$@")"
 }
 
 cmd_status() {
@@ -300,8 +312,9 @@ cmd_status() {
 case "${1:-deploy}" in
   deploy) cmd_deploy ;;
   verify) cmd_verify ;;
+  link) shift; cmd_link "$@" ;;
   token) shift; cmd_token "$@" ;;
   status) cmd_status ;;
-  -h|--help|help) sed -n '2,21p' "$0" ;;
-  *) die "unknown command ${1}; try deploy, verify, token, status" ;;
+  -h|--help|help) sed -n '2,22p' "$0" ;;
+  *) die "unknown command ${1}; try deploy, verify, link, token, status" ;;
 esac
