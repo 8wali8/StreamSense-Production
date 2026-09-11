@@ -43,6 +43,21 @@ class StreamSessionPollerTest {
     }
 
     @Test
+    void aChannelWithAnOpenSessionStaysPolledUntilItEndsEvenWhenNoLongerWatched() {
+        config.setChannels(List.of("racer"));
+        when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of());
+        when(sessions.streamersWithOpenHelixSessions()).thenReturn(List.of("Formerly-Watched"));
+        when(helix.liveStreams(any())).thenReturn(List.of());
+        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, List::of, config, clock);
+
+        assertThat(poller.watchedChannels()).isEqualTo(Set.of("racer", "formerly-watched"));
+        poller.poll();
+
+        verify(helix).liveStreams(Set.of("racer", "formerly-watched"));
+        verify(sessions).closeHelixSessionsNotLive(Set.of("racer", "formerly-watched"), List.of());
+    }
+
+    @Test
     void aTwitchFailureIsLoggedAndTheNextPollStillRuns() {
         config.setChannels(List.of("racer"));
         when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of());

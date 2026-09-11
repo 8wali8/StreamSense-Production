@@ -4,6 +4,7 @@ import com.streamsense.apigateway.analytics.Deal;
 import com.streamsense.apigateway.analytics.SessionSummary;
 import com.streamsense.apigateway.analytics.SponsorMoments;
 import com.streamsense.apigateway.analytics.StreamSession;
+import com.streamsense.apigateway.auth.AuthScope;
 import com.streamsense.apigateway.client.AnalyticsServiceClient;
 import com.streamsense.apigateway.client.RangePaging;
 import com.streamsense.apigateway.client.SentimentServiceClient;
@@ -59,7 +60,17 @@ public class SessionGraphqlController {
         if (shared != null) {
             return sharedSummary(id, shared);
         }
-        return analytics.sessionSummary(id, sponsor, chatCommand, trackedLinkHost, cpm, hostReadRate);
+        return analytics
+                .sessionSummary(id, sponsor, chatCommand, trackedLinkHost, cpm, hostReadRate)
+                .flatMap(summary -> ownedOrForbidden(context, summary.session()).thenReturn(summary));
+    }
+
+    /** A streamer sees only their own sessions; the fetched session names its channel. */
+    static Mono<StreamSession> ownedOrForbidden(GraphQLContext context, StreamSession session) {
+        AuthScope scope = ChannelScopeInterceptor.scope(context);
+        return scope == null || scope.allows(session.streamer())
+                ? Mono.just(session)
+                : Mono.error(new AuthScope.ChannelForbiddenException());
     }
 
     /** Under a share link the report is always about the deal's sponsor at the deal's terms, and only inside the deal. */
@@ -80,7 +91,10 @@ public class SessionGraphqlController {
         if (shared != null) {
             return sharedSummary(id, shared).flatMap(summary -> moments(summary.session(), shared.sponsor()));
         }
-        return analytics.session(id).flatMap(session -> moments(session, sponsor));
+        return analytics
+                .session(id)
+                .flatMap(session -> ownedOrForbidden(context, session))
+                .flatMap(session -> moments(session, sponsor));
     }
 
     private Mono<SponsorMoments> moments(StreamSession session, String sponsor) {

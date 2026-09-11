@@ -7,6 +7,7 @@ import com.streamsense.apigateway.analytics.StreamMetricBucket;
 import com.streamsense.apigateway.analytics.StreamMetricsSummary;
 import com.streamsense.apigateway.analytics.StreamSession;
 import com.streamsense.apigateway.client.AnalyticsServiceClient;
+import graphql.GraphQLContext;
 import java.util.List;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
@@ -82,13 +83,15 @@ public class AnalyticsGraphqlController {
     }
 
     @QueryMapping
-    public Mono<StreamSession> session(@Argument("id") String id) {
+    public Mono<StreamSession> session(@Argument("id") String id, GraphQLContext context) {
         long sessionId;
         try {
             sessionId = Long.parseLong(id);
         } catch (NumberFormatException ex) {
             return Mono.empty();
         }
-        return analyticsServiceClient.session(sessionId);
+        return analyticsServiceClient
+                .session(sessionId)
+                .flatMap(session -> SessionGraphqlController.ownedOrForbidden(context, session));
     }
 }

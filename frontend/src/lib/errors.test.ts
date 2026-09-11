@@ -50,6 +50,13 @@ describe("describeError", () => {
     expect(describeError(gatewayRefused)).toBe(NO_ACCESS_MESSAGE);
   });
 
+  it("tells a streamer when a channel is not theirs", () => {
+    const forbidden = new CombinedGraphQLErrors({
+      errors: [{ message: "This channel is not yours to see", extensions: { code: "CHANNEL_FORBIDDEN" } }],
+    });
+    expect(describeError(forbidden)).toBe("this channel is not yours to see");
+  });
+
   it("keeps the raw GraphQL message for unknown codes and plain errors", () => {
     const unknown = new CombinedGraphQLErrors({ errors: [{ message: "Field 'x' is undefined" }] });
 
