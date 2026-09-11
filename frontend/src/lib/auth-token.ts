@@ -76,20 +76,52 @@ export function clearAuthToken(storage: WritableTokenStorage | null = defaultSto
   }
 }
 
-/**
- * The `exp` claim of a token as a date, or null when it has none or cannot be decoded. Read, not
- * verified: the gateway checks the signature; this only tells the console whether to ask for a new link.
- */
-export function authTokenExpiry(token: string): Date | null {
+/** What a token says about its holder. Read, not verified: the gateway checks the signature. */
+export type AuthTokenClaims = {
+  /** When the token runs out, or null when it carries no expiry. */
+  expiry: Date | null;
+  /** The Twitch login the token was minted for, or null for an access link. */
+  login: string | null;
+  /** "operator" or "streamer" for a Twitch sign-in; null for an access link, which has full access. */
+  role: string | null;
+};
+
+export function authTokenClaims(token: string): AuthTokenClaims {
+  const none: AuthTokenClaims = { expiry: null, login: null, role: null };
   const payload = token.split(".")[1];
-  if (!payload) return null;
+  if (!payload) return none;
   try {
     const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const claims = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="))) as { exp?: unknown };
-    return typeof claims.exp === "number" ? new Date(claims.exp * 1000) : null;
+    const claims = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="))) as Record<string, unknown>;
+    return {
+      expiry: typeof claims.exp === "number" ? new Date(claims.exp * 1000) : null,
+      login: typeof claims.login === "string" && claims.login ? claims.login : null,
+      role: typeof claims.role === "string" && claims.role ? claims.role : null,
+    };
   } catch {
-    return null;
+    return none;
   }
+}
+
+/**
+ * The `exp` claim of a token as a date, or null when it has none or cannot be decoded. This only tells
+ * the console whether to ask for a new link.
+ */
+export function authTokenExpiry(token: string): Date | null {
+  return authTokenClaims(token).expiry;
+}
+
+/** The claims of the token this browser holds, or null when it holds none. */
+export function currentAuthClaims(storage: TokenStorage | null = defaultStorage()): AuthTokenClaims | null {
+  const token = readAuthToken(storage);
+  return token ? authTokenClaims(token) : null;
+}
+
+/** Whether the current token may use the operator pages and pipeline controls. */
+export function isOperatorSession(storage: TokenStorage | null = defaultStorage()): boolean {
+  const claims = currentAuthClaims(storage);
+  // No token at all (auth off locally) and an access link both keep full access.
+  return claims === null || claims.role === null || claims.role === "operator";
 }
 
 /** Whether a token is worth sending: present and not past its expiry. The gateway still has the final say. */

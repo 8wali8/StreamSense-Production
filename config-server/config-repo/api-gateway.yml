@@ -53,7 +53,38 @@ streamsense:
         - /actuator/**
         - /graphiql
         - /graphiql/**
+      # Twitch logins (comma separated) that sign in as operators; everyone else signs in as a streamer.
+      operators: ${STREAMSENSE_GATEWAY_AUTH_OPERATORS:}
+      # Anything but a read here steers the pipeline and needs the operator role (tokens minted without a
+      # role, the access links, keep full access).
+      operator-only-paths:
+        - /api/chat/**
+        - /api/video/**
+        - /api/sentiment/**
+        - /ml/**
+      # Sign in with Twitch (docs/hosting.md). The gateway is the OAuth client: it needs the same registered
+      # application as the Helix poller (TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET secret files) and the
+      # callback URL registered on that application, which must be this console's origin plus
+      # /auth/twitch/callback. Needs auth.enabled; the startup check refuses anything half configured.
+      twitch:
+        enabled: ${STREAMSENSE_GATEWAY_AUTH_TWITCH_ENABLED:false}
+        client-id: ${TWITCH_CLIENT_ID:}
+        client-secret: ${TWITCH_CLIENT_SECRET:}
+        # No default on purpose: Compose and the manifests set it, and a gateway with sign-in on must be told.
+        redirect-uri: ${STREAMSENSE_GATEWAY_AUTH_TWITCH_REDIRECT_URI:}
+        token-ttl: ${STREAMSENSE_GATEWAY_AUTH_TWITCH_TOKEN_TTL:7d}
     rate-limits:
+      # The two sign-in routes: enough for a person, not for a script hammering Twitch through us.
+      - id: twitch-login
+        path: /auth/twitch/login
+        method: GET
+        requests: 20
+        window-seconds: 60
+      - id: twitch-callback
+        path: /auth/twitch/callback
+        method: GET
+        requests: 20
+        window-seconds: 60
       - id: chat-ingest
         path: /api/chat/ingest
         method: POST

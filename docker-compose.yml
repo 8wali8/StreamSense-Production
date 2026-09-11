@@ -54,8 +54,15 @@ services:
       - STREAMSENSE_GATEWAY_RATE_LIMIT_FAIL_OPEN=${STREAMSENSE_GATEWAY_RATE_LIMIT_FAIL_OPEN:-true}
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
+      # Sign in with Twitch (needs auth on, the two Twitch secret files, and the callback URL registered on the
+      # Twitch application; docs/hosting.md). Operators: comma-separated Twitch logins with pipeline control.
+      - STREAMSENSE_GATEWAY_AUTH_TWITCH_ENABLED=${STREAMSENSE_GATEWAY_AUTH_TWITCH_ENABLED:-false}
+      - STREAMSENSE_GATEWAY_AUTH_TWITCH_REDIRECT_URI=${STREAMSENSE_GATEWAY_AUTH_TWITCH_REDIRECT_URI:-http://localhost:3000/auth/twitch/callback}
+      - STREAMSENSE_GATEWAY_AUTH_OPERATORS=${STREAMSENSE_GATEWAY_AUTH_OPERATORS:-}
     secrets:
       - STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
+      - TWITCH_CLIENT_ID
+      - TWITCH_CLIENT_SECRET
     depends_on:
       eureka-server:
         condition: service_healthy

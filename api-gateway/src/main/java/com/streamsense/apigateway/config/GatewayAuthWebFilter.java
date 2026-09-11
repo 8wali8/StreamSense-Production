@@ -60,6 +60,20 @@ public class GatewayAuthWebFilter implements WebFilter {
 
         if (result.valid()) {
             exchange.getResponse().getHeaders().set("X-StreamSense-Auth-Subject", result.subject());
+            // A signed-in streamer may read everything and manage their own deals, but not steer the pipeline.
+            if (!result.isOperator()
+                    && auth.requiresOperator(exchange.getRequest().getMethod(), path)) {
+                meterRegistry
+                        .counter("streamsense_gateway_auth_rejections_total", "reason", "operator_required")
+                        .increment();
+                return ProblemResponses.write(
+                        exchange,
+                        HttpStatus.FORBIDDEN,
+                        "forbidden",
+                        "This action needs an operator account",
+                        serviceName,
+                        Map.of("reason", "operator_required"));
+            }
             return chain.filter(exchange);
         }
 

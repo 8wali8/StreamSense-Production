@@ -13,7 +13,7 @@ import {
 } from "./features/session/SessionDetailPages";
 import { SessionReportPage } from "./features/session/SessionReportPage";
 import { StreamerProvider } from "./features/streamer/StreamerProvider";
-import { captureAccessLink } from "./lib/auth-token";
+import { captureAccessLink, isOperatorSession } from "./lib/auth-token";
 import { captureShareToken, readShareToken } from "./lib/share-token";
 
 function NotFound() {
@@ -54,6 +54,8 @@ function SharedLanding() {
  */
 export function AppRoutes() {
   const shared = readShareToken() != null;
+  // Streamers signed in with Twitch never see the operations page; the gateway refuses its writes as well.
+  const operator = !shared && isOperatorSession();
   return (
     <StreamerProvider>
       <Routes>
@@ -66,7 +68,7 @@ export function AppRoutes() {
           <Route path="sessions/:sessionId/risk" element={<SessionRiskPage />} />
           <Route path="sessions/:sessionId/stream" element={<SessionStreamPage />} />
           <Route path="deals/:dealId" element={<DealPage />} />
-          {!shared && <Route path="ops" element={<OpsPage />} />}
+          {operator && <Route path="ops" element={<OpsPage />} />}
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

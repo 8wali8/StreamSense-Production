@@ -145,7 +145,7 @@ kind: NetworkPolicy
 metadata:
   name: api-gateway
   namespace: streamsense
-  # entry point: ingress-nginx and the frontend's nginx reach it; it calls every REST service, ml-engine (POST /ml/segment), Redis (rate limits), and Kafka (subscriptions)
+  # entry point: ingress-nginx and the frontend's nginx reach it; it calls every REST service, ml-engine (POST /ml/segment), Redis (rate limits), Kafka (subscriptions), and id.twitch.tv (sign in with Twitch)
 spec:
   podSelector:
     matchLabels:
@@ -223,6 +223,16 @@ spec:
               app: analytics-service
       ports:
         - port: 8085
+    # public addresses only, for Twitch's OAuth server (sign in with Twitch): the private ranges cover the pod and service networks
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
     - to:
         - podSelector:
             matchLabels:

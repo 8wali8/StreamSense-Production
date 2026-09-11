@@ -2086,3 +2086,45 @@ p {
     transition: none;
   }
 }
+
+/* Sign in with Twitch: Twitch's brand purple and Glitch mark, as its brand guidelines ask for this one control. */
+.button-twitch {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  background: #9146ff;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.button-twitch:hover {
+  background: #772ce8;
+  color: #fff;
+}
+
+.button-twitch svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.login-divider {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+  content: "";
+}

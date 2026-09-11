@@ -78,6 +78,24 @@ https://streamsense.dev/#token=<token>
 
 Opening it signs that browser in: the console keeps the token in local storage and removes it from the address bar, so a copied or bookmarked URL does not carry it on. The token sits in the URL fragment, which browsers never send, so it does not appear in Caddy's or nginx's access logs. Without a token, or once it has run out, the console shows a sign-in page instead of the app; the link (or the bare token) pasted there signs in as well, and the sidebar's Access entry shows how long it is good for and signs out. Anyone with a link can read everything the console shows and use the manual ingest routes within the rate limits; hand links to people you would hand a password to.
 
+## Sign in with Twitch
+
+Streamers can sign in with their Twitch account instead of an access link. The gateway is the OAuth client and uses the same registered Twitch application as the Helix poller, so the two secret files (`/opt/streamsense/secrets/TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`) must be filled in. Three steps, once:
+
+1. **Register the callback URL on the Twitch application.** In the [Twitch developer console](https://dev.twitch.tv/console/apps), open the application and add `https://streamsense.dev/auth/twitch/callback` under OAuth Redirect URLs, exactly. Add `http://localhost:3000/auth/twitch/callback` too if you want to sign in against a local `make up` (auth on: `STREAMSENSE_GATEWAY_AUTH_ENABLED=true`).
+2. **Turn it on in `/etc/streamsense/twitch.env`:**
+
+```bash
+STREAMSENSE_GATEWAY_AUTH_TWITCH_ENABLED=true
+STREAMSENSE_GATEWAY_AUTH_TWITCH_REDIRECT_URI=https://streamsense.dev/auth/twitch/callback
+STREAMSENSE_GATEWAY_AUTH_OPERATORS=yourtwitchlogin
+```
+
+   Operators are the Twitch logins allowed to switch channels, edit sponsor profiles, and use the manual ingest routes (the Operations page); everyone else signs in as a streamer, who sees their own channel, its reports and deals, and cannot steer the pipeline. The gateway refuses to start if sign-in is on but a credential or the redirect URL is missing.
+3. **Deploy.** `sudo streamsense-deploy`. The sign-in page then shows "Sign in with Twitch" above the access-link field.
+
+What happens on sign-in: the browser goes to Twitch, authorises the application (the `openid` scope only: who they are, nothing else), and comes back to the gateway's callback, which mints the console's own 7-day token and sends the browser to the page it started from with the token in the URL fragment, exactly like an access link. The Twitch token is revoked straight away; the console keeps nothing of Twitch's. Access links keep working, with full access, for demos.
+
 ## Between demos
 
 Stop the VM when nobody is watching; the disk, the models, the data, and the address stay:

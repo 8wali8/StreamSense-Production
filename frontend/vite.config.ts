@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/graphql": { target: apiTarget, changeOrigin: true, ws: true },
         "/api": { target: apiTarget, changeOrigin: true },
+        "/auth": { target: apiTarget, changeOrigin: true },
         // /ml/segment is a gateway route (auth and rate limiting), so it shares the API target.
         "/ml": { target: apiTarget, changeOrigin: true },
       },
