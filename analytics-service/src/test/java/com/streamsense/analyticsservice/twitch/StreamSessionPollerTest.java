@@ -55,6 +55,20 @@ class StreamSessionPollerTest {
     }
 
     @Test
+    void aRateLimitedClientMeansNoSessionIsClosedAndTheNextPollStillRuns() {
+        config.setChannels(List.of("racer"));
+        when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of());
+        when(helix.liveStreams(any())).thenThrow(new HelixRateLimitedException(clock.millis() + 30_000L));
+        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, List::of, config, clock);
+
+        poller.poll();
+        poller.poll();
+
+        verify(sessions, never()).recordHelixLive(any());
+        verify(sessions, never()).closeHelixSessionsNotLive(any(), any());
+    }
+
+    @Test
     void nothingToWatchMeansNoCall() {
         when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of());
         new StreamSessionPoller(helix, sessions, List::of, config, clock).poll();

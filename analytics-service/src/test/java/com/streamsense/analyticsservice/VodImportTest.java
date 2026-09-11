@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,7 @@ import com.streamsense.analyticsservice.events.ChatMessageEvent;
 import com.streamsense.analyticsservice.service.MetricAggregationService;
 import com.streamsense.analyticsservice.service.SessionSummaryService;
 import com.streamsense.analyticsservice.service.StreamSessionService;
+import com.streamsense.analyticsservice.twitch.HelixRateLimitedException;
 import com.streamsense.analyticsservice.twitch.HelixVideo;
 import com.streamsense.analyticsservice.twitch.TwitchHelixClient;
 import java.util.List;
@@ -151,5 +153,17 @@ class VodImportTest {
         assertThat(sessions.list(STREAMER, liveStart, null, null))
                 .extracting(StreamSession::source)
                 .containsExactly("CAPTURE");
+    }
+
+    @Test
+    void aRateLimitedHelixAnswers503WithRetryAfterInsteadOf500() throws Exception {
+        when(helix.archives(anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new HelixRateLimitedException(System.currentTimeMillis() + 20_000L));
+
+        mockMvc.perform(get("/api/analytics/streams/" + STREAMER + "/vods"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.type").value("https://streamsense.dev/problems/twitch-rate-limited"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.startsWith("Twitch is rate limiting")));
     }
 }

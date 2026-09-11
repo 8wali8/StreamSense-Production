@@ -7,18 +7,22 @@ import com.streamsense.analyticsservice.twitch.TwitchAppTokenProvider;
 import com.streamsense.analyticsservice.twitch.TwitchHelixClient;
 import java.time.Clock;
 import java.time.Duration;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestClient;
 
 /**
  * Scheduling for the session jobs, and the Helix poller when it is enabled and credentials are
- * present. Every outbound call to Twitch is bounded by the connect and read timeouts.
+ * present. Every outbound call to Twitch is bounded by the connect and read timeouts, and the HTTP
+ * client's own retries are off: {@link TwitchHelixClient} retries a dropped connection once itself
+ * and pauses on 429, whereas Apache's default would resend a 429 after a second and spend budget.
  */
 @Configuration
 @EnableScheduling
@@ -26,12 +30,19 @@ public class TwitchHelixConfig {
 
     @Bean
     public RestClientCustomizer twitchTimeoutRestClientCustomizer(StreamSenseProperties properties) {
-        StreamSenseProperties.Helix helix = properties.getTwitch().getHelix();
+        ClientHttpRequestFactory factory =
+                twitchRequestFactory(properties.getTwitch().getHelix());
+        return builder -> builder.requestFactory(factory);
+    }
+
+    /** The request factory every Twitch call goes through: bounded timeouts, no automatic retries. */
+    public static ClientHttpRequestFactory twitchRequestFactory(StreamSenseProperties.Helix helix) {
         ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
                 .withConnectTimeout(Duration.ofMillis(helix.getConnectTimeoutMs()))
                 .withReadTimeout(Duration.ofMillis(helix.getReadTimeoutMs()));
-        return builder ->
-                builder.requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings));
+        return ClientHttpRequestFactoryBuilder.httpComponents()
+                .withHttpClientCustomizer(HttpClientBuilder::disableAutomaticRetries)
+                .build(settings);
     }
 
     @Bean
