@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearAuthToken } from "../../lib/auth-token";
+import { restJson, server } from "../../test/msw";
 import { EXPIRED_2020, EXPIRES_2030, fakeJwt } from "../../test/tokens";
 import { AccessGate } from "./AccessGate";
 
@@ -17,9 +18,14 @@ function renderGate() {
 }
 
 describe("AccessGate", () => {
+  beforeEach(() => {
+    server.use(restJson("get", "/auth/providers", { twitch: false }));
+  });
+
   afterEach(() => {
     clearAuthToken();
     window.sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
   });
 
   it("shows the sign-in page until a pasted access link is accepted, then the console", async () => {
@@ -40,6 +46,21 @@ describe("AccessGate", () => {
     await user.click(screen.getByRole("button", { name: "Open the console" }));
     expect(screen.getByText("the console")).toBeInTheDocument();
     expect(window.localStorage.getItem(KEY)).toBe(TOKEN);
+  });
+
+  it("offers Twitch sign-in when the gateway has it on, returning to the current page", async () => {
+    server.use(restJson("get", "/auth/providers", { twitch: true }));
+    window.history.replaceState(null, "", "/deals/3?tab=streams");
+    renderGate();
+    const button = await screen.findByRole("link", { name: /sign in with twitch/i });
+    expect(button).toHaveAttribute("href", "/auth/twitch/login?return=%2Fdeals%2F3%3Ftab%3Dstreams");
+  });
+
+  it("explains a Twitch sign-in that came back with a reason, and drops it from the address", () => {
+    window.history.replaceState(null, "", "/?signin=denied&x=1");
+    renderGate();
+    expect(screen.getByRole("alert")).toHaveTextContent("Twitch sign-in was cancelled");
+    expect(window.location.search).toBe("?x=1");
   });
 
   it("treats a token that has run out as a sign-in with the expiry explained", () => {

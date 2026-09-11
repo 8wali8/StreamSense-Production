@@ -2,6 +2,7 @@ import { useState } from "react";
 import { switchTwitchChannels } from "../../api/chat";
 import { updateSponsorProfile } from "../../api/sentiment";
 import { switchCaptureChannels } from "../../api/video";
+import { currentAuthClaims } from "../../lib/auth-token";
 import { normalizeStreamerHandle, sponsorProfileFromInput } from "./streamer";
 
 export type StreamerSelection = {
@@ -24,18 +25,34 @@ const DEFAULT_SELECTION = { streamer: "test", sponsor: "Nike" };
 
 type StoredSelection = { streamer: string; sponsor: string };
 
-/** The last selection this browser made, so a reload or a new tab shows the same channel. */
+/**
+ * The channel to show: a streamer signed in with Twitch always sees their own (they cannot switch
+ * channels anyway); an operator sees the last selection this browser made, or their own login when it
+ * has none; without a Twitch sign-in the stored selection or the default applies.
+ */
 export function readStoredSelection(): StoredSelection {
+  const claims = currentAuthClaims();
+  const login = claims?.login ?? null;
+  const stored = storedSelection();
+  if (login && claims?.role === "streamer") {
+    return { streamer: login, sponsor: stored?.sponsor ?? DEFAULT_SELECTION.sponsor };
+  }
+  if (stored) return stored;
+  return login ? { streamer: login, sponsor: DEFAULT_SELECTION.sponsor } : DEFAULT_SELECTION;
+}
+
+/** The last selection this browser made, so a reload or a new tab shows the same channel. */
+function storedSelection(): StoredSelection | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_SELECTION;
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<StoredSelection>;
     return {
       streamer: typeof parsed.streamer === "string" && parsed.streamer ? parsed.streamer : DEFAULT_SELECTION.streamer,
       sponsor: typeof parsed.sponsor === "string" ? parsed.sponsor : DEFAULT_SELECTION.sponsor,
     };
   } catch {
-    return DEFAULT_SELECTION;
+    return null;
   }
 }
 

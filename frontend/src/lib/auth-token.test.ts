@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   authHeaders,
+  authTokenClaims,
   authTokenExpiry,
   authTokenFromHash,
   authTokenFromInput,
   captureAccessLink,
   clearAuthToken,
+  isOperatorSession,
   readAuthToken,
   storeAuthToken,
 } from "./auth-token";
@@ -69,6 +71,23 @@ describe("auth-token", () => {
     win.location.hash = "";
     expect(captureAccessLink(win)).toBe(TOKEN);
     expect(replaced).toHaveLength(1);
+  });
+
+  it("reads who a Twitch sign-in token is for, and lets access links keep full access", () => {
+    const streamer = fakeJwt({ sub: "ninja", login: "ninja", role: "streamer", exp: EXPIRES_2030 });
+    expect(authTokenClaims(streamer)).toEqual({
+      expiry: new Date(EXPIRES_2030 * 1000),
+      login: "ninja",
+      role: "streamer",
+    });
+    expect(authTokenClaims(TOKEN)).toEqual({ expiry: new Date(EXPIRES_2030 * 1000), login: null, role: null });
+    expect(authTokenClaims("nope")).toEqual({ expiry: null, login: null, role: null });
+
+    const holding = (token: string | null) => ({ getItem: () => token });
+    expect(isOperatorSession(holding(null))).toBe(true);
+    expect(isOperatorSession(holding(TOKEN))).toBe(true);
+    expect(isOperatorSession(holding(streamer))).toBe(false);
+    expect(isOperatorSession(holding(fakeJwt({ sub: "ops", login: "ops", role: "operator" })))).toBe(true);
   });
 
   it("reads the expiry claim without verifying the token", () => {

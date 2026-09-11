@@ -171,6 +171,25 @@ spec:
                   name: streamsense-secrets
                   key: STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET
                   optional: true
+            # Sign in with Twitch; needs auth on and the Twitch application secrets (docs/hosting.md).
+            - name: STREAMSENSE_GATEWAY_AUTH_TWITCH_ENABLED
+              value: "false"
+            - name: STREAMSENSE_GATEWAY_AUTH_TWITCH_REDIRECT_URI
+              value: http://streamsense.local/auth/twitch/callback
+            - name: STREAMSENSE_GATEWAY_AUTH_OPERATORS
+              value: ""
+            - name: TWITCH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: TWITCH_CLIENT_ID
+                  optional: true
+            - name: TWITCH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: TWITCH_CLIENT_SECRET
+                  optional: true
             - name: STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED
               value: "true"
             # No init container waits for Redis: the store is fail-open, so a gateway must be able to

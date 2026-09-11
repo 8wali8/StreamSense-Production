@@ -34,7 +34,8 @@ def _segment(value: dict) -> str:
     return _b64url(json.dumps(value, separators=(",", ":")).encode("utf-8"))
 
 
-def mint(secret: str, subject: str, issuer: str, audience: str, ttl_seconds: int, now: int | None = None) -> str:
+def mint(secret: str, subject: str, issuer: str, audience: str, ttl_seconds: int, now: int | None = None,
+         role: str | None = None) -> str:
     issued_at = int(time.time()) if now is None else now
     header = {"alg": "HS256", "typ": "JWT"}
     payload = {
@@ -44,6 +45,9 @@ def mint(secret: str, subject: str, issuer: str, audience: str, ttl_seconds: int
         "iat": issued_at,
         "exp": issued_at + ttl_seconds,
     }
+    if role:
+        # Twitch sign-in mints "operator" or "streamer"; a token without a role keeps full access.
+        payload["role"] = role
     signing_input = f"{_segment(header)}.{_segment(payload)}"
     signature = hmac.new(secret.encode("utf-8"), signing_input.encode("ascii"), hashlib.sha256).digest()
     return f"{signing_input}.{_b64url(signature)}"
@@ -57,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--issuer", default=DEFAULT_ISSUER, help=f"iss claim (default: {DEFAULT_ISSUER})")
     parser.add_argument("--audience", default=DEFAULT_AUDIENCE, help=f"aud claim (default: {DEFAULT_AUDIENCE})")
     parser.add_argument("--ttl-seconds", type=int, default=3600, help="seconds until exp (default: 3600)")
+    parser.add_argument("--role", choices=["operator", "streamer"], default=None,
+                        help="role claim; omitted means full access, as before roles existed")
     args = parser.parse_args(argv)
 
     if not args.secret:
@@ -66,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.ttl_seconds <= 0:
         parser.error("--ttl-seconds must be positive")
 
-    print(mint(args.secret, args.subject, args.issuer, args.audience, args.ttl_seconds))
+    print(mint(args.secret, args.subject, args.issuer, args.audience, args.ttl_seconds, role=args.role))
     return 0
 
 

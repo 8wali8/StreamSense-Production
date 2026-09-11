@@ -1,6 +1,6 @@
 # Handoff: console authentication without pasting a token
 
-Written 2026-09-10 for a fresh session that continues this work. **Status:** option 1 below was built the same day on `auth/01-access-link` (`docs/planning/branches/auth-01-access-link.md`), extended into a sign-in page that gates the whole console; option 3 is next and lands on that page. It records what exists, what the problem is, and how to approach it. Read `CLAUDE.md` first for the repository's conventions; this document only adds what a new session cannot derive from the code.
+Written 2026-09-10 for a fresh session that continues this work. **Status:** option 1 below was built the same day on `auth/01-access-link` (`docs/planning/branches/auth-01-access-link.md`), extended into a sign-in page that gates the whole console; option 3 was built on `auth/04-twitch-sign-in` (`docs/planning/branches/auth-04-twitch-sign-in.md`) as a button on that page, delivering the token through the same fragment link rather than a cookie. It records what exists, what the problem is, and how to approach it. Read `CLAUDE.md` first for the repository's conventions; this document only adds what a new session cannot derive from the code.
 
 ## The problem
 

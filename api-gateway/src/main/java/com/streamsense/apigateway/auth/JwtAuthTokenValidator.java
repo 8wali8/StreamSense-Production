@@ -94,7 +94,11 @@ public class JwtAuthTokenValidator {
                 return ValidationResult.invalid("token_not_yet_valid");
             }
 
-            return ValidationResult.valid(payload.path("sub").asText(), Instant.ofEpochSecond(exp));
+            // The role is what Twitch sign-in put there; a token minted without one keeps its full access.
+            String role = payload.hasNonNull(GatewayTokenIssuer.CLAIM_ROLE)
+                    ? payload.path(GatewayTokenIssuer.CLAIM_ROLE).asText()
+                    : null;
+            return ValidationResult.valid(payload.path("sub").asText(), Instant.ofEpochSecond(exp), role);
         } catch (JwtSignatureVerifiers.UnverifiableTokenException exception) {
             return ValidationResult.invalid(exception.reason());
         } catch (ParseException exception) {
@@ -133,14 +137,24 @@ public class JwtAuthTokenValidator {
         return value == null || value.isBlank();
     }
 
-    public record ValidationResult(boolean valid, String subject, Instant expiresAt, String reason) {
+    /** {@code role} is null for a token minted without one (an access link), which is treated as full access. */
+    public record ValidationResult(boolean valid, String subject, Instant expiresAt, String role, String reason) {
 
         public static ValidationResult valid(String subject, Instant expiresAt) {
-            return new ValidationResult(true, subject, expiresAt, null);
+            return valid(subject, expiresAt, null);
+        }
+
+        public static ValidationResult valid(String subject, Instant expiresAt, String role) {
+            return new ValidationResult(true, subject, expiresAt, role, null);
         }
 
         public static ValidationResult invalid(String reason) {
-            return new ValidationResult(false, null, null, reason);
+            return new ValidationResult(false, null, null, null, reason);
+        }
+
+        /** Whether this token may steer the pipeline: an operator, or a token that predates roles. */
+        public boolean isOperator() {
+            return role == null || GatewayTokenIssuer.ROLE_OPERATOR.equals(role);
         }
     }
 }

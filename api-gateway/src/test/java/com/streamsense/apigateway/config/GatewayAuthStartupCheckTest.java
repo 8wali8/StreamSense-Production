@@ -27,6 +27,32 @@ class GatewayAuthStartupCheckTest {
     }
 
     @Test
+    void refusesTwitchSignInWithoutTheGateOrTheApplication() {
+        GatewayEdgeProperties properties = new GatewayEdgeProperties();
+        properties.getAuth().setEnabled(false);
+        properties.getAuth().getTwitch().setEnabled(true);
+        assertThatThrownBy(() -> new GatewayAuthStartupCheck(properties).verify())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("streamsense.gateway.auth.enabled=true");
+
+        properties.getAuth().setEnabled(true);
+        properties.getAuth().setHmacSecret(TestJwtTokens.TEST_SECRET);
+        assertThatThrownBy(() -> new GatewayAuthStartupCheck(properties).verify())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("TWITCH_CLIENT_ID");
+
+        properties.getAuth().getTwitch().setClientId("client");
+        properties.getAuth().getTwitch().setClientSecret("secret");
+        properties.getAuth().getTwitch().setRedirectUri("console/callback");
+        assertThatThrownBy(() -> new GatewayAuthStartupCheck(properties).verify())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("redirect-uri");
+
+        properties.getAuth().getTwitch().setRedirectUri("https://streamsense.dev/auth/twitch/callback");
+        assertThatCode(() -> new GatewayAuthStartupCheck(properties).verify()).doesNotThrowAnyException();
+    }
+
+    @Test
     void refusesShortKeys() {
         GatewayEdgeProperties properties = new GatewayEdgeProperties();
         properties.getAuth().setEnabled(true);

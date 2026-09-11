@@ -23,4 +23,11 @@ describe("AccessPanel", () => {
     expect(window.localStorage.getItem(KEY)).toBeNull();
     expect(reload).toHaveBeenCalledOnce();
   });
+
+  it("names a Twitch sign-in by its login and role", () => {
+    window.localStorage.setItem(KEY, fakeJwt({ sub: "ninja", login: "ninja", role: "streamer", exp: EXPIRES_2030 }));
+    render(<AccessPanel reload={vi.fn()} />);
+    expect(screen.getByText("Signed in as")).toBeInTheDocument();
+    expect(screen.getByText("@ninja · streamer")).toBeInTheDocument();
+  });
 });

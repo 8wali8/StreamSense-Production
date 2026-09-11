@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router";
 import { AccessPanel } from "../features/access/AccessPanel";
 import { useStreamer } from "../features/streamer/streamer-context";
+import { isOperatorSession } from "../lib/auth-token";
 import { readShareToken } from "../lib/share-token";
 
 function navClass({ isActive }: { isActive: boolean }): string {
@@ -71,13 +72,15 @@ export function AppShell() {
             <strong>@{selectedStreamer}</strong>
           </div>
           <AccessPanel />
-          <NavLink className={navClass} to="/ops">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
-            </svg>
-            Operations
-          </NavLink>
+          {isOperatorSession() && (
+            <NavLink className={navClass} to="/ops">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
+              </svg>
+              Operations
+            </NavLink>
+          )}
         </div>
       </aside>
 
