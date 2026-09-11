@@ -34,6 +34,29 @@ public final class TestJwtTokens {
                 "HS256");
     }
 
+    /** A token as Twitch sign-in mints it: the login as subject, plus the role claim. */
+    public static String tokenWithRole(String login, String role) {
+        try {
+            SignedJWT jwt = new SignedJWT(
+                    new JWSHeader.Builder(JWSAlgorithm.HS256)
+                            .type(JOSEObjectType.JWT)
+                            .build(),
+                    new JWTClaimsSet.Builder()
+                            .subject(login)
+                            .issuer("streamsense-local")
+                            .audience(List.of("streamsense-clients"))
+                            .expirationTime(
+                                    new Date(Instant.now().plusSeconds(600).toEpochMilli()))
+                            .claim("login", login)
+                            .claim("role", role)
+                            .build());
+            jwt.sign(new MACSigner(TEST_SECRET.getBytes(StandardCharsets.UTF_8)));
+            return jwt.serialize();
+        } catch (JOSEException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
     public static String expiredToken(String subject) {
         return token(
                 subject,

@@ -1,5 +1,6 @@
 package com.streamsense.apigateway.graphql;
 
+import com.streamsense.apigateway.auth.AuthScope;
 import graphql.GraphQLError;
 import graphql.GraphqlErrorBuilder;
 import graphql.schema.DataFetchingEnvironment;
@@ -104,6 +105,15 @@ public class GraphQlErrorAdvice {
                 .errorType(ErrorType.BAD_REQUEST)
                 .message(ex.getMessage() != null ? ex.getMessage() : "Invalid request")
                 .extensions(extensions("BAD_REQUEST", Map.of()))
+                .build();
+    }
+
+    @GraphQlExceptionHandler(AuthScope.ChannelForbiddenException.class)
+    public GraphQLError handleChannelForbidden(AuthScope.ChannelForbiddenException ex, DataFetchingEnvironment env) {
+        return GraphqlErrorBuilder.newError(env)
+                .errorType(ErrorType.FORBIDDEN)
+                .message(ex.getMessage())
+                .extensions(extensions(ChannelScopeInterceptor.CODE, Map.of()))
                 .build();
     }
 
