@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { authTokenFromInput } from "../../lib/auth-token";
+import { DetectionHeader } from "./DetectionHeader";
 
 type Props = {
   /** The browser held a token, but it has run out. */
@@ -29,6 +30,8 @@ export function LoginPage({ expired, onSignedIn }: Props) {
   return (
     <div className="login-page">
       <main className="login-card" aria-label="Sign in">
+        <h1 className="visually-hidden">StreamSense</h1>
+        <DetectionHeader />
         <p className="login-lede">
           {expired ? "Your access link has expired. Paste a new one below." : "Paste your access link or token below."}
         </p>
