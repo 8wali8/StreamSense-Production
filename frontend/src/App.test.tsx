@@ -67,6 +67,9 @@ describe("App", () => {
     await screen.findByText("Health: ok");
 
     const control = within(screen.getByLabelText("Channel control"));
+    // No sponsor is set until one is entered; relevance is only pointed once there is a brand.
+    expect(control.getByLabelText("Sponsor")).toHaveValue("");
+    await user.type(control.getByLabelText("Sponsor"), "Red Bull");
     await user.clear(control.getByLabelText("Streamer"));
     await user.type(control.getByLabelText("Streamer"), "@RedBull-Testing");
     await user.click(control.getByRole("button", { name: /point capture here/i }));

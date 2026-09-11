@@ -69,7 +69,7 @@ export function HomePage() {
       />
 
       <ErrorBoundary label="live console">
-        <LiveStreamConsole streamer={selectedStreamer} sponsorBrand={displayBrand} />
+        <LiveStreamConsole streamer={selectedStreamer} sponsor={sponsor} />
       </ErrorBoundary>
 
       <ErrorBoundary label="deals">

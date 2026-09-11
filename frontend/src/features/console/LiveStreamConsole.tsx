@@ -7,15 +7,18 @@ import { useConsoleFeeds } from "./useConsoleFeeds";
 
 type LiveStreamConsoleProps = {
   streamer: string;
-  sponsorBrand: string;
+  /** The sponsor field as entered, or undefined when none has been entered yet. */
+  sponsor: string | undefined;
 };
 
 /**
  * The player with detections beside the brand-mention feed; the general chat and transcript sit
  * in a drawer below, closed by default, because the brand is what the page is about.
  */
-export function LiveStreamConsole({ streamer, sponsorBrand }: LiveStreamConsoleProps) {
-  const activeSponsor = sponsorProfileFromInput(streamer, sponsorBrand).sponsor;
+export function LiveStreamConsole({ streamer, sponsor }: LiveStreamConsoleProps) {
+  // A blank sponsor leaves the sponsor-sentiment queries unfiltered rather than searching for the placeholder word.
+  const activeSponsor = sponsor ? sponsorProfileFromInput(streamer, sponsor).sponsor : "";
+  const displayBrand = sponsor ?? "Sponsor";
   const feeds = useConsoleFeeds(streamer, activeSponsor);
 
   return (
@@ -23,13 +26,12 @@ export function LiveStreamConsole({ streamer, sponsorBrand }: LiveStreamConsoleP
       <div className="console-main">
         <StreamFrame
           streamer={streamer}
-          sponsorBrand={sponsorBrand}
+          sponsorBrand={displayBrand}
           sponsors={feeds.sponsors}
           latestEventAt={feeds.latestEventAt}
         />
         <SponsorSentimentFeed
           activeSponsor={activeSponsor}
-          sponsorBrand={sponsorBrand}
           chatSentiments={feeds.sponsorSentiments}
           transcriptSentiments={feeds.sponsorTranscriptSentiments}
           loading={feeds.sponsorSentimentLoading}
