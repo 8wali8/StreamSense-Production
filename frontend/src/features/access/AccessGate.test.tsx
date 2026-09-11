@@ -25,7 +25,7 @@ describe("AccessGate", () => {
   it("shows the sign-in page until a pasted access link is accepted, then the console", async () => {
     const user = userEvent.setup();
     renderGate();
-    expect(screen.getByRole("heading", { name: "Sign in to StreamSense" })).toBeInTheDocument();
+    expect(screen.getByText("Paste your access link or token below.")).toBeInTheDocument();
     expect(screen.queryByText("the console")).not.toBeInTheDocument();
 
     const field = screen.getByLabelText("Access link or token");
@@ -45,7 +45,7 @@ describe("AccessGate", () => {
   it("treats a token that has run out as a sign-in with the expiry explained", () => {
     window.localStorage.setItem(KEY, fakeJwt({ sub: "demo-viewer", exp: EXPIRED_2020 }));
     renderGate();
-    expect(screen.getByRole("heading", { name: "Your access link has expired" })).toBeInTheDocument();
+    expect(screen.getByText(/Your access link has expired/)).toBeInTheDocument();
     expect(screen.queryByText("the console")).not.toBeInTheDocument();
   });
 

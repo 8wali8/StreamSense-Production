@@ -1907,7 +1907,11 @@ p {
 
 /* ---------- Sign-in page ---------- */
 
+/* The one place the teal is the accent: no live state to signal, and the owner preferred it here. */
 .login-page {
+  --accent: var(--brand);
+  --accent-hover: var(--brand-text);
+  --accent-soft: var(--brand-soft);
   display: grid;
   min-height: 100vh;
   padding: 24px;
@@ -1917,26 +1921,26 @@ p {
 .login-card {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: min(100%, 460px);
+  gap: 18px;
+  width: min(100%, 440px);
   padding: 28px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
 }
 
-.login-card h1 {
-  margin: 0 0 8px;
-  font-size: 22px;
-  font-weight: 600;
-}
-
-.login-card .page-lede {
+.login-lede {
   margin: 0;
+  color: var(--text);
+  font-size: 15px;
 }
 
 .login-card form {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.login-card .button-primary {
+  color: #08201d;
 }

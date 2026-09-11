@@ -29,20 +29,9 @@ export function LoginPage({ expired, onSignedIn }: Props) {
   return (
     <div className="login-page">
       <main className="login-card" aria-label="Sign in">
-        <div className="brand-lockup">
-          <div className="brand-mark">SS</div>
-          <div>
-            <div className="brand-name">StreamSense</div>
-            <div className="brand-kicker">Sponsorship proof</div>
-          </div>
-        </div>
-        <div>
-          <h1>{expired ? "Your access link has expired" : "Sign in to StreamSense"}</h1>
-          <p className="page-lede">
-            Paste the access link you were sent, or the token from it. Ask whoever runs this console for a new one if
-            yours has run out.
-          </p>
-        </div>
+        <p className="login-lede">
+          {expired ? "Your access link has expired. Paste a new one below." : "Paste your access link or token below."}
+        </p>
         <form onSubmit={submit}>
           <label className="field">
             <span className="field-label">Access link or token</span>
