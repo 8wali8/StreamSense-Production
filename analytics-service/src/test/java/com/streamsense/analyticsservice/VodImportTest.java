@@ -64,6 +64,35 @@ class VodImportTest {
     private MockMvc mockMvc;
 
     @Test
+    void aRecordingClosesAHelixSessionThePollerNeverSawEnd() throws Exception {
+        // The poller opened the session and then missed the end (a stop between polls, a restart).
+        String streamer = "night-owl";
+        long start = 1788800000000L;
+        sessions.recordHelixLive(new com.streamsense.analyticsservice.twitch.HelixStream(
+                "777", streamer, "Late night", "Just Chatting", 500, start));
+        assertThat(sessions.list(streamer, null, null, null).get(0).live()).isTrue();
+        HelixVideo video = new HelixVideo(
+                "2750461999",
+                "777",
+                streamer,
+                "Late night",
+                start,
+                3_600_000L,
+                "https://www.twitch.tv/videos/2750461999",
+                10);
+        when(helix.video("2750461999")).thenReturn(Optional.of(video));
+
+        // The recording carries the broadcast's real bounds, so the reused session ends where the VOD ends.
+        mockMvc.perform(post("/api/analytics/streams/" + streamer + "/vods/2750461999/import"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.session.source").value("HELIX"))
+                .andExpect(jsonPath("$.session.vodId").value("2750461999"))
+                .andExpect(jsonPath("$.session.live").value(false))
+                .andExpect(jsonPath("$.session.durationMs").value(3600000));
+        assertThat(sessions.list(streamer, null, null, null)).hasSize(1);
+    }
+
+    @Test
     void importsARecordingAsAClosedSessionThatReplayedEventsJoin() throws Exception {
         long createdAt = 1788631200000L;
         HelixVideo video = new HelixVideo(
