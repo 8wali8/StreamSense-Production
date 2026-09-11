@@ -38,6 +38,8 @@ class SponsorMomentsComposerTest {
                 detection("Red Bull", START + 10_000L, 0.8, 1_800_000L),
                 detection("Red Bull", START + 20_000L, 0.9, null),
                 detection("Red Bull", START + 30_000L, 0.7, null),
+                // below the acceptance threshold: not exposure in the numbers, so not a segment here either
+                detection("Red Bull", START + 40_000L, 0.3, null),
                 // a 5 minute gap starts a new run; a different sponsor never joins one
                 detection("Red Bull", START + 330_000L, 0.6, null),
                 detection("Nike", START + 335_000L, 0.95, null));
@@ -54,7 +56,7 @@ class SponsorMomentsComposerTest {
                 List.of(bucket(START + 900_000L, true, 0.6, 21), bucket(START + 960_000L, false, 0.1, 9));
 
         SponsorMoments moments = SponsorMomentsComposer.compose(
-                session, "red bull", detections, chat, voice, buckets, SponsorMomentsComposer.DEFAULT_GAP_MS);
+                session, "red bull", detections, chat, voice, buckets, SponsorMomentsComposer.DEFAULT_GAP_MS, 0.5);
 
         assertThat(moments.segments()).hasSize(2);
         assertThat(moments.segments().get(0).detections()).isEqualTo(3);
@@ -91,7 +93,8 @@ class SponsorMomentsComposerTest {
                 List.of(chat("Prime", START + 5_000L, "NEUTRAL", 0.0, "prime")),
                 List.of(),
                 List.of(),
-                SponsorMomentsComposer.DEFAULT_GAP_MS);
+                SponsorMomentsComposer.DEFAULT_GAP_MS,
+                0.5);
         assertThat(moments.chatMoments()).hasSize(1);
         assertThat(moments.best()).isNull();
         assertThat(moments.weakest()).isNull();

@@ -96,7 +96,8 @@ describe("HomePage", () => {
 
     const history = within(screen.getByLabelText("History"));
     const row = await history.findByRole("link", { name: /F1 Replay Night/ });
-    expect(row).toHaveAttribute("href", "/sessions/7");
+    // The row shows the selected sponsor's numbers, so the report it opens is about the same sponsor.
+    expect(row).toHaveAttribute("href", "/sessions/7?sponsor=Red%20Bull");
     expect(row).toHaveTextContent("38m 12s");
     expect(row).toHaveTextContent("47 · 0.62");
     // Track record: 38m 12s over 2h 14m is about 17 minutes an hour.

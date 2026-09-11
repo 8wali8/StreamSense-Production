@@ -34,6 +34,10 @@ streamsense:
     connect-timeout: 2s
     response-timeout: 5s
   gateway:
+    # The report timeline drops detections below this, exactly as analytics-service's exposure numbers do;
+    # both read the same variable so an override moves them together.
+    sponsor-moments:
+      minimum-confidence: ${STREAMSENSE_ANALYTICS_MINIMUM_SPONSOR_CONFIDENCE:0.50}
     rate-limit-enabled: ${STREAMSENSE_GATEWAY_RATE_LIMIT_ENABLED:true}
     # Counters are shared across gateway replicas through Redis; "memory" counts per instance.
     rate-limit-store: ${STREAMSENSE_GATEWAY_RATE_LIMIT_STORE:redis}

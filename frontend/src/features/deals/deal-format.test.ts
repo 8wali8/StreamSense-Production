@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feeMultiple, fromDateInput, streamsProgress, toDateInput } from "./deal-format";
+import { dealDates, feeMultiple, fromDateInput, streamsProgress, toDateInput } from "./deal-format";
 
 describe("deal-format", () => {
   it("prices media value against the fee only when both exist", () => {
@@ -21,5 +21,12 @@ describe("deal-format", () => {
     expect(toDateInput(start as number)).toBe("2026-09-01");
     expect((fromDateInput("2026-09-01", true) as number) - (start as number)).toBe(24 * 3_600_000);
     expect(fromDateInput("nope")).toBeNull();
+  });
+
+  it("shows the last day inside the deal, not the exclusive bound the form stores", () => {
+    const start = fromDateInput("2026-09-01") as number;
+    const end = fromDateInput("2026-09-30", true) as number;
+    expect(dealDates(start, end)).toMatch(/Sep 1 – Sep 30, 2026/);
+    expect(dealDates(start, null)).toMatch(/since Sep 1, 2026/);
   });
 });

@@ -40,9 +40,15 @@ final class SponsorMomentsComposer {
             List<SentimentAnalysisEvent> chat,
             List<TranscriptSentimentEvent> voice,
             List<StreamMetricBucket> buckets,
-            long gapMs) {
+            long gapMs,
+            double minimumConfidence) {
         long start = session.startedAt();
-        List<ExposureSegment> segments = segments(sponsor, detections, start, gapMs);
+        // The same acceptance threshold analytics-service applies to exposure: a detection below it is not
+        // on-screen time in the report's numbers, so it must not be an on-screen segment on the timeline.
+        List<SponsorDetectionEvent> accepted = detections.stream()
+                .filter(event -> event.getConfidence() >= minimumConfidence)
+                .toList();
+        List<ExposureSegment> segments = segments(sponsor, accepted, start, gapMs);
         List<VoiceMention> voiceMentions = voice.stream()
                 .filter(event -> matches(sponsor, event.getMatchedSponsor()))
                 // Anchored at the segment's start: the words are somewhere inside the ten seconds that follow,

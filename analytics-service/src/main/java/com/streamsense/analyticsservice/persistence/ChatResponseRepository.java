@@ -66,18 +66,19 @@ public class ChatResponseRepository {
                 bucketSizeSeconds,
                 command);
         if (username != null && !username.isBlank()) {
-            // Same person using the command again is not a new user.
+            // One row per user and minute: the same person using the command again in that minute is not a new
+            // user, and a session counts the distinct users inside its own minutes (not their first use ever).
             insertIgnoringDuplicate(
                     """
-                    insert into chat_command_users (streamer, session_key, command, username, first_seen_at)
+                    insert into chat_command_user_buckets (streamer, session_key, command, username, bucket_start)
                     values (?, ?, ?, ?, ?)
                     """,
-                    "streamer, session_key, command, username",
+                    "streamer, session_key, command, username, bucket_start",
                     streamer,
                     sessionKey,
                     command,
                     username.trim().toLowerCase(Locale.ROOT),
-                    at);
+                    bucketStart);
         }
     }
 
@@ -134,8 +135,8 @@ public class ChatResponseRepository {
                 : new Object[] {streamer, command, windowStart, windowEnd, sessionKey};
         Long users = jdbcTemplate.queryForObject(
                 """
-                select count(*) from chat_command_users
-                where streamer = ? and command = ? and first_seen_at >= ? and first_seen_at < ?
+                select count(distinct username) from chat_command_user_buckets
+                where streamer = ? and command = ? and bucket_start >= ? and bucket_start < ?
                 """
                         + sessionClause,
                 Long.class,

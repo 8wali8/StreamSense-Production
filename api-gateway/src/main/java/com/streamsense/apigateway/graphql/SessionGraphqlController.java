@@ -5,9 +5,14 @@ import com.streamsense.apigateway.analytics.SessionSummary;
 import com.streamsense.apigateway.analytics.SponsorMoments;
 import com.streamsense.apigateway.analytics.StreamSession;
 import com.streamsense.apigateway.client.AnalyticsServiceClient;
+import com.streamsense.apigateway.client.RangePaging;
 import com.streamsense.apigateway.client.SentimentServiceClient;
 import com.streamsense.apigateway.client.VideoServiceClient;
+import com.streamsense.apigateway.events.SentimentAnalysisEvent;
+import com.streamsense.apigateway.events.SponsorDetectionEvent;
+import com.streamsense.apigateway.events.TranscriptSentimentEvent;
 import graphql.GraphQLContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
@@ -23,12 +28,18 @@ public class SessionGraphqlController {
     private final AnalyticsServiceClient analytics;
     private final SentimentServiceClient sentiment;
     private final VideoServiceClient video;
+    // Mirrors analytics-service's streamsense.analytics.minimum-sponsor-confidence (same env var in config-repo).
+    private final double minimumSponsorConfidence;
 
     public SessionGraphqlController(
-            AnalyticsServiceClient analytics, SentimentServiceClient sentiment, VideoServiceClient video) {
+            AnalyticsServiceClient analytics,
+            SentimentServiceClient sentiment,
+            VideoServiceClient video,
+            @Value("${streamsense.gateway.sponsor-moments.minimum-confidence:0.50}") double minimumSponsorConfidence) {
         this.analytics = analytics;
         this.sentiment = sentiment;
         this.video = video;
+        this.minimumSponsorConfidence = minimumSponsorConfidence;
     }
 
     @QueryMapping
@@ -85,11 +96,31 @@ public class SessionGraphqlController {
                         .defaultIfEmpty("");
         return resolvedSponsor.flatMap(name -> {
             String sponsorOrNull = name.isBlank() ? null : name;
+            // Each store answers a page at a time; RangePaging walks them so a busy stream keeps every event.
             return Mono.zip(
-                            video.detectionsInRange(session.streamer(), from, to, RANGE_LIMIT),
-                            sentiment.sponsorSentimentInRange(session.streamer(), sponsorOrNull, from, to, RANGE_LIMIT),
-                            sentiment.sponsorTranscriptSentimentInRange(
-                                    session.streamer(), sponsorOrNull, from, to, RANGE_LIMIT),
+                            RangePaging.all(
+                                    from,
+                                    to,
+                                    RANGE_LIMIT,
+                                    (f, t) -> video.detectionsInRange(session.streamer(), f, t, RANGE_LIMIT),
+                                    SponsorDetectionEvent::getCapturedAt,
+                                    SponsorDetectionEvent::getDetectionEventId),
+                            RangePaging.all(
+                                    from,
+                                    to,
+                                    RANGE_LIMIT,
+                                    (f, t) -> sentiment.sponsorSentimentInRange(
+                                            session.streamer(), sponsorOrNull, f, t, RANGE_LIMIT),
+                                    SentimentAnalysisEvent::getChatTimestamp,
+                                    SentimentAnalysisEvent::getSentimentEventId),
+                            RangePaging.all(
+                                    from,
+                                    to,
+                                    RANGE_LIMIT,
+                                    (f, t) -> sentiment.sponsorTranscriptSentimentInRange(
+                                            session.streamer(), sponsorOrNull, f, t, RANGE_LIMIT),
+                                    TranscriptSentimentEvent::getSegmentEndedAt,
+                                    TranscriptSentimentEvent::getSentimentEventId),
                             analytics.timeseriesInRange(session.streamer(), from, to, BUCKET_SECONDS))
                     .map(parts -> compose(session, sponsorOrNull, parts));
         });
@@ -111,7 +142,8 @@ public class SessionGraphqlController {
                 parts.getT2(),
                 parts.getT3(),
                 parts.getT4(),
-                SponsorMomentsComposer.DEFAULT_GAP_MS);
+                SponsorMomentsComposer.DEFAULT_GAP_MS,
+                minimumSponsorConfidence);
     }
 
     private static Long parseId(String sessionId) {

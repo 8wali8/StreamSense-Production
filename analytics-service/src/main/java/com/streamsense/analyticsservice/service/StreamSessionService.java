@@ -198,9 +198,22 @@ public class StreamSessionService {
         if (limit < 1 || limit > MAX_LIMIT) {
             throw new IllegalArgumentException("limit must be between 1 and " + MAX_LIMIT);
         }
-        long now = clock.millis();
         // Over-fetch so hidden capture sessions do not shrink the page below the limit.
-        List<StreamSessionRow> rows = sessions.findByStreamer(cleaned, from, to, Math.min(MAX_LIMIT * 2, limit * 4));
+        return visible(sessions.findByStreamer(cleaned, from, to, Math.min(MAX_LIMIT * 2, limit * 4)), limit);
+    }
+
+    /** Every session in a range, the same hiding of captured duplicates as {@link #list}, no page cap. */
+    public List<StreamSession> listAll(String streamer, Long from, Long to) {
+        String cleaned = clean(streamer);
+        if (cleaned == null) {
+            throw new IllegalArgumentException("streamer is required");
+        }
+        return visible(sessions.findAllByStreamer(cleaned, from, to), Integer.MAX_VALUE);
+    }
+
+    /** Capture sessions that overlap a Helix or VOD session are the same broadcast seen twice; show it once. */
+    private List<StreamSession> visible(List<StreamSessionRow> rows, int limit) {
+        long now = clock.millis();
         List<StreamSessionRow> helix = rows.stream()
                 .filter(row -> SOURCE_HELIX.equals(row.source()) || SOURCE_VOD.equals(row.source()))
                 .toList();

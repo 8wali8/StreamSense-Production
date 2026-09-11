@@ -17,6 +17,7 @@ import com.streamsense.analyticsservice.service.MetricAggregationService;
 import com.streamsense.analyticsservice.service.SessionSummaryService;
 import com.streamsense.analyticsservice.service.StreamSessionService;
 import com.streamsense.analyticsservice.twitch.HelixStream;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -197,6 +198,49 @@ class SessionSummaryTest {
         event.setTranscriptSequence(1);
         event.setSponsorRelevant(true);
         event.setMatchedSponsor(sponsor);
+        return event;
+    }
+
+    @Test
+    void aReturningCommandUserCountsInEachStreamTheyUseItIn() {
+        // Its own channel, so the other test's chat lines cannot fall inside these windows.
+        String host = "returning-host";
+        long base = Math.floorDiv(System.currentTimeMillis() - 10 * 3_600_000L, 60_000L) * 60_000L;
+        long later = base + 4 * 3_600_000L;
+        // Two broadcasts; live chat carries no session id, so both share the channel's session key.
+        sessions.recordHelixLive(new HelixStream("51", host, "First night", "F1", 100, base));
+        sessions.recordHelixLive(new HelixStream("52", host, "Second night", "F1", 100, later));
+        sessions.closeHelixSessionsNotLive(List.of(host), List.of("52"));
+        aggregation.aggregateChatMessage("m", commandFrom(host, "r1", base + 100_000L, "alice"));
+        aggregation.aggregateChatMessage("m", commandFrom(host, "r2", later + 100_000L, "alice"));
+        aggregation.aggregateChatMessage("m", commandFrom(host, "r3", later + 160_000L, "alice"));
+
+        long first = sessions.list(host, null, null, null).stream()
+                .filter(session -> "51".equals(session.twitchStreamId()))
+                .findFirst()
+                .orElseThrow()
+                .id();
+        long second = sessions.list(host, null, null, null).stream()
+                .filter(session -> "52".equals(session.twitchStreamId()))
+                .findFirst()
+                .orElseThrow()
+                .id();
+        SummaryOptions options = new SummaryOptions(null, "!redbull", null, null, null);
+        assertThat(summaries.summary(first, options).orElseThrow().response().commandUsers())
+                .isEqualTo(1);
+        assertThat(summaries.summary(second, options).orElseThrow().response().commandUsers())
+                .isEqualTo(1);
+        assertThat(summaries.summary(second, options).orElseThrow().response().commandUses())
+                .isEqualTo(2);
+    }
+
+    private static ChatMessageEvent commandFrom(String streamer, String id, long at, String user) {
+        ChatMessageEvent event = new ChatMessageEvent();
+        event.setEventId(id);
+        event.setStreamer(streamer);
+        event.setUser(user);
+        event.setMessage("!redbull");
+        event.setTimestamp(at);
         return event;
     }
 
