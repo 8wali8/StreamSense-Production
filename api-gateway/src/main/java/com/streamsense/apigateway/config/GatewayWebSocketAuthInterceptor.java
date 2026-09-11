@@ -24,7 +24,8 @@ import reactor.core.publisher.Mono;
 @Component
 public class GatewayWebSocketAuthInterceptor implements WebSocketGraphQlInterceptor {
 
-    static final String SUBJECT_ATTRIBUTE = "streamsense.auth.subject";
+    public static final String SUBJECT_ATTRIBUTE = "streamsense.auth.subject";
+    public static final String ROLE_ATTRIBUTE = "streamsense.auth.role";
     static final String EXPIRY_TIMER_ATTRIBUTE = "streamsense.auth.expiryTimer";
     static final CloseStatus TOKEN_EXPIRED = new CloseStatus(4401, "token_expired");
 
@@ -76,6 +77,9 @@ public class GatewayWebSocketAuthInterceptor implements WebSocketGraphQlIntercep
 
         if (result.valid()) {
             sessionInfo.getAttributes().put(SUBJECT_ATTRIBUTE, result.subject());
+            if (result.role() != null) {
+                sessionInfo.getAttributes().put(ROLE_ATTRIBUTE, result.role());
+            }
             scheduleExpiry(sessionInfo, result.expiresAt());
             return Mono.empty();
         }

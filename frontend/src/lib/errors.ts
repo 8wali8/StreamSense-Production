@@ -27,6 +27,8 @@ function describeGraphQlCode(code: unknown, extensions: Record<string, unknown>)
       return "this share link does not open that page";
     case "SHARE_UNAVAILABLE":
       return "the share link could not be checked";
+    case "CHANNEL_FORBIDDEN":
+      return "this channel is not yours to see";
     default:
       return null;
   }

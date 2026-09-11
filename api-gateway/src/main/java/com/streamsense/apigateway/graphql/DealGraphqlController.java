@@ -2,6 +2,7 @@ package com.streamsense.apigateway.graphql;
 
 import com.streamsense.apigateway.analytics.Deal;
 import com.streamsense.apigateway.analytics.DealSummary;
+import com.streamsense.apigateway.auth.AuthScope;
 import com.streamsense.apigateway.client.AnalyticsServiceClient;
 import graphql.GraphQLContext;
 import java.util.List;
@@ -35,7 +36,15 @@ public class DealGraphqlController {
         if (shared != null) {
             return shared.id() == dealId ? Mono.just(shared.forSharedView()) : Mono.empty();
         }
-        return analytics.deal(dealId);
+        return analytics.deal(dealId).flatMap(deal -> ownedOrForbidden(context, deal));
+    }
+
+    /** A streamer sees only their own deals; the id alone says nothing about the owner, the fetched deal does. */
+    static Mono<Deal> ownedOrForbidden(GraphQLContext context, Deal deal) {
+        AuthScope scope = ChannelScopeInterceptor.scope(context);
+        return scope == null || scope.allows(deal.streamer())
+                ? Mono.just(deal)
+                : Mono.error(new AuthScope.ChannelForbiddenException());
     }
 
     @QueryMapping
@@ -50,7 +59,7 @@ public class DealGraphqlController {
         }
         Mono<DealSummary> summary = analytics.dealSummary(dealId);
         return shared == null
-                ? summary
+                ? summary.flatMap(s -> ownedOrForbidden(context, s.deal()).thenReturn(s))
                 : summary.map(s -> new DealSummary(s.deal().forSharedView(), s.totals(), s.sessions()));
     }
 

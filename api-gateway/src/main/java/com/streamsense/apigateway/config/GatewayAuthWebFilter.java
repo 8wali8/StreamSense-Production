@@ -1,5 +1,6 @@
 package com.streamsense.apigateway.config;
 
+import com.streamsense.apigateway.auth.AuthScope;
 import com.streamsense.apigateway.auth.JwtAuthTokenValidator;
 import com.streamsense.apigateway.graphql.ShareLinkInterceptor;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -60,19 +61,20 @@ public class GatewayAuthWebFilter implements WebFilter {
 
         if (result.valid()) {
             exchange.getResponse().getHeaders().set("X-StreamSense-Auth-Subject", result.subject());
-            // A signed-in streamer may read everything and manage their own deals, but not steer the pipeline.
-            if (!result.isOperator()
-                    && auth.requiresOperator(exchange.getRequest().getMethod(), path)) {
-                meterRegistry
-                        .counter("streamsense_gateway_auth_rejections_total", "reason", "operator_required")
-                        .increment();
-                return ProblemResponses.write(
-                        exchange,
-                        HttpStatus.FORBIDDEN,
-                        "forbidden",
-                        "This action needs an operator account",
-                        serviceName,
-                        Map.of("reason", "operator_required"));
+            AuthScope scope = new AuthScope(result.subject(), result.role());
+            exchange.getAttributes().put(AuthScope.ATTRIBUTE, scope);
+            // A signed-in streamer may read their own channel and manage their own deals, but not steer the
+            // pipeline and not look at another channel. Routes that name the channel by id are checked by
+            // analytics-service from the scope headers; GraphQL by ChannelScopeInterceptor and the resolvers.
+            if (!scope.isOperator()) {
+                if (auth.requiresOperator(exchange.getRequest().getMethod(), path)) {
+                    return forbidden(exchange, "operator_required", "This action needs an operator account");
+                }
+                String channel = AuthScope.restChannel(
+                        path, exchange.getRequest().getQueryParams().getFirst("streamer"));
+                if (!scope.allows(channel)) {
+                    return forbidden(exchange, "channel_forbidden", "This channel is not yours to see");
+                }
             }
             return chain.filter(exchange);
         }
@@ -95,6 +97,14 @@ public class GatewayAuthWebFilter implements WebFilter {
                 "Authentication failed: " + result.reason(),
                 serviceName,
                 Map.of("error", "unauthorized", "reason", result.reason()));
+    }
+
+    private Mono<Void> forbidden(ServerWebExchange exchange, String reason, String detail) {
+        meterRegistry
+                .counter("streamsense_gateway_auth_rejections_total", "reason", reason)
+                .increment();
+        return ProblemResponses.write(
+                exchange, HttpStatus.FORBIDDEN, "forbidden", detail, serviceName, Map.of("reason", reason));
     }
 
     private boolean isShareRequest(ServerHttpRequest request, String path) {
