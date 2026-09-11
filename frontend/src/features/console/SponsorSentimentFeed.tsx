@@ -3,7 +3,6 @@ import type { SentimentEvent, TranscriptSentimentEvent } from "./useConsoleFeeds
 
 type SponsorSentimentFeedProps = {
   activeSponsor: string;
-  sponsorBrand: string;
   chatSentiments: SentimentEvent[];
   transcriptSentiments: TranscriptSentimentEvent[];
   loading: boolean;
@@ -12,7 +11,6 @@ type SponsorSentimentFeedProps = {
 /** Chat and transcript sentiment that the relevance model tied to the active sponsor. */
 export function SponsorSentimentFeed({
   activeSponsor,
-  sponsorBrand,
   chatSentiments,
   transcriptSentiments,
   loading,
@@ -22,7 +20,7 @@ export function SponsorSentimentFeed({
       <div className="sidecar-heading">
         <div>
           <span className="eyebrow">Sponsor-specific tone</span>
-          <h2>{activeSponsor || sponsorBrand} sentiment</h2>
+          <h2>{activeSponsor || "Sponsor"} sentiment</h2>
         </div>
         <span className="status-pill">{chatSentiments.length + transcriptSentiments.length} relevant</span>
       </div>

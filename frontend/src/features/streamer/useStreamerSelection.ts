@@ -21,7 +21,8 @@ export type StreamerSelection = {
 };
 
 const STORAGE_KEY = "streamsense.selection";
-const DEFAULT_SELECTION = { streamer: "test", sponsor: "Nike" };
+/** No sponsor until one is entered on the operations page; the pages then show "Sponsor" as a placeholder. */
+const DEFAULT_SELECTION = { streamer: "test", sponsor: "" };
 
 type StoredSelection = { streamer: string; sponsor: string };
 
