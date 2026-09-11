@@ -113,6 +113,11 @@ public class StreamSessionService {
         if (existing.isPresent()) {
             id = existing.get().id();
             sessions.attachVod(id, vodId, streamSessionId, title, now);
+            // A Helix session the poller never saw end (a stop between polls, a restart) has its end on the
+            // recording: Twitch's created_at plus the duration is when the broadcast stopped.
+            if (existing.get().isOpen()) {
+                sessions.close(id, createdAt + Math.max(0, durationMs), now);
+            }
         } else {
             id = sessions.insert(
                     login, SOURCE_VOD, vodId, streamId, streamSessionId, login, title, null, createdAt, createdAt, now);
@@ -146,6 +151,14 @@ public class StreamSessionService {
                         now,
                         now));
         sessions.recordLive(id, stream.title(), stream.gameName(), stream.viewerCount(), now, now);
+    }
+
+    /** Channels with a Helix session still open: polled until they go offline, whether or not still watched. */
+    public List<String> streamersWithOpenHelixSessions() {
+        return sessions.findOpen(SOURCE_HELIX).stream()
+                .map(StreamSessionRow::streamer)
+                .distinct()
+                .toList();
     }
 
     /** After a poll: every open Helix session of a watched channel that was not live is over. */

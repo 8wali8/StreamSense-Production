@@ -15,7 +15,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 /**
  * Every poll: ask Helix which watched channels are live, record a viewer sample for each, and
  * close the Helix sessions of watched channels that are no longer live. Watched channels are the
- * configured list plus every streamer that produced an event recently.
+ * configured list, every streamer that produced an event recently or has a running deal, and every
+ * channel with a Helix session still open.
  */
 public class StreamSessionPoller {
 
@@ -74,6 +75,11 @@ public class StreamSessionPoller {
             watched.add(streamer.toLowerCase(Locale.ROOT));
         }
         for (String streamer : dealStreamers.get()) {
+            watched.add(streamer.toLowerCase(Locale.ROOT));
+        }
+        // A channel taken off the list, or whose events dried up, is still polled until its open session
+        // ends; otherwise that session would stay open forever (seen on the VM on 2026-09-11).
+        for (String streamer : sessions.streamersWithOpenHelixSessions()) {
             watched.add(streamer.toLowerCase(Locale.ROOT));
         }
         return watched;
