@@ -15,6 +15,8 @@ type HistoryPanelProps = {
 
 /** S7: the track record across past streams, and the list of them, each linking to its report. */
 export function HistoryPanel({ sessions, summaries, sponsor, loading }: HistoryPanelProps) {
+  // The rows show the selected sponsor's numbers; the report they open must be about the same sponsor.
+  const sponsorQuery = sponsor.trim() === "" ? "" : `?sponsor=${encodeURIComponent(sponsor)}`;
   const finished = sessions.filter((session) => !session.live);
   const record = trackRecord(
     finished
@@ -72,7 +74,7 @@ export function HistoryPanel({ sessions, summaries, sponsor, loading }: HistoryP
         {finished.map((session) => {
           const summary = summaries[session.id];
           return (
-            <Link className="history-row" to={`/sessions/${session.id}`} key={session.id}>
+            <Link className="history-row" to={`/sessions/${session.id}${sponsorQuery}`} key={session.id}>
               <span>
                 <strong>{session.title ?? "Untitled stream"}</strong>
                 <small>

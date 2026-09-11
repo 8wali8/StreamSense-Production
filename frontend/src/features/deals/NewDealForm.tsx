@@ -17,6 +17,11 @@ function optionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/** A non-empty value that is not a number: the form refuses to submit rather than drop the term. */
+function isMistypedNumber(value: string): boolean {
+  return value.trim() !== "" && optionalNumber(value) === undefined;
+}
+
 function optionalText(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
@@ -39,7 +44,8 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
 
   const startsAt = fromDateInput(starts);
   const endsAt = ends.trim() === "" ? null : fromDateInput(ends, true);
-  const valid = sponsor.trim() !== "" && startsAt != null && (ends.trim() === "" || endsAt != null);
+  const mistyped = [promisedStreams, fee, cpm, hostReadRate].some(isMistypedNumber);
+  const valid = sponsor.trim() !== "" && startsAt != null && (ends.trim() === "" || endsAt != null) && !mistyped;
 
   async function submit() {
     if (!valid || startsAt == null) return;
@@ -168,6 +174,11 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
           Cancel
         </button>
       </div>
+      {mistyped && (
+        <div className="status-line" role="alert">
+          Promised streams, fee, CPM, and host-read rate must be plain numbers (no commas or currency signs).
+        </div>
+      )}
       {error && (
         <div className="error-state form-error" role="alert">
           {error}

@@ -238,7 +238,8 @@ public class DealService {
         DealRow deal = found.get();
         long to = deal.endsAt() == null ? now + 1 : Math.min(deal.endsAt(), now + 1);
         SummaryOptions options = optionsFor(deal);
-        List<SessionSummary> reports = sessions.list(deal.streamer(), deal.startsAt(), to, MAX_LIMIT).stream()
+        // Every session in the deal, however many: the totals are the deal's, not a page's.
+        List<SessionSummary> reports = sessions.listAll(deal.streamer(), deal.startsAt(), to).stream()
                 .filter(session -> session.startedAt() >= deal.startsAt())
                 .filter(session -> deal.endsAt() == null || session.startedAt() < deal.endsAt())
                 .map(session -> summaries.summary(session.id(), options))

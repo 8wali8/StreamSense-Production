@@ -31,7 +31,8 @@ final class ChatSignals {
         }
         Matcher matcher = LINK.matcher(message);
         while (matcher.find()) {
-            String host = matcher.group(1).toLowerCase(Locale.ROOT);
+            // "Visit https://redbull.com." ends the sentence, not the host.
+            String host = matcher.group(1).toLowerCase(Locale.ROOT).replaceAll("[.-]+$", "");
             if (host.startsWith("www.")) {
                 host = host.substring(4);
             }

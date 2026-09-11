@@ -154,6 +154,25 @@ public class StreamSessionRepository {
     }
 
     /** Sessions of a streamer that overlap [from, to), newest first. Null bounds mean unbounded. */
+    /** Every session of a streamer overlapping the range, newest first, without a page cap (a deal's totals). */
+    public List<StreamSessionRow> findAllByStreamer(String streamer, Long from, Long to) {
+        long lower = from == null ? Long.MIN_VALUE : from;
+        long upper = to == null ? Long.MAX_VALUE : to;
+        return jdbcTemplate.query(
+                "select " + COLUMNS
+                        + """
+                         from stream_sessions
+                        where streamer = ?
+                          and started_at < ?
+                          and (ended_at is null or ended_at >= ?)
+                        order by started_at desc
+                        """,
+                this::mapRow,
+                streamer,
+                upper,
+                lower);
+    }
+
     public List<StreamSessionRow> findByStreamer(String streamer, Long from, Long to, int limit) {
         long lower = from == null ? Long.MIN_VALUE : from;
         long upper = to == null ? Long.MAX_VALUE : to;

@@ -3,11 +3,15 @@
 const DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const DATE_YEAR = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 
-/** "Sep 1 – Sep 30, 2026", or "since Sep 1, 2026" for an open-ended deal. */
+/**
+ * "Sep 1 – Sep 30, 2026", or "since Sep 1, 2026" for an open-ended deal. `endsAt` is the exclusive bound
+ * the form stores (the midnight after the chosen day), so the day shown is the instant just before it.
+ */
 export function dealDates(startsAt: number, endsAt: number | null | undefined): string {
   if (endsAt == null) return `since ${DATE_YEAR.format(startsAt)}`;
-  const sameYear = new Date(startsAt).getFullYear() === new Date(endsAt).getFullYear();
-  return `${(sameYear ? DATE : DATE_YEAR).format(startsAt)} – ${DATE_YEAR.format(endsAt)}`;
+  const lastDay = endsAt - 1;
+  const sameYear = new Date(startsAt).getFullYear() === new Date(lastDay).getFullYear();
+  return `${(sameYear ? DATE : DATE_YEAR).format(startsAt)} – ${DATE_YEAR.format(lastDay)}`;
 }
 
 /** Media value over the fee, e.g. 1.4; null when either side is missing or the fee is zero. */

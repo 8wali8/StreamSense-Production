@@ -7,14 +7,18 @@ public record AnalyticsRange(Long sessionId, Long from, Long to) {
 
     public static final AnalyticsRange NONE = new AnalyticsRange(null, null, null);
 
-    /** From GraphQL arguments: the session id string and epoch-millis floats. A malformed id is ignored. */
+    /**
+     * From GraphQL arguments: the session id string and epoch-millis floats. A malformed id is a bad request
+     * (GraphQlErrorAdvice turns the exception into BAD_REQUEST); silently dropping it would answer a typo with
+     * the trailing-window numbers of a different question.
+     */
     public static AnalyticsRange of(String sessionId, Double from, Double to) {
         Long id = null;
         if (sessionId != null && !sessionId.isBlank()) {
             try {
                 id = Long.parseLong(sessionId.trim());
             } catch (NumberFormatException ex) {
-                id = null;
+                throw new IllegalArgumentException("sessionId must be a number, got '" + sessionId + "'");
             }
         }
         return new AnalyticsRange(id, from == null ? null : from.longValue(), to == null ? null : to.longValue());
