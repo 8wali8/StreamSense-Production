@@ -17,6 +17,7 @@ No schema or generated-type change. Frontend, plus one analytics-service fix the
 - **Deal, session, and share pages.** They carry their own sponsor already.
 - **The streamer default of `test`** for a browser with no selection and no Twitch sign-in.
 - **Auto-opening the new-deal form** on an empty channel was considered and rejected: the lead line is the prompt.
+- **A "current deal" query.** The home page asks for the channel's deals up to the service's page cap (200) and applies the rule client-side; see the review section.
 
 ## Verification
 
@@ -25,7 +26,7 @@ Run in a Linux clone of the branch (`npm ci`), because the Windows checkout's `n
 | Check | Command | Result |
 |---|---|---|
 | Types, lint, format | `tsc -b`, `eslint .`, `prettier --check` on the touched files | clean (`react-hooks/purity` refused `Date.now()` in render; the clock is read once with `useState`) |
-| Unit and page tests | `vitest run --maxWorkers=2 --testTimeout=30000` | 31 files, 125 tests pass: 8 new for `homeSponsor`/`followedSponsor`, 5 new home page cases (running deal followed, nothing followed with the sponsor feed off, deals failing to load, a running deal behind nine newer ones, upcoming deal named). With the default 5 s timeout and full parallelism the suite timed out at random on a host under load average 40; the same tests pass in isolation |
+| Unit and page tests | `vitest run --maxWorkers=2 --testTimeout=30000` | 32 files, 126 tests pass: 8 new for `homeSponsor`/`followedSponsor`, 5 new home page cases, 1 for `useSessionSummaries` (running deal followed, nothing followed with the sponsor feed off, deals failing to load, a running deal behind nine newer ones, upcoming deal named). With the default 5 s timeout and full parallelism the suite timed out at random on a host under load average 40; the same tests pass in isolation |
 | Coverage floors | `vitest run --coverage` (same flags) | floors met |
 | Build | `vite build` | succeeds |
 | analytics-service | `mvn -pl analytics-service -am verify -Dmaven.gitcommitid.skip=true` (Maven 3.9, JDK 21 in Docker; the skip because the shared clone's objects are not in the container) | `BUILD SUCCESS`: Spotless, JaCoCo floor, ArchUnit, and the new overlapping-deal test |
@@ -45,6 +46,11 @@ Second round, three P2s (one filed twice), also taken:
 - **Live summary without a sponsor.** The service resolves an omitted sponsor to the deal covering the session or the top detected brand, so the strip could show one brand's numbers under "No sponsor yet". The live summary query is skipped until a sponsor is followed; the strip shows dashes.
 - **Commas in deal sponsor names.** The console ran every sponsor through the operations-field parser, which takes the text after a comma as semantic terms, so a deal with "Acme, Inc." filtered feeds for "Acme". The parser now applies only to the operations entry, inside `homeSponsor`; a deal's sponsor is used verbatim, which is the name relevance was pointed at.
 - **Reverting to an older overlapping deal (analytics-service).** `DealService` remembered every deal it had ever pointed at, so when a newer overlapping deal ended it never pointed relevance back at the older one still running, while the home page switched to it. It now remembers the deal last pointed at per streamer and re-points whenever the current deal differs. `DealsTest.anOlderOverlappingDealIsPointedAtAgainWhenTheNewerOneEnds` covers it with a stepping clock.
+
+Third round, two P2s:
+
+- **History summaries during a sponsor switch (taken).** `useSessionSummaries` kept the previous sponsor's summaries on screen until the new ones arrived, so for a moment the track record and rows showed A's numbers under B's label. Its state is now keyed by the ids and sponsor it was fetched for; a change shows nothing (and `loading`) until the new summaries land. `useSessionSummaries.test.tsx` holds B's response to prove it.
+- **The 200-deal page cap (deliberately left).** A channel with more than 200 deals starting after a deal that still runs would hide that deal from the rule. That needs a "current deal" query on the service; a channel carries a handful of deals a year, so the cap stays and is recorded here rather than adding a query for it.
 
 ## What to check by hand
 
