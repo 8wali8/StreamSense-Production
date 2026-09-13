@@ -1,4 +1,6 @@
 import { env } from "../config/env";
+import { loadSnapshot } from "../demo/demo-link";
+import { isDemoMode } from "../demo/mode";
 import { authHeaders, type TokenStorage } from "./auth-token";
 
 /** RFC 9457 problem details, the error body every StreamSense REST service returns. */
@@ -80,6 +82,9 @@ async function readProblem(response: Response): Promise<ProblemDetail | null> {
  * carry the service's problem details instead of a bare status code.
  */
 export async function apiRequest(path: string, options: RequestOptions = {}): Promise<Response> {
+  if (isDemoMode()) {
+    return demoResponse(path, options);
+  }
   const headers: Record<string, string> = { Accept: "application/json", ...authHeaders(options.storage) };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -108,6 +113,32 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 /** Request where only success matters (channel switches, profile updates). */
 export async function apiSend(path: string, options: RequestOptions = {}): Promise<void> {
   await apiRequest(path, { method: "POST", ...options });
+}
+
+/**
+ * The demo never reaches the gateway: reads are answered from the snapshot's recorded responses and
+ * writes are refused with a sentence the panels show through `describeError`.
+ */
+async function demoResponse(path: string, options: RequestOptions): Promise<Response> {
+  const method = options.method ?? "GET";
+  if (method !== "GET") {
+    throw new ApiError(path, 405, {
+      status: 405,
+      detail: "the demo is read-only; sign in with Twitch to do this on your own channel",
+    });
+  }
+  const snapshot = await loadSnapshot();
+  const recorded = snapshot.rest[`GET ${buildUrl(path, options.params, "")}`];
+  if (!recorded) {
+    throw new ApiError(path, 404, { status: 404, detail: "the demo has no data for this" });
+  }
+  if (recorded.status >= 400) {
+    throw new ApiError(path, recorded.status, (recorded.body as ProblemDetail | null) ?? null);
+  }
+  return new Response(JSON.stringify(recorded.body), {
+    status: recorded.status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 function buildUrl(path: string, params: Record<string, string | number> | undefined, baseUrl: string): string {

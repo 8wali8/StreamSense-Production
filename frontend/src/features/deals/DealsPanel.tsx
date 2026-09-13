@@ -6,6 +6,7 @@ import { DEALS_QUERY } from "../../graphql/queries";
 import { describeError } from "../../lib/errors";
 import { useStreamer } from "../streamer/streamer-context";
 import { dealDates } from "./deal-format";
+import { isDemoMode } from "../../demo/mode";
 import { NewDealForm } from "./NewDealForm";
 
 const DEALS_LIMIT = 8;
@@ -32,7 +33,7 @@ export function DealsPanel() {
               : "Each deal rolls up the streams inside its dates."}
           </p>
         </div>
-        {!creating && (
+        {!creating && !isDemoMode() && (
           <button className="button-primary button-sm" type="button" onClick={() => setCreating(true)}>
             New deal
           </button>

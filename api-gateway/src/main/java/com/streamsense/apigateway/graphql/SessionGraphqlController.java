@@ -23,7 +23,9 @@ import reactor.core.publisher.Mono;
 @Controller
 public class SessionGraphqlController {
 
-    private static final int RANGE_LIMIT = 2000;
+    // One page of a range endpoint; RangePaging walks as many as the session needs. Small enough that a page of
+    // chat lines stays well inside the WebClient buffer (DownstreamWebClientConfig.MAX_IN_MEMORY_BYTES).
+    private static final int RANGE_LIMIT = 500;
     private static final int BUCKET_SECONDS = 60;
 
     private final AnalyticsServiceClient analytics;
@@ -100,7 +102,9 @@ public class SessionGraphqlController {
     private Mono<SponsorMoments> moments(StreamSession session, String sponsor) {
         long id = session.id();
         long from = session.startedAt();
-        long to = session.endedAt() == null ? session.startedAt() + session.durationMs() : session.endedAt();
+        // A capture that opened and closed on the same millisecond: the range endpoints need from < to.
+        long to = Math.max(
+                session.endedAt() == null ? session.startedAt() + session.durationMs() : session.endedAt(), from + 1);
         String chosen = sponsor == null || sponsor.isBlank() ? null : sponsor.trim();
         Mono<String> resolvedSponsor = chosen != null
                 ? Mono.just(chosen)

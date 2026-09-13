@@ -49,6 +49,24 @@ class DownstreamWebClientTimeoutTest {
     }
 
     @Test
+    void aPageOfEventsLargerThanTheDefaultBufferStillDecodes() {
+        // 500 chat lines can be a megabyte; the 256 KB default would fail the whole timeline.
+        String item = "{\"x\":\"" + "y".repeat(2_000) + "\"}";
+        String body = "[" + String.join(",", java.util.Collections.nCopies(600, item)) + "]";
+        server.enqueue(new MockResponse().setBody(body).addHeader("Content-Type", "application/json"));
+        WebClient client = customizedBuilder(new DownstreamServicesProperties())
+                .baseUrl(server.url("/").toString())
+                .build();
+
+        StepVerifier.create(client.get()
+                        .uri("/api/video/detections/range")
+                        .retrieve()
+                        .bodyToMono(String.class))
+                .expectNextMatches(text -> text.length() > 1_000_000)
+                .verifyComplete();
+    }
+
+    @Test
     void responsiveDownstreamStillSucceeds() {
         server.enqueue(new MockResponse().setBody("[]").addHeader("Content-Type", "application/json"));
         DownstreamServicesProperties properties = new DownstreamServicesProperties();

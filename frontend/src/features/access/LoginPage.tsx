@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { fetchAuthProviders, twitchSignInUrl } from "../../api/auth";
+import { DEMO_BASE } from "../../demo/mode";
 import { authTokenFromInput } from "../../lib/auth-token";
 import { DetectionHeader } from "./DetectionHeader";
 import { describeSignInFailure } from "./sign-in-failure";
@@ -103,6 +104,9 @@ export function LoginPage({
             </div>
           )}
         </form>
+        <p className="login-demo">
+          No account yet? <a href={DEMO_BASE}>Explore the demo</a>, a snapshot of one channel's deal, no sign-in.
+        </p>
       </main>
     </div>
   );

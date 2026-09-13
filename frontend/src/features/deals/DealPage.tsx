@@ -12,6 +12,7 @@ import {
   formatStart,
 } from "../session/report-format";
 import { dealDates, feeMultiple, streamsProgress } from "./deal-format";
+import { isDemoMode } from "../../demo/mode";
 import { readShareToken } from "../../lib/share-token";
 import { DealTrend } from "./DealTrend";
 import { ImportStreams } from "./ImportStreams";
@@ -53,7 +54,8 @@ export function DealPage() {
 
   const { deal, totals, sessions } = summary;
   const multiple = feeMultiple(totals.mediaValue, deal.fee);
-  const sharedView = readShareToken() != null;
+  // A shared tab and the demo are both read-only views: no share control, no imports.
+  const sharedView = readShareToken() != null || isDemoMode();
   const sponsorQuery = `?sponsor=${encodeURIComponent(deal.sponsor)}`;
 
   return (
