@@ -35,6 +35,12 @@ describe("homeSponsor", () => {
     expect(homeSponsor("  ", [], NOW)).toEqual({ kind: "none" });
   });
 
+  it("claims nothing until the deals have loaded, unless an operator entered a sponsor", () => {
+    expect(homeSponsor("", undefined, NOW)).toEqual({ kind: "unknown" });
+    expect(homeSponsor("Nike", undefined, NOW)).toEqual({ kind: "manual", sponsor: "Nike" });
+    expect(followedSponsor({ kind: "unknown" })).toBeNull();
+  });
+
   it("only filters the numbers by a sponsor being followed right now", () => {
     expect(followedSponsor({ kind: "manual", sponsor: "Nike" })).toBe("Nike");
     expect(followedSponsor({ kind: "deal", sponsor: "Red Bull" })).toBe("Red Bull");

@@ -10,7 +10,7 @@ import {
   twitchStatusConnected,
   videoStatusCapturing,
 } from "../../test/fixtures";
-import { HttpResponse, graphqlData, graphqlResolver, restJson, server } from "../../test/msw";
+import { HttpResponse, graphqlData, graphqlError, graphqlResolver, restJson, server } from "../../test/msw";
 
 const finished = {
   __typename: "StreamSession",
@@ -150,9 +150,14 @@ describe("HomePage", () => {
   });
 
   it("says there is no sponsor and asks for a deal when nothing follows one", async () => {
+    let sponsorQueries = 0;
     server.use(
       graphqlData("Sessions", { sessions: [live, finished] }),
       graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
+      graphqlResolver("RecentSponsorSentiment", () => {
+        sponsorQueries += 1;
+        return HttpResponse.json({ data: { recentSponsorSentiment: [] } });
+      }),
     );
     renderHome("");
 
@@ -166,6 +171,43 @@ describe("HomePage", () => {
     expect(await history.findByRole("link", { name: /F1 Replay Night/ })).toHaveAttribute("href", "/sessions/7");
     // The form stays closed; the line above is the only prompt.
     expect(screen.queryByRole("button", { name: /create deal/i })).not.toBeInTheDocument();
+    // Without a sponsor the sponsor feed is off rather than asking for every brand's events.
+    expect(sponsorQueries).toBe(0);
+  });
+
+  it("stays neutral when the deals cannot be loaded", async () => {
+    server.use(
+      graphqlData("Sessions", { sessions: [live, finished] }),
+      graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
+      graphqlError("Deals", "analytics-service is down"),
+    );
+    renderHome("");
+
+    const deals = within(await screen.findByLabelText("Deals"));
+    expect(await deals.findByRole("alert")).toHaveTextContent(/Failed to load deals/);
+    expect(deals.getByText("Each deal rolls up the streams inside its dates.")).toBeInTheDocument();
+    expect(screen.queryByText(/No deals yet/)).not.toBeInTheDocument();
+    // (The detection overlay's own "No sponsor yet", meaning nothing on screen, is not a pill.)
+    expect(screen.queryByText("No sponsor yet", { selector: ".pill" })).not.toBeInTheDocument();
+    expect(document.querySelector(".page-header .pill")).toBeNull();
+  });
+
+  it("finds the running deal behind newer ones and lists only the newest eight", async () => {
+    const week = 7 * 86_400_000;
+    const upcoming = Array.from({ length: 9 }, (_, i) =>
+      deal({ id: `u${i}`, sponsor: `Later ${i}`, startsAt: Date.now() + (i + 1) * week, endsAt: null, active: false }),
+    ).reverse();
+    server.use(
+      graphqlData("Sessions", { sessions: [finished] }),
+      graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
+      graphqlData("Deals", { deals: [...upcoming, deal({ id: "r", sponsor: "Red Bull" })] }),
+    );
+    renderHome("");
+
+    expect(await screen.findByText("Red Bull", { selector: ".page-header .pill" })).toBeInTheDocument();
+    const deals = within(screen.getByLabelText("Deals"));
+    expect(deals.getAllByRole("link")).toHaveLength(8);
+    expect(deals.queryByRole("link", { name: /Red Bull/ })).not.toBeInTheDocument();
   });
 
   it("names a deal that has not started yet instead of asking for another", async () => {

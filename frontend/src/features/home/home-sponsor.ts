@@ -7,16 +7,19 @@ export type HomeSponsor =
   | { kind: "manual"; sponsor: string }
   | { kind: "deal"; sponsor: string }
   | { kind: "upcoming"; sponsor: string; startsAt: number }
-  | { kind: "none" };
+  | { kind: "none" }
+  /** The deals have not loaded (or failed to), so nothing can be said about them yet. */
+  | { kind: "unknown" };
 
 /**
  * An entry on the operations page wins, because an operator re-points relevance by hand. Otherwise
  * the newest deal running now, which is what relevance follows once a deal begins. Otherwise the
  * soonest deal still to start, so the streamer is not asked to create it twice. Otherwise nothing.
  */
-export function homeSponsor(manual: string, deals: readonly Deal[], now: number): HomeSponsor {
+export function homeSponsor(manual: string, deals: readonly Deal[] | undefined, now: number): HomeSponsor {
   const entered = manual.trim();
   if (entered !== "") return { kind: "manual", sponsor: entered };
+  if (deals === undefined) return { kind: "unknown" };
   const running = [...deals].filter((deal) => deal.active).sort((a, b) => b.startsAt - a.startsAt)[0];
   if (running) return { kind: "deal", sponsor: running.sponsor };
   const upcoming = [...deals].filter((deal) => deal.startsAt > now).sort((a, b) => a.startsAt - b.startsAt)[0];

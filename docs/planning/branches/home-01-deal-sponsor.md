@@ -25,9 +25,19 @@ Run in a Linux clone of the branch (`npm ci`), because the Windows checkout's `n
 | Check | Command | Result |
 |---|---|---|
 | Types, lint, format | `tsc -b`, `eslint .`, `prettier --check` on the touched files | clean (`react-hooks/purity` refused `Date.now()` in render; the clock is read once with `useState`) |
-| Unit and page tests | `vitest run --maxWorkers=2 --testTimeout=30000` | 31 files, 121 tests pass: 5 new for `homeSponsor`/`followedSponsor`, 3 new home page cases (running deal followed, nothing followed, upcoming deal named). With the default 5 s timeout and full parallelism the suite timed out at random on a host under load average 40; the same tests pass in isolation |
+| Unit and page tests | `vitest run --maxWorkers=2 --testTimeout=30000` | 31 files, 124 tests pass: 6 new for `homeSponsor`/`followedSponsor`, 5 new home page cases (running deal followed, nothing followed with the sponsor feed off, deals failing to load, a running deal behind nine newer ones, upcoming deal named). With the default 5 s timeout and full parallelism the suite timed out at random on a host under load average 40; the same tests pass in isolation |
 | Coverage floors | `vitest run --coverage` (same flags) | floors met |
 | Build | `vite build` | succeeds |
+
+## Review (Codex on #61)
+
+One P1 and four P2s, all taken in the follow-up commit:
+
+- **Deal boundaries while the page is open (P1).** The deals query now polls every 30 s like the sessions, and the clock the "not started yet" judgement uses advances on the same interval, so a deal starting or ending is picked up within a minute of the backend pointing relevance at it.
+- **Truncated deal set (P2).** The sponsor rule sees every deal (the query asks for the service's page cap of 200, newest first); the panel still lists the newest eight.
+- **Sponsor feed buffers (P2).** `useConsoleFeeds` keys the two sponsor feeds by streamer and sponsor, so one brand's buffered events never show under another's heading.
+- **No sponsor followed (P2).** The sponsor feeds are skipped rather than queried with an empty filter, which the gateway treats as every brand.
+- **Deals failing to load (P2).** `homeSponsor` has an `unknown` state while the deals have not loaded; the header shows no pill, the live strip and player show no "No sponsor yet", and the deals panel keeps its neutral line next to the error. A failed refetch keeps the last list.
 
 ## What to check by hand
 

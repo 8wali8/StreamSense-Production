@@ -7,8 +7,8 @@ import { useConsoleFeeds } from "./useConsoleFeeds";
 
 type LiveStreamConsoleProps = {
   streamer: string;
-  /** The sponsor field as entered, or undefined when none has been entered yet. */
-  sponsor: string | undefined;
+  /** The sponsor followed as entered; null when there is none; undefined while that is not known yet. */
+  sponsor: string | null | undefined;
 };
 
 /**
@@ -16,7 +16,7 @@ type LiveStreamConsoleProps = {
  * in a drawer below, closed by default, because the brand is what the page is about.
  */
 export function LiveStreamConsole({ streamer, sponsor }: LiveStreamConsoleProps) {
-  // Without a sponsor the sponsor-sentiment queries run unfiltered.
+  // Without a sponsor the sponsor feeds stay off (an empty filter would mean every brand).
   const activeSponsor = sponsor ? sponsorProfileFromInput(streamer, sponsor).sponsor : "";
   const feeds = useConsoleFeeds(streamer, activeSponsor);
 
@@ -25,7 +25,7 @@ export function LiveStreamConsole({ streamer, sponsor }: LiveStreamConsoleProps)
       <div className="console-main">
         <StreamFrame
           streamer={streamer}
-          sponsorBrand={activeSponsor}
+          sponsor={sponsor === undefined ? undefined : activeSponsor || null}
           sponsors={feeds.sponsors}
           latestEventAt={feeds.latestEventAt}
         />

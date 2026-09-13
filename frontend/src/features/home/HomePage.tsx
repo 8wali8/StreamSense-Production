@@ -1,5 +1,5 @@
 import { useQuery } from "@apollo/client/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ErrorBoundary } from "../../components/ErrorBoundary";
 import type {
   DealsQuery,
@@ -21,11 +21,14 @@ import { LiveStrip } from "./LiveStrip";
 import { useSessionSummaries } from "./useSessionSummaries";
 
 const HISTORY_LIMIT = 8;
-const DEALS_LIMIT = 8;
+/** Every deal the channel has (the service caps a page at 200), so the current one is never hidden behind newer ones. */
+const DEALS_FETCH_LIMIT = 200;
+const DEALS_SHOWN = 8;
 const LIVE_POLL_MS = 30_000;
 
 /** The header pill: the sponsor being followed, the one about to be, or the fact that there is none. */
 function SponsorPill({ home }: { home: HomeSponsor }) {
+  if (home.kind === "unknown") return null;
   if (home.kind === "none") return <span className="pill pill-dim">No sponsor yet</span>;
   if (home.kind === "upcoming") {
     return (
@@ -45,15 +48,23 @@ function SponsorPill({ home }: { home: HomeSponsor }) {
 export function HomePage() {
   const { selectedStreamer, sponsorBrand } = useStreamer();
 
+  // Polled like the sessions, so a deal starting or ending while the page is open is picked up
+  // within a minute of the backend pointing relevance at it.
   const deals = useQuery<DealsQuery, DealsQueryVariables>(DEALS_QUERY, {
-    variables: { streamer: selectedStreamer, limit: DEALS_LIMIT },
+    variables: { streamer: selectedStreamer, limit: DEALS_FETCH_LIMIT },
+    pollInterval: LIVE_POLL_MS,
     fetchPolicy: "cache-and-network",
   });
-  const dealList = deals.data?.deals ?? [];
-  // The clock as of this visit: whether a deal has started is judged once, like the server's `active` flag.
-  const [now] = useState(() => Date.now());
-  const home = homeSponsor(sponsorBrand, dealList, now);
+  // The clock advances with the poll, so "not started yet" is judged against the same moment as `active`.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), LIVE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+  // Until the deals have loaded once, nothing is claimed about them; a failed refetch keeps the last list.
+  const home = homeSponsor(sponsorBrand, deals.data?.deals, now);
   const sponsor = followedSponsor(home);
+  const known = home.kind !== "unknown";
 
   const sessions = useQuery<SessionsQuery, SessionsQueryVariables>(SESSIONS_QUERY, {
     variables: { streamer: selectedStreamer, limit: HISTORY_LIMIT },
@@ -93,19 +104,18 @@ export function HomePage() {
       <LiveStrip
         session={latest}
         summary={liveSummary.data?.sessionSummary ?? null}
-        sponsor={sponsor}
+        sponsor={known ? sponsor : undefined}
         loading={sessions.loading && !sessions.data}
       />
 
       <ErrorBoundary label="live console">
-        <LiveStreamConsole streamer={selectedStreamer} sponsor={sponsor ?? undefined} />
+        <LiveStreamConsole streamer={selectedStreamer} sponsor={known ? sponsor : undefined} />
       </ErrorBoundary>
 
       <ErrorBoundary label="deals">
         <DealsPanel
           streamer={selectedStreamer}
-          deals={dealList}
-          loading={deals.loading && !deals.data}
+          deals={(deals.data?.deals ?? []).slice(0, DEALS_SHOWN)}
           error={deals.error}
           home={home}
           onCreated={() => void deals.refetch()}

@@ -4,13 +4,14 @@ import type { SponsorDetectionEvent } from "./useConsoleFeeds";
 
 type StreamFrameProps = {
   streamer: string;
-  sponsorBrand: string;
+  /** The sponsor followed; null when there is none; undefined while that is not known yet. */
+  sponsor: string | null | undefined;
   sponsors: SponsorDetectionEvent[];
   latestEventAt: number | undefined;
 };
 
 /** The embedded Twitch player with the latest sponsor detections drawn over it. */
-export function StreamFrame({ streamer, sponsorBrand, sponsors, latestEventAt }: StreamFrameProps) {
+export function StreamFrame({ streamer, sponsor, sponsors, latestEventAt }: StreamFrameProps) {
   const latestFrame = sponsors.find((event) => event.frameRef);
   const frameOverlays = latestFrame
     ? sponsors.filter((event) => event.frameRef === latestFrame.frameRef).slice(0, 6)
@@ -23,11 +24,8 @@ export function StreamFrame({ streamer, sponsorBrand, sponsors, latestEventAt }:
         <div>
           <span className="live-dot">LIVE</span>
           <strong>@{streamer}</strong>
-          {sponsorBrand ? (
-            <span className="pill pill-teal">{sponsorBrand}</span>
-          ) : (
-            <span className="pill pill-dim">No sponsor yet</span>
-          )}
+          {sponsor && <span className="pill pill-teal">{sponsor}</span>}
+          {sponsor === null && <span className="pill pill-dim">No sponsor yet</span>}
         </div>
         <div className="video-clock">Last signal {formatTime(latestEventAt)}</div>
       </div>
