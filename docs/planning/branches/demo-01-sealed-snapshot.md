@@ -12,6 +12,17 @@ The public demo from `docs/planning/demo-page.md`: the whole console at `/demo`,
 
 **Two bugs the export found, fixed on `main`'s code.** A capture session that opened and closed on the same millisecond made `sessionSummary` fail with "from must be before to", and one such session made the whole deal summary fail; `SessionSummaryService` now gives every session at least a millisecond of window. And a page of range events for a busy stream exceeded WebClient's 256 KB default buffer, which failed `sponsorMoments` for the long sessions with "downstream error status=200"; the shared WebClient customizer allows 4 MB and the timeline pages at 500 events.
 
+## The Codex review (two P1, four P2, all fixed)
+
+- **Share tokens in the snapshot.** The exporter nulls every `shareToken` field: a deal's share link is a credential, and the snapshot is public. The committed one had none, but a refresh after a share link was minted would have carried it.
+- **Paging capacity.** Cutting the page from 2,000 to 500 while `RangePaging.MAX_PAGES` stayed at 25 would have cut a timeline off at 12,500 events; the cap is now 100 pages, 50,000 events, with the comment tying the two numbers together.
+- **Deal totals versus a filtered session list.** Rather than recompute totals in the exporter, it refuses to export when a filter would hide a session that belongs to a deal, and says to curate the source data instead; `--max-sessions` defaults to keeping all.
+- **A share token left in the tab.** Demo mode ignores session storage's share token, so `/demo` never renders the reduced shared shell.
+- **Feeds that never ticked.** The replayed events carried the ids the feeds already had in their history, so `useLiveFeed` dropped every one. Each replayed event now gets a fresh id and the clock set to now (`asLiveEvent`).
+- **Zero-length sessions on the timeline.** The gateway's `sponsorMoments` window gets the same one-millisecond minimum as the summary.
+
+Also from the second export: the operations page's trailing-window query moved with the clock and made every refresh a 300-line diff, so it is no longer exported (the demo does not show it), and the exporter writes LF on every platform.
+
 ## Why this shape
 
 A demo account on the live gateway would mean public, anonymous traffic against the services and a demo that looks empty when nobody streams. Here there is no credential and no request: the security property holds by construction, and the demo always looks its best. The snapshot is real replay data, curated: the only synthetic part is the viewer counts, which the replay cannot produce and which the media-value arithmetic needs, inserted into the local database as one sample a minute before the export (a smooth ramp with a mid-stream peak around 2,400).

@@ -90,12 +90,15 @@ def pseudonym(name: str) -> str:
 
 
 def pseudonymise(value, names: dict[str, str]):
-    """Replace every `user`/`username` string in a JSON tree with a stable pseudonym."""
+    """Replace every `user`/`username` string in a JSON tree with a stable pseudonym, and drop credentials."""
     if isinstance(value, dict):
         out = {}
         for key, item in value.items():
             if key in ("user", "username") and isinstance(item, str) and item:
                 out[key] = names.setdefault(item, pseudonym(item))
+            elif key == "shareToken":
+                # A deal's share link is a credential for that deal; the snapshot is public.
+                out[key] = None
             else:
                 out[key] = pseudonymise(item, names)
         return out
@@ -111,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--streamer", required=True)
     parser.add_argument("--sponsor", required=True)
     parser.add_argument("--min-session-minutes", type=int, default=10)
-    parser.add_argument("--max-sessions", type=int, default=4, help="newest sessions to keep; 0 keeps all")
+    parser.add_argument("--max-sessions", type=int, default=0, help="newest sessions to keep; 0 (default) keeps all")
     parser.add_argument("--feed-limit", type=int, default=24)
     parser.add_argument("--output", default=str(OUTPUT))
     args = parser.parse_args(argv)
@@ -143,8 +146,14 @@ def main(argv: list[str] | None = None) -> int:
     for deal in deals:
         run("Deal", id=deal["id"])
         summary = run("DealSummary", id=deal["id"])
-        summary["dealSummary"]["sessions"] = [
-            entry for entry in summary["dealSummary"]["sessions"] if entry["session"]["id"] in kept_ids]
+        # A deal's totals are computed by analytics-service over every session in the deal; dropping some of
+        # those sessions here would leave totals the demo cannot account for. Curate the source data instead
+        # (close or delete the sessions there) and export again.
+        hidden = [e["session"]["id"] for e in summary["dealSummary"]["sessions"] if e["session"]["id"] not in kept_ids]
+        if hidden:
+            sys.exit(
+                f"deal {deal['id']} contains sessions the filters would hide ({', '.join(hidden)}); its totals would "
+                "no longer match its list. Remove them from the source data or relax --min-session-minutes/--max-sessions.")
 
     for session in keep:
         run("Session", id=session["id"])
@@ -160,7 +169,8 @@ def main(argv: list[str] | None = None) -> int:
     for chosen in (None, sponsor):
         run("RecentSponsorSentiment", streamer=streamer, sponsor=chosen, limit=limit)
         run("RecentSponsorTranscriptSentiment", streamer=streamer, sponsor=chosen, limit=limit)
-    run("StreamAnalytics", streamer=streamer, windowMinutes=15, bucketSeconds=60)
+    # StreamAnalytics (the operations page's trailing window) is not exported: it is not shown in the demo,
+    # and its window moves with the clock, which would make every refresh a diff.
 
     rest: dict[str, dict] = {}
     for path in (
@@ -201,7 +211,9 @@ def main(argv: list[str] | None = None) -> int:
     snapshot = pseudonymise(snapshot, names)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(snapshot, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    # LF regardless of platform: the repository stores LF and the file is meant to diff cleanly.
+    with output.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(snapshot, indent=1, sort_keys=True) + "\n")
     print(f"wrote {output} ({output.stat().st_size // 1024} KB, {len(names)} usernames pseudonymised)", file=sys.stderr)
     return 0
 

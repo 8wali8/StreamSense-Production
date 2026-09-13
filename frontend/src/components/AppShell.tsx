@@ -13,8 +13,8 @@ function navClass({ isActive }: { isActive: boolean }): string {
 /** Left navigation plus the routed page. The operations link sits at the bottom, away from customer pages. */
 export function AppShell() {
   const { selectedStreamer } = useStreamer();
-  const shared = readShareToken() != null;
   const demo = isDemoMode();
+  const shared = !demo && readShareToken() != null;
 
   if (shared) {
     return (

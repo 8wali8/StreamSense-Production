@@ -102,8 +102,10 @@ export function createDemoLink(snapshot: () => Promise<Snapshot> = loadSnapshot)
               let index = 0;
               const tick = () => {
                 if (items.length === 0) return;
-                // Oldest first so the feed builds up the way a live one does, then around again.
-                const item = items[items.length - 1 - (index % items.length)];
+                // Oldest first so the feed builds up the way a live one does, then around again. Each replayed
+                // event gets a fresh id and timestamp: the feeds drop anything whose id is already in their
+                // history, and the recorded events are exactly that history.
+                const item = asLiveEvent(items[items.length - 1 - (index % items.length)], index);
                 index += 1;
                 observer.next({ data: { [source.field]: item } });
                 timer = window.setTimeout(tick, REPLAY_INTERVAL_MS);
@@ -126,6 +128,22 @@ export function createDemoLink(snapshot: () => Promise<Snapshot> = loadSnapshot)
         };
       }),
   );
+}
+
+const ID_KEYS = ["eventId", "sentimentEventId", "segmentId", "detectionEventId"];
+const TIME_KEYS = ["timestamp", "chatTimestamp", "capturedAt", "processedAt", "segmentStartedAt", "segmentEndedAt"];
+
+/** A recorded event as if it had just happened: a new id, so the feeds accept it, and the clock set to now. */
+export function asLiveEvent(item: Record<string, unknown>, sequence: number): Record<string, unknown> {
+  const now = Date.now();
+  const live: Record<string, unknown> = { ...item };
+  for (const key of ID_KEYS) {
+    if (typeof live[key] === "string") live[key] = `${live[key]}-live-${sequence}`;
+  }
+  for (const key of TIME_KEYS) {
+    if (typeof live[key] === "number") live[key] = now;
+  }
+  return live;
 }
 
 function replayItems(

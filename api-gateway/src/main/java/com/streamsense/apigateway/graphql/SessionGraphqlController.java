@@ -102,7 +102,9 @@ public class SessionGraphqlController {
     private Mono<SponsorMoments> moments(StreamSession session, String sponsor) {
         long id = session.id();
         long from = session.startedAt();
-        long to = session.endedAt() == null ? session.startedAt() + session.durationMs() : session.endedAt();
+        // A capture that opened and closed on the same millisecond: the range endpoints need from < to.
+        long to = Math.max(
+                session.endedAt() == null ? session.startedAt() + session.durationMs() : session.endedAt(), from + 1);
         String chosen = sponsor == null || sponsor.isBlank() ? null : sponsor.trim();
         Mono<String> resolvedSponsor = chosen != null
                 ? Mono.just(chosen)

@@ -1,6 +1,6 @@
 import { ApolloClient, gql, InMemoryCache } from "@apollo/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDemoLink, pickEntry, type Snapshot } from "./demo-link";
+import { asLiveEvent, createDemoLink, pickEntry, type Snapshot } from "./demo-link";
 import { isDemoPath } from "./mode";
 
 const snapshot: Snapshot = {
@@ -114,8 +114,23 @@ describe("demo link", () => {
         seen.push(payload.onSentiment.sentimentEventId);
       });
     await vi.advanceTimersByTimeAsync(4000 * 3 + 10);
-    expect(seen).toEqual(["oldest", "newest", "oldest"]);
+    // Fresh ids each time: the recorded ids are already in the feeds' history and would be dropped.
+    expect(seen).toEqual(["oldest-live-0", "newest-live-1", "oldest-live-2"]);
     subscription.unsubscribe();
+  });
+
+  it("makes a replayed event look like it just happened", () => {
+    vi.setSystemTime(new Date("2026-09-13T12:00:00Z"));
+    const live = asLiveEvent(
+      { sentimentEventId: "abc", chatTimestamp: 1_700_000_000_000, message: "hi", score: 0.5 },
+      7,
+    );
+    expect(live).toEqual({
+      sentimentEventId: "abc-live-7",
+      chatTimestamp: Date.parse("2026-09-13T12:00:00Z"),
+      message: "hi",
+      score: 0.5,
+    });
   });
 
   it("knows which paths are the demo", () => {

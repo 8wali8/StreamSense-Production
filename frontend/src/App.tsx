@@ -54,7 +54,8 @@ function SharedLanding() {
  * from a share link gets only the deal and session pages; the home and operations pages are not routed.
  */
 export function AppRoutes() {
-  const shared = readShareToken() != null;
+  // A share token left in this tab's session storage means nothing in the demo, which is the full console.
+  const shared = !isDemoMode() && readShareToken() != null;
   // Streamers signed in with Twitch never see the operations page; the gateway refuses its writes as well.
   const operator = !shared && !isDemoMode() && isOperatorSession();
   return (
