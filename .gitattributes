@@ -6,3 +6,7 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# The demo snapshot is exported data (tools/demo/export_snapshot.py), not hand-written code: collapsed in
+# pull request diffs and left out of the language statistics.
+frontend/src/demo/snapshot.json linguist-generated=true text eol=lf

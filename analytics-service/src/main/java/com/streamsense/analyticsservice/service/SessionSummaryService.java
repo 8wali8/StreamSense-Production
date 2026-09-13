@@ -63,6 +63,8 @@ public class SessionSummaryService {
         SummaryOptions options = deal.map(d -> withDealDefaults(requested, d)).orElse(requested);
         long from = session.startedAt();
         long to = session.endedAt() == null ? session.startedAt() + session.durationMs() : session.endedAt();
+        // A capture that opened and closed on the same millisecond is still a window: the range queries need from < to.
+        to = Math.max(to, session.startedAt() + 1);
         MetricQueryService.QueryWindow window = metrics.rangeWindow(session.streamer(), from, to);
         StreamMetricsSummary base = metrics.summary(window);
 

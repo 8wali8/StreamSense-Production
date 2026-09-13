@@ -10,6 +10,8 @@ import type {
   SessionSummaryQueryVariables,
 } from "../../graphql/generated";
 import { DEALS_QUERY, SESSION_SUMMARY_QUERY, SESSIONS_QUERY } from "../../graphql/queries";
+import { DemoIntro } from "../../demo/DemoChrome";
+import { isDemoMode } from "../../demo/mode";
 import { describeError } from "../../lib/errors";
 import { LiveStreamConsole } from "../console/LiveStreamConsole";
 import { dealStartDate } from "../deals/deal-format";
@@ -95,6 +97,8 @@ export function HomePage() {
         </div>
         <SponsorPill home={home} />
       </header>
+
+      {isDemoMode() && <DemoIntro />}
 
       {sessions.error && (
         <div className="error-state" role="alert">

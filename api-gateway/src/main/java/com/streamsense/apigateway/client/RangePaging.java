@@ -17,8 +17,11 @@ import reactor.core.publisher.Mono;
  */
 public final class RangePaging {
 
-    /** Enough for a twelve-hour stream at one event a second; beyond that the timeline is a sample. */
-    static final int MAX_PAGES = 25;
+    /**
+     * With SessionGraphqlController's page of 500, a hundred pages is 50,000 events: a twelve-hour stream at
+     * one event a second. Beyond that the timeline is a sample. Raise this with the page size, never alone.
+     */
+    static final int MAX_PAGES = 100;
 
     private RangePaging() {}
 

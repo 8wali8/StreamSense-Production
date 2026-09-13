@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import type { DealsQuery } from "../../graphql/generated";
 import { describeError } from "../../lib/errors";
+import { isDemoMode } from "../../demo/mode";
 import type { HomeSponsor } from "../home/home-sponsor";
 import { dealDates, dealStartDate } from "./deal-format";
 import { NewDealForm } from "./NewDealForm";
@@ -39,7 +40,7 @@ export function DealsPanel({ streamer, deals, error, home, onCreated }: DealsPan
           <h2>Deals</h2>
           <p>{dealsLead(home, deals.length)}</p>
         </div>
-        {!creating && (
+        {!creating && !isDemoMode() && (
           <button className="button-primary button-sm" type="button" onClick={() => setCreating(true)}>
             New deal
           </button>
