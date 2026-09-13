@@ -105,7 +105,7 @@ export function LoginPage({
           )}
         </form>
         <p className="login-demo">
-          No account yet? <a href={DEMO_BASE}>Explore the demo</a>, a snapshot of one channel's deal, no sign-in.
+          Don&rsquo;t have an account? <a href={DEMO_BASE}>Take a look at the demo</a>.
         </p>
       </main>
     </div>
