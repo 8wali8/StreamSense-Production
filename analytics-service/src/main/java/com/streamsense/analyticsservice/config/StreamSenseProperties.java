@@ -335,6 +335,7 @@ public class StreamSenseProperties {
         private int connectTimeoutMs = 2000;
         private int readTimeoutMs = 5000;
         private long tokenRefreshMarginSeconds = 60;
+        private long rateLimitBackoffMs = 60_000L;
 
         public boolean isEnabled() {
             return enabled;
@@ -430,6 +431,15 @@ public class StreamSenseProperties {
 
         public void setTokenRefreshMarginSeconds(long tokenRefreshMarginSeconds) {
             this.tokenRefreshMarginSeconds = tokenRefreshMarginSeconds;
+        }
+
+        /** How long to stop calling Helix after a 429 that carries no usable reset header. */
+        public long getRateLimitBackoffMs() {
+            return rateLimitBackoffMs;
+        }
+
+        public void setRateLimitBackoffMs(long rateLimitBackoffMs) {
+            this.rateLimitBackoffMs = rateLimitBackoffMs;
         }
     }
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.streamsense.analyticsservice.twitch.HelixRateLimitedException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
@@ -58,6 +59,23 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getStatus()).isEqualTo(409);
         assertThat(problem.getType()).hasToString("https://streamsense.dev/problems/conflict");
         assertThat(problem.getDetail()).isEqualTo("ingestion is disabled");
+    }
+
+    @Test
+    void helixRateLimitBecomesA503WithRetryAfter() {
+        long retryAt = System.currentTimeMillis() + 30_000L;
+
+        ResponseEntity<ProblemDetail> response = handler.handleHelixRateLimited(
+                new HelixRateLimitedException(retryAt),
+                new MockHttpServletRequest("GET", "/api/analytics/streams/racer/vods"));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(503);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isIn("29", "30");
+        ProblemDetail problem = response.getBody();
+        assertThat(problem).isNotNull();
+        assertThat(problem.getType()).hasToString("https://streamsense.dev/problems/twitch-rate-limited");
+        assertThat(problem.getDetail()).startsWith("Twitch is rate limiting this application; try again in ");
+        assertThat(problem.getInstance()).hasToString("/api/analytics/streams/racer/vods");
     }
 
     @Test

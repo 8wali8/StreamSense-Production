@@ -72,6 +72,8 @@ streamsense:
       # Comma-separated logins always polled; streamers with recent events are polled as well.
       channels: ${STREAMSENSE_TWITCH_HELIX_CHANNELS:}
       watch-streamers-seen-within-hours: ${STREAMSENSE_TWITCH_HELIX_WATCH_HOURS:24}
+      # After a 429 without a usable Ratelimit-Reset or Retry-After header, how long to stop calling Helix.
+      rate-limit-backoff-ms: ${STREAMSENSE_TWITCH_HELIX_RATE_LIMIT_BACKOFF_MS:60000}
       # Generous: the container's first name lookup of api.twitch.tv can take seconds.
       connect-timeout-ms: 5000
       read-timeout-ms: 10000

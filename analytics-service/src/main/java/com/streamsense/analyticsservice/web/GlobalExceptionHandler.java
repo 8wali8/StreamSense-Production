@@ -1,5 +1,6 @@
 package com.streamsense.analyticsservice.web;
 
+import com.streamsense.analyticsservice.twitch.HelixRateLimitedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
@@ -63,6 +64,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ProblemDetail handleConflict(IllegalStateException ex, HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, "conflict", ex.getMessage(), request);
+    }
+
+    /**
+     * Twitch is throttling the application: a temporary condition the caller can retry, so 503 with a
+     * {@code Retry-After} rather than the 500 an unexpected exception gets.
+     */
+    @ExceptionHandler(HelixRateLimitedException.class)
+    public ResponseEntity<ProblemDetail> handleHelixRateLimited(
+            HelixRateLimitedException ex, HttpServletRequest request) {
+        long retryAfter = ex.retryAfterSeconds(System.currentTimeMillis());
+        ProblemDetail problem = problem(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "twitch-rate-limited",
+                "Twitch is rate limiting this application; try again in " + retryAfter + " seconds",
+                request);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfter))
+                .body(problem);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
