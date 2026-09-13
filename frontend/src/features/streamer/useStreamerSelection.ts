@@ -2,6 +2,7 @@ import { useState } from "react";
 import { switchTwitchChannels } from "../../api/chat";
 import { updateSponsorProfile } from "../../api/sentiment";
 import { switchCaptureChannels } from "../../api/video";
+import { DEMO_CHANNEL, DEMO_SPONSOR, isDemoMode } from "../../demo/mode";
 import { currentAuthClaims } from "../../lib/auth-token";
 import { normalizeStreamerHandle, sponsorProfileFromInput } from "./streamer";
 
@@ -32,6 +33,8 @@ type StoredSelection = { streamer: string; sponsor: string };
  * has none; without a Twitch sign-in the stored selection or the default applies.
  */
 export function readStoredSelection(): StoredSelection {
+  // The demo is one channel and one sponsor, whatever this browser last looked at.
+  if (isDemoMode()) return { streamer: DEMO_CHANNEL, sponsor: DEMO_SPONSOR };
   const claims = currentAuthClaims();
   const login = claims?.login ?? null;
   const stored = storedSelection();

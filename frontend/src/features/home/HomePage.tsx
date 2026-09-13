@@ -7,6 +7,8 @@ import type {
   SessionSummaryQueryVariables,
 } from "../../graphql/generated";
 import { SESSION_SUMMARY_QUERY, SESSIONS_QUERY } from "../../graphql/queries";
+import { DemoIntro } from "../../demo/DemoChrome";
+import { isDemoMode } from "../../demo/mode";
 import { describeError } from "../../lib/errors";
 import { LiveStreamConsole } from "../console/LiveStreamConsole";
 import { DealsPanel } from "../deals/DealsPanel";
@@ -54,6 +56,8 @@ export function HomePage() {
         </div>
         <span className="pill pill-teal">{displayBrand}</span>
       </header>
+
+      {isDemoMode() && <DemoIntro />}
 
       {sessions.error && (
         <div className="error-state" role="alert">

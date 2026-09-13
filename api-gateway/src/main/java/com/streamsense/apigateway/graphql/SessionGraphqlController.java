@@ -23,7 +23,9 @@ import reactor.core.publisher.Mono;
 @Controller
 public class SessionGraphqlController {
 
-    private static final int RANGE_LIMIT = 2000;
+    // One page of a range endpoint; RangePaging walks as many as the session needs. Small enough that a page of
+    // chat lines stays well inside the WebClient buffer (DownstreamWebClientConfig.MAX_IN_MEMORY_BYTES).
+    private static final int RANGE_LIMIT = 500;
     private static final int BUCKET_SECONDS = 60;
 
     private final AnalyticsServiceClient analytics;

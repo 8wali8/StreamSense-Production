@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from "react-router";
+import { DemoBanner, DemoSidebarCallToAction } from "../demo/DemoChrome";
+import { isDemoMode } from "../demo/mode";
 import { AccessPanel } from "../features/access/AccessPanel";
 import { useStreamer } from "../features/streamer/streamer-context";
 import { isOperatorSession } from "../lib/auth-token";
@@ -12,6 +14,7 @@ function navClass({ isActive }: { isActive: boolean }): string {
 export function AppShell() {
   const { selectedStreamer } = useStreamer();
   const shared = readShareToken() != null;
+  const demo = isDemoMode();
 
   if (shared) {
     return (
@@ -71,8 +74,8 @@ export function AppShell() {
             <span className="eyebrow">Channel</span>
             <strong>@{selectedStreamer}</strong>
           </div>
-          <AccessPanel />
-          {isOperatorSession() && (
+          {demo ? <DemoSidebarCallToAction /> : <AccessPanel />}
+          {!demo && isOperatorSession() && (
             <NavLink className={navClass} to="/ops">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
@@ -85,6 +88,7 @@ export function AppShell() {
       </aside>
 
       <main className="main-stage">
+        {demo && <DemoBanner />}
         <Outlet />
       </main>
     </div>

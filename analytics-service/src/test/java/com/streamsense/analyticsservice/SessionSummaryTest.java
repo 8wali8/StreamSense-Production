@@ -234,6 +234,19 @@ class SessionSummaryTest {
                 .isEqualTo(2);
     }
 
+    @Test
+    void aSessionThatOpenedAndClosedOnTheSameMillisecondStillHasAReport() {
+        // A capture restart can open and close a session instantly; the report window must still be a window.
+        long at = 1_785_000_000_000L;
+        sessions.recordVod("blink", "vod-0", null, "Blink", at, 0, "blink-vod-0", null);
+        long id = sessions.list("blink", null, null, null).get(0).id();
+
+        SummaryOptions options = new SummaryOptions(null, null, null, null, null);
+        assertThat(summaries.summary(id, options)).isPresent();
+        assertThat(summaries.summary(id, options).orElseThrow().session().durationMs())
+                .isZero();
+    }
+
     private static ChatMessageEvent commandFrom(String streamer, String id, long at, String user) {
         ChatMessageEvent event = new ChatMessageEvent();
         event.setEventId(id);

@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Route, Routes } from "react-router";
 import { AppShell } from "./components/AppShell";
+import { DEMO_BASE, isDemoMode } from "./demo/mode";
 import { AccessGate } from "./features/access/AccessGate";
 import { DealPage } from "./features/deals/DealPage";
 import { HomePage } from "./features/home/HomePage";
@@ -55,7 +56,7 @@ function SharedLanding() {
 export function AppRoutes() {
   const shared = readShareToken() != null;
   // Streamers signed in with Twitch never see the operations page; the gateway refuses its writes as well.
-  const operator = !shared && isOperatorSession();
+  const operator = !shared && !isDemoMode() && isOperatorSession();
   return (
     <StreamerProvider>
       <Routes>
@@ -77,6 +78,14 @@ export function AppRoutes() {
 }
 
 export default function App() {
+  // The demo is the same console mounted under /demo on the sealed snapshot: no token, no gateway.
+  if (isDemoMode()) {
+    return (
+      <BrowserRouter basename={DEMO_BASE}>
+        <AppRoutes />
+      </BrowserRouter>
+    );
+  }
   // An access link or a share link carries its token in the URL; keep it before anything renders.
   captureAccessLink(window);
   captureShareToken(window.location.search);
