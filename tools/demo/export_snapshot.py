@@ -2,8 +2,8 @@
 """Export the sealed snapshot the console's /demo route runs on.
 
 Runs the console's own GraphQL operations (read from frontend/src/graphql/queries.ts, with __typename
-added the way Apollo's cache does) and REST reads against a gateway, for one channel and one sponsor,
-and writes frontend/src/demo/snapshot.json. Chat usernames are pseudonymised; sessions shorter than
+added the way Apollo's cache does) against a gateway, for one channel and one sponsor, and writes
+frontend/src/demo/snapshot.json: the deal, the sessions, and their reports. Chat usernames are pseudonymised; sessions shorter than
 --min-session-minutes are dropped everywhere they appear, so a demo does not show capture restarts.
 
     python tools/demo/export_snapshot.py --gateway http://localhost:8080 --streamer redbull-testing --sponsor "Red Bull"
@@ -19,8 +19,6 @@ import hashlib
 import json
 import re
 import sys
-import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -72,17 +70,6 @@ class Gateway:
             raise RuntimeError(f"{variables}: {body['errors'][0].get('message')}")
         return body["data"]
 
-    def rest(self, path: str) -> tuple[int, object]:
-        request = urllib.request.Request(self.base + path, headers=self._headers())
-        try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                return response.status, json.load(response)
-        except urllib.error.HTTPError as error:
-            try:
-                return error.code, json.load(error)
-            except Exception:
-                return error.code, None
-
 
 def pseudonym(name: str) -> str:
     digest = hashlib.sha256(name.strip().lower().encode("utf-8")).digest()
@@ -115,7 +102,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sponsor", required=True)
     parser.add_argument("--min-session-minutes", type=int, default=10)
     parser.add_argument("--max-sessions", type=int, default=0, help="newest sessions to keep; 0 (default) keeps all")
-    parser.add_argument("--feed-limit", type=int, default=24)
     parser.add_argument("--output", default=str(OUTPUT))
     args = parser.parse_args(argv)
 
@@ -161,40 +147,8 @@ def main(argv: list[str] | None = None) -> int:
             run("SessionSummary", sessionId=session["id"], sponsor=chosen)
             run("SponsorMoments", sessionId=session["id"], sponsor=chosen)
 
-    limit = args.feed_limit
-    run("RecentSentiment", streamer=streamer, limit=limit)
-    run("RecentTranscriptSegments", streamer=streamer, limit=limit)
-    run("RecentTranscriptSentiment", streamer=streamer, limit=limit)
-    run("SponsorDetections", streamer=streamer, limit=limit)
-    for chosen in (None, sponsor):
-        run("RecentSponsorSentiment", streamer=streamer, sponsor=chosen, limit=limit)
-        run("RecentSponsorTranscriptSentiment", streamer=streamer, sponsor=chosen, limit=limit)
-    # StreamAnalytics (the operations page's trailing window) is not exported: it is not shown in the demo,
-    # and its window moves with the clock, which would make every refresh a diff.
-
-    rest: dict[str, dict] = {}
-    for path in (
-        "/api/chat/twitch/status",
-        "/api/video/capture/status",
-        f"/api/sentiment/transcript/recent?streamer={urllib.parse.quote(streamer)}&limit=10",
-        f"/api/sentiment/relevance/sponsors/{urllib.parse.quote(streamer)}",
-    ):
-        status, body = gateway.rest(path)
-        rest[f"GET {path}"] = {"status": status, "body": body}
-
-    # The live chat feed has no history query; the sentiment feed carries the same lines.
-    chat = [
-        {
-            "__typename": "ChatMessageEvent",
-            "eventId": event["sentimentEventId"],
-            "streamer": event["streamer"],
-            "user": event["user"],
-            "message": event["message"],
-            "timestamp": event["chatTimestamp"],
-        }
-        for event in graphql["RecentSentiment"][0]["data"]["recentSentiment"]
-        if event.get("message")
-    ]
+    # The demo shows past streams: the deal, the sessions, and their reports. The live console's feeds,
+    # the ingest status, and the operations page are not rendered there, so nothing of theirs is exported.
 
     snapshot = {
         "meta": {
@@ -205,8 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             "gateway": args.gateway,
         },
         "graphql": graphql,
-        "rest": rest,
-        "chat": chat,
+        "rest": {},
     }
     snapshot = pseudonymise(snapshot, names)
     output = Path(args.output)

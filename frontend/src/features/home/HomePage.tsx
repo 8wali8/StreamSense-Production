@@ -7,7 +7,6 @@ import type {
   SessionSummaryQueryVariables,
 } from "../../graphql/generated";
 import { SESSION_SUMMARY_QUERY, SESSIONS_QUERY } from "../../graphql/queries";
-import { DemoIntro } from "../../demo/DemoChrome";
 import { isDemoMode } from "../../demo/mode";
 import { describeError } from "../../lib/errors";
 import { LiveStreamConsole } from "../console/LiveStreamConsole";
@@ -57,8 +56,6 @@ export function HomePage() {
         <span className="pill pill-teal">{displayBrand}</span>
       </header>
 
-      {isDemoMode() && <DemoIntro />}
-
       {sessions.error && (
         <div className="error-state" role="alert">
           Failed to load streams: {describeError(sessions.error)}
@@ -72,9 +69,12 @@ export function HomePage() {
         loading={sessions.loading && !sessions.data}
       />
 
-      <ErrorBoundary label="live console">
-        <LiveStreamConsole streamer={selectedStreamer} sponsor={sponsor} />
-      </ErrorBoundary>
+      {/* The demo is a snapshot of past streams; a live console with nothing live in it would only distract. */}
+      {!isDemoMode() && (
+        <ErrorBoundary label="live console">
+          <LiveStreamConsole streamer={selectedStreamer} sponsor={sponsor} />
+        </ErrorBoundary>
+      )}
 
       <ErrorBoundary label="deals">
         <DealsPanel />
