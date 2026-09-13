@@ -3,4 +3,5 @@ coverage
 node_modules
 package-lock.json
 src/graphql/generated.ts
+# Generated data (tools/demo/export_snapshot.py), not hand-written: its shape is the exporter's, not Prettier's.
 src/demo/snapshot.json
