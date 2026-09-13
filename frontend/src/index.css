@@ -2157,31 +2157,11 @@ p {
   text-transform: uppercase;
 }
 
-.demo-banner-link {
-  margin-left: auto;
-  color: var(--brand-text);
-  font-weight: 500;
-}
-
-.demo-intro .panel-heading p {
-  max-width: 68ch;
-}
-
-.demo-intro-list {
-  display: grid;
+.demo-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin: 0;
-  padding: 0 16px 16px 32px;
-  color: var(--text-soft);
-  font-size: 13px;
-}
-
-.demo-intro-list strong {
-  color: var(--text);
-}
-
-.demo-intro-list a {
-  color: var(--brand-text);
+  margin-left: auto;
 }
 
 .login-demo {
@@ -2192,12 +2172,4 @@ p {
 
 .login-demo a {
   color: var(--brand-text);
-}
-
-.demo-intro .panel-heading {
-  display: block;
-}
-
-.demo-intro .panel-heading p {
-  margin-top: 6px;
 }
