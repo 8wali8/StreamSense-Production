@@ -75,9 +75,10 @@ export function HomePage() {
   const latest = list[0] ?? null;
   const live = latest?.live ? latest : null;
 
+  // Without a sponsor the service would summarise whichever brand it finds, under a strip that says there is none.
   const liveSummary = useQuery<SessionSummaryQuery, SessionSummaryQueryVariables>(SESSION_SUMMARY_QUERY, {
     variables: { sessionId: live?.id ?? "", sponsor },
-    skip: !live,
+    skip: !live || sponsor === null,
     pollInterval: LIVE_POLL_MS,
     fetchPolicy: "cache-and-network",
   });

@@ -128,7 +128,7 @@ describe("HomePage", () => {
       graphqlData("Sessions", { sessions: [live, finished] }),
       graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
       graphqlData("Deals", {
-        deals: [deal({ sponsor: "Red Bull" }), deal({ id: "2", sponsor: "Logitech", active: false })],
+        deals: [deal({ sponsor: "Red Bull, Inc." }), deal({ id: "2", sponsor: "Logitech", active: false })],
       }),
       graphqlResolver("RecentSponsorSentiment", ({ variables }) => {
         sponsorQueries.push(variables.sponsor);
@@ -137,23 +137,28 @@ describe("HomePage", () => {
     );
     renderHome("");
 
-    expect(await screen.findByText("Red Bull", { selector: ".page-header .pill" })).toBeInTheDocument();
+    // The deal's name is used verbatim, comma included: that is the name relevance was pointed at.
+    expect(await screen.findByText("Red Bull, Inc.", { selector: ".page-header .pill" })).toBeInTheDocument();
     const strip = within(await screen.findByLabelText("Live status"));
-    expect(await strip.findByText("Red Bull on screen so far")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Red Bull sentiment" })).toBeInTheDocument();
+    expect(await strip.findByText("Red Bull, Inc. on screen so far")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Red Bull, Inc. sentiment" })).toBeInTheDocument();
     const history = within(screen.getByLabelText("History"));
     expect(await history.findByRole("link", { name: /F1 Replay Night/ })).toHaveAttribute(
       "href",
-      "/sessions/7?sponsor=Red%20Bull",
+      "/sessions/7?sponsor=Red%20Bull%2C%20Inc.",
     );
-    expect(sponsorQueries).toContain("Red Bull");
+    expect(sponsorQueries).toContain("Red Bull, Inc.");
   });
 
   it("says there is no sponsor and asks for a deal when nothing follows one", async () => {
     let sponsorQueries = 0;
+    const summaryQueries: unknown[] = [];
     server.use(
       graphqlData("Sessions", { sessions: [live, finished] }),
-      graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
+      graphqlResolver("SessionSummary", ({ variables }) => {
+        summaryQueries.push(variables.sessionId);
+        return HttpResponse.json({ data: { sessionSummary: sessionSummary() } });
+      }),
       graphqlResolver("RecentSponsorSentiment", () => {
         sponsorQueries += 1;
         return HttpResponse.json({ data: { recentSponsorSentiment: [] } });
@@ -171,8 +176,11 @@ describe("HomePage", () => {
     expect(await history.findByRole("link", { name: /F1 Replay Night/ })).toHaveAttribute("href", "/sessions/7");
     // The form stays closed; the line above is the only prompt.
     expect(screen.queryByRole("button", { name: /create deal/i })).not.toBeInTheDocument();
-    // Without a sponsor the sponsor feed is off rather than asking for every brand's events.
+    // Without a sponsor the sponsor feed is off rather than asking for every brand's events, and the
+    // live strip shows no numbers: the service would otherwise pick a brand of its own.
     expect(sponsorQueries).toBe(0);
+    expect(summaryQueries).not.toContain("8");
+    expect(within(screen.getByLabelText("Live status")).getByText("Sponsor on screen so far")).toBeInTheDocument();
   });
 
   it("stays neutral when the deals cannot be loaded", async () => {

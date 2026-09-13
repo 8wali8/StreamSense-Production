@@ -1,4 +1,3 @@
-import { sponsorProfileFromInput } from "../streamer/streamer";
 import { ChatFeed } from "./ChatFeed";
 import { SponsorSentimentFeed } from "./SponsorSentimentFeed";
 import { StreamFrame } from "./StreamFrame";
@@ -7,7 +6,7 @@ import { useConsoleFeeds } from "./useConsoleFeeds";
 
 type LiveStreamConsoleProps = {
   streamer: string;
-  /** The sponsor followed as entered; null when there is none; undefined while that is not known yet. */
+  /** The sponsor followed, exactly as relevance was pointed at it; null when there is none; undefined while that is not known yet. */
   sponsor: string | null | undefined;
 };
 
@@ -17,7 +16,7 @@ type LiveStreamConsoleProps = {
  */
 export function LiveStreamConsole({ streamer, sponsor }: LiveStreamConsoleProps) {
   // Without a sponsor the sponsor feeds stay off (an empty filter would mean every brand).
-  const activeSponsor = sponsor ? sponsorProfileFromInput(streamer, sponsor).sponsor : "";
+  const activeSponsor = sponsor ?? "";
   const feeds = useConsoleFeeds(streamer, activeSponsor);
 
   return (

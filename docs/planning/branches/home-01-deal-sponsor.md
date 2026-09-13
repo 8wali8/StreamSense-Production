@@ -4,7 +4,7 @@ The home page follows the sponsor its current deal names. Follows d6e8b94 (no de
 
 ## What changed
 
-**Frontend only.** No schema, backend, or generated-type change.
+No schema or generated-type change. Frontend, plus one analytics-service fix the review surfaced (below).
 
 - `features/home/home-sponsor.ts`: the one rule for which sponsor the home page is about. An entry on the operations page wins (an operator re-points relevance by hand, and the backend honours the latest pointing). Otherwise the newest deal running now, which is what relevance follows once a deal begins. Otherwise the soonest deal still to start. Otherwise none. `followedSponsor` narrows that to the sponsor the numbers are filtered by: only a manual entry or a running deal, never an upcoming one.
 - `HomePage` fetches the channel's deals itself (one query; the deals panel takes them as props and asks for a refetch after creating one) and derives the sponsor from them plus the operations field, judged against the clock as of the visit, like the server's `active` flag. The header pill shows the sponsor being followed, "<sponsor> from <date>" for a deal not yet started, or "No sponsor yet".
@@ -25,9 +25,10 @@ Run in a Linux clone of the branch (`npm ci`), because the Windows checkout's `n
 | Check | Command | Result |
 |---|---|---|
 | Types, lint, format | `tsc -b`, `eslint .`, `prettier --check` on the touched files | clean (`react-hooks/purity` refused `Date.now()` in render; the clock is read once with `useState`) |
-| Unit and page tests | `vitest run --maxWorkers=2 --testTimeout=30000` | 31 files, 124 tests pass: 6 new for `homeSponsor`/`followedSponsor`, 5 new home page cases (running deal followed, nothing followed with the sponsor feed off, deals failing to load, a running deal behind nine newer ones, upcoming deal named). With the default 5 s timeout and full parallelism the suite timed out at random on a host under load average 40; the same tests pass in isolation |
+| Unit and page tests | `vitest run --maxWorkers=2 --testTimeout=30000` | 31 files, 125 tests pass: 8 new for `homeSponsor`/`followedSponsor`, 5 new home page cases (running deal followed, nothing followed with the sponsor feed off, deals failing to load, a running deal behind nine newer ones, upcoming deal named). With the default 5 s timeout and full parallelism the suite timed out at random on a host under load average 40; the same tests pass in isolation |
 | Coverage floors | `vitest run --coverage` (same flags) | floors met |
 | Build | `vite build` | succeeds |
+| analytics-service | `mvn -pl analytics-service -am verify -Dmaven.gitcommitid.skip=true` (Maven 3.9, JDK 21 in Docker; the skip because the shared clone's objects are not in the container) | `BUILD SUCCESS`: Spotless, JaCoCo floor, ArchUnit, and the new overlapping-deal test |
 
 ## Review (Codex on #61)
 
@@ -38,6 +39,12 @@ One P1 and four P2s, all taken in the follow-up commit:
 - **Sponsor feed buffers (P2).** `useConsoleFeeds` keys the two sponsor feeds by streamer and sponsor, so one brand's buffered events never show under another's heading.
 - **No sponsor followed (P2).** The sponsor feeds are skipped rather than queried with an empty filter, which the gateway treats as every brand.
 - **Deals failing to load (P2).** `homeSponsor` has an `unknown` state while the deals have not loaded; the header shows no pill, the live strip and player show no "No sponsor yet", and the deals panel keeps its neutral line next to the error. A failed refetch keeps the last list.
+
+Second round, three P2s (one filed twice), also taken:
+
+- **Live summary without a sponsor.** The service resolves an omitted sponsor to the deal covering the session or the top detected brand, so the strip could show one brand's numbers under "No sponsor yet". The live summary query is skipped until a sponsor is followed; the strip shows dashes.
+- **Commas in deal sponsor names.** The console ran every sponsor through the operations-field parser, which takes the text after a comma as semantic terms, so a deal with "Acme, Inc." filtered feeds for "Acme". The parser now applies only to the operations entry, inside `homeSponsor`; a deal's sponsor is used verbatim, which is the name relevance was pointed at.
+- **Reverting to an older overlapping deal (analytics-service).** `DealService` remembered every deal it had ever pointed at, so when a newer overlapping deal ended it never pointed relevance back at the older one still running, while the home page switched to it. It now remembers the deal last pointed at per streamer and re-points whenever the current deal differs. `DealsTest.anOlderOverlappingDealIsPointedAtAgainWhenTheNewerOneEnds` covers it with a stepping clock.
 
 ## What to check by hand
 
