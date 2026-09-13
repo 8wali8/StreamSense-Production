@@ -23,7 +23,11 @@ export function StreamFrame({ streamer, sponsorBrand, sponsors, latestEventAt }:
         <div>
           <span className="live-dot">LIVE</span>
           <strong>@{streamer}</strong>
-          <span className="pill pill-teal">{sponsorBrand}</span>
+          {sponsorBrand ? (
+            <span className="pill pill-teal">{sponsorBrand}</span>
+          ) : (
+            <span className="pill pill-dim">No sponsor yet</span>
+          )}
         </div>
         <div className="video-clock">Last signal {formatTime(latestEventAt)}</div>
       </div>

@@ -16,9 +16,8 @@ type LiveStreamConsoleProps = {
  * in a drawer below, closed by default, because the brand is what the page is about.
  */
 export function LiveStreamConsole({ streamer, sponsor }: LiveStreamConsoleProps) {
-  // A blank sponsor leaves the sponsor-sentiment queries unfiltered rather than searching for the placeholder word.
+  // Without a sponsor the sponsor-sentiment queries run unfiltered.
   const activeSponsor = sponsor ? sponsorProfileFromInput(streamer, sponsor).sponsor : "";
-  const displayBrand = sponsor ?? "Sponsor";
   const feeds = useConsoleFeeds(streamer, activeSponsor);
 
   return (
@@ -26,7 +25,7 @@ export function LiveStreamConsole({ streamer, sponsor }: LiveStreamConsoleProps)
       <div className="console-main">
         <StreamFrame
           streamer={streamer}
-          sponsorBrand={displayBrand}
+          sponsorBrand={activeSponsor}
           sponsors={feeds.sponsors}
           latestEventAt={feeds.latestEventAt}
         />

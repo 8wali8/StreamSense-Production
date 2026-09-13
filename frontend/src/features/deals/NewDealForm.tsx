@@ -29,7 +29,7 @@ function optionalText(value: string): string | undefined {
 
 /** The deal's terms. Only the sponsor and start date are required; the rates fall back to the configured ones. */
 export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: NewDealFormProps) {
-  const [sponsor, setSponsor] = useState(defaultSponsor === "Sponsor" ? "" : defaultSponsor);
+  const [sponsor, setSponsor] = useState(defaultSponsor);
   const [starts, setStarts] = useState(toDateInput(Date.now()));
   const [ends, setEnds] = useState("");
   const [promisedStreams, setPromisedStreams] = useState("");

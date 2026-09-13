@@ -8,7 +8,7 @@ type Summary = NonNullable<SessionSummaryQuery["sessionSummary"]>;
 type LiveStripProps = {
   session: Session | null;
   summary: Summary | null;
-  sponsor: string;
+  sponsor: string | null;
   loading: boolean;
 };
 
@@ -60,7 +60,11 @@ export function LiveStrip({ session, summary, sponsor, loading }: LiveStripProps
         </span>
         <strong>{session.title ?? "Live now"}</strong>
         <span className="mono">{formatDuration(session.durationMs)}</span>
-        <span className="pill pill-teal">{sponsor}</span>
+        {sponsor ? (
+          <span className="pill pill-teal">{sponsor}</span>
+        ) : (
+          <span className="pill pill-dim">No sponsor yet</span>
+        )}
         <span className="live-strip-viewers mono">
           {session.averageViewers == null ? "viewers pending" : `${formatCount(session.averageViewers)} avg viewers`}
         </span>
@@ -68,7 +72,7 @@ export function LiveStrip({ session, summary, sponsor, loading }: LiveStripProps
       <div className="live-strip-stats">
         <div className="stat">
           <div className="v tone-brand-text">{summary ? formatDuration(summary.onScreenMs) : "–"}</div>
-          <div className="l">{sponsor} on screen so far</div>
+          <div className="l">{sponsor ?? "Sponsor"} on screen so far</div>
           <div className="s">{summary ? `${formatShare(summary.onScreenShare)} of stream` : ""}</div>
         </div>
         <div className="stat">

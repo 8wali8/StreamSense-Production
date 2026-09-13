@@ -3,7 +3,13 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
 import { AppRoutes } from "../../App";
 import { renderWithApollo } from "../../test/apollo";
-import { sessionSummary, streamAnalytics, twitchStatusConnected, videoStatusCapturing } from "../../test/fixtures";
+import {
+  deal,
+  sessionSummary,
+  streamAnalytics,
+  twitchStatusConnected,
+  videoStatusCapturing,
+} from "../../test/fixtures";
 import { HttpResponse, graphqlData, graphqlResolver, restJson, server } from "../../test/msw";
 
 const finished = {
@@ -53,11 +59,8 @@ function consoleHandlers() {
   ];
 }
 
-function renderHome() {
-  window.localStorage.setItem(
-    "streamsense.selection",
-    JSON.stringify({ streamer: "redbull-testing", sponsor: "Red Bull" }),
-  );
+function renderHome(sponsor = "Red Bull") {
+  window.localStorage.setItem("streamsense.selection", JSON.stringify({ streamer: "redbull-testing", sponsor }));
   return renderWithApollo(
     <MemoryRouter initialEntries={["/"]}>
       <AppRoutes />
@@ -117,5 +120,69 @@ describe("HomePage", () => {
     expect(strip.getByText("Offline")).toBeInTheDocument();
     expect(strip.getByRole("link", { name: "View session report" })).toHaveAttribute("href", "/sessions/7");
     expect(screen.getByText("All chat and transcript")).toBeInTheDocument();
+  });
+
+  it("follows the running deal's sponsor when the operations page names none", async () => {
+    const sponsorQueries: unknown[] = [];
+    server.use(
+      graphqlData("Sessions", { sessions: [live, finished] }),
+      graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
+      graphqlData("Deals", {
+        deals: [deal({ sponsor: "Red Bull" }), deal({ id: "2", sponsor: "Logitech", active: false })],
+      }),
+      graphqlResolver("RecentSponsorSentiment", ({ variables }) => {
+        sponsorQueries.push(variables.sponsor);
+        return HttpResponse.json({ data: { recentSponsorSentiment: [] } });
+      }),
+    );
+    renderHome("");
+
+    expect(await screen.findByText("Red Bull", { selector: ".page-header .pill" })).toBeInTheDocument();
+    const strip = within(await screen.findByLabelText("Live status"));
+    expect(await strip.findByText("Red Bull on screen so far")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Red Bull sentiment" })).toBeInTheDocument();
+    const history = within(screen.getByLabelText("History"));
+    expect(await history.findByRole("link", { name: /F1 Replay Night/ })).toHaveAttribute(
+      "href",
+      "/sessions/7?sponsor=Red%20Bull",
+    );
+    expect(sponsorQueries).toContain("Red Bull");
+  });
+
+  it("says there is no sponsor and asks for a deal when nothing follows one", async () => {
+    server.use(
+      graphqlData("Sessions", { sessions: [live, finished] }),
+      graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
+    );
+    renderHome("");
+
+    expect(
+      await screen.findByText(/No deals yet\. Create one and the home page follows its sponsor/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("No sponsor yet").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Sponsor sentiment" })).toBeInTheDocument();
+    expect(screen.getByText("No sponsor is being followed yet.")).toBeInTheDocument();
+    const history = within(screen.getByLabelText("History"));
+    expect(await history.findByRole("link", { name: /F1 Replay Night/ })).toHaveAttribute("href", "/sessions/7");
+    // The form stays closed; the line above is the only prompt.
+    expect(screen.queryByRole("button", { name: /create deal/i })).not.toBeInTheDocument();
+  });
+
+  it("names a deal that has not started yet instead of asking for another", async () => {
+    const startsAt = Date.now() + 7 * 86_400_000;
+    server.use(
+      graphqlData("Sessions", { sessions: [finished] }),
+      graphqlData("SessionSummary", { sessionSummary: sessionSummary() }),
+      graphqlData("Deals", { deals: [deal({ sponsor: "Razer", startsAt, endsAt: null, active: false })] }),
+    );
+    renderHome("");
+
+    expect(
+      await screen.findByText(/Your deal with Razer starts on .*; the home page follows it from then\./),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Razer from /, { selector: ".page-header .pill" })).toBeInTheDocument();
+    expect(screen.queryByText(/No deals yet/)).not.toBeInTheDocument();
+    // Nothing is followed until it starts, so the numbers still say so.
+    expect(screen.getAllByText("No sponsor yet").length).toBeGreaterThan(0);
   });
 });
