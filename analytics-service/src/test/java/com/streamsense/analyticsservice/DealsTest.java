@@ -214,6 +214,73 @@ class DealsTest {
         verify(pointer, times(1)).point("scheduled", "Red Bull");
     }
 
+    @Test
+    void anOlderOverlappingDealIsPointedAtAgainWhenTheNewerOneEnds() {
+        long t0 = 1_810_000_000_000L;
+        long hour = 3_600_000L;
+        SponsorRelevancePointer pointer = mock(SponsorRelevancePointer.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<SponsorRelevancePointer> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(pointer);
+        SteppingClock clock = new SteppingClock(t0);
+        DealService service = new DealService(dealRepository, sessions, summaries, properties, provider, clock);
+
+        // A long deal with Logitech, then a one-hour deal with Red Bull created inside it: each is pointed at as it
+        // becomes current.
+        service.create(deal("overlap", "Logitech", t0, t0 + 72 * hour));
+        clock.millis = t0 + hour;
+        service.create(deal("overlap", "Red Bull", t0 + hour, t0 + 2 * hour));
+        verify(pointer, times(1)).point("overlap", "Logitech");
+        verify(pointer, times(1)).point("overlap", "Red Bull");
+
+        // While Red Bull runs the check has nothing to do for this streamer.
+        clock.millis = t0 + 90 * 60_000L;
+        service.activateStartedDeals();
+        verify(pointer, times(1)).point("overlap", "Red Bull");
+
+        // Once Red Bull ends, Logitech is current again and is pointed at once more; then the check rests.
+        clock.millis = t0 + 3 * hour;
+        service.activateStartedDeals();
+        verify(pointer, times(2)).point("overlap", "Logitech");
+        service.activateStartedDeals();
+        verify(pointer, times(2)).point("overlap", "Logitech");
+        verify(pointer, times(1)).point("overlap", "Red Bull");
+    }
+
+    private static DealCreateRequest deal(String streamer, String sponsor, long startsAt, long endsAt) {
+        return new DealCreateRequest(
+                streamer, sponsor, startsAt, endsAt, null, null, null, null, null, null, null, null);
+    }
+
+    /** A clock the test moves by hand. */
+    private static final class SteppingClock extends Clock {
+        long millis;
+
+        SteppingClock(long millis) {
+            this.millis = millis;
+        }
+
+        @Override
+        public long millis() {
+            return millis;
+        }
+
+        @Override
+        public Instant instant() {
+            return Instant.ofEpochMilli(millis);
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+    }
+
     private static ChatMessageEvent message(String id, long at, String user, String text) {
         ChatMessageEvent event = new ChatMessageEvent();
         event.setEventId(id);

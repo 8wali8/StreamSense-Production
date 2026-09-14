@@ -5,26 +5,29 @@ import { SESSION_SUMMARY_QUERY } from "../../graphql/queries";
 
 export type SummaryById = Record<string, NonNullable<SessionSummaryQuery["sessionSummary"]>>;
 
+/** What was last fetched; `key` is null until the first fetch lands. */
+type Loaded = { key: string | null; summaries: SummaryById };
+
 /**
  * One summary per session id, fetched in parallel through the Apollo client and kept by id. The
  * history list is short (a page of sessions), so a query per row is fine until a batch query exists.
+ * The summaries are keyed by the ids and the sponsor they were fetched for: when either changes,
+ * the previous ones are not shown under the new sponsor's label while the new ones load.
  */
 export function useSessionSummaries(
   sessionIds: string[],
   sponsor?: string,
 ): { summaries: SummaryById; loading: boolean } {
   const client = useApolloClient();
-  const [summaries, setSummaries] = useState<SummaryById>({});
-  const [loading, setLoading] = useState(false);
   const key = sessionIds.join(",") + "|" + (sponsor ?? "");
+  const [loaded, setLoaded] = useState<Loaded>({ key: null, summaries: {} });
 
   useEffect(() => {
     if (sessionIds.length === 0) {
-      setSummaries({});
+      setLoaded({ key, summaries: {} });
       return;
     }
     let cancelled = false;
-    setLoading(true);
     void Promise.all(
       sessionIds.map((sessionId) =>
         client
@@ -42,8 +45,7 @@ export function useSessionSummaries(
       for (const [sessionId, summary] of entries) {
         if (summary) next[sessionId] = summary;
       }
-      setSummaries(next);
-      setLoading(false);
+      setLoaded({ key, summaries: next });
     });
     return () => {
       cancelled = true;
@@ -52,5 +54,9 @@ export function useSessionSummaries(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, key]);
 
-  return { summaries, loading };
+  const current = loaded.key === key;
+  return {
+    summaries: current ? loaded.summaries : {},
+    loading: sessionIds.length > 0 && !current,
+  };
 }

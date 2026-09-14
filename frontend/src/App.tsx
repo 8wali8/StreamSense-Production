@@ -14,8 +14,9 @@ import {
 } from "./features/session/SessionDetailPages";
 import { SessionReportPage } from "./features/session/SessionReportPage";
 import { StreamerProvider } from "./features/streamer/StreamerProvider";
-import { captureAccessLink, isOperatorSession } from "./lib/auth-token";
+import { captureAccessLink } from "./lib/auth-token";
 import { captureShareToken, readShareToken } from "./lib/share-token";
+import { isOperatorView } from "./lib/view-as";
 
 function NotFound() {
   return (
@@ -56,8 +57,9 @@ function SharedLanding() {
 export function AppRoutes() {
   // A share token left in this tab's session storage means nothing in the demo, which is the full console.
   const shared = !isDemoMode() && readShareToken() != null;
-  // Streamers signed in with Twitch never see the operations page; the gateway refuses its writes as well.
-  const operator = !shared && !isDemoMode() && isOperatorSession();
+  // Only an operator sign-in gets the operations page (the gateway refuses its writes to anyone else),
+  // and not while the operator is viewing the console as a streamer.
+  const operator = !shared && !isDemoMode() && isOperatorView();
   return (
     <StreamerProvider>
       <Routes>

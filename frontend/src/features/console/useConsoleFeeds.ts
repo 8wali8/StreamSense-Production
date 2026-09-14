@@ -145,6 +145,11 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     resetKey: streamer,
   });
 
+  // The sponsor feeds are off without a sponsor (an empty filter means every brand), and start
+  // empty when the sponsor changes so one brand's buffered events never show under another's heading.
+  const followingSponsor = activeSponsor !== "";
+  const sponsorFeedKey = `${streamer}\u0000${activeSponsor}`;
+
   const sponsorSentiments = useLiveFeed<
     RecentSponsorSentimentQuery,
     OnSponsorSentimentSubscription,
@@ -153,6 +158,7 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
   >({
     query: RECENT_SPONSOR_SENTIMENT_QUERY,
     variables: { streamer, sponsor: activeSponsor, limit: 12 },
+    skip: !followingSponsor,
     selectHistory: (data) => data.recentSponsorSentiment,
     subscription: ON_SPONSOR_SENTIMENT_SUBSCRIPTION,
     subscriptionVariables: { streamer, sponsor: activeSponsor },
@@ -160,7 +166,7 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     getId: (event) => event.sentimentEventId,
     limit: 12,
     accept: forStreamer,
-    resetKey: streamer,
+    resetKey: sponsorFeedKey,
   });
 
   const sponsorTranscriptSentiments = useLiveFeed<
@@ -171,6 +177,7 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
   >({
     query: RECENT_SPONSOR_TRANSCRIPT_SENTIMENT_QUERY,
     variables: { streamer, sponsor: activeSponsor, limit: 10 },
+    skip: !followingSponsor,
     selectHistory: (data) => data.recentSponsorTranscriptSentiment,
     subscription: ON_SPONSOR_TRANSCRIPT_SENTIMENT_SUBSCRIPTION,
     subscriptionVariables: { streamer, sponsor: activeSponsor },
@@ -178,7 +185,7 @@ export function useConsoleFeeds(streamer: string, activeSponsor: string): Consol
     getId: (event) => event.sentimentEventId,
     limit: 10,
     accept: forStreamer,
-    resetKey: streamer,
+    resetKey: sponsorFeedKey,
   });
 
   const chat = useLiveEvents<OnChatMessageSubscription, ChatMessageEvent>({

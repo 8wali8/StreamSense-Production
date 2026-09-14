@@ -57,7 +57,9 @@ export function SponsorSentimentFeed({
         ))}
 
         {!loading && chatSentiments.length === 0 && transcriptSentiments.length === 0 && (
-          <div className="empty-state">No sponsor-related sentiment yet.</div>
+          <div className="empty-state">
+            {activeSponsor ? "No sponsor-related sentiment yet." : "No sponsor is being followed yet."}
+          </div>
         )}
       </div>
     </section>

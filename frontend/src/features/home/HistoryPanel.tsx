@@ -9,14 +9,14 @@ type Session = SessionsQuery["sessions"][number];
 type HistoryPanelProps = {
   sessions: Session[];
   summaries: SummaryById;
-  sponsor: string;
+  sponsor: string | null;
   loading: boolean;
 };
 
 /** S7: the track record across past streams, and the list of them, each linking to its report. */
 export function HistoryPanel({ sessions, summaries, sponsor, loading }: HistoryPanelProps) {
   // The rows show the selected sponsor's numbers; the report they open must be about the same sponsor.
-  const sponsorQuery = sponsor.trim() === "" ? "" : `?sponsor=${encodeURIComponent(sponsor)}`;
+  const sponsorQuery = sponsor ? `?sponsor=${encodeURIComponent(sponsor)}` : "";
   const finished = sessions.filter((session) => !session.live);
   const record = trackRecord(
     finished
@@ -46,7 +46,7 @@ export function HistoryPanel({ sessions, summaries, sponsor, loading }: HistoryP
           <div className="v tone-brand-text">
             {record.onScreenMsPerHour == null ? "–" : formatDuration(record.onScreenMsPerHour)}
           </div>
-          <div className="l">{sponsor} on screen per sponsored hour</div>
+          <div className="l">{sponsor ?? "Sponsor"} on screen per sponsored hour</div>
         </div>
         <div className="stat">
           <div className="v">{formatScore(record.mentionSentiment)}</div>

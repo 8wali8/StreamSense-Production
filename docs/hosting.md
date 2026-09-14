@@ -94,7 +94,7 @@ STREAMSENSE_GATEWAY_AUTH_OPERATORS=yourtwitchlogin
    Operators are the Twitch logins allowed to switch channels, edit sponsor profiles, and use the manual ingest routes (the Operations page); everyone else signs in as a streamer, who sees their own channel, its reports and deals, and cannot steer the pipeline. The gateway refuses to start if sign-in is on but a credential or the redirect URL is missing.
 3. **Deploy.** `sudo streamsense-deploy`. The sign-in page then shows "Sign in with Twitch" above the access-link field.
 
-What happens on sign-in: the browser goes to Twitch, authorises the application (the `openid` scope only: who they are, nothing else), and comes back to the gateway's callback, which mints the console's own 7-day token and sends the browser to the page it started from with the token in the URL fragment, exactly like an access link. The Twitch token is revoked straight away; the console keeps nothing of Twitch's. Access links keep working, with full access, for demos.
+What happens on sign-in: the browser goes to Twitch, authorises the application (the `openid` scope only: who they are, nothing else), and comes back to the gateway's callback, which mints the console's own 7-day token and sends the browser to the page it started from with the token in the URL fragment, exactly like an access link. The Twitch token is revoked straight away; the console keeps nothing of Twitch's. Access links keep working for viewers: every channel's reports and deals, but not the Operations page or the pipeline controls, which need an operator sign-in. To walk the console as a streamer would see it, an operator uses "View as a streamer" in the sidebar's access panel; "Back to my view" returns.
 
 ## Between demos
 

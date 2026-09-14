@@ -4,6 +4,7 @@ import { updateSponsorProfile } from "../../api/sentiment";
 import { switchCaptureChannels } from "../../api/video";
 import { DEMO_CHANNEL, DEMO_SPONSOR, isDemoMode } from "../../demo/mode";
 import { currentAuthClaims } from "../../lib/auth-token";
+import { readViewAs } from "../../lib/view-as";
 import { normalizeStreamerHandle, sponsorProfileFromInput } from "./streamer";
 
 export type StreamerSelection = {
@@ -29,8 +30,9 @@ type StoredSelection = { streamer: string; sponsor: string };
 
 /**
  * The channel to show: a streamer signed in with Twitch always sees their own (they cannot switch
- * channels anyway); an operator sees the last selection this browser made, or their own login when it
- * has none; without a Twitch sign-in the stored selection or the default applies.
+ * channels anyway), and so does an operator viewing as one; otherwise an operator sees the last
+ * selection this browser made, or their own login when it has none; without a Twitch sign-in the
+ * stored selection or the default applies.
  */
 export function readStoredSelection(): StoredSelection {
   // The demo is one channel and one sponsor, whatever this browser last looked at.
@@ -38,6 +40,10 @@ export function readStoredSelection(): StoredSelection {
   const claims = currentAuthClaims();
   const login = claims?.login ?? null;
   const stored = storedSelection();
+  const viewingAs = readViewAs();
+  if (viewingAs) {
+    return { streamer: viewingAs, sponsor: stored?.sponsor ?? DEFAULT_SELECTION.sponsor };
+  }
   if (login && claims?.role === "streamer") {
     return { streamer: login, sponsor: stored?.sponsor ?? DEFAULT_SELECTION.sponsor };
   }

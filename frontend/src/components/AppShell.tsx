@@ -3,8 +3,8 @@ import { DemoBanner, DemoSidebarCallToAction } from "../demo/DemoChrome";
 import { isDemoMode } from "../demo/mode";
 import { AccessPanel } from "../features/access/AccessPanel";
 import { useStreamer } from "../features/streamer/streamer-context";
-import { isOperatorSession } from "../lib/auth-token";
 import { readShareToken } from "../lib/share-token";
+import { isOperatorView } from "../lib/view-as";
 
 function navClass({ isActive }: { isActive: boolean }): string {
   return isActive ? "nav-item nav-item-active" : "nav-item";
@@ -75,7 +75,7 @@ export function AppShell() {
             <strong>@{selectedStreamer}</strong>
           </div>
           {demo ? <DemoSidebarCallToAction /> : <AccessPanel />}
-          {!demo && isOperatorSession() && (
+          {!demo && isOperatorView() && (
             <NavLink className={navClass} to="/ops">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
