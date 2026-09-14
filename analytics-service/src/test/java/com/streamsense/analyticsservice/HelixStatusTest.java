@@ -36,7 +36,8 @@ class HelixStatusTest {
     @Test
     void reportsThePollerSnapshotWhenItRuns() {
         StreamSessionPoller poller = mock(StreamSessionPoller.class);
-        when(poller.status()).thenReturn(HelixPollStatus.idle(60_000L).polled(1_800_000_000_000L, 3, 1, 0));
+        when(poller.status())
+                .thenReturn(HelixPollStatus.idle(60_000L).polled(1_799_999_990_000L, 1_800_000_000_000L, 3, 1, 0));
         @SuppressWarnings("unchecked")
         ObjectProvider<StreamSessionPoller> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(poller);

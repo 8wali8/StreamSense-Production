@@ -129,6 +129,16 @@ class ChannelScopeTest {
                         .header(ROLE, "streamer"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.reason").value("operator_required"));
+        // A matrix parameter does not change the route Spring matches, so it must not change the answer.
+        mockMvc.perform(get("/api/analytics/helix/status;x=1")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("operator_required"));
+        mockMvc.perform(get("/api/analytics/streams/someone-else;x=1/sessions")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/analytics/helix/status").header(LOGIN, "ops").header(ROLE, "operator"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false));

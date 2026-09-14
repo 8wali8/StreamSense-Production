@@ -29,16 +29,19 @@ public record HelixPollStatus(
         return new HelixPollStatus(true, pollIntervalMs, null, null, 0, 0, 0, null, null, null);
     }
 
-    public HelixPollStatus polled(long at, int watched, int live, int closed) {
-        return new HelixPollStatus(true, pollIntervalMs, at, at, watched, live, closed, null, null, null);
+    /** A poll Twitch answered: started at {@code attemptedAt}, finished at {@code at}. */
+    public HelixPollStatus polled(long attemptedAt, long at, int watched, int live, int closed) {
+        return new HelixPollStatus(true, pollIntervalMs, attemptedAt, at, watched, live, closed, null, null, null);
     }
 
-    public HelixPollStatus paused(long at, long until) {
+    public HelixPollStatus paused(long attemptedAt, long until) {
         return new HelixPollStatus(
-                true, pollIntervalMs, at, lastPollAt, watched, live, closed, until, lastError, lastErrorAt);
+                true, pollIntervalMs, attemptedAt, lastPollAt, watched, live, closed, until, lastError, lastErrorAt);
     }
 
-    public HelixPollStatus failed(long at, String error) {
-        return new HelixPollStatus(true, pollIntervalMs, at, lastPollAt, watched, live, closed, null, error, at);
+    /** A failure noticed at {@code at}, in the attempt that started at {@code attemptedAt}. */
+    public HelixPollStatus failed(long attemptedAt, long at, String error) {
+        return new HelixPollStatus(
+                true, pollIntervalMs, attemptedAt, lastPollAt, watched, live, closed, null, error, at);
     }
 }

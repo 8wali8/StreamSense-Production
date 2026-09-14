@@ -50,6 +50,24 @@ class StreamSessionPollerTest {
     }
 
     @Test
+    void aSlowTwitchStampsTheOutcomeWhenItIsKnownNotWhenTheAttemptBegan() {
+        config.setChannels(List.of("racer"));
+        when(sessions.streamersSeenSince(anyLong())).thenReturn(List.of());
+        // The clock advances on every read: the attempt, the watch list, then the answer.
+        long[] ticks = {1_800_000_000_000L, 1_800_000_045_000L, 1_800_000_060_000L, 1_800_000_099_000L};
+        int[] tick = {0};
+        Clock stepping = mock(Clock.class);
+        when(stepping.millis()).thenAnswer(invocation -> ticks[Math.min(tick[0]++, ticks.length - 1)]);
+        when(helix.liveStreams(any())).thenReturn(List.of());
+        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, List::of, config, stepping);
+
+        poller.poll();
+
+        assertThat(poller.status().lastAttemptAt()).isEqualTo(1_800_000_000_000L);
+        assertThat(poller.status().lastPollAt()).isGreaterThan(1_800_000_000_000L);
+    }
+
+    @Test
     void nothingHasRunUntilTheFirstPoll() {
         StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, List::of, config, clock);
 

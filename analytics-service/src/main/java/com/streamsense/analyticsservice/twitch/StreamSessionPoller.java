@@ -54,11 +54,13 @@ public class StreamSessionPoller {
             fixedDelayString = "${streamsense.twitch.helix.poll-interval-ms:60000}",
             initialDelayString = "${streamsense.twitch.helix.initial-delay-ms:15000}")
     public void poll() {
-        long now = clock.millis();
+        // The attempt is stamped now; each outcome is stamped when it is known, since a slow Twitch
+        // (retries, several pages of logins) would otherwise make a fresh poll look minutes old.
+        long started = clock.millis();
         try {
             Set<String> watched = watchedChannels();
             if (watched.isEmpty()) {
-                status.updateAndGet(previous -> previous.polled(now, 0, 0, 0));
+                status.updateAndGet(previous -> previous.polled(started, clock.millis(), 0, 0, 0));
                 return;
             }
             List<HelixStream> live = helixClient.liveStreams(watched);
@@ -67,16 +69,18 @@ public class StreamSessionPoller {
             }
             int closed = sessions.closeHelixSessionsNotLive(
                     watched, live.stream().map(HelixStream::id).toList());
-            status.updateAndGet(previous -> previous.polled(now, watched.size(), live.size(), closed));
+            long finished = clock.millis();
+            status.updateAndGet(previous -> previous.polled(started, finished, watched.size(), live.size(), closed));
             log.debug("helix poll watched={} live={} closed={}", watched.size(), live.size(), closed);
         } catch (HelixRateLimitedException ex) {
             // The client logged the 429 once and refuses requests until the budget refills; open
             // sessions simply keep their last sample until the next poll that gets through.
-            status.updateAndGet(previous -> previous.paused(now, ex.retryAtMillis()));
+            status.updateAndGet(previous -> previous.paused(started, ex.retryAtMillis()));
             log.debug("helix poll skipped: {}", ex.getMessage());
         } catch (RuntimeException ex) {
             // The next poll retries; a Twitch outage must not stop the scheduler.
-            status.updateAndGet(previous -> previous.failed(now, ex.getMessage()));
+            long noticed = clock.millis();
+            status.updateAndGet(previous -> previous.failed(started, noticed, ex.getMessage()));
             log.warn("helix poll failed: {}", ex.getMessage());
         }
     }

@@ -75,7 +75,9 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
             return;
         }
         HttpServletRequest scoped = request;
-        String path = request.getRequestURI();
+        // Spring matches routes with matrix parameters (";key=value") removed from each segment; compare the
+        // same way, or "/helix/status;x" would reach the controller unscoped.
+        String path = withoutMatrixParameters(request.getRequestURI());
         if (path.equals(OPERATOR_ONLY)) {
             forbid(request, response, "operator_required", "This is for operators");
             return;
@@ -137,6 +139,10 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.getOutputStream().write(objectMapper.writeValueAsBytes(body));
+    }
+
+    static String withoutMatrixParameters(String uri) {
+        return uri.replaceAll(";[^/]*", "");
     }
 
     static String normalize(String channel) {

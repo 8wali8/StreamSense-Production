@@ -27,13 +27,15 @@ Run in a Linux clone of the branch (`npm ci`), because the Windows checkout's `n
 | Check | Command | Result |
 |---|---|---|
 | analytics-service | `mvn -pl analytics-service -am verify` | `BUILD SUCCESS`: Spotless, JaCoCo floor, ArchUnit; `StreamSessionPollerTest` (6) and the new `HelixStatusTest` (2) pass |
-| Poller snapshot | `StreamSessionPollerTest` | after a good poll: counts and `lastPollAt`, no error; nothing has run before the first poll; a failure sets `lastError`/`lastErrorAt` and leaves `lastPollAt` null; a 429 sets `pausedUntil` without an error |
+| Poller snapshot | `StreamSessionPollerTest` | after a good poll: counts and `lastPollAt`, no error; nothing has run before the first poll; a failure sets `lastError`/`lastErrorAt` and leaves `lastPollAt` null; a 429 sets `pausedUntil` without an error; a slow Twitch stamps the outcome after the attempt |
 | Route | `HelixStatusTest`, `ChannelScopeTest` | `enabled: false` with the poller off (MockMvc, the test context); the controller returns the poller's snapshot when there is one; a streamer token is refused with `operator_required`, an operator and an unscoped caller pass |
 | Console | `format:check`, `tsc -b`, `eslint`, `vitest run --coverage`, `vite build` | all pass; 33 files, 122 tests (7 new: the wording for every state and the age rounding in `helix-status.test.ts`, the pill polling, failing, and unavailable in `HelixPollStatus.test.tsx`); coverage floors met |
 
 ## Review (Codex on #66)
 
 Two P2s, both taken in the follow-up commit: the tooltip prefers the endpoint's own problem over a retained poller error (`helixTooltip`), and the route is refused to streamer tokens in `ChannelScopeFilter`, since the last error is raw exception text.
+
+Second round, two P2s, both taken: the filter compares the path with matrix parameters removed from every segment, the way Spring matches routes, so `/helix/status;x` (or `/streams/other;x/sessions`) gets the same answer as the plain path; and the poller stamps the attempt when it starts but each outcome when it is known, so a slow Twitch does not make a fresh poll look minutes old (`lastAttemptAt` and `lastPollAt` can now differ).
 
 ## What to check by hand
 
