@@ -45,7 +45,7 @@ public class ChannelScopeInterceptor implements WebGraphQlInterceptor {
         request.configureExecutionInput(
                 (input, builder) -> builder.graphQLContext(context -> context.put(AuthScope.GRAPHQL_CONTEXT_KEY, scope))
                         .build());
-        if (!scope.isOperator() && asksForAnotherChannel(request.getDocument(), request.getVariables(), scope)) {
+        if (scope.isConfined() && asksForAnotherChannel(request.getDocument(), request.getVariables(), scope)) {
             return Mono.just(forbidden(request));
         }
         return chain.next(request);

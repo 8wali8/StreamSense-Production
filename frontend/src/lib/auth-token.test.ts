@@ -85,7 +85,8 @@ describe("auth-token", () => {
 
     const holding = (token: string | null) => ({ getItem: () => token });
     expect(isOperatorSession(holding(null))).toBe(true);
-    expect(isOperatorSession(holding(TOKEN))).toBe(true);
+    // An access link has no role: it reads, it is not an operator.
+    expect(isOperatorSession(holding(TOKEN))).toBe(false);
     expect(isOperatorSession(holding(streamer))).toBe(false);
     expect(isOperatorSession(holding(fakeJwt({ sub: "ops", login: "ops", role: "operator" })))).toBe(true);
   });

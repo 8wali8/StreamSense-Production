@@ -87,7 +87,7 @@ printf '%s' 'replace-me-with-at-least-32-bytes-of-secret' > secrets/STREAMSENSE_
 STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d --force-recreate api-gateway
 ```
 
-Mint a matching bearer token with `python tools/mint-jwt.py --subject demo-user` (details under "Verify auth toggle" below). Restore the local bypass mode with:
+Mint a matching bearer token with `python tools/mint-jwt.py --subject demo-user` (details under "Verify auth toggle" below); add `--role operator` to use the Operations page and the ingest routes, since a token without a role only reads. Restore the local bypass mode with:
 
 ```bash
 STREAMSENSE_GATEWAY_AUTH_ENABLED=false docker compose up -d api-gateway

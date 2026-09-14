@@ -137,7 +137,7 @@ public class JwtAuthTokenValidator {
         return value == null || value.isBlank();
     }
 
-    /** {@code role} is null for a token minted without one (an access link), which is treated as full access. */
+    /** {@code role} is null for a token minted without one (an access link): it reads any channel, it is no operator. */
     public record ValidationResult(boolean valid, String subject, Instant expiresAt, String role, String reason) {
 
         public static ValidationResult valid(String subject, Instant expiresAt) {
@@ -152,9 +152,9 @@ public class JwtAuthTokenValidator {
             return new ValidationResult(false, null, null, null, reason);
         }
 
-        /** Whether this token may steer the pipeline: an operator, or a token that predates roles. */
+        /** Whether this token may steer the pipeline: an operator sign-in, nothing else. */
         public boolean isOperator() {
-            return role == null || GatewayTokenIssuer.ROLE_OPERATOR.equals(role);
+            return GatewayTokenIssuer.ROLE_OPERATOR.equals(role);
         }
     }
 }
