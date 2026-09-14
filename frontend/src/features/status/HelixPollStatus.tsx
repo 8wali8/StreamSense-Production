@@ -1,5 +1,5 @@
 import { getHelixPollStatus, type HelixPollStatus as HelixStatus } from "../../api/analytics";
-import { formatHelixStatus } from "./helix-status";
+import { formatHelixStatus, helixTooltip } from "./helix-status";
 import { usePolledResource } from "../../hooks/usePolledResource";
 
 type Polled = { status: HelixStatus; at: number };
@@ -14,7 +14,7 @@ export function HelixPollStatus() {
   const { data, error } = usePolledResource(loadStatus, 10000);
 
   return (
-    <span className="status-pill" title={data?.status.lastError ?? error ?? undefined}>
+    <span className="status-pill" title={helixTooltip(data?.status ?? null, error)}>
       {formatHelixStatus(data?.status ?? null, error, data?.at ?? 0)}
     </span>
   );

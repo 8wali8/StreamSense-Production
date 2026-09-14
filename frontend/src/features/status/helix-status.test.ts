@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { helixStatusPolling } from "../../test/fixtures";
-import { formatAgo, formatHelixStatus } from "./helix-status";
+import { formatAgo, formatHelixStatus, helixTooltip } from "./helix-status";
 
 const NOW = 1710000045000;
 
@@ -40,5 +40,16 @@ describe("formatHelixStatus", () => {
     expect(formatAgo(NOW - 150_000, NOW)).toBe("3m ago"); // 2.5 minutes rounds up
     expect(formatAgo(NOW - 7_200_000, NOW)).toBe("2h ago");
     expect(formatAgo(NOW + 5_000, NOW)).toBe("0s ago");
+  });
+});
+
+describe("helixTooltip", () => {
+  it("prefers the endpoint's own problem over a retained poller error", () => {
+    const withError = { ...helixStatusPolling, lastError: "twitch down", lastErrorAt: NOW - 60_000 };
+    expect(helixTooltip(withError, null)).toBe("twitch down");
+    // The endpoint failed after a good answer: the status is retained, the tooltip is the new problem.
+    expect(helixTooltip(withError, "analytics-service is restarting")).toBe("analytics-service is restarting");
+    expect(helixTooltip(helixStatusPolling, null)).toBeUndefined();
+    expect(helixTooltip(null, null)).toBeUndefined();
   });
 });

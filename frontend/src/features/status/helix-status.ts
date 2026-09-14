@@ -27,3 +27,8 @@ export function formatHelixStatus(status: HelixStatus | null, error: string | nu
   if (status.lastPollAt == null) return "Helix: waiting for the first poll";
   return `Helix: ${status.watched} watched, ${status.live} live, ${formatAgo(status.lastPollAt, now)}`;
 }
+
+/** The tooltip: the endpoint's own problem first, since a retained status may carry an older Twitch error. */
+export function helixTooltip(status: HelixStatus | null, error: string | null): string | undefined {
+  return error ?? status?.lastError ?? undefined;
+}
