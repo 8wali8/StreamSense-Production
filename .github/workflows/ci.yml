@@ -71,8 +71,6 @@ jobs:
               - 'sentiment-service/**'
             video-service:
               - 'video-service/**'
-            recommendation-service:
-              - 'recommendation-service/**'
             analytics-service:
               - 'analytics-service/**'
             ml-engine:
@@ -101,7 +99,6 @@ jobs:
               - 'chat-service/**'
               - 'sentiment-service/**'
               - 'video-service/**'
-              - 'recommendation-service/**'
               - 'analytics-service/**'
               - 'ml-engine/**'
               - 'video-capture-service/**'
@@ -115,7 +112,7 @@ jobs:
           import json, os
           changed = set(json.loads(os.environ["CHANGES"]))
           services = ["eureka-server", "config-server", "api-gateway", "chat-service",
-                      "sentiment-service", "video-service", "recommendation-service", "analytics-service"]
+                      "sentiment-service", "video-service", "analytics-service"]
           run_all = bool(changed & {"workflow", "java-shared"})
           java = services if run_all else [s for s in services if s in changed]
           print(f"run_all={str(run_all).lower()}")
@@ -488,7 +485,6 @@ jobs:
           mvn -B -ntp -f config-server/pom.xml -DskipTests package
           mvn -B -ntp -f api-gateway/pom.xml -DskipTests package
           mvn -B -ntp -f chat-service/pom.xml -DskipTests package
-          mvn -B -ntp -f recommendation-service/pom.xml -DskipTests package
           mvn -B -ntp -f sentiment-service/pom.xml -DskipTests package
           mvn -B -ntp -f video-service/pom.xml -DskipTests package
           mvn -B -ntp -f analytics-service/pom.xml -DskipTests package
@@ -504,7 +500,7 @@ jobs:
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
 
       - name: Build smoke images
-        run: docker compose build eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service analytics-service video-capture-service api-gateway
+        run: docker compose build eureka-server config-server ml-engine sentiment-service chat-service video-service analytics-service video-capture-service api-gateway
 
       - name: Reset smoke stack state
         run: docker compose down -v --remove-orphans || true
@@ -512,7 +508,7 @@ jobs:
       - name: Start core smoke stack
         run: |
           for attempt in 1 2; do
-            if docker compose up -d kafka kafka-topics-init postgres redis minio eureka-server config-server ml-engine sentiment-service chat-service recommendation-service video-service analytics-service video-capture-service kafka-exporter; then
+            if docker compose up -d kafka kafka-topics-init postgres redis minio eureka-server config-server ml-engine sentiment-service chat-service video-service analytics-service video-capture-service kafka-exporter; then
               exit 0
             fi
 
@@ -598,12 +594,6 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"query":"query RecentSentiment($streamer:String!, $limit:Int!){ recentSentiment(streamer:$streamer, limit:$limit){ sentimentEventId label } }","variables":{"streamer":"ci-test","limit":1}}' | grep -q '"sentimentEventId"'
 
-      - name: Verify GraphQL recommendations query
-        run: |
-          curl -fsS http://localhost:8080/graphql \
-            -H 'Content-Type: application/json' \
-            -d '{"query":"query Recommendations($streamer:String!, $limit:Int!){ recommendations(streamer:$streamer, limit:$limit){ recommendationId category variantId } }","variables":{"streamer":"ci-test","limit":1}}' | grep -q '"recommendationId"'
-
       - name: Dump docker compose logs on failure
         if: failure()
         run: docker compose logs --no-color
@@ -672,7 +662,6 @@ jobs:
           - config-server
           - api-gateway
           - chat-service
-          - recommendation-service
           - sentiment-service
           - video-service
           - analytics-service
@@ -753,8 +742,8 @@ jobs:
         env:
           PREFIX: ghcr.io/${{ github.repository_owner }}/streamsense
         run: |
-          for service in eureka-server config-server api-gateway chat-service recommendation-service \
-                         sentiment-service video-service analytics-service ml-engine video-capture-service frontend; do
+          for service in eureka-server config-server api-gateway chat-service sentiment-service \
+                         video-service analytics-service ml-engine video-capture-service frontend; do
             docker buildx imagetools create --tag "${PREFIX}/${service}:main" "${PREFIX}/${service}:${GITHUB_SHA}"
             echo "${service}:main -> ${GITHUB_SHA}"
           done

@@ -19,7 +19,6 @@ resources:
   - apps/chat-service.yaml
   - apps/sentiment-service.yaml
   - apps/video-service.yaml
-  - apps/recommendation-service.yaml
   - apps/analytics-service.yaml
   - apps/api-gateway.yaml
   - apps/frontend.yaml

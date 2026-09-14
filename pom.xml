@@ -32,7 +32,6 @@
     <module>chat-service</module>
     <module>sentiment-service</module>
     <module>video-service</module>
-    <module>recommendation-service</module>
     <module>analytics-service</module>
   </modules>
 

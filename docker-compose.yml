@@ -74,8 +74,6 @@ services:
         condition: service_healthy
       kafka-topics-init:
         condition: service_completed_successfully
-      recommendation-service:
-        condition: service_healthy
       sentiment-service:
         condition: service_healthy
       video-service:
@@ -121,26 +119,6 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 20s
-  
-  recommendation-service:
-    build: ./recommendation-service
-    # Longer than spring.lifecycle.timeout-per-shutdown-phase (20s), so graceful shutdown can finish.
-    stop_grace_period: 30s
-    environment:
-      STREAMSENSE_LOG_FORMAT: ${STREAMSENSE_LOG_FORMAT-ecs}
-    ports:
-    - "8082:8082" # following port pattern
-    depends_on:
-      eureka-server:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 5s
       timeout: 3s
       retries: 30

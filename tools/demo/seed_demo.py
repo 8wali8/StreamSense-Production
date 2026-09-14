@@ -86,7 +86,6 @@ def main() -> int:
           health
           recentSentiment(streamer: $streamer, limit: $limit) { sentimentEventId label modelVersion }
           sponsorDetections(streamer: $streamer, limit: $limit) { detectionEventId sponsor modelVersion }
-          recommendations(streamer: $streamer, limit: $limit) { recommendationId category variantId }
         }
         """,
         {"streamer": args.streamer, "limit": 5},
@@ -99,7 +98,6 @@ def main() -> int:
         "framesAccepted": len(frame_results),
         "recentSentimentCount": len(history.get("recentSentiment", [])),
         "sponsorDetectionCount": len(history.get("sponsorDetections", [])),
-        "recommendationCount": len(history.get("recommendations", [])),
         "health": history.get("health"),
     }
     print(json.dumps(summary, indent=2, sort_keys=True))

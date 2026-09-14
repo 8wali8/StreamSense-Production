@@ -22,7 +22,6 @@ What it verifies:
 - GraphQL `health`
 - GraphQL `recentSentiment`
 - GraphQL `sponsorDetections`
-- GraphQL `recommendations`
 - frontend HTML
 - Zipkin services endpoint
 

@@ -13,7 +13,7 @@ Useful options:
 - `--streamer demo-streamer`
 - `--base-url http://localhost:8080`
 
-The seed tool sends sample chat and frame events through the gateway, waits briefly, then verifies GraphQL health, sentiment history, sponsor history, and recommendations.
+The seed tool sends sample chat and frame events through the gateway, waits briefly, then verifies GraphQL health, sentiment history, and sponsor history.
 
 ## Open Demo Surfaces
 

@@ -131,7 +131,6 @@ def seed_and_assert(base_url: str, timeout_seconds: float, settle_seconds: float
           health
           recentSentiment(streamer: $streamer, limit: $limit) { sentimentEventId label modelVersion }
           sponsorDetections(streamer: $streamer, limit: $limit) { detectionEventId sponsor modelVersion }
-          recommendations(streamer: $streamer, limit: $limit) { recommendationId category variantId }
         }
         """,
         {"streamer": streamer, "limit": 5},
@@ -142,7 +141,6 @@ def seed_and_assert(base_url: str, timeout_seconds: float, settle_seconds: float
     print("OK GraphQL health")
     assert_non_empty("recentSentiment", data.get("recentSentiment", []))
     assert_non_empty("sponsorDetections", data.get("sponsorDetections", []))
-    assert_non_empty("recommendations", data.get("recommendations", []))
 
     frontend = urllib.request.urlopen("http://localhost:3000", timeout=timeout_seconds).read().decode("utf-8", errors="replace")
     if "html" not in frontend.lower():

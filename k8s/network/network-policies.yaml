@@ -47,9 +47,6 @@ spec:
               app: prometheus
         - podSelector:
             matchLabels:
-              app: recommendation-service
-        - podSelector:
-            matchLabels:
               app: sentiment-service
         - podSelector:
             matchLabels:
@@ -102,9 +99,6 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
-        - podSelector:
-            matchLabels:
-              app: recommendation-service
         - podSelector:
             matchLabels:
               app: sentiment-service
@@ -199,12 +193,6 @@ spec:
               app: chat-service
       ports:
         - port: 8081
-    - to:
-        - podSelector:
-            matchLabels:
-              app: recommendation-service
-      ports:
-        - port: 8082
     - to:
         - podSelector:
             matchLabels:
@@ -342,72 +330,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: recommendation-service
-  namespace: streamsense
-  # reads sentiment-service and video-service over REST
-spec:
-  podSelector:
-    matchLabels:
-      app: recommendation-service
-  policyTypes: [Ingress, Egress]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: api-gateway
-        - podSelector:
-            matchLabels:
-              app: prometheus
-      ports:
-        - port: 8082
-  egress:
-    # cluster DNS
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
-    - to:
-        - podSelector:
-            matchLabels:
-              app: sentiment-service
-      ports:
-        - port: 8083
-    - to:
-        - podSelector:
-            matchLabels:
-              app: video-service
-      ports:
-        - port: 8084
-    - to:
-        - podSelector:
-            matchLabels:
-              app: eureka-server
-      ports:
-        - port: 8761
-    - to:
-        - podSelector:
-            matchLabels:
-              app: config-server
-      ports:
-        - port: 8888
-    - to:
-        - podSelector:
-            matchLabels:
-              app: zipkin
-      ports:
-        - port: 9411
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: sentiment-service
   namespace: streamsense
   # Kafka consumer/producer, Postgres, Redis cache, ml-engine inference
@@ -424,9 +346,6 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
-        - podSelector:
-            matchLabels:
-              app: recommendation-service
         - podSelector:
             matchLabels:
               app: analytics-service
@@ -508,9 +427,6 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
-        - podSelector:
-            matchLabels:
-              app: recommendation-service
       ports:
         - port: 8084
   egress:
@@ -1035,12 +951,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: recommendation-service
-      ports:
-        - port: 8082
-    - to:
-        - podSelector:
-            matchLabels:
               app: sentiment-service
       ports:
         - port: 8083
@@ -1268,9 +1178,6 @@ spec:
         - podSelector:
             matchLabels:
               app: eureka-server
-        - podSelector:
-            matchLabels:
-              app: recommendation-service
         - podSelector:
             matchLabels:
               app: sentiment-service
