@@ -72,6 +72,11 @@ public class GatewayAuthWebFilter implements WebFilter {
                 }
                 String channel = AuthScope.restChannel(
                         path, exchange.getRequest().getQueryParams().getFirst("streamer"));
+                // A self-service path steers the pipeline for exactly the channel it names, so an unnamed
+                // channel there is refused rather than waved through the way an unscoped read is.
+                if (auth.isSelfService(path) && channel == null) {
+                    return forbidden(exchange, "channel_forbidden", "This channel is not yours to see");
+                }
                 if (!scope.allows(channel)) {
                     return forbidden(exchange, "channel_forbidden", "This channel is not yours to see");
                 }

@@ -48,8 +48,11 @@ class CaptureManager:
         self.publisher = publisher
         self.transcription_client = transcription_client
         self.transcript_publisher = transcript_publisher
-        # One stop event per worker, so switching channels never races a still-running loop.
-        self.workers: list[tuple[threading.Thread, threading.Event]] = []
+        # One stop event per worker, keyed by channel, so one channel can start or stop on its own and
+        # switching channels never races a still-running loop.
+        self.workers: dict[str, tuple[threading.Thread, threading.Event]] = {}
+        # Held around every change to the channel set: two callers must not start the same worker twice.
+        self._channels_lock = threading.RLock()
 
     def start(self) -> None:
         metrics.capture_enabled.set(1 if self.config.enabled else 0)
@@ -59,17 +62,9 @@ class CaptureManager:
         if self.storage is None or self.publisher is None:
             raise ValueError("storage and publisher are required when capture is enabled")
 
-        for channel in self.config.channels:
-            status = self.status_store.statuses[channel]
-            status.state = CaptureState.STARTING
-            status.capture_session_id = self._session_id(channel)
-            stop_event = threading.Event()
-            thread = threading.Thread(
-                target=self._capture_channel, args=(channel, stop_event), name=f"capture-{channel}", daemon=True
-            )
-            thread.start()
-            self.workers.append((thread, stop_event))
-            logger.info("started Twitch video capture loop channel=%s session=%s", channel, status.capture_session_id)
+        with self._channels_lock:
+            for channel in self.config.channels:
+                self._start_channel(channel)
 
     def stop(self) -> None:
         self._stop_threads()
@@ -82,31 +77,102 @@ class CaptureManager:
         normalized = _normalize_channels(channels)
         if not normalized:
             raise ValueError("at least one Twitch channel is required")
+        if len(normalized) > self.config.max_channels:
+            raise ValueError(f"at most {self.config.max_channels} Twitch channels")
+        self._require_running_capture()
+
+        with self._channels_lock:
+            for channel in list(self.workers):
+                if channel not in normalized:
+                    self._stop_channel(channel)
+            for channel in list(self.status_store.statuses):
+                if channel not in normalized:
+                    del self.status_store.statuses[channel]
+            self.config = replace(self.config, channels=normalized)
+            # A channel that stays keeps its worker and its capture session id, so pointing capture at one
+            # more channel does not split the stream of a channel already being captured into two sessions.
+            for channel in normalized:
+                self._start_channel(channel)
+        return self.status_store.snapshot()
+
+    def add_channel(self, channel: str) -> dict:
+        """Starts capturing one channel and leaves the others alone. Idempotent."""
+        name = _require_channel(channel)
+        self._require_running_capture()
+
+        with self._channels_lock:
+            if name not in self.config.channels:
+                if len(self.config.channels) >= self.config.max_channels:
+                    raise RuntimeError(f"Twitch video capture is already measuring {self.config.max_channels} channels")
+                self.config = replace(self.config, channels=[*self.config.channels, name])
+            self._start_channel(name)
+            return self.channel_status(name)
+
+    def remove_channel(self, channel: str) -> dict:
+        """Stops capturing one channel, leaving the others alone. Idempotent."""
+        name = _require_channel(channel)
+
+        with self._channels_lock:
+            self.config = replace(self.config, channels=[c for c in self.config.channels if c != name])
+            self._stop_channel(name)
+            status = self.status_store.statuses.pop(name, None)
+            if status is not None:
+                return status.as_dict()
+            return ChannelStatus(channel=name, state=CaptureState.STOPPED).as_dict()
+
+    def channel_status(self, channel: str) -> dict:
+        """One channel's status, without naming the other channels being captured."""
+        name = _require_channel(channel)
+        status = self.status_store.statuses.get(name)
+        if status is None:
+            state = CaptureState.DISABLED if not self.config.enabled else CaptureState.STOPPED
+            return ChannelStatus(channel=name, state=state).as_dict()
+        return status.as_dict()
+
+    def workers_alive(self) -> int:
+        return sum(1 for thread, _ in self.workers.values() if thread.is_alive())
+
+    def _require_running_capture(self) -> None:
         if not self.config.enabled:
             raise RuntimeError("Twitch video capture is disabled")
         if self.storage is None or self.publisher is None:
             raise RuntimeError("storage and publisher are required when capture is enabled")
 
-        self._stop_threads()
-        self.config = replace(self.config, channels=normalized)
-        self.status_store.statuses.clear()
-        for channel in normalized:
-            self.status_store.statuses[channel] = ChannelStatus(channel=channel, state=CaptureState.STARTING)
-        self.start()
-        return self.status_store.snapshot()
+    def _start_channel(self, channel: str) -> None:
+        worker = self.workers.get(channel)
+        if worker is not None and worker[0].is_alive():
+            return
+        status = self.status_store.statuses.setdefault(channel, ChannelStatus(channel=channel))
+        status.state = CaptureState.STARTING
+        status.capture_session_id = self._session_id(channel)
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=self._capture_channel, args=(channel, stop_event), name=f"capture-{channel}", daemon=True
+        )
+        thread.start()
+        self.workers[channel] = (thread, stop_event)
+        logger.info("started Twitch video capture loop channel=%s session=%s", channel, status.capture_session_id)
 
-    def workers_alive(self) -> int:
-        return sum(1 for thread, _ in self.workers if thread.is_alive())
+    def _stop_channel(self, channel: str) -> None:
+        worker = self.workers.pop(channel, None)
+        if worker is not None:
+            thread, stop_event = worker
+            stop_event.set()
+            thread.join(timeout=5)
+        status = self.status_store.statuses.get(channel)
+        if status is not None and status.state != CaptureState.DISABLED:
+            status.state = CaptureState.STOPPED
 
     def _stop_threads(self) -> None:
-        for _, stop_event in self.workers:
-            stop_event.set()
-        for thread, _ in self.workers:
-            thread.join(timeout=5)
-        self.workers.clear()
-        for status in self.status_store.statuses.values():
-            if status.state != CaptureState.DISABLED:
-                status.state = CaptureState.STOPPED
+        with self._channels_lock:
+            # Every worker is asked to stop first, then joined, so shutdown is not one timeout per channel.
+            for _, stop_event in self.workers.values():
+                stop_event.set()
+            for channel in list(self.workers):
+                self._stop_channel(channel)
+            for status in self.status_store.statuses.values():
+                if status.state != CaptureState.DISABLED:
+                    status.state = CaptureState.STOPPED
 
     def _capture_channel(self, channel: str, stop_event: threading.Event) -> None:
         # start() and switch_channels() refuse to run without sinks; bind them once so the loop below is typed
@@ -408,6 +474,14 @@ def _video_timestamp_ms(
     if replay_alias is not None and replay_offset_seconds is not None:
         return int(replay_offset_seconds * 1000)
     return (sequence - 1) * interval_seconds * 1000
+
+
+def _require_channel(channel: str) -> str:
+    """One channel, normalised the way the list is; blank is a client error."""
+    normalized = _normalize_channels([channel or ""])
+    if not normalized:
+        raise ValueError("a Twitch channel is required")
+    return normalized[0]
 
 
 def _normalize_channels(channels: list[str]) -> list[str]:

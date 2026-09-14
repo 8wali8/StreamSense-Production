@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import ClientError
 from kafka.errors import KafkaTimeoutError
@@ -137,11 +139,11 @@ def test_workers_have_independent_stop_events(monkeypatch):
 
     manager.start()
     assert manager.workers_alive() == 1
-    first_event = manager.workers[0][1]
+    first_event = manager.workers["austincs"][1]
 
     manager.switch_channels(["other", "second"])
     assert first_event.is_set()
-    assert [thread.name for thread, _ in manager.workers] == ["capture-other", "capture-second"]
+    assert [thread.name for thread, _ in manager.workers.values()] == ["capture-other", "capture-second"]
     assert manager.workers_alive() == 2
     # Readiness must count against the switched configuration, not the start-up one.
     assert len(manager.config.channels) == 2
@@ -149,3 +151,105 @@ def test_workers_have_independent_stop_events(monkeypatch):
 
     manager.stop()
     assert manager.workers_alive() == 0
+
+
+def test_switch_channels_leaves_a_channel_that_stays_running(monkeypatch):
+    """A channel that survives the switch keeps its worker, so its stream is not split into two sessions."""
+    manager = started_manager(monkeypatch)
+    kept_thread, kept_event = manager.workers["austincs"]
+    kept_session = manager.status_store.statuses["austincs"].capture_session_id
+
+    manager.switch_channels(["austincs", "second"])
+
+    assert manager.workers["austincs"] == (kept_thread, kept_event)
+    assert not kept_event.is_set()
+    assert manager.status_store.statuses["austincs"].capture_session_id == kept_session
+    assert manager.workers_alive() == 2
+    manager.stop()
+
+
+def test_add_channel_starts_only_that_channel(monkeypatch):
+    manager = started_manager(monkeypatch)
+    kept_thread, _ = manager.workers["austincs"]
+
+    status = manager.add_channel("@Ninja")
+
+    assert status["channel"] == "ninja"
+    assert manager.config.channels == ["austincs", "ninja"]
+    assert manager.workers["austincs"][0] is kept_thread
+    assert manager.workers_alive() == 2
+
+    # Idempotent: asking again neither restarts the worker nor lists the channel twice.
+    added_thread = manager.workers["ninja"][0]
+    manager.add_channel("ninja")
+    assert manager.config.channels == ["austincs", "ninja"]
+    assert manager.workers["ninja"][0] is added_thread
+    manager.stop()
+
+
+def test_add_channel_is_refused_when_capture_is_full(monkeypatch):
+    manager = started_manager(monkeypatch)
+    manager.config = replace(manager.config, max_channels=1)
+
+    with pytest.raises(RuntimeError, match="already measuring"):
+        manager.add_channel("ninja")
+
+    assert manager.config.channels == ["austincs"]
+    manager.stop()
+
+
+def test_add_channel_is_refused_when_capture_is_disabled(monkeypatch):
+    config = replace(enabled_config(monkeypatch), enabled=False)
+    manager = CaptureManager(config, CaptureStatusStore(enabled=False), FakeStorage(), FakePublisher())
+
+    with pytest.raises(RuntimeError, match="disabled"):
+        manager.add_channel("ninja")
+
+
+def test_add_channel_refuses_a_blank_channel(monkeypatch):
+    manager = started_manager(monkeypatch)
+
+    with pytest.raises(ValueError, match="channel is required"):
+        manager.add_channel("  ")
+
+    manager.stop()
+
+
+def test_remove_channel_leaves_the_others_capturing(monkeypatch):
+    manager = started_manager(monkeypatch)
+    manager.add_channel("ninja")
+    kept_thread, kept_event = manager.workers["austincs"]
+
+    status = manager.remove_channel("ninja")
+
+    assert status["channel"] == "ninja"
+    assert manager.config.channels == ["austincs"]
+    assert "ninja" not in manager.workers
+    assert "ninja" not in manager.status_store.statuses
+    assert not kept_event.is_set()
+    assert manager.workers["austincs"][0] is kept_thread
+
+    # Idempotent: removing it again is not an error.
+    manager.remove_channel("ninja")
+    assert manager.config.channels == ["austincs"]
+    manager.stop()
+
+
+def test_channel_status_answers_for_one_channel_only(monkeypatch):
+    manager = started_manager(monkeypatch)
+
+    assert manager.channel_status("austincs")["channel"] == "austincs"
+    assert manager.channel_status("ninja")["state"] == CaptureState.STOPPED.value
+    assert "channels" not in manager.channel_status("austincs")
+    manager.stop()
+
+
+def started_manager(monkeypatch) -> CaptureManager:
+    """A manager capturing one channel, with every collaborator faked."""
+    monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)
+    monkeypatch.setattr("video_capture_service.capture_loop.FrameSampler", FakeSampler)
+    manager = CaptureManager(
+        enabled_config(monkeypatch), CaptureStatusStore(enabled=True), FakeStorage(), FakePublisher()
+    )
+    manager.start()
+    return manager

@@ -21,6 +21,10 @@ public record AuthScope(String login, String role) {
     private static final Pattern REST_CHANNEL =
             Pattern.compile("^/api/[a-z-]+/(?:streams|relevance/sponsors)/([^/?]+)(?:[/?].*)?$");
 
+    /** The channel a self-service capture path names: {@code /api/chat/twitch/channels/{channel}} and friends. */
+    private static final Pattern CHANNEL_PATH =
+            Pattern.compile("^/api/(?:chat/twitch|video/capture)/channels/([^/?]+)(?:[/?].*)?$");
+
     public boolean isOperator() {
         return role == null || GatewayTokenIssuer.ROLE_OPERATOR.equals(role);
     }
@@ -36,7 +40,17 @@ public record AuthScope(String login, String role) {
         if (matcher.matches()) {
             return matcher.group(1);
         }
+        String channel = channelInPath(path);
+        if (channel != null) {
+            return channel;
+        }
         return streamerParam == null || streamerParam.isBlank() ? null : streamerParam;
+    }
+
+    /** The channel a self-service capture path names, or null when the path is not one of them. */
+    public static String channelInPath(String path) {
+        Matcher matcher = CHANNEL_PATH.matcher(path);
+        return matcher.matches() ? matcher.group(1) : null;
     }
 
     /** Twitch logins compare case-insensitively; the console sometimes carries an {@code @}. */

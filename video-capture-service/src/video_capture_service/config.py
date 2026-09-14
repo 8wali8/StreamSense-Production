@@ -84,6 +84,9 @@ class ReplayAliasConfig:
 class CaptureConfig:
     enabled: bool
     channels: list[str]
+    # How many channels one service may capture at once; a streamer starting their own channel is refused
+    # beyond it rather than quietly crowding out someone already being measured.
+    max_channels: int
     quality: str
     sample_interval_seconds: int
     stream_resolve_timeout_seconds: int
@@ -127,6 +130,7 @@ class CaptureConfig:
         return CaptureConfig(
             enabled=_bool_env("STREAMSENSE_TWITCH_VIDEO_ENABLED", False),
             channels=_csv_env("TWITCH_VIDEO_CHANNELS"),
+            max_channels=_int_env("TWITCH_VIDEO_MAX_CHANNELS", 10),
             quality=os.getenv("TWITCH_VIDEO_QUALITY", "best").strip() or "best",
             sample_interval_seconds=_int_env("TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS", 10),
             stream_resolve_timeout_seconds=_int_env("TWITCH_VIDEO_STREAM_RESOLVE_TIMEOUT_SECONDS", 20),

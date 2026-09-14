@@ -1,6 +1,9 @@
 package com.streamsense.chatservice.twitch;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -94,6 +97,108 @@ class TwitchChatLifecycleServiceTest {
 
         verify(replayService).start(List.of("redbull-testing"));
         verify(metrics).markConnected();
+    }
+
+    @Test
+    void joinChannel_addsOneChannelAndKeepsTheOthers() {
+        StreamSenseProperties properties = replayProperties("redbull-testing");
+        when(replayService.isReplayChannel(anyString())).thenReturn(true);
+        TwitchChatLifecycleService service = service(properties);
+        service.start();
+
+        service.joinChannel("@Ninja");
+
+        assertThat(properties.getTwitch().getChat().getChannels()).containsExactly("redbull-testing", "ninja");
+        assertThat(service.isJoined("ninja")).isTrue();
+    }
+
+    @Test
+    void joinChannel_isIdempotent() {
+        StreamSenseProperties properties = replayProperties("redbull-testing");
+        TwitchChatLifecycleService service = service(properties);
+
+        service.joinChannel("redbull-testing");
+
+        assertThat(properties.getTwitch().getChat().getChannels()).containsExactly("redbull-testing");
+    }
+
+    @Test
+    void joinChannel_isRefusedWhenTheConnectorIsFull() {
+        StreamSenseProperties properties = replayProperties("redbull-testing");
+        properties.getTwitch().getChat().setMaxChannels(1);
+        TwitchChatLifecycleService service = service(properties);
+
+        assertThatThrownBy(() -> service.joinChannel("ninja"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already measuring");
+    }
+
+    @Test
+    void joinChannel_isRefusedWhenIngestIsDisabled() {
+        StreamSenseProperties properties = new StreamSenseProperties();
+        TwitchChatLifecycleService service = service(properties);
+
+        assertThatThrownBy(() -> service.joinChannel("ninja"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("disabled");
+    }
+
+    @Test
+    void joinChannel_refusesABlankChannel() {
+        TwitchChatLifecycleService service = service(replayProperties("redbull-testing"));
+
+        assertThatThrownBy(() -> service.joinChannel(" "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("channel is required");
+    }
+
+    @Test
+    void partChannel_leavesTheOtherChannelsBeingMeasured() {
+        StreamSenseProperties properties = replayProperties("redbull-testing", "second-replay");
+        when(replayService.isReplayChannel(anyString())).thenReturn(true);
+        TwitchChatLifecycleService service = service(properties);
+        service.start();
+
+        service.partChannel("second-replay");
+
+        assertThat(properties.getTwitch().getChat().getChannels()).containsExactly("redbull-testing");
+        assertThat(service.isJoined("second-replay")).isFalse();
+    }
+
+    @Test
+    void partChannel_ofTheLastChannelLeavesIngestWaiting() {
+        StreamSenseProperties properties = replayProperties("redbull-testing");
+        when(replayService.isReplayChannel("redbull-testing")).thenReturn(true);
+        TwitchChatLifecycleService service = service(properties);
+        service.start();
+
+        service.partChannel("redbull-testing");
+
+        assertThat(properties.getTwitch().getChat().getChannels()).isEmpty();
+        verify(metrics, atLeastOnce()).markStopped();
+    }
+
+    @Test
+    void partChannel_isANoOpForAChannelThatIsNotJoined() {
+        StreamSenseProperties properties = replayProperties("redbull-testing");
+        TwitchChatLifecycleService service = service(properties);
+
+        service.partChannel("ninja");
+
+        assertThat(properties.getTwitch().getChat().getChannels()).containsExactly("redbull-testing");
+    }
+
+    private TwitchChatLifecycleService service(StreamSenseProperties properties) {
+        return new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
+    }
+
+    /** Replay channels only, so no test opens an IRC socket. */
+    private static StreamSenseProperties replayProperties(String... channels) {
+        StreamSenseProperties properties = new StreamSenseProperties();
+        StreamSenseProperties.Chat chat = properties.getTwitch().getChat();
+        chat.setEnabled(true);
+        chat.setChannels(List.of(channels));
+        return properties;
     }
 
     private static StreamSenseProperties enabledProperties() {

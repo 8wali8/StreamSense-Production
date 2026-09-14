@@ -66,6 +66,11 @@ streamsense:
         - /api/video/**
         - /api/sentiment/**
         - /ml/**
+      # Carved out of the paths above: a streamer starts and stops measurement of their own channel here.
+      # The channel is the last path segment and the scope check refuses anyone else's.
+      self-service-paths:
+        - /api/chat/twitch/channels/*
+        - /api/video/capture/channels/*
       # Sign in with Twitch (docs/hosting.md). The gateway is the OAuth client: it needs the same registered
       # application as the Helix poller (TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET secret files) and the
       # callback URL registered on that application, which must be this console's origin plus

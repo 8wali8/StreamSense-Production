@@ -4,7 +4,15 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
 import { AppRoutes } from "../../App";
 import { renderWithApollo } from "../../test/apollo";
-import { deal, dealSummary, streamAnalytics, twitchStatusConnected, videoStatusCapturing } from "../../test/fixtures";
+import {
+  captureChannelCapturing,
+  channelIngestJoined,
+  deal,
+  dealSummary,
+  streamAnalytics,
+  twitchStatusConnected,
+  videoStatusCapturing,
+} from "../../test/fixtures";
 import { HttpResponse, graphqlData, restJson, restResolver, server } from "../../test/msw";
 import { SHARE_STORAGE_KEY } from "../../lib/share-token";
 
@@ -105,6 +113,8 @@ describe("deals", () => {
       restJson("get", "/api/sentiment/transcript/recent", []),
       restJson("get", "/api/chat/twitch/status", twitchStatusConnected),
       restJson("get", "/api/video/capture/status", videoStatusCapturing),
+      restJson("get", "/api/chat/twitch/channels/*", channelIngestJoined),
+      restJson("get", "/api/video/capture/channels/*", captureChannelCapturing),
       graphqlData("Deals", { deals: created ? [deal()] : [] }),
       restResolver("post", "/api/analytics/deals", async ({ request }) => {
         created = (await request.json()) as Record<string, unknown>;

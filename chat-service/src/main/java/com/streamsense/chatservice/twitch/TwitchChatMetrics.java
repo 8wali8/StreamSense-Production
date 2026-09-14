@@ -129,7 +129,9 @@ public class TwitchChatMetrics {
         return channels.stream()
                 .filter(channel -> channel != null && !channel.isBlank())
                 .map(channel -> channel.trim().toLowerCase(Locale.ROOT))
-                .map(channel -> channel.startsWith("#") ? channel.substring(1) : channel)
+                // The console and the gateway both carry a login with a leading @ or # at times.
+                .map(channel -> channel.replaceFirst("^[@#]+", ""))
+                .filter(channel -> !channel.isBlank())
                 .toList();
     }
 }

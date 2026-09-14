@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import org.slf4j.Logger;
@@ -31,8 +32,12 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     private final TwitchVodChatReplayService replayService;
     private volatile boolean running;
     private volatile Socket activeSocket;
+    // The writer of the live connection, so one channel can be joined or parted without dropping the others.
+    private volatile BufferedWriter activeWriter;
     private volatile List<String> liveChannels = List.of();
     private Thread worker;
+    // Held around every write to the socket: the reader thread answers PINGs on it while a caller joins.
+    private final Object sendLock = new Object();
 
     public TwitchChatLifecycleService(
             StreamSenseProperties streamSenseProperties,
@@ -112,19 +117,96 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         if (normalized.isEmpty()) {
             throw new IllegalArgumentException("at least one Twitch channel is required");
         }
+        if (normalized.size() > properties.getMaxChannels()) {
+            throw new IllegalArgumentException("at most " + properties.getMaxChannels() + " Twitch channels");
+        }
         if (!properties.isEnabled()) {
             throw new IllegalStateException("Twitch chat ingestion is disabled");
         }
 
+        return restartWith(normalized);
+    }
+
+    /**
+     * Joins one channel and leaves the others alone: what a streamer starting measurement of their own
+     * channel calls. Idempotent. A live connector is sent a JOIN, so nobody else's chat is dropped; without
+     * one (or for a replay alias, which is not an IRC channel) the connector restarts with the new list.
+     */
+    public synchronized TwitchChatStatus joinChannel(String channel) {
+        String normalized = requireChannel(channel);
+        if (!properties.isEnabled()) {
+            throw new IllegalStateException("Twitch chat ingestion is disabled");
+        }
+        List<String> current = normalizedChannels();
+        if (current.contains(normalized)) {
+            return metrics.snapshot();
+        }
+        if (current.size() >= properties.getMaxChannels()) {
+            throw new IllegalStateException(
+                    "Twitch chat ingestion is already measuring " + properties.getMaxChannels() + " channels");
+        }
+
+        List<String> next = append(current, normalized);
+        if (running && !replayService.isReplayChannel(normalized) && sendToConnection("JOIN #" + normalized)) {
+            liveChannels = append(liveChannels(), normalized);
+            properties.setChannels(next);
+            metrics.setChannels(next);
+            log.info("joined Twitch chat channel={}", normalized);
+            return metrics.snapshot();
+        }
+        return restartWith(next);
+    }
+
+    /** Parts one channel, leaving the others being measured alone. Idempotent. */
+    public synchronized TwitchChatStatus partChannel(String channel) {
+        String normalized = requireChannel(channel);
+        List<String> current = normalizedChannels();
+        if (!current.contains(normalized)) {
+            return metrics.snapshot();
+        }
+
+        List<String> next = without(current, normalized);
+        if (running
+                && !next.isEmpty()
+                && !replayService.isReplayChannel(normalized)
+                && sendToConnection("PART #" + normalized)) {
+            liveChannels = without(liveChannels(), normalized);
+            properties.setChannels(next);
+            metrics.setChannels(next);
+            log.info("parted Twitch chat channel={}", normalized);
+            return metrics.snapshot();
+        }
+        return restartWith(next);
+    }
+
+    /** Whether this channel is one of the channels being ingested. */
+    public boolean isJoined(String channel) {
+        return normalizedChannels().contains(requireChannel(channel));
+    }
+
+    private TwitchChatStatus restartWith(List<String> channels) {
         if (running) {
             stop();
         }
-
-        properties.setChannels(normalized);
-        metrics.setChannels(normalized);
+        properties.setChannels(channels);
+        metrics.setChannels(channels);
         start();
-
         return metrics.snapshot();
+    }
+
+    /** Sends one line on the live connection; false when there is none or it failed, so the caller restarts. */
+    private boolean sendToConnection(String line) {
+        BufferedWriter writer = activeWriter;
+        if (writer == null) {
+            return false;
+        }
+        try {
+            send(writer, line);
+            return true;
+        } catch (IOException e) {
+            log.warn("Twitch chat command failed, restarting the connector: {}", e.getMessage());
+            return false;
+        }
     }
 
     private void runConnectorLoop() {
@@ -159,6 +241,7 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
                         new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
             activeSocket = socket;
+            activeWriter = writer;
             authenticateAndJoin(writer);
             metrics.markConnected();
             log.info("Twitch chat connector connected channels={}", liveChannels());
@@ -171,6 +254,8 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
             if (running) {
                 throw new IOException("Twitch IRC connection closed");
             }
+        } finally {
+            activeWriter = null;
         }
     }
 
@@ -216,10 +301,12 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         }
     }
 
-    private static void send(BufferedWriter writer, String line) throws IOException {
-        writer.write(line);
-        writer.write("\r\n");
-        writer.flush();
+    private void send(BufferedWriter writer, String line) throws IOException {
+        synchronized (sendLock) {
+            writer.write(line);
+            writer.write("\r\n");
+            writer.flush();
+        }
     }
 
     private void validateCredentials() {
@@ -244,6 +331,23 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         return liveChannels == null ? List.of() : liveChannels;
     }
 
+    /** One channel, normalised the way the list is; blank is a client error. */
+    private static String requireChannel(String channel) {
+        List<String> normalized = normalizeChannels(channel == null ? List.of() : List.of(channel));
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("a Twitch channel is required");
+        }
+        return normalized.get(0);
+    }
+
+    private static List<String> append(List<String> channels, String channel) {
+        return Stream.concat(channels.stream(), Stream.of(channel)).toList();
+    }
+
+    private static List<String> without(List<String> channels, String channel) {
+        return channels.stream().filter(existing -> !existing.equals(channel)).toList();
+    }
+
     private static List<String> normalizeChannels(List<String> channels) {
         if (channels == null) {
             return List.of();
@@ -251,7 +355,9 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         return channels.stream()
                 .filter(channel -> channel != null && !channel.isBlank())
                 .map(channel -> channel.trim().toLowerCase(Locale.ROOT))
-                .map(channel -> channel.startsWith("#") ? channel.substring(1) : channel)
+                // The console and the gateway both carry a login with a leading @ or # at times.
+                .map(channel -> channel.replaceFirst("^[@#]+", ""))
+                .filter(channel -> !channel.isBlank())
                 .toList();
     }
 
