@@ -40,6 +40,22 @@ class StreamSessionPollerTest {
         verify(sessions, atLeastOnce()).streamersSeenSince(1_800_000_000_000L - 24 * 3_600_000L);
         verify(sessions).recordHelixLive(live);
         verify(sessions).closeHelixSessionsNotLive(Set.of("racer", "other", "redbull-testing"), List.of("41"));
+        // The operations page reads what the poll did, not who was watched.
+        assertThat(poller.status().enabled()).isTrue();
+        assertThat(poller.status().lastPollAt()).isEqualTo(clock.millis());
+        assertThat(poller.status().watched()).isEqualTo(3);
+        assertThat(poller.status().live()).isEqualTo(1);
+        assertThat(poller.status().lastError()).isNull();
+        assertThat(poller.status().pausedUntil()).isNull();
+    }
+
+    @Test
+    void nothingHasRunUntilTheFirstPoll() {
+        StreamSessionPoller poller = new StreamSessionPoller(helix, sessions, List::of, config, clock);
+
+        assertThat(poller.status().enabled()).isTrue();
+        assertThat(poller.status().lastAttemptAt()).isNull();
+        assertThat(poller.status().pollIntervalMs()).isEqualTo(config.getPollIntervalMs());
     }
 
     @Test
@@ -67,6 +83,10 @@ class StreamSessionPollerTest {
         poller.poll();
 
         verify(sessions, never()).closeHelixSessionsNotLive(any(), any());
+        assertThat(poller.status().lastError()).isEqualTo("twitch down");
+        assertThat(poller.status().lastErrorAt()).isEqualTo(clock.millis());
+        assertThat(poller.status().lastAttemptAt()).isEqualTo(clock.millis());
+        assertThat(poller.status().lastPollAt()).isNull();
     }
 
     @Test
@@ -81,6 +101,8 @@ class StreamSessionPollerTest {
 
         verify(sessions, never()).recordHelixLive(any());
         verify(sessions, never()).closeHelixSessionsNotLive(any(), any());
+        assertThat(poller.status().pausedUntil()).isEqualTo(clock.millis() + 30_000L);
+        assertThat(poller.status().lastError()).isNull();
     }
 
     @Test

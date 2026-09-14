@@ -254,6 +254,19 @@ export const twitchStatusConnected = {
   reconnectAttempts: 0,
 };
 
+export const helixStatusPolling = {
+  enabled: true,
+  pollIntervalMs: 60000,
+  lastAttemptAt: 1710000000000,
+  lastPollAt: 1710000000000,
+  watched: 3,
+  live: 1,
+  closed: 0,
+  pausedUntil: null,
+  lastError: null,
+  lastErrorAt: null,
+};
+
 export const videoStatusCapturing = {
   enabled: true,
   state: "CAPTURING",
