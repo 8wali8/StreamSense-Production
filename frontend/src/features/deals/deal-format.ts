@@ -14,6 +14,11 @@ export function dealDates(startsAt: number, endsAt: number | null | undefined): 
   return `${(sameYear ? DATE : DATE_YEAR).format(startsAt)} – ${DATE_YEAR.format(lastDay)}`;
 }
 
+/** "Sep 20, 2026": the day a deal starts. */
+export function dealStartDate(startsAt: number): string {
+  return DATE_YEAR.format(startsAt);
+}
+
 /** Media value over the fee, e.g. 1.4; null when either side is missing or the fee is zero. */
 export function feeMultiple(mediaValue: number | null | undefined, fee: number | null | undefined): number | null {
   if (mediaValue == null || fee == null || fee <= 0) return null;
