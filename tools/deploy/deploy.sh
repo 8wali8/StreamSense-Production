@@ -247,7 +247,8 @@ Share with a viewer:
 Opening the link signs that browser in: the console keeps the token and removes it from the address
 bar. The console's sign-in page also accepts the link pasted whole. The link is valid for 30 days;
 run "streamsense-deploy link" for a new one. Anyone holding the link can read everything the console
-shows, so send it the way you would send a password.
+shows, so send it the way you would send a password. The link cannot steer the pipeline: the
+operations page is for operators signed in with Twitch.
 MSG
 }
 
