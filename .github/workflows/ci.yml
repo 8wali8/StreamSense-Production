@@ -524,7 +524,7 @@ jobs:
       - name: Wait for core services
         run: |
           for i in {1..60}; do
-            if curl -fsS http://localhost:8761/actuator/health >/dev/null && curl -fsS http://localhost:8888/actuator/health >/dev/null && curl -fsS http://localhost:8081/actuator/health >/dev/null && curl -fsS http://localhost:8082/actuator/health >/dev/null && curl -fsS http://localhost:8083/actuator/health >/dev/null && curl -fsS http://localhost:8084/actuator/health >/dev/null && curl -fsS http://localhost:8085/actuator/health >/dev/null && curl -fsS http://localhost:8090/health >/dev/null && curl -fsS http://localhost:8000/ml/health >/dev/null; then
+            if curl -fsS http://localhost:8761/actuator/health >/dev/null && curl -fsS http://localhost:8888/actuator/health >/dev/null && curl -fsS http://localhost:8081/actuator/health >/dev/null && curl -fsS http://localhost:8083/actuator/health >/dev/null && curl -fsS http://localhost:8084/actuator/health >/dev/null && curl -fsS http://localhost:8085/actuator/health >/dev/null && curl -fsS http://localhost:8090/health >/dev/null && curl -fsS http://localhost:8000/ml/health >/dev/null; then
               exit 0
             fi
             sleep 5

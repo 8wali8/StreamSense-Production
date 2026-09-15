@@ -12,7 +12,7 @@ from kafka.errors import KafkaError
 
 from video_capture_service import metrics
 from video_capture_service.audio_sampler import AudioCaptureError, AudioSampler
-from video_capture_service.config import CaptureConfig, ReplayAliasConfig
+from video_capture_service.config import CaptureConfig, ReplayAliasConfig, normalize_channels
 from video_capture_service.frame_sampler import FrameCaptureError, FrameSampler
 from video_capture_service.kafka_publisher import (
     FrameEvent,
@@ -30,6 +30,10 @@ from video_capture_service.twitch_source import (
 )
 
 logger = logging.getLogger(__name__)
+
+# How long a stop waits for a worker before leaving it to wind down on its own. A frame or transcript
+# capture blocks for its own timeout (15-60 s), so the wait is a courtesy, not a guarantee.
+WORKER_STOP_TIMEOUT_SECONDS = 5
 
 
 class CaptureManager:
@@ -63,6 +67,9 @@ class CaptureManager:
             raise ValueError("storage and publisher are required when capture is enabled")
 
         with self._channels_lock:
+            # The same normalisation the runtime switches use, so readiness counts workers against a
+            # list that holds one entry per channel: a duplicate would expect a worker that cannot exist.
+            self.config = replace(self.config, channels=normalize_channels(self.config.channels))
             for channel in self.config.channels:
                 self._start_channel(channel)
 
@@ -74,7 +81,7 @@ class CaptureManager:
             self.transcript_publisher.close()
 
     def switch_channels(self, channels: list[str]) -> dict:
-        normalized = _normalize_channels(channels)
+        normalized = normalize_channels(channels)
         if not normalized:
             raise ValueError("at least one Twitch channel is required")
         if len(normalized) > self.config.max_channels:
@@ -86,7 +93,8 @@ class CaptureManager:
                 if channel not in normalized:
                     self._stop_channel(channel)
             for channel in list(self.status_store.statuses):
-                if channel not in normalized:
+                # A worker still winding down keeps its entry, so it is visible until it is gone.
+                if channel not in normalized and channel not in self.workers:
                     del self.status_store.statuses[channel]
             self.config = replace(self.config, channels=normalized)
             # A channel that stays keeps its worker and its capture session id, so pointing capture at one
@@ -114,7 +122,11 @@ class CaptureManager:
 
         with self._channels_lock:
             self.config = replace(self.config, channels=[c for c in self.config.channels if c != name])
-            self._stop_channel(name)
+            stopped = self._stop_channel(name)
+            if not stopped:
+                # Still winding down: keep its status so the console sees STOPPING rather than nothing.
+                status = self.status_store.statuses.get(name)
+                return (status or ChannelStatus(channel=name, state=CaptureState.STOPPING)).as_dict()
             status = self.status_store.statuses.pop(name, None)
             if status is not None:
                 return status.as_dict()
@@ -141,6 +153,10 @@ class CaptureManager:
     def _start_channel(self, channel: str) -> None:
         worker = self.workers.get(channel)
         if worker is not None and worker[0].is_alive():
+            if worker[1].is_set():
+                # Still inside a capture call it cannot be interrupted out of. A second worker would
+                # publish alongside it under a new capture session, so the caller waits instead.
+                raise RuntimeError(f"channel {channel} is still stopping; try again in a moment")
             return
         status = self.status_store.statuses.setdefault(channel, ChannelStatus(channel=channel))
         status.state = CaptureState.STARTING
@@ -153,15 +169,35 @@ class CaptureManager:
         self.workers[channel] = (thread, stop_event)
         logger.info("started Twitch video capture loop channel=%s session=%s", channel, status.capture_session_id)
 
-    def _stop_channel(self, channel: str) -> None:
-        worker = self.workers.pop(channel, None)
-        if worker is not None:
-            thread, stop_event = worker
-            stop_event.set()
-            thread.join(timeout=5)
+    def _stop_channel(self, channel: str) -> bool:
+        """Asks the worker to stop and waits for it. False when it outlived the wait and still exists."""
+        worker = self.workers.get(channel)
         status = self.status_store.statuses.get(channel)
+        if worker is None:
+            if status is not None and status.state != CaptureState.DISABLED:
+                status.state = CaptureState.STOPPED
+            return True
+
+        thread, stop_event = worker
+        stop_event.set()
+        thread.join(timeout=WORKER_STOP_TIMEOUT_SECONDS)
+        if thread.is_alive():
+            # A frame or transcript capture blocks for its own timeout, well past this wait. The worker
+            # is kept until it is really gone, so nothing starts a second one for the channel and the
+            # status says what is true: stopping, not stopped.
+            logger.warning(
+                "capture worker channel=%s did not stop within %ss; it is winding down",
+                channel,
+                WORKER_STOP_TIMEOUT_SECONDS,
+            )
+            if status is not None and status.state != CaptureState.DISABLED:
+                status.state = CaptureState.STOPPING
+            return False
+
+        del self.workers[channel]
         if status is not None and status.state != CaptureState.DISABLED:
             status.state = CaptureState.STOPPED
+        return True
 
     def _stop_threads(self) -> None:
         with self._channels_lock:
@@ -223,6 +259,10 @@ class CaptureManager:
 
             try:
                 captured_path, capture_latency_ms = sampler.capture(hls_url, temp_path, replay_offset_seconds)
+                if stop_event.is_set():
+                    # The channel was stopped while this capture was running: its frame belongs to a
+                    # session that is over, and another worker may already be starting.
+                    return
                 metrics.capture_latency.labels(channel=channel).observe(capture_latency_ms)
                 status.frames_captured += 1
                 metrics.frames_captured.labels(channel=channel).inc()
@@ -277,6 +317,7 @@ class CaptureManager:
                         status,
                         audio_sampler,
                         transcript_sequence,
+                        stop_event,
                         replay_alias,
                         replay_offset_seconds,
                     )
@@ -341,6 +382,7 @@ class CaptureManager:
         status,
         audio_sampler: AudioSampler,
         sequence: int,
+        stop_event: threading.Event,
         replay_alias: ReplayAliasConfig | None = None,
         replay_offset_seconds: float | None = None,
     ) -> None:
@@ -388,6 +430,9 @@ class CaptureManager:
                 transcriptSequence=sequence,
                 captureWorkerId=self.config.worker_id,
             )
+            if stop_event.is_set():
+                # Stopped while the transcription call was out: this segment is from a session that is over.
+                return
             self.transcript_publisher.publish(event)
             status.transcript_segments_published += 1
             status.last_transcript_at = ended_at
@@ -478,18 +523,7 @@ def _video_timestamp_ms(
 
 def _require_channel(channel: str) -> str:
     """One channel, normalised the way the list is; blank is a client error."""
-    normalized = _normalize_channels([channel or ""])
+    normalized = normalize_channels([channel or ""])
     if not normalized:
         raise ValueError("a Twitch channel is required")
     return normalized[0]
-
-
-def _normalize_channels(channels: list[str]) -> list[str]:
-    normalized = []
-    seen = set()
-    for channel in channels:
-        value = channel.strip().lower().lstrip("#@")
-        if value and value not in seen:
-            normalized.append(value)
-            seen.add(value)
-    return normalized

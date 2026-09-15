@@ -36,16 +36,44 @@ The console follows the same rule: `canStartMeasurement` (`src/lib/auth-token.ts
 sign-in, for no token at all (auth off locally), and for a streamer, so an access-link tab is not shown a
 button that would be refused. An operator viewing as a streamer keeps it: the token is still the operator's.
 
+## Review round (Codex on #68)
+
+Five findings on this branch, all fixed:
+
+- **P1, a stopped capture worker was forgotten while still running.** `_stop_channel` popped the worker after
+  a five-second join, but a frame or transcript capture blocks for its own timeout (15-60 s), so the channel
+  could be reported stopped while the old loop still stored and published, and starting it again would have
+  run a second worker under a new capture session. The worker is now kept until the thread is really gone
+  (new `CaptureState.STOPPING`, which `remove_channel` returns), `_start_channel` refuses to start a second
+  one for a channel that is winding down (409, "try again in a moment"), and the loop drops the frame or
+  transcript segment a blocking call returned after its stop event was set, rather than publishing it into a
+  session that is over.
+- **P2, duplicate configured channels made readiness permanently 503.** Workers are keyed by channel, so
+  `TWITCH_VIDEO_CHANNELS=ninja,ninja` started one while `config.channels` still held two, and readiness
+  compares the two. One `normalize_channels` in `config.py` now serves `from_env`, the startup list, and the
+  runtime switches.
+- **P2, the cap did not apply to the deployment's own list.** Both services enforced `max-channels` on the
+  runtime routes only, so an oversized startup configuration walked past the bound the cap exists to hold.
+  `CaptureConfig.validate()` and chat-service's `start()` refuse it, the same way they refuse other
+  misconfiguration, rather than quietly measuring fewer channels than asked.
+- **P2, the IRC writer was visible before registration.** A per-channel `PUT` arriving mid-handshake could
+  send `JOIN` before `PASS`, `NICK`, and `CAP`, and be told the channel was joined. `activeWriter` is now
+  published after `authenticateAndJoin` returns; until then `joinChannel` takes the restart path.
+- **P2, the console stopped loading after one of the two reads.** `loading` was a conjunction, so a fast chat
+  answer with the capture read still out rendered "This channel is not being measured" and enabled **Start**
+  without knowing whether video was already capturing. It is now true while either read is unanswered; the
+  test holds the capture response open and fails against the old condition.
+
 ## Verification
 
 | Check | Result |
 |---|---|
 | `mvn verify` api-gateway | 129 tests after the `main` merge, 5 skipped (Redis Testcontainer), Spotless, ArchUnit, JaCoCo floor green |
-| `mvn verify` chat-service | 57 tests (18 new), Spotless, ArchUnit, JaCoCo floor green |
+| `mvn verify` chat-service | 58 tests after the review round, Spotless, ArchUnit, JaCoCo floor green |
 | video-capture-service `ruff check`, `ruff format --check`, `mypy` | clean |
-| video-capture-service `pytest` | 59 tests (9 new) |
+| video-capture-service `pytest` | 63 tests after the review round |
 | frontend `eslint`, `prettier --check`, `codegen:check`, `vite build` | clean |
-| frontend `vitest run --coverage` | 36 files, 144 tests after the `main` merge, floors held (88.2 / 83.7 / 86.3 / 88.2) |
+| frontend `vitest run --coverage` | 36 files, 145 tests after the review round, floors held (88.2 / 83.7 / 86.3 / 88.2) |
 
 What the new tests pin down: the gateway lets a streamer `PUT` and `DELETE` their own channel and refuses another's with `channel_forbidden`, while the list-replacing route still answers `operator_required` (`ChannelScopeIntegrationTest`); join and part are idempotent, keep the other channels, respect the cap, and leave ingest waiting when the last channel goes (`TwitchChatLifecycleServiceTest`); the status read is confined to a streamer's own channel (`TwitchChatStatusControllerTest`, `test_status_tells_a_streamer_about_their_own_channel_only`); a channel that survives a switch keeps its worker and session id (`test_switch_channels_leaves_a_channel_that_stays_running`); and the control reports a half-failure by name (`MeasureChannel.test.tsx`).
 

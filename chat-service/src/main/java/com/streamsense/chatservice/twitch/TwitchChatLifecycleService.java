@@ -69,6 +69,10 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
             log.info("Twitch chat ingestion enabled, waiting for a channel");
             return;
         }
+        if (channels.size() > properties.getMaxChannels()) {
+            throw new IllegalStateException("Twitch chat is configured with " + channels.size()
+                    + " channels, more than max-channels (" + properties.getMaxChannels() + ")");
+        }
 
         liveChannels = channels.stream()
                 .filter(channel -> !replayService.isReplayChannel(channel))
@@ -241,8 +245,10 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
                         new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
             activeSocket = socket;
-            activeWriter = writer;
             authenticateAndJoin(writer);
+            // Only now: a JOIN sent before PASS, NICK, and CAP would be refused, and the caller would
+            // have been told the channel was joined. Until this point joinChannel restarts instead.
+            activeWriter = writer;
             metrics.markConnected();
             log.info("Twitch chat connector connected channels={}", liveChannels());
 

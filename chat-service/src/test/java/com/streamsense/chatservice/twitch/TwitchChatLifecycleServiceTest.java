@@ -188,6 +188,17 @@ class TwitchChatLifecycleServiceTest {
         assertThat(properties.getTwitch().getChat().getChannels()).containsExactly("redbull-testing");
     }
 
+    @Test
+    void start_refusesMoreConfiguredChannelsThanTheCap() {
+        StreamSenseProperties properties = replayProperties("one", "two", "three");
+        properties.getTwitch().getChat().setMaxChannels(2);
+        TwitchChatLifecycleService service = service(properties);
+
+        assertThatThrownBy(service::start)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("more than max-channels");
+    }
+
     private TwitchChatLifecycleService service(StreamSenseProperties properties) {
         return new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
     }

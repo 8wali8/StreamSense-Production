@@ -72,9 +72,14 @@ export function useChannelMeasurement(channel: string): ChannelMeasurement {
     [channel, run],
   );
 
+  // Loading while *either* read is unanswered: one fast answer must not make the panel claim the
+  // channel is not measured while the other half is still unknown.
+  const chatPending = chat.data === null && chat.error === null;
+  const capturePending = capture.data === null && capture.error === null;
+
   return {
     measurement: describeMeasurement(chat.data, capture.data),
-    loading: chat.data === null && capture.data === null && chat.error === null && capture.error === null,
+    loading: chatPending || capturePending,
     pending,
     error: actionError ?? chat.error ?? capture.error,
     start,

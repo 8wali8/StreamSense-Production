@@ -25,6 +25,14 @@ Nothing has queried it since the redesign shipped: the console has no recommenda
 | `tools/k8s/check_network_policies.py` | 60 edges, all allowed by 19 policies |
 | `python3 -m ast` on the two changed tools, YAML parse of the workflow and both config files | clean |
 
+## Review round (Codex on #68)
+
+One P1: the service was gone but its **health probe was not**. The `docker-smoke` job's "Wait for core
+services" loop and `ROOT_HEALTH_URLS` in `tools/smoke/compose_smoke.py` both still curled
+`http://localhost:8082/actuator/health`, which nothing serves now, so every smoke run and every
+`make smoke-e2e` would have waited out its timeout and failed. Both probes are gone. Removing a service
+means removing what waits on it, not only what names it: the sweep for "recommendation" missed a bare port.
+
 ## Deliberately left alone
 
 - **The history.** `docs/planning/history/` and the earlier branch notes still describe the service; they are records of what was done, not documentation of what runs.

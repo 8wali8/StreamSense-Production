@@ -23,9 +23,21 @@ def _float_env(name: str, default: float) -> float:
     return float(raw)
 
 
+def normalize_channels(channels: list[str]) -> list[str]:
+    """Twitch logins, lower case, without a leading ``#`` or ``@``, in order and without duplicates."""
+    normalized = []
+    seen = set()
+    for channel in channels:
+        value = channel.strip().lower().lstrip("#@")
+        if value and value not in seen:
+            normalized.append(value)
+            seen.add(value)
+    return normalized
+
+
 def _csv_env(name: str) -> list[str]:
     raw = os.getenv(name, "")
-    return [item.strip().lower() for item in raw.split(",") if item.strip()]
+    return normalize_channels(raw.split(","))
 
 
 def _secret_env(name: str, default: str | None = None) -> str | None:
@@ -162,6 +174,13 @@ class CaptureConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
+        if self.max_channels < 1:
+            raise ValueError("TWITCH_VIDEO_MAX_CHANNELS must be positive")
+        if len(self.channels) > self.max_channels:
+            raise ValueError(
+                f"TWITCH_VIDEO_CHANNELS names {len(self.channels)} channels, "
+                f"more than TWITCH_VIDEO_MAX_CHANNELS ({self.max_channels})"
+            )
         if self.sample_interval_seconds < 5:
             raise ValueError("TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS must be at least 5")
         if self.frame_capture_timeout_seconds < 1:

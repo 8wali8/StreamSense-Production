@@ -18,7 +18,6 @@ ROOT_HEALTH_URLS = [
     "http://localhost:8888/actuator/health",
     "http://localhost:8080/actuator/health",
     "http://localhost:8081/actuator/health",
-    "http://localhost:8082/actuator/health",
     "http://localhost:8083/actuator/health",
     "http://localhost:8084/actuator/health",
     "http://localhost:8000/ml/health",

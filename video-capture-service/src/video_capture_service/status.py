@@ -12,6 +12,8 @@ class CaptureState(str, Enum):  # noqa: UP042 - StrEnum would change str()/forma
     DEGRADED_STORAGE = "DEGRADED_STORAGE"
     DEGRADED_KAFKA = "DEGRADED_KAFKA"
     FAILED = "FAILED"
+    # Asked to stop, but a capture call it is inside has not returned yet; the worker still exists.
+    STOPPING = "STOPPING"
     STOPPED = "STOPPED"
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -241,6 +242,61 @@ def test_channel_status_answers_for_one_channel_only(monkeypatch):
     assert manager.channel_status("austincs")["channel"] == "austincs"
     assert manager.channel_status("ninja")["state"] == CaptureState.STOPPED.value
     assert "channels" not in manager.channel_status("austincs")
+    manager.stop()
+
+
+def test_a_worker_that_outlives_the_stop_keeps_its_place(monkeypatch):
+    """A capture call blocks past the stop wait: the worker is kept, and nothing starts a second one."""
+    entered, release = threading.Event(), threading.Event()
+
+    class BlockingSampler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def capture(self, hls_url, output_path: Path, seek_seconds=None):
+            entered.set()
+            release.wait(10)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"frame")
+            return output_path, 1
+
+    monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)
+    monkeypatch.setattr("video_capture_service.capture_loop.FrameSampler", BlockingSampler)
+    monkeypatch.setattr("video_capture_service.capture_loop.WORKER_STOP_TIMEOUT_SECONDS", 0.1)
+    publisher = FakePublisher()
+    manager = CaptureManager(enabled_config(monkeypatch), CaptureStatusStore(enabled=True), FakeStorage(), publisher)
+    manager.start()
+    assert entered.wait(5)
+
+    status = manager.remove_channel("austincs")
+
+    assert status["state"] == CaptureState.STOPPING.value
+    assert "austincs" in manager.workers
+    with pytest.raises(RuntimeError, match="still stopping"):
+        manager.add_channel("austincs")
+
+    release.set()
+    deadline = time.monotonic() + 5
+    while manager.workers["austincs"][0].is_alive() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    # The frame it was holding belongs to a session that is over, so it is never published.
+    assert publisher.published == []
+    # Once the worker is really gone the channel starts again.
+    assert manager.add_channel("austincs")["channel"] == "austincs"
+    manager.stop()
+
+
+def test_duplicate_configured_channels_start_one_worker(monkeypatch):
+    """Readiness counts workers against config.channels, so the two must agree."""
+    monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)
+    monkeypatch.setattr("video_capture_service.capture_loop.FrameSampler", FakeSampler)
+    config = replace(enabled_config(monkeypatch), channels=["austincs", "AustinCS", "@austincs"])
+    manager = CaptureManager(config, CaptureStatusStore(enabled=True), FakeStorage(), FakePublisher())
+
+    manager.start()
+
+    assert manager.config.channels == ["austincs"]
+    assert manager.workers_alive() == len(manager.config.channels)
     manager.stop()
 
 

@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderWithApollo } from "../../test/apollo";
-import { restJson, restProblem, server } from "../../test/msw";
+import { HttpResponse, delay, restJson, restProblem, restResolver, server } from "../../test/msw";
 import { MeasureChannel } from "./MeasureChannel";
 
 const CHAT = "/api/chat/twitch/channels/ninja";
@@ -52,6 +52,28 @@ describe("MeasureChannel", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/video capture/);
     expect(alert).toHaveTextContent(/already measuring 10 channels/);
+  });
+
+  it("stays loading until both reads have answered", async () => {
+    // The chat read answers, the capture read does not: the panel must not claim the channel is
+    // unmeasured (and offer Start) while it still has no idea whether video is capturing.
+    let chatAnswered = false;
+    server.use(
+      restResolver("get", CHAT, () => {
+        chatAnswered = true;
+        return HttpResponse.json(chatBody(false));
+      }),
+      restResolver("get", CAPTURE, async () => {
+        await delay("infinite");
+        return HttpResponse.json(captureBody("CAPTURING"));
+      }),
+    );
+    renderWithApollo(<MeasureChannel channel="ninja" />);
+
+    await waitFor(() => expect(chatAnswered).toBe(true));
+    expect(screen.getByText(/Checking whether @ninja is being measured/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start measuring" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/not being measured/)).not.toBeInTheDocument();
   });
 
   it("cannot be used when the deployment has ingest switched off", async () => {

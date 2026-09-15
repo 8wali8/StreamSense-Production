@@ -37,6 +37,30 @@ def test_enabled_config_binds_channels_and_storage(monkeypatch):
     assert config.storage.backend == "filesystem"
 
 
+def test_configured_channels_are_deduplicated(monkeypatch):
+    # A duplicate would make readiness expect a worker the channel-keyed registry cannot start.
+    monkeypatch.setenv("STREAMSENSE_TWITCH_VIDEO_ENABLED", "true")
+    monkeypatch.setenv("TWITCH_VIDEO_CHANNELS", "ninja, #Ninja ,@NINJA, example")
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_BACKEND", "filesystem")
+
+    config = CaptureConfig.from_env()
+
+    config.validate()
+    assert config.channels == ["ninja", "example"]
+
+
+def test_more_configured_channels_than_the_cap_is_refused(monkeypatch):
+    monkeypatch.setenv("STREAMSENSE_TWITCH_VIDEO_ENABLED", "true")
+    monkeypatch.setenv("TWITCH_VIDEO_CHANNELS", "one,two,three")
+    monkeypatch.setenv("TWITCH_VIDEO_MAX_CHANNELS", "2")
+    monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_BACKEND", "filesystem")
+
+    config = CaptureConfig.from_env()
+
+    with pytest.raises(ValueError, match="TWITCH_VIDEO_MAX_CHANNELS"):
+        config.validate()
+
+
 def test_replay_alias_config_binds_from_env(monkeypatch):
     monkeypatch.setenv("STREAMSENSE_TWITCH_VIDEO_ENABLED", "true")
     monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_BACKEND", "filesystem")
