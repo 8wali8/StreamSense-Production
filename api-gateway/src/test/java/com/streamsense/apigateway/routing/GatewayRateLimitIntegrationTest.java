@@ -2,6 +2,8 @@ package com.streamsense.apigateway.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.streamsense.apigateway.ratelimit.PinnedClockRateLimiters;
+import com.streamsense.apigateway.ratelimit.RateLimiter;
 import io.micrometer.core.instrument.MeterRegistry;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -10,7 +12,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -36,9 +42,25 @@ import org.springframework.test.web.reactive.server.WebTestClient;
             "streamsense.gateway.rate-limits[0].requests=2",
             "streamsense.gateway.rate-limits[0].window-seconds=60"
         })
+@Import(GatewayRateLimitIntegrationTest.PinnedClock.class)
 class GatewayRateLimitIntegrationTest {
 
     private static final MockWebServer CHAT_SERVICE = new MockWebServer();
+
+    /**
+     * The windows are aligned to the wall clock, so two requests a millisecond apart land in different
+     * windows whenever the pair straddles a minute boundary, and the second is counted as the first of a
+     * fresh one. This test counts inside one window, so it pins the clock rather than rolling that die.
+     */
+    @TestConfiguration
+    static class PinnedClock {
+
+        @Bean
+        @Primary
+        RateLimiter pinnedRateLimiter() {
+            return PinnedClockRateLimiters.pinnedToWindowStart();
+        }
+    }
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {

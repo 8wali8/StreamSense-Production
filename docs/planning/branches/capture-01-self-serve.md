@@ -64,11 +64,24 @@ Five findings on this branch, all fixed:
   without knowing whether video was already capturing. It is now true while either read is unanswered; the
   test holds the capture response open and fails against the old condition.
 
+## A flaky test the CI run found
+
+`GatewayRateLimitIntegrationTest.rejectsRequestsAfterConfiguredBurstLimit` failed once on this branch
+(`X-RateLimit-Remaining` expected 0, was 1) in code the branch does not touch. Root cause, from
+`InMemoryRateLimiter`: the windows are aligned to the wall clock
+(`windowStart = (now / windowSeconds) * windowSeconds`), so two requests a millisecond apart land in
+different windows whenever the pair straddles a minute boundary, and the second is counted as the first of a
+fresh window. The CI run crossed 02:38:00 mid-test. The test counts inside one window and never waits for one
+to end, so it now pins the limiter's clock (`PinnedClockRateLimiters`, in the limiter's package because the
+clock-taking constructor is not public) instead of rolling that die every run;
+`aWindowBoundaryBetweenTwoRequestsRestartsTheCount` documents the mechanism as a unit test. The limiter itself
+is unchanged: a fixed window is what it is meant to be.
+
 ## Verification
 
 | Check | Result |
 |---|---|
-| `mvn verify` api-gateway | 129 tests after the `main` merge, 5 skipped (Redis Testcontainer), Spotless, ArchUnit, JaCoCo floor green |
+| `mvn verify` api-gateway | 130 tests, 5 skipped (Redis Testcontainer), Spotless, ArchUnit, JaCoCo floor green |
 | `mvn verify` chat-service | 58 tests after the review round, Spotless, ArchUnit, JaCoCo floor green |
 | video-capture-service `ruff check`, `ruff format --check`, `mypy` | clean |
 | video-capture-service `pytest` | 63 tests after the review round |

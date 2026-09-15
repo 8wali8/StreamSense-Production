@@ -32,6 +32,20 @@ class InMemoryRateLimiterTest {
     }
 
     @Test
+    void aWindowBoundaryBetweenTwoRequestsRestartsTheCount() {
+        // The windows are aligned to the wall clock, so a pair of requests a millisecond apart is two
+        // windows whenever it straddles a boundary. This is what made GatewayRateLimitIntegrationTest
+        // flaky in CI; that test now pins its clock.
+        MutableClock clock = new MutableClock(Instant.parse("2026-04-11T12:00:59.999Z"));
+        InMemoryRateLimiter limiter = new InMemoryRateLimiter(clock);
+
+        assertThat(limiter.acquireNow("chat:127.0.0.1", 2, 60).remaining()).isEqualTo(1);
+
+        clock.setInstant(Instant.parse("2026-04-11T12:01:00.001Z"));
+        assertThat(limiter.acquireNow("chat:127.0.0.1", 2, 60).remaining()).isEqualTo(1);
+    }
+
+    @Test
     void evictsCountersOnceTheirWindowHasClosed() {
         MutableClock clock = new MutableClock(Instant.parse("2026-04-11T12:00:00Z"));
         InMemoryRateLimiter limiter = new InMemoryRateLimiter(clock);
