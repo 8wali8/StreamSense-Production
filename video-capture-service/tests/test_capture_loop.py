@@ -359,6 +359,67 @@ def test_a_stopping_worker_still_holds_its_slot(monkeypatch):
     manager.stop()
 
 
+def test_a_refused_start_leaves_the_configuration_alone(monkeypatch):
+    """A 409 that had already added the channel would leave readiness expecting a worker for ever."""
+    entered, release = threading.Event(), threading.Event()
+
+    class BlockingSampler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def capture(self, hls_url, output_path: Path, seek_seconds=None):
+            entered.set()
+            release.wait(10)
+            return output_path, 1
+
+    monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)
+    monkeypatch.setattr("video_capture_service.capture_loop.FrameSampler", BlockingSampler)
+    monkeypatch.setattr("video_capture_service.capture_loop.WORKER_STOP_TIMEOUT_SECONDS", 0.1)
+    manager = CaptureManager(
+        enabled_config(monkeypatch), CaptureStatusStore(enabled=True), FakeStorage(), FakePublisher()
+    )
+    manager.start()
+    assert entered.wait(5)
+    manager.remove_channel("austincs")
+
+    with pytest.raises(RuntimeError, match="still stopping"):
+        manager.add_channel("austincs")
+
+    # Not configured by the refusal: readiness counts workers against this list.
+    assert manager.config.channels == []
+    release.set()
+    manager.stop()
+
+
+def test_a_switch_waits_for_a_channel_that_is_still_stopping(monkeypatch):
+    """Starting the new list while the old worker runs would exceed the cap it is meant to hold."""
+    entered, release = threading.Event(), threading.Event()
+
+    class BlockingSampler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def capture(self, hls_url, output_path: Path, seek_seconds=None):
+            entered.set()
+            release.wait(10)
+            return output_path, 1
+
+    monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)
+    monkeypatch.setattr("video_capture_service.capture_loop.FrameSampler", BlockingSampler)
+    monkeypatch.setattr("video_capture_service.capture_loop.WORKER_STOP_TIMEOUT_SECONDS", 0.1)
+    config = replace(enabled_config(monkeypatch), max_channels=1)
+    manager = CaptureManager(config, CaptureStatusStore(enabled=True), FakeStorage(), FakePublisher())
+    manager.start()
+    assert entered.wait(5)
+
+    with pytest.raises(RuntimeError, match="still stopping"):
+        manager.switch_channels(["ninja"])
+
+    assert manager.config.channels == ["austincs"]
+    release.set()
+    manager.stop()
+
+
 def test_duplicate_configured_channels_start_one_worker(monkeypatch):
     """Readiness counts workers against config.channels, so the two must agree."""
     monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)

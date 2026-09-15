@@ -249,8 +249,6 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
             } catch (Exception e) {
                 metrics.markFailed(e.getMessage());
                 log.warn("Twitch chat connector failed: {}", e.getMessage());
-            } finally {
-                closeOwnSocket();
             }
 
             if (generation.get()) {
@@ -265,12 +263,14 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         // The writer this connector published, if it got that far; a try-with-resources variable is out of
         // scope in the finally below.
         BufferedWriter published = null;
+        Socket mine = null;
         try (Socket socket = openSocket();
                 BufferedReader reader =
                         new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
                 BufferedWriter writer =
                         new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
+            mine = socket;
             activeSocket = socket;
             authenticateAndJoin(writer);
             if (!generation.get()) {
@@ -293,9 +293,14 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
                 throw new IOException("Twitch IRC connection closed");
             }
         } finally {
-            // Only what is still ours: a replacement connector may already have published its own writer.
+            // The try-with-resources closed this connector's socket and writer; all that is left is to give
+            // up ownership, and only while they are still ours. A replacement connector may already have
+            // published its own, and closing or clearing those would disconnect a live connection.
             if (published != null && activeWriter == published) {
                 activeWriter = null;
+            }
+            if (activeSocket == mine) {
+                activeSocket = null;
             }
         }
     }
@@ -410,11 +415,6 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    /** Closes this connector's socket, leaving a replacement connector's alone. */
-    private void closeOwnSocket() {
-        closeActiveSocket();
     }
 
     private void closeActiveSocket() {

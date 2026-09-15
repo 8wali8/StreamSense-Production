@@ -39,7 +39,9 @@ ROLE_STREAMER = "streamer"
 
 
 class ChannelSwitchRequest(BaseModel):
-    channels: list[str] = Field(min_length=1, max_length=10)
+    # No ceiling here: TWITCH_VIDEO_MAX_CHANNELS is the bound, and switch_channels answers 400 above it.
+    # A number repeated here would contradict a deployment that raised the cap.
+    channels: list[str] = Field(min_length=1)
 
 
 class VodReplayRequest(BaseModel):
@@ -172,10 +174,16 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
     @app.get("/api/video/capture/status")
     def capture_status(request: Request) -> dict:
         runtime = get_runtime(request)
-        # Through the manager, so a worker that has finished winding down is reaped before it is reported.
-        snapshot = runtime.manager.snapshot() if runtime.manager else runtime.status_store.snapshot()
-        snapshot["imports"] = runtime.imports.snapshot() if runtime.imports else []
-        return _confine_to_caller(snapshot, request)
+        own = _own_channel(request)
+        only = None if own is None else {own}
+        # Through the manager, so a worker that has finished winding down is reaped before it is reported,
+        # and confined there, so the state and the timestamps describe the channels the answer lists.
+        snapshot = runtime.manager.snapshot(only) if runtime.manager else runtime.status_store.snapshot(only)
+        imports = runtime.imports.snapshot() if runtime.imports else []
+        if own is not None:
+            imports = [item for item in imports if str(item.get("channel", "")).lower() == own]
+        snapshot["imports"] = imports
+        return snapshot
 
     @app.post("/api/video/capture/replay", status_code=202)
     def replay_vod(request: Request, body: VodReplayRequest) -> dict:
@@ -272,21 +280,15 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
     return app
 
 
-def _confine_to_caller(snapshot: dict, request: Request) -> dict:
-    """A streamer is told about their own channel; which others are measured is not theirs to see.
+def _own_channel(request: Request) -> str | None:
+    """The one channel this caller may be told about, or None when they may see every channel.
 
-    The gateway sets these headers itself and drops any a client sent (``AuthScopeHeadersFilter``).
+    A streamer is told about their own channel; which others are measured is not theirs to see. The
+    gateway sets these headers itself and drops any a client sent (``AuthScopeHeadersFilter``).
     """
     if request.headers.get(ROLE_HEADER) != ROLE_STREAMER:
-        return snapshot
-    own = (request.headers.get(LOGIN_HEADER) or "").strip().lower().lstrip("#@")
-    confined = dict(snapshot)
-    confined["channels"] = [channel for channel in snapshot.get("channels", []) if channel == own]
-    confined["channelStatuses"] = [
-        status for status in snapshot.get("channelStatuses", []) if status.get("channel") == own
-    ]
-    confined["imports"] = [item for item in snapshot.get("imports", []) if str(item.get("channel", "")).lower() == own]
-    return confined
+        return None
+    return (request.headers.get(LOGIN_HEADER) or "").strip().lower().lstrip("#@")
 
 
 def _read_frame_artifact(runtime: CaptureRuntime, frame_ref: str) -> tuple[bytes, str]:

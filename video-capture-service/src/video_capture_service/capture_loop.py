@@ -96,6 +96,14 @@ class CaptureManager:
                 # A worker still winding down keeps its entry, so it is visible until it is gone.
                 if channel not in normalized and channel not in self.workers:
                     del self.status_store.statuses[channel]
+            # Workers that outlived their stop are still spending their slot, so the switch waits rather
+            # than running more channels at once than the cap allows.
+            occupied = {*normalized, *self.workers}
+            if len(occupied) > self.config.max_channels:
+                raise RuntimeError(
+                    f"Twitch video capture is already measuring {self.config.max_channels} channels; "
+                    "a channel is still stopping, try again in a moment"
+                )
             self.config = replace(self.config, channels=normalized)
             # A channel that stays keeps its worker and its capture session id, so pointing capture at one
             # more channel does not split the stream of a channel already being captured into two sessions.
@@ -110,6 +118,9 @@ class CaptureManager:
 
         with self._channels_lock:
             self._reap_finished_workers()
+            # Checked before the configuration changes: a refused start that had already added the channel
+            # would leave readiness expecting a worker that nothing will create.
+            self._refuse_if_stopping(name)
             if name not in self.config.channels:
                 # A channel winding down still holds its resources, so it holds its slot until it is reaped.
                 occupied = {*self.config.channels, *self.workers}
@@ -155,11 +166,14 @@ class CaptureManager:
             self._reap_finished_workers()
             return sum(1 for thread, _ in self.workers.values() if thread.is_alive())
 
-    def snapshot(self) -> dict:
-        """The whole-service status, with finished workers reaped so none lingers as STOPPING."""
+    def snapshot(self, only: set[str] | None = None) -> dict:
+        """The service status, with finished workers reaped so none lingers as STOPPING.
+
+        ``only`` confines the answer, summary fields included, to the channels a caller may see.
+        """
         with self._channels_lock:
             self._reap_finished_workers()
-            return self.status_store.snapshot()
+            return self.status_store.snapshot(only)
 
     def _require_running_capture(self) -> None:
         if not self.config.enabled:
@@ -186,13 +200,19 @@ class CaptureManager:
             elif status.state != CaptureState.DISABLED:
                 status.state = CaptureState.STOPPED
 
+    def _refuse_if_stopping(self, channel: str) -> None:
+        """Raises when this channel's worker is still inside a capture call it cannot be interrupted out of.
+
+        A second worker would publish alongside it under a new capture session, so the caller waits.
+        """
+        worker = self.workers.get(channel)
+        if worker is not None and worker[0].is_alive() and worker[1].is_set():
+            raise RuntimeError(f"channel {channel} is still stopping; try again in a moment")
+
     def _start_channel(self, channel: str) -> None:
         worker = self.workers.get(channel)
         if worker is not None and worker[0].is_alive():
-            if worker[1].is_set():
-                # Still inside a capture call it cannot be interrupted out of. A second worker would
-                # publish alongside it under a new capture session, so the caller waits instead.
-                raise RuntimeError(f"channel {channel} is still stopping; try again in a moment")
+            self._refuse_if_stopping(channel)
             return
         status = self.status_store.statuses.setdefault(channel, ChannelStatus(channel=channel))
         status.state = CaptureState.STARTING

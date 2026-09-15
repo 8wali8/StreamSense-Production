@@ -64,6 +64,14 @@ def test_status_tells_a_streamer_about_their_own_channel_only(monkeypatch):
         ).json()
         assert mine["channels"] == ["ninja"]
         assert [status["channel"] for status in mine["channelStatuses"]] == ["ninja"]
+        # The summary describes the channels the answer lists: the other channel's frame does not leak
+        # into the streamer's timestamps. (The state itself is DISABLED here, as capture is off.)
+        store.statuses["pokimane"].last_frame_at = 1710000009999
+        mine = client.get(
+            "/api/video/capture/status",
+            headers={"X-StreamSense-Auth-Role": "streamer", "X-StreamSense-Auth-Login": "ninja"},
+        ).json()
+        assert mine["lastFrameAt"] is None
 
 
 def test_frame_endpoint_rejects_paths_outside_storage_root(monkeypatch, tmp_path):

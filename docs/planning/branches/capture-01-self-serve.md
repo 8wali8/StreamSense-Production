@@ -87,6 +87,26 @@ Five more, four of them consequences of the first round's fixes:
   documented and read, but neither container's environment forwarded them, so both stayed at 10 whatever a
   deployment set. Both are in `docker-compose.yml` now, which the production overlay inherits.
 
+### Third round
+
+Five more, all in the same seam as the second round:
+
+- **The retiring connector closed the shared socket.** The generation flag stopped the old loop reconnecting,
+  but its `finally` still called a helper that closed whatever socket was current, so a loop that outlived a
+  stop could close the replacement's connection. It now gives up the socket and the writer only while they
+  are still its own; the try-with-resources closes what it opened.
+- **A refused start still changed the configuration.** `add_channel` appended the channel before
+  `_start_channel` raised "still stopping", so a 409 left readiness expecting a worker nothing would create.
+  The stopping worker is checked before the configuration changes.
+- **A list switch ignored a surviving worker.** Switching from A to B while A was blocked started B beside it,
+  above the cap. The switch now waits, with the same message as the per-channel refusal.
+- **A confined status kept the whole service's summary.** Filtering `channels` and `channelStatuses` left
+  `state`, `lastFrameAt`, and `lastTranscriptAt` describing every channel, so a streamer whose channel was
+  stopped could be shown another channel's `CAPTURING` and its timestamps. `CaptureStatusStore.snapshot`
+  takes the channels it may summarise, so the summary always describes what the answer lists.
+- **The switch request model capped the list at ten**, contradicting `TWITCH_VIDEO_MAX_CHANNELS` above that.
+  The runtime cap is the only bound now.
+
 ## A flaky test the CI run found
 
 `GatewayRateLimitIntegrationTest.rejectsRequestsAfterConfiguredBurstLimit` failed once on this branch
@@ -107,7 +127,7 @@ is unchanged: a fixed window is what it is meant to be.
 | `mvn verify` api-gateway | 130 tests, 5 skipped (Redis Testcontainer), Spotless, ArchUnit, JaCoCo floor green |
 | `mvn verify` chat-service | 59 tests after the review rounds, Spotless, ArchUnit, JaCoCo floor green |
 | video-capture-service `ruff check`, `ruff format --check`, `mypy` | clean |
-| video-capture-service `pytest` | 65 tests after the review rounds |
+| video-capture-service `pytest` | 69 tests after the review rounds |
 | frontend `eslint`, `prettier --check`, `codegen:check`, `vite build` | clean |
 | frontend `vitest run --coverage` | 36 files, 145 tests after the review round, floors held (88.2 / 83.7 / 86.3 / 88.2) |
 
