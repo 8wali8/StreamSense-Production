@@ -14,7 +14,7 @@ SHELL := /bin/bash
 
 COMPOSE ?= docker compose
 
-JAVA_SERVICES := eureka-server config-server api-gateway chat-service sentiment-service video-service recommendation-service analytics-service
+JAVA_SERVICES := eureka-server config-server api-gateway chat-service sentiment-service video-service analytics-service
 PYTHON_SERVICES := ml-engine video-capture-service
 FRONTEND_SERVICE := frontend
 SERVICES := $(JAVA_SERVICES) $(PYTHON_SERVICES) $(FRONTEND_SERVICE)

@@ -24,9 +24,6 @@ public class DownstreamServicesProperties {
     private final Service chatService = new Service();
 
     @Valid
-    private final Service recommendationService = new Service();
-
-    @Valid
     private final Service sentimentService = new Service();
 
     @Valid
@@ -51,10 +48,6 @@ public class DownstreamServicesProperties {
 
     public Service getChatService() {
         return chatService;
-    }
-
-    public Service getRecommendationService() {
-        return recommendationService;
     }
 
     public Service getSentimentService() {

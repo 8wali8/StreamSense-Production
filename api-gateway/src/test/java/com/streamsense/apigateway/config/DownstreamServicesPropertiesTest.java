@@ -14,7 +14,6 @@ class DownstreamServicesPropertiesTest {
 
     private static final String[] ALL_BASE_URLS = {
         "streamsense.services.chat-service.base-url=http://chat-service:8081",
-        "streamsense.services.recommendation-service.base-url=http://recommendation-service:8082",
         "streamsense.services.sentiment-service.base-url=http://sentiment-service:8083",
         "streamsense.services.video-service.base-url=http://video-service:8084",
         "streamsense.services.video-capture-service.base-url=http://video-capture-service:8090",
@@ -31,8 +30,6 @@ class DownstreamServicesPropertiesTest {
         runner.withPropertyValues(ALL_BASE_URLS).run(context -> {
             assertThat(context).hasNotFailed();
             DownstreamServicesProperties properties = context.getBean(DownstreamServicesProperties.class);
-            assertThat(properties.getRecommendationService().getBaseUrl())
-                    .isEqualTo("http://recommendation-service:8082");
             assertThat(properties.getAnalyticsService().getBaseUrl()).isEqualTo("http://analytics-service:8085");
             assertThat(properties.getMlEngine().getBaseUrl()).isEqualTo("http://ml-engine:8000");
             assertThat(properties.getConnectTimeout()).isEqualTo(Duration.ofSeconds(2));
@@ -42,8 +39,8 @@ class DownstreamServicesPropertiesTest {
 
     @Test
     void missingBaseUrlFailsStartupInsteadOfDefaultingToLocalhost() {
+        // Every base URL but chat-service's: the missing one must fail startup, not default to localhost.
         runner.withPropertyValues(
-                        "streamsense.services.chat-service.base-url=http://chat-service:8081",
                         "streamsense.services.sentiment-service.base-url=http://sentiment-service:8083",
                         "streamsense.services.video-service.base-url=http://video-service:8084",
                         "streamsense.services.video-capture-service.base-url=http://video-capture-service:8090",
@@ -51,7 +48,7 @@ class DownstreamServicesPropertiesTest {
                         "streamsense.services.ml-engine.base-url=http://ml-engine:8000")
                 .run(context -> {
                     assertThat(context).hasFailed();
-                    assertThat(context.getStartupFailure()).hasStackTraceContaining("recommendationService.baseUrl");
+                    assertThat(context.getStartupFailure()).hasStackTraceContaining("chatService.baseUrl");
                 });
     }
 

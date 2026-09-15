@@ -20,6 +20,9 @@ streamsense:
       username: ${TWITCH_CHAT_USERNAME:}
       oauth-token: ${TWITCH_CHAT_OAUTH_TOKEN:}
       channels: ${TWITCH_CHANNELS:}
+      # How many channels one connector may join at once, so a streamer starting their own channel
+      # cannot crowd out one already being measured.
+      max-channels: ${TWITCH_CHAT_MAX_CHANNELS:10}
       reconnect-delay-ms: ${TWITCH_CHAT_RECONNECT_DELAY_MS:5000}
       max-reconnect-delay-ms: ${TWITCH_CHAT_MAX_RECONNECT_DELAY_MS:60000}
       connection-timeout-ms: ${TWITCH_CHAT_CONNECTION_TIMEOUT_MS:10000}

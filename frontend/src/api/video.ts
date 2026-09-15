@@ -42,3 +42,31 @@ export function switchCaptureChannels(channels: string[]): Promise<void> {
 export function frameImageUrl(frameRef: string): string {
   return apiUrl("/api/video/capture/frame", { frameRef });
 }
+
+/** One channel's capture, from the per-channel routes a streamer may call for their own channel. */
+export type CaptureChannelStatus = {
+  channel: string;
+  state: string;
+  captureSessionId: string | null;
+  lastFrameAt: number | null;
+  lastError: string | null;
+};
+
+/** GET /api/video/capture/channels/{channel}: is this channel being captured. */
+export function getCaptureChannel(channel: string): Promise<CaptureChannelStatus> {
+  return apiFetch<CaptureChannelStatus>(`/api/video/capture/channels/${encodeURIComponent(channel)}`);
+}
+
+/** PUT /api/video/capture/channels/{channel}: start capturing it, leaving the other channels alone. */
+export function startCaptureChannel(channel: string): Promise<CaptureChannelStatus> {
+  return apiFetch<CaptureChannelStatus>(`/api/video/capture/channels/${encodeURIComponent(channel)}`, {
+    method: "PUT",
+  });
+}
+
+/** DELETE /api/video/capture/channels/{channel}: stop capturing it. */
+export function stopCaptureChannel(channel: string): Promise<CaptureChannelStatus> {
+  return apiFetch<CaptureChannelStatus>(`/api/video/capture/channels/${encodeURIComponent(channel)}`, {
+    method: "DELETE",
+  });
+}

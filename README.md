@@ -27,7 +27,6 @@ flowchart TB
     SENT[sentiment-service<br/>general + sponsor sentiment]:::service
     VIDEO[video-service<br/>frame processing + sponsor detections]:::service
     ANALYTICS[analytics-service<br/>metric aggregation]:::service
-    RECO[recommendation-service<br/>recommendation summaries]:::service
     ML[ml-engine<br/>sentiment, relevance, sponsor,<br/>segmentation, transcription]:::ml
   end
 
@@ -51,7 +50,6 @@ flowchart TB
   GW --> SENT
   GW --> VIDEO
   GW --> ANALYTICS
-  GW --> RECO
   KAFKA -->|live subscriptions| GW
 
   TW --> CHAT
@@ -82,14 +80,12 @@ flowchart TB
   SENT -.-> CONFIG
   VIDEO -.-> CONFIG
   ANALYTICS -.-> CONFIG
-  RECO -.-> CONFIG
 
   GW -.-> EUREKA
   CHAT -.-> EUREKA
   SENT -.-> EUREKA
   VIDEO -.-> EUREKA
   ANALYTICS -.-> EUREKA
-  RECO -.-> EUREKA
 
   GW -.-> OBS
   CHAT -.-> OBS
@@ -97,7 +93,6 @@ flowchart TB
   SENT -.-> OBS
   VIDEO -.-> OBS
   ANALYTICS -.-> OBS
-  RECO -.-> OBS
   ML -.-> OBS
 ```
 
@@ -110,7 +105,6 @@ flowchart TB
 - `video-service`: Consumes frame events, calls sponsor detection, persists detections, publishes sponsor events.
 - `sentiment-service`: Consumes chat/transcript text, calls ML sentiment and sponsor relevance, persists and publishes general and sponsor-specific sentiment.
 - `analytics-service`: Aggregates stream metrics from event streams.
-- `recommendation-service`: Produces recommendation summaries from platform signals.
 - `ml-engine`: FastAPI service for sentiment, relevance, sponsor detection, segmentation, and transcription.
 - `config-server` and `eureka-server`: Central config and service discovery for Spring services.
 

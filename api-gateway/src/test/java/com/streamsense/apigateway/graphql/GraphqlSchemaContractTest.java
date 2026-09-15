@@ -65,8 +65,7 @@ class GraphqlSchemaContractTest {
                         "sponsorMoments",
                         "deals",
                         "deal",
-                        "dealSummary",
-                        "recommendations");
+                        "dealSummary");
     }
 
     @Test

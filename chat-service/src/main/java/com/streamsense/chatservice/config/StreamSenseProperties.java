@@ -69,6 +69,9 @@ public class StreamSenseProperties {
         private String username = "";
         private String oauthToken = "";
         private List<String> channels = new ArrayList<>();
+        // How many channels one connector may join at once; a streamer starting their own channel is refused
+        // beyond it rather than quietly crowding out someone already being measured.
+        private int maxChannels = 10;
         private long reconnectDelayMs = 5000;
         private long maxReconnectDelayMs = 60000;
         private int connectionTimeoutMs = 10000;
@@ -127,6 +130,14 @@ public class StreamSenseProperties {
 
         public void setChannels(List<String> channels) {
             this.channels = channels;
+        }
+
+        public int getMaxChannels() {
+            return maxChannels;
+        }
+
+        public void setMaxChannels(int maxChannels) {
+            this.maxChannels = maxChannels;
         }
 
         public long getReconnectDelayMs() {

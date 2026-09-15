@@ -40,7 +40,8 @@ class DownstreamWebClientTimeoutTest {
                 .baseUrl(server.url("/").toString())
                 .build();
 
-        StepVerifier.create(client.get().uri("/api/recommendations").retrieve().bodyToMono(String.class))
+        StepVerifier.create(
+                        client.get().uri("/api/analytics/sessions").retrieve().bodyToMono(String.class))
                 .expectErrorSatisfies(error -> {
                     assertThat(error).isInstanceOf(WebClientRequestException.class);
                     assertThat(error.getCause()).isInstanceOf(ReadTimeoutException.class);
@@ -75,7 +76,8 @@ class DownstreamWebClientTimeoutTest {
                 .baseUrl(server.url("/").toString())
                 .build();
 
-        StepVerifier.create(client.get().uri("/api/recommendations").retrieve().bodyToMono(String.class))
+        StepVerifier.create(
+                        client.get().uri("/api/analytics/sessions").retrieve().bodyToMono(String.class))
                 .expectNext("[]")
                 .verifyComplete();
     }

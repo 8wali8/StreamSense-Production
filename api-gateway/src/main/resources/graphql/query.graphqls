@@ -5,7 +5,6 @@ type Query {
   recentTranscriptSegments(streamer: String!, limit: Int!): [TranscriptSegmentEvent!]!
   recentTranscriptSentiment(streamer: String!, limit: Int!): [TranscriptSentimentEvent!]!
   recentSponsorTranscriptSentiment(streamer: String!, sponsor: String, limit: Int!): [TranscriptSentimentEvent!]!
-  recommendations(streamer: String!, limit: Int!): [Recommendation!]!
   sponsorDetections(streamer: String!, limit: Int!): [SponsorDetectionEvent!]!
   # windowMinutes is the trailing window ending now; sessionId (a whole stream) or from/to (an absolute range) win over it.
   streamMetricsSummary(streamer: String!, streamSessionId: String, windowMinutes: Int, sessionId: ID, from: Float, to: Float): StreamMetricsSummary!

@@ -32,9 +32,16 @@ from video_capture_service.vod_import import VodImportManager, VodImportRequest
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [video-capture-service] %(message)s")
 logger = logging.getLogger(__name__)
 
+# Set by the gateway from the signed-in token; a client's own copies are dropped there.
+LOGIN_HEADER = "X-StreamSense-Auth-Login"
+ROLE_HEADER = "X-StreamSense-Auth-Role"
+ROLE_STREAMER = "streamer"
+
 
 class ChannelSwitchRequest(BaseModel):
-    channels: list[str] = Field(min_length=1, max_length=10)
+    # No ceiling here: TWITCH_VIDEO_MAX_CHANNELS is the bound, and switch_channels answers 400 above it.
+    # A number repeated here would contradict a deployment that raised the cap.
+    channels: list[str] = Field(min_length=1)
 
 
 class VodReplayRequest(BaseModel):
@@ -167,8 +174,15 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
     @app.get("/api/video/capture/status")
     def capture_status(request: Request) -> dict:
         runtime = get_runtime(request)
-        snapshot = runtime.status_store.snapshot()
-        snapshot["imports"] = runtime.imports.snapshot() if runtime.imports else []
+        own = _own_channel(request)
+        only = None if own is None else {own}
+        # Through the manager, so a worker that has finished winding down is reaped before it is reported,
+        # and confined there, so the state and the timestamps describe the channels the answer lists.
+        snapshot = runtime.manager.snapshot(only) if runtime.manager else runtime.status_store.snapshot(only)
+        imports = runtime.imports.snapshot() if runtime.imports else []
+        if own is not None:
+            imports = [item for item in imports if str(item.get("channel", "")).lower() == own]
+        snapshot["imports"] = imports
         return snapshot
 
     @app.post("/api/video/capture/replay", status_code=202)
@@ -219,6 +233,40 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    @app.put("/api/video/capture/channels/{channel}")
+    def add_capture_channel(request: Request, channel: str) -> dict:
+        """Starts capturing one channel without disturbing the others. Idempotent."""
+        runtime = get_runtime(request)
+        if runtime.manager is None:
+            raise HTTPException(status_code=503, detail="capture manager is not running")
+        try:
+            return runtime.manager.add_channel(channel)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.delete("/api/video/capture/channels/{channel}")
+    def remove_capture_channel(request: Request, channel: str) -> dict:
+        """Stops capturing one channel, leaving the others alone. Idempotent."""
+        runtime = get_runtime(request)
+        if runtime.manager is None:
+            raise HTTPException(status_code=503, detail="capture manager is not running")
+        try:
+            return runtime.manager.remove_channel(channel)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/video/capture/channels/{channel}")
+    def capture_channel_status(request: Request, channel: str) -> dict:
+        runtime = get_runtime(request)
+        if runtime.manager is None:
+            raise HTTPException(status_code=503, detail="capture manager is not running")
+        try:
+            return runtime.manager.channel_status(channel)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/api/video/capture/frame")
     def capture_frame(request: Request, frameRef: str = Query(..., min_length=1, max_length=2048)) -> Response:
         runtime = get_runtime(request)
@@ -230,6 +278,17 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return app
+
+
+def _own_channel(request: Request) -> str | None:
+    """The one channel this caller may be told about, or None when they may see every channel.
+
+    A streamer is told about their own channel; which others are measured is not theirs to see. The
+    gateway sets these headers itself and drops any a client sent (``AuthScopeHeadersFilter``).
+    """
+    if request.headers.get(ROLE_HEADER) != ROLE_STREAMER:
+        return None
+    return (request.headers.get(LOGIN_HEADER) or "").strip().lower().lstrip("#@")
 
 
 def _read_frame_artifact(runtime: CaptureRuntime, frame_ref: str) -> tuple[bytes, str]:

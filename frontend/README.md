@@ -35,7 +35,7 @@ Set `VITE_API_BASE_URL` only when the built app is served from a different origi
 | `src/hooks/useLiveFeed.ts`                      | History query plus live subscription events, de-duplicated and capped (`useLiveEvents` for subscription-only) |
 | `src/features/console/`                         | The live player with detections, and the transcript, sponsor sentiment, and chat feeds                        |
 | `src/features/streamer/`                        | Streamer and sponsor selection, runtime switching, the roster                                                 |
-| `src/features/evidence/`, `metrics/`, `status/` | The sentiment, sponsor, and recommendation panels; the metrics overview; the health and ingest status pills   |
+| `src/features/evidence/`, `metrics/`, `status/` | The sentiment and sponsor panels; the metrics overview; the health and ingest status pills                    |
 | `src/components/`                               | Building blocks with no feature of their own: `MetricCard`, `ErrorBoundary`                                   |
 | `src/lib/errors.ts`                             | `describeError`: problem `detail` for REST, translated `extensions.code` for GraphQL                          |
 | `src/lib/format.ts`                             | Pure display helpers shared by the console and panels                                                         |

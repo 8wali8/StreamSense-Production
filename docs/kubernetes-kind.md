@@ -62,7 +62,6 @@ docker build -t streamsense/config-server:sprint9 ./config-server
 docker build -t streamsense/chat-service:sprint9 ./chat-service
 docker build -t streamsense/sentiment-service:sprint9 ./sentiment-service
 docker build -t streamsense/video-service:sprint9 ./video-service
-docker build -t streamsense/recommendation-service:sprint9 ./recommendation-service
 docker build -t streamsense/api-gateway:sprint9 ./api-gateway
 docker build -t streamsense/ml-engine:sprint9 ./ml-engine
 docker build -t streamsense/frontend:sprint9 ./frontend
@@ -113,7 +112,6 @@ kind load docker-image \
   streamsense/chat-service:sprint9 \
   streamsense/sentiment-service:sprint9 \
   streamsense/video-service:sprint9 \
-  streamsense/recommendation-service:sprint9 \
   streamsense/api-gateway:sprint9 \
   streamsense/ml-engine:sprint9 \
   streamsense/frontend:sprint9 \

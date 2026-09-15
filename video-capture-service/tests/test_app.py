@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from video_capture_service.config import CaptureConfig
 from video_capture_service.main import create_app
+from video_capture_service.status import CaptureState, ChannelStatus
 
 
 def disabled_config(monkeypatch) -> CaptureConfig:
@@ -35,6 +36,42 @@ def test_disabled_capture_is_ready_after_startup(monkeypatch):
         assert switch.status_code == 409
 
         assert b"streamsense_twitch_video_capture_enabled" in client.get("/metrics").content
+
+
+def test_channel_routes_refuse_to_start_capture_while_it_is_disabled(monkeypatch):
+    with TestClient(create_app(disabled_config(monkeypatch))) as client:
+        assert client.put("/api/video/capture/channels/ninja").status_code == 409
+        # Stopping and reading are still answered, so the console can show the state.
+        assert client.delete("/api/video/capture/channels/ninja").status_code == 200
+        status = client.get("/api/video/capture/channels/ninja").json()
+        assert status["channel"] == "ninja"
+        assert status["state"] == "DISABLED"
+
+
+def test_status_tells_a_streamer_about_their_own_channel_only(monkeypatch):
+    with TestClient(create_app(disabled_config(monkeypatch))) as client:
+        store = client.app.state.runtime.status_store
+        store.statuses.clear()
+        store.statuses["ninja"] = ChannelStatus(channel="ninja", state=CaptureState.CAPTURING)
+        store.statuses["pokimane"] = ChannelStatus(channel="pokimane", state=CaptureState.CAPTURING)
+
+        everyone = client.get("/api/video/capture/status").json()
+        assert everyone["channels"] == ["ninja", "pokimane"]
+
+        mine = client.get(
+            "/api/video/capture/status",
+            headers={"X-StreamSense-Auth-Role": "streamer", "X-StreamSense-Auth-Login": "@Ninja"},
+        ).json()
+        assert mine["channels"] == ["ninja"]
+        assert [status["channel"] for status in mine["channelStatuses"]] == ["ninja"]
+        # The summary describes the channels the answer lists: the other channel's frame does not leak
+        # into the streamer's timestamps. (The state itself is DISABLED here, as capture is off.)
+        store.statuses["pokimane"].last_frame_at = 1710000009999
+        mine = client.get(
+            "/api/video/capture/status",
+            headers={"X-StreamSense-Auth-Role": "streamer", "X-StreamSense-Auth-Login": "ninja"},
+        ).json()
+        assert mine["lastFrameAt"] is None
 
 
 def test_frame_endpoint_rejects_paths_outside_storage_root(monkeypatch, tmp_path):

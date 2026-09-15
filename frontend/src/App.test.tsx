@@ -4,7 +4,14 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
 import { AppRoutes } from "./App";
 import { renderWithApollo } from "./test/apollo";
-import { helixStatusPolling, streamAnalytics, twitchStatusConnected, videoStatusCapturing } from "./test/fixtures";
+import {
+  captureChannelCapturing,
+  channelIngestJoined,
+  helixStatusPolling,
+  streamAnalytics,
+  twitchStatusConnected,
+  videoStatusCapturing,
+} from "./test/fixtures";
 import { HttpResponse, graphqlData, restJson, restResolver, server } from "./test/msw";
 
 /** Every request the app makes, answered empty; the tests below assert on behaviour, not data. */
@@ -22,6 +29,8 @@ function stackHandlers() {
     restJson("get", "/api/chat/twitch/status", twitchStatusConnected),
     restJson("get", "/api/video/capture/status", videoStatusCapturing),
     restJson("get", "/api/analytics/helix/status", helixStatusPolling),
+    restJson("get", "/api/chat/twitch/channels/*", channelIngestJoined),
+    restJson("get", "/api/video/capture/channels/*", captureChannelCapturing),
     restJson("get", "/api/sentiment/transcript/recent", []),
     restJson("post", "/api/chat/twitch/channels", ["redbull-testing"]),
     restJson("post", "/api/video/capture/channels", { channels: ["redbull-testing"] }),

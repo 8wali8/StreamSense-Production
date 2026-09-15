@@ -12,6 +12,8 @@ class CaptureState(str, Enum):  # noqa: UP042 - StrEnum would change str()/forma
     DEGRADED_STORAGE = "DEGRADED_STORAGE"
     DEGRADED_KAFKA = "DEGRADED_KAFKA"
     FAILED = "FAILED"
+    # Asked to stop, but a capture call it is inside has not returned yet; the worker still exists.
+    STOPPING = "STOPPING"
     STOPPED = "STOPPED"
 
 
@@ -65,9 +67,16 @@ class CaptureStatusStore:
     enabled: bool
     statuses: dict[str, ChannelStatus] = field(default_factory=dict)
 
-    def snapshot(self) -> dict:
-        channel_statuses = [status.as_dict() for status in self.statuses.values()]
-        states = {status.state for status in self.statuses.values()}
+    def snapshot(self, only: set[str] | None = None) -> dict:
+        """The whole-service status, or the part of it for ``only`` when a caller may see one channel.
+
+        The summary fields are computed from the same statuses the answer lists: a confined answer that
+        listed one channel while reporting another's state and timestamps would describe someone else.
+        """
+        statuses = [status for channel, status in self.statuses.items() if only is None or channel in only]
+        channels = [channel for channel in self.statuses if only is None or channel in only]
+        channel_statuses = [status.as_dict() for status in statuses]
+        states = {status.state for status in statuses}
         if not self.enabled:
             state = CaptureState.DISABLED.value
         elif CaptureState.CAPTURING in states:
@@ -79,18 +88,15 @@ class CaptureStatusStore:
         else:
             state = CaptureState.DISABLED.value
 
-        last_frame = max(
-            (status.last_frame_at for status in self.statuses.values() if status.last_frame_at),
-            default=None,
-        )
+        last_frame = max((status.last_frame_at for status in statuses if status.last_frame_at), default=None)
         last_transcript = max(
-            (status.last_transcript_at for status in self.statuses.values() if status.last_transcript_at),
+            (status.last_transcript_at for status in statuses if status.last_transcript_at),
             default=None,
         )
         return {
             "enabled": self.enabled,
             "state": state,
-            "channels": list(self.statuses.keys()),
+            "channels": channels,
             "lastFrameAt": last_frame,
             "lastTranscriptAt": last_transcript,
             "channelStatuses": channel_statuses,

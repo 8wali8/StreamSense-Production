@@ -143,7 +143,6 @@ export type Query = {
   recentSponsorTranscriptSentiment: Array<TranscriptSentimentEvent>;
   recentTranscriptSegments: Array<TranscriptSegmentEvent>;
   recentTranscriptSentiment: Array<TranscriptSentimentEvent>;
-  recommendations: Array<Recommendation>;
   session?: Maybe<StreamSession>;
   sessionSummary?: Maybe<SessionSummary>;
   sessions: Array<StreamSession>;
@@ -213,12 +212,6 @@ export type QueryRecentTranscriptSentimentArgs = {
 };
 
 
-export type QueryRecommendationsArgs = {
-  limit: Scalars['Int']['input'];
-  streamer: Scalars['String']['input'];
-};
-
-
 export type QuerySessionArgs = {
   id: Scalars['ID']['input'];
 };
@@ -282,19 +275,6 @@ export type QueryStreamMetricsTimeseriesArgs = {
   streamer: Scalars['String']['input'];
   to?: InputMaybe<Scalars['Float']['input']>;
   windowMinutes?: InputMaybe<Scalars['Int']['input']>;
-};
-
-export type Recommendation = {
-  category: Scalars['String']['output'];
-  experimentName: Scalars['String']['output'];
-  generatedAt: Scalars['Float']['output'];
-  reasonSummary: Scalars['String']['output'];
-  reasons: Array<Scalars['String']['output']>;
-  recommendationId: Scalars['ID']['output'];
-  score: Scalars['Float']['output'];
-  streamer: Scalars['String']['output'];
-  title: Scalars['String']['output'];
-  variantId: Scalars['String']['output'];
 };
 
 export type RiskFactor = {

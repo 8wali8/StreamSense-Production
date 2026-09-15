@@ -71,9 +71,22 @@ public class GatewayAuthWebFilter implements WebFilter {
                     && auth.requiresOperator(exchange.getRequest().getMethod(), path)) {
                 return forbidden(exchange, "operator_required", "This action needs an operator account");
             }
+            // Starting or stopping measurement steers the pipeline for exactly the channel in the path, so it
+            // needs a scope that names one: a signed-in streamer. An access link reads any channel and starts
+            // nothing, or a viewer link would be enough to point capture at a stranger's channel.
+            if (!scope.isOperator()
+                    && !scope.isConfined()
+                    && auth.isSelfServiceWrite(exchange.getRequest().getMethod(), path)) {
+                return forbidden(exchange, "operator_required", "This action needs an operator account");
+            }
             if (scope.isConfined()) {
                 String channel = AuthScope.restChannel(
                         path, exchange.getRequest().getQueryParams().getFirst("streamer"));
+                // A self-service path steers the pipeline for exactly the channel it names, so an unnamed
+                // channel there is refused rather than waved through the way an unscoped read is.
+                if (auth.isSelfService(path) && channel == null) {
+                    return forbidden(exchange, "channel_forbidden", "This channel is not yours to see");
+                }
                 if (!scope.allows(channel)) {
                     return forbidden(exchange, "channel_forbidden", "This channel is not yours to see");
                 }

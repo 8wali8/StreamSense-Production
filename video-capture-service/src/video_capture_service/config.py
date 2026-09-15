@@ -23,9 +23,21 @@ def _float_env(name: str, default: float) -> float:
     return float(raw)
 
 
+def normalize_channels(channels: list[str]) -> list[str]:
+    """Twitch logins, lower case, without a leading ``#`` or ``@``, in order and without duplicates."""
+    normalized = []
+    seen = set()
+    for channel in channels:
+        value = channel.strip().lower().lstrip("#@")
+        if value and value not in seen:
+            normalized.append(value)
+            seen.add(value)
+    return normalized
+
+
 def _csv_env(name: str) -> list[str]:
     raw = os.getenv(name, "")
-    return [item.strip().lower() for item in raw.split(",") if item.strip()]
+    return normalize_channels(raw.split(","))
 
 
 def _secret_env(name: str, default: str | None = None) -> str | None:
@@ -84,6 +96,9 @@ class ReplayAliasConfig:
 class CaptureConfig:
     enabled: bool
     channels: list[str]
+    # How many channels one service may capture at once; a streamer starting their own channel is refused
+    # beyond it rather than quietly crowding out someone already being measured.
+    max_channels: int
     quality: str
     sample_interval_seconds: int
     stream_resolve_timeout_seconds: int
@@ -127,6 +142,7 @@ class CaptureConfig:
         return CaptureConfig(
             enabled=_bool_env("STREAMSENSE_TWITCH_VIDEO_ENABLED", False),
             channels=_csv_env("TWITCH_VIDEO_CHANNELS"),
+            max_channels=_int_env("TWITCH_VIDEO_MAX_CHANNELS", 10),
             quality=os.getenv("TWITCH_VIDEO_QUALITY", "best").strip() or "best",
             sample_interval_seconds=_int_env("TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS", 10),
             stream_resolve_timeout_seconds=_int_env("TWITCH_VIDEO_STREAM_RESOLVE_TIMEOUT_SECONDS", 20),
@@ -158,6 +174,13 @@ class CaptureConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
+        if self.max_channels < 1:
+            raise ValueError("TWITCH_VIDEO_MAX_CHANNELS must be positive")
+        if len(self.channels) > self.max_channels:
+            raise ValueError(
+                f"TWITCH_VIDEO_CHANNELS names {len(self.channels)} channels, "
+                f"more than TWITCH_VIDEO_MAX_CHANNELS ({self.max_channels})"
+            )
         if self.sample_interval_seconds < 5:
             raise ValueError("TWITCH_VIDEO_SAMPLE_INTERVAL_SECONDS must be at least 5")
         if self.frame_capture_timeout_seconds < 1:
