@@ -1,5 +1,6 @@
 package com.streamsense.analyticsservice.twitch;
 
+import com.streamsense.analyticsservice.api.HelixPollStatus;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.service.StreamSessionService;
 import java.time.Clock;
@@ -7,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +18,7 @@ import org.springframework.scheduling.annotation.Scheduled;
  * Every poll: ask Helix which watched channels are live, record a viewer sample for each, and
  * close the Helix sessions of watched channels that are no longer live. Watched channels are the
  * configured list, every streamer that produced an event recently or has a running deal, and every
- * channel with a Helix session still open.
+ * channel with a Helix session still open. What the last poll did is kept for the operations page.
  */
 public class StreamSessionPoller {
 
@@ -27,6 +29,7 @@ public class StreamSessionPoller {
     private final Supplier<List<String>> dealStreamers;
     private final StreamSenseProperties.Helix helix;
     private final Clock clock;
+    private final AtomicReference<HelixPollStatus> status;
 
     public StreamSessionPoller(
             TwitchHelixClient helixClient,
@@ -39,15 +42,25 @@ public class StreamSessionPoller {
         this.dealStreamers = dealStreamers;
         this.helix = helix;
         this.clock = clock;
+        this.status = new AtomicReference<>(HelixPollStatus.idle(helix.getPollIntervalMs()));
+    }
+
+    /** What the last poll did: counts, times, and the last error or rate-limit pause. */
+    public HelixPollStatus status() {
+        return status.get();
     }
 
     @Scheduled(
             fixedDelayString = "${streamsense.twitch.helix.poll-interval-ms:60000}",
             initialDelayString = "${streamsense.twitch.helix.initial-delay-ms:15000}")
     public void poll() {
+        // The attempt is stamped now; each outcome is stamped when it is known, since a slow Twitch
+        // (retries, several pages of logins) would otherwise make a fresh poll look minutes old.
+        long started = clock.millis();
         try {
             Set<String> watched = watchedChannels();
             if (watched.isEmpty()) {
+                status.updateAndGet(previous -> previous.polled(started, clock.millis(), 0, 0, 0));
                 return;
             }
             List<HelixStream> live = helixClient.liveStreams(watched);
@@ -56,13 +69,18 @@ public class StreamSessionPoller {
             }
             int closed = sessions.closeHelixSessionsNotLive(
                     watched, live.stream().map(HelixStream::id).toList());
+            long finished = clock.millis();
+            status.updateAndGet(previous -> previous.polled(started, finished, watched.size(), live.size(), closed));
             log.debug("helix poll watched={} live={} closed={}", watched.size(), live.size(), closed);
         } catch (HelixRateLimitedException ex) {
             // The client logged the 429 once and refuses requests until the budget refills; open
             // sessions simply keep their last sample until the next poll that gets through.
+            status.updateAndGet(previous -> previous.paused(started, ex.retryAtMillis()));
             log.debug("helix poll skipped: {}", ex.getMessage());
         } catch (RuntimeException ex) {
             // The next poll retries; a Twitch outage must not stop the scheduler.
+            long noticed = clock.millis();
+            status.updateAndGet(previous -> previous.failed(started, noticed, ex.getMessage()));
             log.warn("helix poll failed: {}", ex.getMessage());
         }
     }

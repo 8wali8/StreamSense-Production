@@ -120,4 +120,28 @@ class ChannelScopeTest {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/analytics/sessions/" + othersSession)).andExpect(status().isOk());
     }
+
+    @Test
+    void theHelixStatusIsForOperatorsOnly() throws Exception {
+        // The snapshot carries the poller's last error verbatim, which is the operator's business.
+        mockMvc.perform(get("/api/analytics/helix/status")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("operator_required"));
+        // A matrix parameter does not change the route Spring matches, so it must not change the answer.
+        mockMvc.perform(get("/api/analytics/helix/status;x=1")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("operator_required"));
+        mockMvc.perform(get("/api/analytics/streams/someone-else;x=1/sessions")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/analytics/helix/status").header(LOGIN, "ops").header(ROLE, "operator"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(false));
+        mockMvc.perform(get("/api/analytics/helix/status")).andExpect(status().isOk());
+    }
 }

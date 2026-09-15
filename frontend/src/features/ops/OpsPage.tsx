@@ -8,6 +8,7 @@ import { RECENT_SPONSOR_DETECTIONS_QUERY } from "../../graphql/queries";
 import { ON_SPONSOR_DETECTION_SUBSCRIPTION } from "../../graphql/subscriptions";
 import { useLiveFeed } from "../../hooks/useLiveFeed";
 import { Health } from "../status/Health";
+import { HelixPollStatus } from "../status/HelixPollStatus";
 import { TwitchIngestionStatus } from "../status/TwitchIngestionStatus";
 import { VideoCaptureStatus } from "../status/VideoCaptureStatus";
 import { useStreamer } from "../streamer/streamer-context";
@@ -56,6 +57,7 @@ export function OpsPage() {
           <Health />
           <TwitchIngestionStatus />
           <VideoCaptureStatus />
+          <HelixPollStatus />
         </div>
       </header>
 
