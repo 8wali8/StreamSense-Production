@@ -77,6 +77,9 @@ public class GatewayEdgeProperties {
         // a token whose role is not operator is refused there. Tokens without a role keep their full access.
         private List<String> operatorOnlyPaths =
                 List.of("/api/chat/**", "/api/video/**", "/api/sentiment/**", "/ml/**");
+        // Carved out of the paths above: a streamer starts and stops measurement of their own channel here.
+        // The channel is the last path segment, so the scope check that follows refuses anyone else's.
+        private List<String> selfServicePaths = List.of("/api/chat/twitch/channels/*", "/api/video/capture/channels/*");
         private final Twitch twitch = new Twitch();
 
         public boolean isEnabled() {
@@ -143,6 +146,14 @@ public class GatewayEdgeProperties {
             this.operatorOnlyPaths = operatorOnlyPaths;
         }
 
+        public List<String> getSelfServicePaths() {
+            return selfServicePaths;
+        }
+
+        public void setSelfServicePaths(List<String> selfServicePaths) {
+            this.selfServicePaths = selfServicePaths;
+        }
+
         public Twitch getTwitch() {
             return twitch;
         }
@@ -159,15 +170,38 @@ public class GatewayEdgeProperties {
                     && operators.stream().anyMatch(operator -> operator.trim().equalsIgnoreCase(login));
         }
 
-        /** Whether a request needs the operator role: a non-read on one of the operator-only paths. */
+        /**
+         * Whether a request needs the operator role: a non-read on one of the operator-only paths, unless
+         * it is one of the self-service paths, where a streamer acts on their own channel.
+         */
         public boolean requiresOperator(HttpMethod method, String path) {
-            if (method == null
-                    || HttpMethod.GET.equals(method)
-                    || HttpMethod.HEAD.equals(method)
-                    || HttpMethod.OPTIONS.equals(method)) {
+            if (!isWrite(method)) {
+                return false;
+            }
+            if (isSelfService(path)) {
                 return false;
             }
             return operatorOnlyPaths.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+        }
+
+        /** Whether a path is one a streamer may write to for their own channel. */
+        public boolean isSelfService(String path) {
+            return selfServicePaths.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+        }
+
+        /**
+         * Whether a request starts or stops measurement of the channel it names. Reading one of these paths
+         * is an ordinary read; writing steers the pipeline, so it needs a scope that names a channel.
+         */
+        public boolean isSelfServiceWrite(HttpMethod method, String path) {
+            return isWrite(method) && isSelfService(path);
+        }
+
+        private static boolean isWrite(HttpMethod method) {
+            return method != null
+                    && !HttpMethod.GET.equals(method)
+                    && !HttpMethod.HEAD.equals(method)
+                    && !HttpMethod.OPTIONS.equals(method);
         }
     }
 

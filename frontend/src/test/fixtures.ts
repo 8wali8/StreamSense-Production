@@ -254,6 +254,17 @@ export const twitchStatusConnected = {
   reconnectAttempts: 0,
 };
 
+/** The per-channel reads behind the home page's measurement control. */
+export const channelIngestJoined = { channel: "testchannel", joined: true, enabled: true, state: "CONNECTED" };
+
+export const captureChannelCapturing = {
+  channel: "testchannel",
+  state: "CAPTURING",
+  captureSessionId: "capture-1",
+  lastFrameAt: 1710000000000,
+  lastError: null,
+};
+
 export const videoStatusCapturing = {
   enabled: true,
   state: "CAPTURING",

@@ -76,6 +76,24 @@ class AccessLinkScopeIntegrationTest {
     }
 
     @Test
+    void anAccessLinkCannotStartMeasurementOfAChannelItDoesNotOwn() {
+        // The self-service paths are carved out of the operator-only ones for a streamer acting on their own
+        // channel. An access link names no channel, so a viewer link must not be enough to start capture.
+        client().put()
+                .uri("/api/chat/twitch/channels/ninja")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_LINK)
+                .exchange()
+                .expectStatus()
+                .isForbidden()
+                .expectBody()
+                .jsonPath("$.reason")
+                .isEqualTo("operator_required");
+
+        // Reading whether a channel is measured is an ordinary read, and an access link reads any channel.
+        assertThat(status("/api/chat/twitch/channels/ninja", ACCESS_LINK)).isNotIn(401, 403);
+    }
+
+    @Test
     void anOperatorSignInSteersThePipeline() {
         assertThat(client().post()
                         .uri("/api/chat/twitch/channels")

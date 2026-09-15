@@ -41,12 +41,12 @@ export function graphqlResolver(operation: string, resolver: GraphQLResponseReso
 }
 
 /** A JSON REST handler; `path` is matched on any origin (`*` prefix). */
-export function restJson(method: "get" | "post", path: string, body: JsonBodyType, status = 200) {
+export function restJson(method: "get" | "post" | "put" | "delete", path: string, body: JsonBodyType, status = 200) {
   return http[method](`*${path}`, () => HttpResponse.json(body, { status }));
 }
 
 /** A REST handler that answers with an RFC 9457 problem body. */
-export function restProblem(method: "get" | "post", path: string, status: number, detail: string) {
+export function restProblem(method: "get" | "post" | "put" | "delete", path: string, status: number, detail: string) {
   return http[method](`*${path}`, () =>
     HttpResponse.json(
       { type: "https://streamsense.dev/problems/test", title: "Test problem", status, detail },
@@ -55,7 +55,7 @@ export function restProblem(method: "get" | "post", path: string, status: number
   );
 }
 
-export function restResolver(method: "get" | "post", path: string, resolver: HttpResponseResolver) {
+export function restResolver(method: "get" | "post" | "put" | "delete", path: string, resolver: HttpResponseResolver) {
   return http[method](`*${path}`, resolver);
 }
 

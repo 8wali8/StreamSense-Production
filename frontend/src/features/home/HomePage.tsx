@@ -11,7 +11,9 @@ import type {
 } from "../../graphql/generated";
 import { DEALS_QUERY, SESSION_SUMMARY_QUERY, SESSIONS_QUERY } from "../../graphql/queries";
 import { isDemoMode } from "../../demo/mode";
+import { canStartMeasurement } from "../../lib/auth-token";
 import { describeError } from "../../lib/errors";
+import { MeasureChannel } from "../capture/MeasureChannel";
 import { LiveStreamConsole } from "../console/LiveStreamConsole";
 import { dealStartDate } from "../deals/deal-format";
 import { DealsPanel } from "../deals/DealsPanel";
@@ -101,6 +103,13 @@ export function HomePage() {
         <div className="error-state" role="alert">
           Failed to load streams: {describeError(sessions.error)}
         </div>
+      )}
+
+      {/* The demo is a snapshot; there is nothing to point at a channel there, and an access link steers nothing. */}
+      {!isDemoMode() && canStartMeasurement() && (
+        <ErrorBoundary label="measurement">
+          <MeasureChannel channel={selectedStreamer} />
+        </ErrorBoundary>
       )}
 
       <LiveStrip

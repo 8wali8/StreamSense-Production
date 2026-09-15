@@ -16,7 +16,6 @@ scrape_configs:
       - targets:
           - "api-gateway:8080"
           - "chat-service:8081"
-          - "recommendation-service:8082"
           - "sentiment-service:8083"
           - "video-service:8084"
           - "analytics-service:8085"

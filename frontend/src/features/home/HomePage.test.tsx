@@ -7,6 +7,8 @@ import {
   deal,
   sessionSummary,
   streamAnalytics,
+  captureChannelCapturing,
+  channelIngestJoined,
   twitchStatusConnected,
   videoStatusCapturing,
 } from "../../test/fixtures";
@@ -56,6 +58,8 @@ function consoleHandlers() {
     restJson("get", "/api/sentiment/transcript/recent", []),
     restJson("get", "/api/chat/twitch/status", twitchStatusConnected),
     restJson("get", "/api/video/capture/status", videoStatusCapturing),
+    restJson("get", "/api/chat/twitch/channels/*", channelIngestJoined),
+    restJson("get", "/api/video/capture/channels/*", captureChannelCapturing),
   ];
 }
 

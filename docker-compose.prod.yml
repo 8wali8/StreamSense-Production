@@ -105,15 +105,6 @@ services:
         limits:
           memory: 1536M
 
-  recommendation-service:
-    <<: *prod
-    image: ghcr.io/8wali8/streamsense/recommendation-service:${STREAMSENSE_IMAGE_TAG:-main}
-    ports: !reset []
-    deploy:
-      resources:
-        limits:
-          memory: 1536M
-
   sentiment-service:
     <<: *prod
     image: ghcr.io/8wali8/streamsense/sentiment-service:${STREAMSENSE_IMAGE_TAG:-main}

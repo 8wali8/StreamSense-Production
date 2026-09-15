@@ -37,6 +37,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 class ChannelScopeIntegrationTest {
 
     private static final MockWebServer ANALYTICS = new MockWebServer();
+    private static final MockWebServer CHAT = new MockWebServer();
     private static final String STREAMER = TestJwtTokens.tokenWithRole("ninja", "streamer");
     private static final String OPERATOR = TestJwtTokens.tokenWithRole("ops", "operator");
 
@@ -46,6 +47,7 @@ class ChannelScopeIntegrationTest {
     @DynamicPropertySource
     static void analytics(DynamicPropertyRegistry registry) throws IOException {
         ANALYTICS.start();
+        CHAT.start();
         registry.add(
                 "streamsense.services.analytics-service.base-url",
                 () -> ANALYTICS.url("/").toString());
@@ -54,11 +56,16 @@ class ChannelScopeIntegrationTest {
                 "spring.cloud.gateway.server.webflux.routes[0].uri",
                 () -> ANALYTICS.url("/").toString());
         registry.add("spring.cloud.gateway.server.webflux.routes[0].predicates[0]", () -> "Path=/api/analytics/**");
+        registry.add("spring.cloud.gateway.server.webflux.routes[1].id", () -> "chat-service-api");
+        registry.add("spring.cloud.gateway.server.webflux.routes[1].uri", () -> CHAT.url("/")
+                .toString());
+        registry.add("spring.cloud.gateway.server.webflux.routes[1].predicates[0]", () -> "Path=/api/chat/**");
     }
 
     @AfterAll
     static void stop() throws IOException {
         ANALYTICS.shutdown();
+        CHAT.shutdown();
     }
 
     @Test
@@ -148,6 +155,57 @@ class ChannelScopeIntegrationTest {
         assertThat(forwarded.getHeader("X-StreamSense-Auth-Login")).isEqualTo("ninja");
         assertThat(forwarded.getHeader("X-StreamSense-Auth-Role")).isEqualTo("streamer");
         assertThat(forwarded.getHeaders().values("X-StreamSense-Auth-Role")).hasSize(1);
+    }
+
+    @Test
+    void aStreamerStartsAndStopsMeasurementOfTheirOwnChannelOnly() throws Exception {
+        // Someone else's channel: refused at the gate, before anything is started.
+        client().put()
+                .uri("/api/chat/twitch/channels/pokimane")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + STREAMER)
+                .exchange()
+                .expectStatus()
+                .isForbidden()
+                .expectBody()
+                .jsonPath("$.reason")
+                .isEqualTo("channel_forbidden");
+
+        // Their own channel: through to chat-service, which is told who asked.
+        CHAT.enqueue(json("{\"enabled\":true,\"channels\":[\"ninja\"]}"));
+        client().put()
+                .uri("/api/chat/twitch/channels/Ninja")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + STREAMER)
+                .exchange()
+                .expectStatus()
+                .isOk();
+        RecordedRequest joined = CHAT.takeRequest(5, TimeUnit.SECONDS);
+        assertThat(joined.getMethod()).isEqualTo("PUT");
+        assertThat(joined.getPath()).isEqualTo("/api/chat/twitch/channels/Ninja");
+        assertThat(joined.getHeader("X-StreamSense-Auth-Login")).isEqualTo("ninja");
+        assertThat(joined.getHeader("X-StreamSense-Auth-Role")).isEqualTo("streamer");
+
+        // And stopping it again.
+        CHAT.enqueue(json("{\"enabled\":true,\"channels\":[]}"));
+        client().delete()
+                .uri("/api/chat/twitch/channels/ninja")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + STREAMER)
+                .exchange()
+                .expectStatus()
+                .isOk();
+        assertThat(CHAT.takeRequest(5, TimeUnit.SECONDS).getMethod()).isEqualTo("DELETE");
+
+        // The list-replacing route next to it still steers every channel, so it stays the operator's.
+        client().post()
+                .uri("/api/chat/twitch/channels")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + STREAMER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"channels\":[\"ninja\"]}")
+                .exchange()
+                .expectStatus()
+                .isForbidden()
+                .expectBody()
+                .jsonPath("$.reason")
+                .isEqualTo("operator_required");
     }
 
     private WebTestClient.BodyContentSpec graphql(String token, String query, String variables) {

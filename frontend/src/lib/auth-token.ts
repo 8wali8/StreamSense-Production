@@ -126,6 +126,16 @@ export function isOperatorSession(storage: TokenStorage | null = defaultStorage(
   return claims === null || claims.role === "operator";
 }
 
+/**
+ * Whether this session may start and stop measurement of the channel it is looking at: an operator
+ * sign-in (or no token at all, locally) or a streamer, who the gateway confines to their own channel.
+ * An access link reads any channel and steers nothing, so it is not offered the control.
+ */
+export function canStartMeasurement(storage: TokenStorage | null = defaultStorage()): boolean {
+  const claims = currentAuthClaims(storage);
+  return claims === null || claims.role === "operator" || claims.role === "streamer";
+}
+
 /** Whether a token is worth sending: present and not past its expiry. The gateway still has the final say. */
 export function isUsableToken(token: string | null, now: () => Date = () => new Date()): token is string {
   if (!token) return false;

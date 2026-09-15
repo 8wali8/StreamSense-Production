@@ -18,8 +18,6 @@ streamsense:
   services:
     chat-service:
       base-url: http://chat-service:8081
-    recommendation-service:
-      base-url: http://recommendation-service:8082
     sentiment-service:
       base-url: http://sentiment-service:8083
     video-service:
@@ -66,6 +64,11 @@ streamsense:
         - /api/video/**
         - /api/sentiment/**
         - /ml/**
+      # Carved out of the paths above: a streamer starts and stops measurement of their own channel here.
+      # The channel is the last path segment and the scope check refuses anyone else's.
+      self-service-paths:
+        - /api/chat/twitch/channels/*
+        - /api/video/capture/channels/*
       # Sign in with Twitch (docs/hosting.md). The gateway is the OAuth client: it needs the same registered
       # application as the Helix poller (TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET secret files) and the
       # callback URL registered on that application, which must be this console's origin plus
@@ -146,10 +149,6 @@ spring:
               uri: ${streamsense.services.sentiment-service.base-url}
               predicates:
                 - Path=/api/sentiment/**
-            - id: recommendation-service-api
-              uri: ${streamsense.services.recommendation-service.base-url}
-              predicates:
-                - Path=/api/recommendations/**
             - id: video-capture-service-api
               uri: ${streamsense.services.video-capture-service.base-url}
               predicates:

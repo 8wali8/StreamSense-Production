@@ -11,7 +11,6 @@ flowchart LR
   GW -->|REST| CHAT[chat-service]
   GW -->|REST| SENT[sentiment-service]
   GW -->|REST| VIDEO[video-service]
-  GW -->|REST| RECO[recommendation-service]
 
   %% ---- Discovery + config ----
   EUREKA[eureka-server<br/>service discovery]
@@ -20,13 +19,11 @@ flowchart LR
   CHAT -.->|register| EUREKA
   SENT -.->|register| EUREKA
   VIDEO -.->|register| EUREKA
-  RECO -.->|register| EUREKA
   GW   -.->|register| EUREKA
 
   CHAT -->|fetch config| CONFIG
   SENT -->|fetch config| CONFIG
   VIDEO -->|fetch config| CONFIG
-  RECO -->|fetch config| CONFIG
   GW   -->|fetch config| CONFIG
 
   CONFIG -->|serves YAML| CREPO[config-repo<br/>config-server/config-repo/*.yml]
@@ -60,7 +57,6 @@ flowchart LR
   CHAT -.->|metrics/traces| OBS
   SENT -.->|metrics/traces| OBS
   VIDEO -.->|metrics/traces| OBS
-  RECO -.->|metrics/traces| OBS
 ```
 ## Services and their responsibilities
 
@@ -75,8 +71,6 @@ chat-service: Chat ingestion; produces stream.chat.messages.
 sentiment-service: Consumes chat; produces stream.sentiment.events (stubbed early, real later).
 
 video-service: Frame ingestion; sponsor detection via ML; produces stream.sponsor.detections.
-
-recommendation-service: Aggregates signals into recommendation outputs.
 
 kafka-cluster: Event backbone enabling decoupled async pipelines.
 

@@ -27,20 +27,19 @@ import org.springframework.test.context.DynamicPropertySource;
             "streamsense.topics.transcriptSentimentEvents=stream.transcript.sentiment.events",
             "spring.kafka.bootstrap-servers=localhost:9092",
             "spring.kafka.consumer.group-id=api-gateway-test-group",
-            "streamsense.services.sentiment-service.base-url=http://localhost:8083",
             "streamsense.services.video-service.base-url=http://localhost:8084",
             // A port nothing listens on: connection refused, which is what an outage looks like.
             "streamsense.services.analytics-service.base-url=http://127.0.0.1:1"
         })
 class GraphQlErrorAdviceTest {
 
-    private static final MockWebServer RECOMMENDATION_SERVICE = new MockWebServer();
+    private static final MockWebServer SENTIMENT_SERVICE = new MockWebServer();
 
-    private static final String RECOMMENDATIONS_QUERY =
+    private static final String RECENT_SENTIMENT_QUERY =
             """
-            query Recommendations($streamer: String!, $limit: Int!) {
-              recommendations(streamer: $streamer, limit: $limit) {
-                recommendationId
+            query RecentSentiment($streamer: String!, $limit: Int!) {
+              recentSentiment(streamer: $streamer, limit: $limit) {
+                sentimentEventId
               }
             }
             """;
@@ -57,18 +56,18 @@ class GraphQlErrorAdviceTest {
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add(
-                "streamsense.services.recommendation-service.base-url",
-                () -> RECOMMENDATION_SERVICE.url("/").toString());
+                "streamsense.services.sentiment-service.base-url",
+                () -> SENTIMENT_SERVICE.url("/").toString());
     }
 
     @BeforeAll
     static void startServer() throws Exception {
-        RECOMMENDATION_SERVICE.start();
+        SENTIMENT_SERVICE.start();
     }
 
     @AfterAll
     static void shutdownServer() throws Exception {
-        RECOMMENDATION_SERVICE.shutdown();
+        SENTIMENT_SERVICE.shutdown();
     }
 
     @Autowired
@@ -76,10 +75,10 @@ class GraphQlErrorAdviceTest {
 
     @Test
     void downstreamErrorStatusIsReportedWithCodeAndStatus() {
-        RECOMMENDATION_SERVICE.enqueue(new MockResponse().setResponseCode(503).setBody("upstream is drowning"));
+        SENTIMENT_SERVICE.enqueue(new MockResponse().setResponseCode(503).setBody("upstream is drowning"));
 
         graphQlTester
-                .document(RECOMMENDATIONS_QUERY)
+                .document(RECENT_SENTIMENT_QUERY)
                 .variable("streamer", "test")
                 .variable("limit", 3)
                 .execute()
@@ -91,19 +90,19 @@ class GraphQlErrorAdviceTest {
                             .containsEntry("status", 503);
                     assertThat(errors.get(0).getMessage()).isEqualTo("Downstream service returned an error");
                     assertThat(errors.get(0).getMessage()).doesNotContain("drowning");
-                    assertThat(errors.get(0).getPath()).isEqualTo("recommendations");
+                    assertThat(errors.get(0).getPath()).isEqualTo("recentSentiment");
                 });
     }
 
     @Test
     void downstreamValidationFailureIsTheCallersMistake() {
-        RECOMMENDATION_SERVICE.enqueue(new MockResponse()
+        SENTIMENT_SERVICE.enqueue(new MockResponse()
                 .setResponseCode(400)
                 .addHeader("Content-Type", "application/problem+json")
                 .setBody("{\"type\":\"https://streamsense.dev/problems/validation-failed\",\"status\":400}"));
 
         graphQlTester
-                .document(RECOMMENDATIONS_QUERY)
+                .document(RECENT_SENTIMENT_QUERY)
                 .variable("streamer", "test")
                 .variable("limit", 3)
                 .execute()
@@ -120,10 +119,10 @@ class GraphQlErrorAdviceTest {
 
     @Test
     void otherDownstreamClientErrorsAreNotTheCallersMistake() {
-        RECOMMENDATION_SERVICE.enqueue(new MockResponse().setResponseCode(404).setBody("no such route"));
+        SENTIMENT_SERVICE.enqueue(new MockResponse().setResponseCode(404).setBody("no such route"));
 
         graphQlTester
-                .document(RECOMMENDATIONS_QUERY)
+                .document(RECENT_SENTIMENT_QUERY)
                 .variable("streamer", "test")
                 .variable("limit", 3)
                 .execute()
@@ -138,13 +137,13 @@ class GraphQlErrorAdviceTest {
 
     @Test
     void undecodableDownstreamBodyIsADownstreamError() {
-        RECOMMENDATION_SERVICE.enqueue(new MockResponse()
+        SENTIMENT_SERVICE.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .addHeader("Content-Type", "application/json")
                 .setBody("{not json at all"));
 
         graphQlTester
-                .document(RECOMMENDATIONS_QUERY)
+                .document(RECENT_SENTIMENT_QUERY)
                 .variable("streamer", "test")
                 .variable("limit", 3)
                 .execute()

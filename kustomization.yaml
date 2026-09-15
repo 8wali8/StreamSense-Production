@@ -18,6 +18,5 @@ configMapGenerator:
       - config-server/config-repo/application.yml
       - config-server/config-repo/chat-service.yml
       - config-server/config-repo/eureka-server.yml
-      - config-server/config-repo/recommendation-service.yml
       - config-server/config-repo/sentiment-service.yml
       - config-server/config-repo/video-service.yml
