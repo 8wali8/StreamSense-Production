@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -25,12 +26,18 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(TwitchChatLifecycleService.class);
 
+    // How long a stop waits for the connector thread before its replacement starts.
+    private static final long CONNECTOR_STOP_TIMEOUT_MS = 5000;
+
     private final StreamSenseProperties.Chat properties;
     private final TwitchIrcMessageParser parser;
     private final TwitchChatMessageHandler handler;
     private final TwitchChatMetrics metrics;
     private final TwitchVodChatReplayService replayService;
     private volatile boolean running;
+    // One flag per connector: a restart clears the old connector's before the replacement starts, so a loop
+    // that is still winding down cannot reconnect alongside it on the strength of the shared `running` flag.
+    private volatile AtomicBoolean connectorGeneration;
     private volatile Socket activeSocket;
     // The writer of the live connection, so one channel can be joined or parted without dropping the others.
     private volatile BufferedWriter activeWriter;
@@ -90,7 +97,9 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
             return;
         }
         running = true;
-        worker = new Thread(this::runConnectorLoop, "twitch-chat-connector");
+        AtomicBoolean generation = new AtomicBoolean(true);
+        connectorGeneration = generation;
+        worker = new Thread(() -> runConnectorLoop(generation), "twitch-chat-connector");
         worker.setDaemon(true);
         worker.start();
     }
@@ -98,10 +107,25 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
     @Override
     public synchronized void stop() {
         running = false;
+        AtomicBoolean generation = connectorGeneration;
+        connectorGeneration = null;
+        if (generation != null) {
+            generation.set(false);
+        }
         replayService.stop();
         closeActiveSocket();
-        if (worker != null) {
-            worker.interrupt();
+        Thread current = worker;
+        worker = null;
+        if (current != null) {
+            current.interrupt();
+            try {
+                // A restart is stop() then start(): the replacement must not share the socket and the writer
+                // with a loop that has not noticed yet. Its generation flag is already false, so the wait is
+                // bounded by whatever read or sleep it sits in, not by a reconnect.
+                current.join(CONNECTOR_STOP_TIMEOUT_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         metrics.markStopped();
     }
@@ -213,23 +237,23 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         }
     }
 
-    private void runConnectorLoop() {
+    private void runConnectorLoop(AtomicBoolean generation) {
         long reconnectDelayMs = Math.max(1000, properties.getReconnectDelayMs());
         long maxReconnectDelayMs = Math.max(reconnectDelayMs, properties.getMaxReconnectDelayMs());
 
-        while (running) {
+        while (generation.get()) {
             try {
                 metrics.markConnecting();
-                connectAndRead();
+                connectAndRead(generation);
                 reconnectDelayMs = Math.max(1000, properties.getReconnectDelayMs());
             } catch (Exception e) {
                 metrics.markFailed(e.getMessage());
                 log.warn("Twitch chat connector failed: {}", e.getMessage());
             } finally {
-                closeActiveSocket();
+                closeOwnSocket();
             }
 
-            if (running) {
+            if (generation.get()) {
                 metrics.markReconnecting();
                 sleepBeforeReconnect(reconnectDelayMs);
                 reconnectDelayMs = Math.min(maxReconnectDelayMs, reconnectDelayMs * 2);
@@ -237,7 +261,10 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         }
     }
 
-    private void connectAndRead() throws IOException {
+    private void connectAndRead(AtomicBoolean generation) throws IOException {
+        // The writer this connector published, if it got that far; a try-with-resources variable is out of
+        // scope in the finally below.
+        BufferedWriter published = null;
         try (Socket socket = openSocket();
                 BufferedReader reader =
                         new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
@@ -246,22 +273,30 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
 
             activeSocket = socket;
             authenticateAndJoin(writer);
+            if (!generation.get()) {
+                // Stopped during the handshake: this connection is already replaced or shutting down.
+                return;
+            }
             // Only now: a JOIN sent before PASS, NICK, and CAP would be refused, and the caller would
             // have been told the channel was joined. Until this point joinChannel restarts instead.
             activeWriter = writer;
+            published = writer;
             metrics.markConnected();
             log.info("Twitch chat connector connected channels={}", liveChannels());
 
             String line;
-            while (running && (line = reader.readLine()) != null) {
+            while (generation.get() && (line = reader.readLine()) != null) {
                 handleLine(line, writer);
             }
 
-            if (running) {
+            if (generation.get()) {
                 throw new IOException("Twitch IRC connection closed");
             }
         } finally {
-            activeWriter = null;
+            // Only what is still ours: a replacement connector may already have published its own writer.
+            if (published != null && activeWriter == published) {
+                activeWriter = null;
+            }
         }
     }
 
@@ -364,6 +399,8 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
                 // The console and the gateway both carry a login with a leading @ or # at times.
                 .map(channel -> channel.replaceFirst("^[@#]+", ""))
                 .filter(channel -> !channel.isBlank())
+                // One login named twice is one channel: duplicates must not count against max-channels.
+                .distinct()
                 .toList();
     }
 
@@ -373,6 +410,11 @@ public class TwitchChatLifecycleService implements SmartLifecycle {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /** Closes this connector's socket, leaving a replacement connector's alone. */
+    private void closeOwnSocket() {
+        closeActiveSocket();
     }
 
     private void closeActiveSocket() {

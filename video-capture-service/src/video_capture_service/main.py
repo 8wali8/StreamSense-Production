@@ -172,7 +172,8 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
     @app.get("/api/video/capture/status")
     def capture_status(request: Request) -> dict:
         runtime = get_runtime(request)
-        snapshot = runtime.status_store.snapshot()
+        # Through the manager, so a worker that has finished winding down is reaped before it is reported.
+        snapshot = runtime.manager.snapshot() if runtime.manager else runtime.status_store.snapshot()
         snapshot["imports"] = runtime.imports.snapshot() if runtime.imports else []
         return _confine_to_caller(snapshot, request)
 

@@ -199,6 +199,22 @@ class TwitchChatLifecycleServiceTest {
                 .hasMessageContaining("more than max-channels");
     }
 
+    @Test
+    void theCapCountsChannels_notRepeatsOfOne() {
+        // Ten spellings of one login are one channel; the cap is about what IRC is measuring.
+        StreamSenseProperties properties = replayProperties("redbull-testing");
+        properties.getTwitch().getChat().setMaxChannels(2);
+        when(replayService.isReplayChannel(anyString())).thenReturn(true);
+        TwitchChatLifecycleService service = service(properties);
+        service.start();
+
+        service.joinChannel("@Ninja");
+        service.joinChannel("#ninja");
+        service.joinChannel("ninja");
+
+        assertThat(properties.getTwitch().getChat().getChannels()).containsExactly("redbull-testing", "ninja");
+    }
+
     private TwitchChatLifecycleService service(StreamSenseProperties properties) {
         return new TwitchChatLifecycleService(properties, parser, handler, metrics, replayService);
     }

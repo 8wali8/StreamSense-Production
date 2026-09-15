@@ -109,18 +109,22 @@ class CaptureManager:
         self._require_running_capture()
 
         with self._channels_lock:
+            self._reap_finished_workers()
             if name not in self.config.channels:
-                if len(self.config.channels) >= self.config.max_channels:
+                # A channel winding down still holds its resources, so it holds its slot until it is reaped.
+                occupied = {*self.config.channels, *self.workers}
+                if name not in occupied and len(occupied) >= self.config.max_channels:
                     raise RuntimeError(f"Twitch video capture is already measuring {self.config.max_channels} channels")
                 self.config = replace(self.config, channels=[*self.config.channels, name])
             self._start_channel(name)
-            return self.channel_status(name)
+            return self._channel_status(name)
 
     def remove_channel(self, channel: str) -> dict:
         """Stops capturing one channel, leaving the others alone. Idempotent."""
         name = _require_channel(channel)
 
         with self._channels_lock:
+            self._reap_finished_workers()
             self.config = replace(self.config, channels=[c for c in self.config.channels if c != name])
             stopped = self._stop_channel(name)
             if not stopped:
@@ -135,20 +139,52 @@ class CaptureManager:
     def channel_status(self, channel: str) -> dict:
         """One channel's status, without naming the other channels being captured."""
         name = _require_channel(channel)
-        status = self.status_store.statuses.get(name)
+        with self._channels_lock:
+            self._reap_finished_workers()
+            return self._channel_status(name)
+
+    def _channel_status(self, channel: str) -> dict:
+        status = self.status_store.statuses.get(channel)
         if status is None:
             state = CaptureState.DISABLED if not self.config.enabled else CaptureState.STOPPED
-            return ChannelStatus(channel=name, state=state).as_dict()
+            return ChannelStatus(channel=channel, state=state).as_dict()
         return status.as_dict()
 
     def workers_alive(self) -> int:
-        return sum(1 for thread, _ in self.workers.values() if thread.is_alive())
+        with self._channels_lock:
+            self._reap_finished_workers()
+            return sum(1 for thread, _ in self.workers.values() if thread.is_alive())
+
+    def snapshot(self) -> dict:
+        """The whole-service status, with finished workers reaped so none lingers as STOPPING."""
+        with self._channels_lock:
+            self._reap_finished_workers()
+            return self.status_store.snapshot()
 
     def _require_running_capture(self) -> None:
         if not self.config.enabled:
             raise RuntimeError("Twitch video capture is disabled")
         if self.storage is None or self.publisher is None:
             raise RuntimeError("storage and publisher are required when capture is enabled")
+
+    def _reap_finished_workers(self) -> None:
+        """Drops workers whose thread has exited since the last look, and settles their status.
+
+        A stop that outlives its wait leaves the worker in place (see ``_stop_channel``). Nothing else
+        notices when the thread finally exits, so every read reaps first: a channel that is no longer
+        configured loses its status entry, and one that is keeps it, marked stopped.
+        """
+        for channel, (thread, _) in list(self.workers.items()):
+            if thread.is_alive():
+                continue
+            del self.workers[channel]
+            status = self.status_store.statuses.get(channel)
+            if status is None:
+                continue
+            if channel not in self.config.channels:
+                del self.status_store.statuses[channel]
+            elif status.state != CaptureState.DISABLED:
+                status.state = CaptureState.STOPPED
 
     def _start_channel(self, channel: str) -> None:
         worker = self.workers.get(channel)

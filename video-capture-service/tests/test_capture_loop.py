@@ -286,6 +286,79 @@ def test_a_worker_that_outlives_the_stop_keeps_its_place(monkeypatch):
     manager.stop()
 
 
+def test_a_stopping_worker_is_reaped_once_it_exits(monkeypatch):
+    """Without reaping, a channel reads STOPPING for ever and the console keeps calling it captured."""
+    entered, release = threading.Event(), threading.Event()
+
+    class BlockingSampler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def capture(self, hls_url, output_path: Path, seek_seconds=None):
+            entered.set()
+            release.wait(10)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"frame")
+            return output_path, 1
+
+    monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)
+    monkeypatch.setattr("video_capture_service.capture_loop.FrameSampler", BlockingSampler)
+    monkeypatch.setattr("video_capture_service.capture_loop.WORKER_STOP_TIMEOUT_SECONDS", 0.1)
+    manager = CaptureManager(
+        enabled_config(monkeypatch), CaptureStatusStore(enabled=True), FakeStorage(), FakePublisher()
+    )
+    manager.start()
+    assert entered.wait(5)
+    assert manager.remove_channel("austincs")["state"] == CaptureState.STOPPING.value
+
+    release.set()
+    deadline = time.monotonic() + 5
+    while manager.workers and time.monotonic() < deadline:
+        manager.channel_status("austincs")
+        time.sleep(0.05)
+
+    # Reaped: the channel is gone from the workers, the status, and the whole-service snapshot.
+    assert manager.workers == {}
+    assert manager.channel_status("austincs")["state"] == CaptureState.STOPPED.value
+    assert manager.snapshot()["channels"] == []
+    manager.stop()
+
+
+def test_a_stopping_worker_still_holds_its_slot(monkeypatch):
+    """Its capture call is still running, so its resources are not free for another channel yet."""
+    entered, release = threading.Event(), threading.Event()
+
+    class BlockingSampler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def capture(self, hls_url, output_path: Path, seek_seconds=None):
+            entered.set()
+            release.wait(10)
+            return output_path, 1
+
+    monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)
+    monkeypatch.setattr("video_capture_service.capture_loop.FrameSampler", BlockingSampler)
+    monkeypatch.setattr("video_capture_service.capture_loop.WORKER_STOP_TIMEOUT_SECONDS", 0.1)
+    config = replace(enabled_config(monkeypatch), max_channels=1)
+    manager = CaptureManager(config, CaptureStatusStore(enabled=True), FakeStorage(), FakePublisher())
+    manager.start()
+    assert entered.wait(5)
+    manager.remove_channel("austincs")
+
+    with pytest.raises(RuntimeError, match="already measuring"):
+        manager.add_channel("ninja")
+
+    release.set()
+    deadline = time.monotonic() + 5
+    while manager.workers and time.monotonic() < deadline:
+        manager.channel_status("austincs")
+        time.sleep(0.05)
+    # Reaped, so the slot is free again.
+    assert manager.add_channel("ninja")["channel"] == "ninja"
+    manager.stop()
+
+
 def test_duplicate_configured_channels_start_one_worker(monkeypatch):
     """Readiness counts workers against config.channels, so the two must agree."""
     monkeypatch.setattr("video_capture_service.capture_loop.TwitchSourceResolver", FakeResolver)

@@ -132,6 +132,7 @@ public class TwitchChatMetrics {
                 // The console and the gateway both carry a login with a leading @ or # at times.
                 .map(channel -> channel.replaceFirst("^[@#]+", ""))
                 .filter(channel -> !channel.isBlank())
+                .distinct()
                 .toList();
     }
 }

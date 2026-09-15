@@ -64,6 +64,29 @@ Five findings on this branch, all fixed:
   without knowing whether video was already capturing. It is now true while either read is unanswered; the
   test holds the capture response open and fails against the old condition.
 
+### Second round
+
+Five more, four of them consequences of the first round's fixes:
+
+- **Nothing reaped a worker that outlived its stop.** `_stop_channel` left it in place, so the channel read
+  `STOPPING` for ever and the console went on saying "Video is being captured" after a successful Stop.
+  `_reap_finished_workers` now runs before every read and every channel change: a worker whose thread has
+  exited is dropped, and its status is removed when the channel is no longer configured or marked stopped
+  when it is. The whole-service snapshot goes through the manager for the same reason.
+- **A stopping worker did not hold its slot.** `remove_channel` had already taken the channel out of
+  `config.channels`, so the capacity check ignored a worker still spending capture and transcription time.
+  Capacity now counts configured channels and live workers together.
+- **A restart did not wait for the old IRC connector.** `stop()` interrupted the worker but never joined it,
+  and the loop ran on the shared `running` flag, which `start()` sets back to true: the old loop could
+  reconnect beside its replacement and its `finally` could clear the replacement's writer. Each connector now
+  carries its own flag, `stop()` clears that flag and joins the thread, and the writer is cleared only when
+  it is still the one this connector published.
+- **The chat cap counted repeats.** `normalizeChannels` kept `ninja` and `#Ninja` as two, so duplicates could
+  fill the cap while IRC measured one channel. Both normalisers are `distinct()` now, like the Python side.
+- **The new knobs were not in Compose.** `TWITCH_CHAT_MAX_CHANNELS` and `TWITCH_VIDEO_MAX_CHANNELS` were
+  documented and read, but neither container's environment forwarded them, so both stayed at 10 whatever a
+  deployment set. Both are in `docker-compose.yml` now, which the production overlay inherits.
+
 ## A flaky test the CI run found
 
 `GatewayRateLimitIntegrationTest.rejectsRequestsAfterConfiguredBurstLimit` failed once on this branch
@@ -82,9 +105,9 @@ is unchanged: a fixed window is what it is meant to be.
 | Check | Result |
 |---|---|
 | `mvn verify` api-gateway | 130 tests, 5 skipped (Redis Testcontainer), Spotless, ArchUnit, JaCoCo floor green |
-| `mvn verify` chat-service | 58 tests after the review round, Spotless, ArchUnit, JaCoCo floor green |
+| `mvn verify` chat-service | 59 tests after the review rounds, Spotless, ArchUnit, JaCoCo floor green |
 | video-capture-service `ruff check`, `ruff format --check`, `mypy` | clean |
-| video-capture-service `pytest` | 63 tests after the review round |
+| video-capture-service `pytest` | 65 tests after the review rounds |
 | frontend `eslint`, `prettier --check`, `codegen:check`, `vite build` | clean |
 | frontend `vitest run --coverage` | 36 files, 145 tests after the review round, floors held (88.2 / 83.7 / 86.3 / 88.2) |
 
