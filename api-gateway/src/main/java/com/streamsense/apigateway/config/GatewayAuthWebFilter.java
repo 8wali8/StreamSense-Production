@@ -63,13 +63,23 @@ public class GatewayAuthWebFilter implements WebFilter {
             exchange.getResponse().getHeaders().set("X-StreamSense-Auth-Subject", result.subject());
             AuthScope scope = new AuthScope(result.subject(), result.role());
             exchange.getAttributes().put(AuthScope.ATTRIBUTE, scope);
-            // A signed-in streamer may read their own channel and manage their own deals, but not steer the
-            // pipeline and not look at another channel. Routes that name the channel by id are checked by
-            // analytics-service from the scope headers; GraphQL by ChannelScopeInterceptor and the resolvers.
-            if (!scope.isOperator()) {
-                if (auth.requiresOperator(exchange.getRequest().getMethod(), path)) {
-                    return forbidden(exchange, "operator_required", "This action needs an operator account");
-                }
+            // Only an operator steers the pipeline. A signed-in streamer may read their own channel and manage
+            // their own deals, but not look at another channel; an access link (no role) reads any channel.
+            // Routes that name the channel by id are checked by analytics-service from the scope headers;
+            // GraphQL by ChannelScopeInterceptor and the resolvers.
+            if (!scope.isOperator()
+                    && auth.requiresOperator(exchange.getRequest().getMethod(), path)) {
+                return forbidden(exchange, "operator_required", "This action needs an operator account");
+            }
+            // Starting or stopping measurement steers the pipeline for exactly the channel in the path, so it
+            // needs a scope that names one: a signed-in streamer. An access link reads any channel and starts
+            // nothing, or a viewer link would be enough to point capture at a stranger's channel.
+            if (!scope.isOperator()
+                    && !scope.isConfined()
+                    && auth.isSelfServiceWrite(exchange.getRequest().getMethod(), path)) {
+                return forbidden(exchange, "operator_required", "This action needs an operator account");
+            }
+            if (scope.isConfined()) {
                 String channel = AuthScope.restChannel(
                         path, exchange.getRequest().getQueryParams().getFirst("streamer"));
                 // A self-service path steers the pipeline for exactly the channel it names, so an unnamed

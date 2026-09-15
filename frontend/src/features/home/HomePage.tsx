@@ -11,6 +11,7 @@ import type {
 } from "../../graphql/generated";
 import { DEALS_QUERY, SESSION_SUMMARY_QUERY, SESSIONS_QUERY } from "../../graphql/queries";
 import { isDemoMode } from "../../demo/mode";
+import { canStartMeasurement } from "../../lib/auth-token";
 import { describeError } from "../../lib/errors";
 import { MeasureChannel } from "../capture/MeasureChannel";
 import { LiveStreamConsole } from "../console/LiveStreamConsole";
@@ -104,8 +105,8 @@ export function HomePage() {
         </div>
       )}
 
-      {/* The demo is a snapshot; there is nothing to point at a channel there. */}
-      {!isDemoMode() && (
+      {/* The demo is a snapshot; there is nothing to point at a channel there, and an access link steers nothing. */}
+      {!isDemoMode() && canStartMeasurement() && (
         <ErrorBoundary label="measurement">
           <MeasureChannel channel={selectedStreamer} />
         </ErrorBoundary>

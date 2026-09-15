@@ -21,16 +21,31 @@ Two things made the list-replacing route unsuitable as the streamer's control ev
 - **Channel normalisation.** chat-service stripped a leading `#` but not `@`, so a login arriving as `@ninja` from a URL path would have been joined as `#@ninja` while the gateway compared it with the `@` stripped and called it the streamer's own. Both normalisers now strip `[@#]`, like `AuthScope` and analytics-service's `ChannelScopeFilter`. Found by the first test written against the new route.
 - **Frontend.** `features/capture/`: `measurement.ts` (a pure reading of the two per-channel statuses), `useChannelMeasurement.ts` (both reads polled, both writes issued together), `MeasureChannel.tsx` (the control on the streamer home, above the live strip, not rendered in the demo). Chat ingest and video capture are separate services, so a half-failure names the half that refused ("Could not start video capture (…already measuring 10 channels)") instead of claiming the channel is or is not measured, and a channel running only one half says which report field will be empty. `src/api/chat.ts` and `src/api/video.ts` gained the per-channel calls; `src/test/msw.ts` learned `put` and `delete`.
 
+## After merging `main` (console/01-view-as)
+
+`main` narrowed what an operator is while this branch was open: `AuthScope.isOperator()` is now the operator
+role alone, a token without a role (an access link) is no longer one, and `isConfined()` names the streamer
+case the channel checks apply to. Merging it raised a question this branch had not: an access link is not
+confined to a channel, so with the self-service paths carved out of the operator-only ones it could have
+started capture on any channel. A viewer link must not be enough for that, so a **write** to a self-service
+path now needs a scope that names a channel: an operator, or a streamer on their own channel
+(`Auth.isSelfServiceWrite`, refused as `operator_required`). Reading one of those paths stays an ordinary
+read, which an access link may do for any channel. `AccessLinkScopeIntegrationTest` covers both.
+
+The console follows the same rule: `canStartMeasurement` (`src/lib/auth-token.ts`) is true for an operator
+sign-in, for no token at all (auth off locally), and for a streamer, so an access-link tab is not shown a
+button that would be refused. An operator viewing as a streamer keeps it: the token is still the operator's.
+
 ## Verification
 
 | Check | Result |
 |---|---|
-| `mvn verify` api-gateway | 123 tests, 5 skipped (Redis Testcontainer), Spotless, ArchUnit, JaCoCo floor green |
+| `mvn verify` api-gateway | 129 tests after the `main` merge, 5 skipped (Redis Testcontainer), Spotless, ArchUnit, JaCoCo floor green |
 | `mvn verify` chat-service | 57 tests (18 new), Spotless, ArchUnit, JaCoCo floor green |
 | video-capture-service `ruff check`, `ruff format --check`, `mypy` | clean |
 | video-capture-service `pytest` | 59 tests (9 new) |
 | frontend `eslint`, `prettier --check`, `codegen:check`, `vite build` | clean |
-| frontend `vitest run --coverage` | 35 files, 138 tests (8 new), floors held (88.0 / 83.3 / 86.1 / 88.0) |
+| frontend `vitest run --coverage` | 36 files, 144 tests after the `main` merge, floors held (88.2 / 83.7 / 86.3 / 88.2) |
 
 What the new tests pin down: the gateway lets a streamer `PUT` and `DELETE` their own channel and refuses another's with `channel_forbidden`, while the list-replacing route still answers `operator_required` (`ChannelScopeIntegrationTest`); join and part are idempotent, keep the other channels, respect the cap, and leave ingest waiting when the last channel goes (`TwitchChatLifecycleServiceTest`); the status read is confined to a streamer's own channel (`TwitchChatStatusControllerTest`, `test_status_tells_a_streamer_about_their_own_channel_only`); a channel that survives a switch keeps its worker and session id (`test_switch_channels_leaves_a_channel_that_stays_running`); and the control reports a half-failure by name (`MeasureChannel.test.tsx`).
 

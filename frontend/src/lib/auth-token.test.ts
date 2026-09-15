@@ -7,6 +7,7 @@ import {
   authTokenFromInput,
   captureAccessLink,
   clearAuthToken,
+  canStartMeasurement,
   isOperatorSession,
   readAuthToken,
   storeAuthToken,
@@ -85,9 +86,17 @@ describe("auth-token", () => {
 
     const holding = (token: string | null) => ({ getItem: () => token });
     expect(isOperatorSession(holding(null))).toBe(true);
-    expect(isOperatorSession(holding(TOKEN))).toBe(true);
+    // An access link has no role: it reads, it is not an operator.
+    expect(isOperatorSession(holding(TOKEN))).toBe(false);
     expect(isOperatorSession(holding(streamer))).toBe(false);
     expect(isOperatorSession(holding(fakeJwt({ sub: "ops", login: "ops", role: "operator" })))).toBe(true);
+
+    // Measurement is offered to whoever the gateway lets steer one channel: an operator, or a streamer on
+    // their own. An access link reads any channel and starts nothing.
+    expect(canStartMeasurement(holding(null))).toBe(true);
+    expect(canStartMeasurement(holding(streamer))).toBe(true);
+    expect(canStartMeasurement(holding(fakeJwt({ sub: "ops", login: "ops", role: "operator" })))).toBe(true);
+    expect(canStartMeasurement(holding(TOKEN))).toBe(false);
   });
 
   it("reads the expiry claim without verifying the token", () => {

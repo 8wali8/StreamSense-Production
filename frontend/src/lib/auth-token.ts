@@ -82,7 +82,7 @@ export type AuthTokenClaims = {
   expiry: Date | null;
   /** The Twitch login the token was minted for, or null for an access link. */
   login: string | null;
-  /** "operator" or "streamer" for a Twitch sign-in; null for an access link, which has full access. */
+  /** "operator" or "streamer" for a Twitch sign-in; null for an access link, which reads any channel but is no operator. */
   role: string | null;
 };
 
@@ -117,11 +117,23 @@ export function currentAuthClaims(storage: TokenStorage | null = defaultStorage(
   return token ? authTokenClaims(token) : null;
 }
 
-/** Whether the current token may use the operator pages and pipeline controls. */
+/**
+ * Whether the current token may use the operator pages and pipeline controls: a Twitch sign-in on the
+ * operators list. An access link has no role and is not an operator; no token at all (auth off locally) is.
+ */
 export function isOperatorSession(storage: TokenStorage | null = defaultStorage()): boolean {
   const claims = currentAuthClaims(storage);
-  // No token at all (auth off locally) and an access link both keep full access.
-  return claims === null || claims.role === null || claims.role === "operator";
+  return claims === null || claims.role === "operator";
+}
+
+/**
+ * Whether this session may start and stop measurement of the channel it is looking at: an operator
+ * sign-in (or no token at all, locally) or a streamer, who the gateway confines to their own channel.
+ * An access link reads any channel and steers nothing, so it is not offered the control.
+ */
+export function canStartMeasurement(storage: TokenStorage | null = defaultStorage()): boolean {
+  const claims = currentAuthClaims(storage);
+  return claims === null || claims.role === "operator" || claims.role === "streamer";
 }
 
 /** Whether a token is worth sending: present and not past its expiry. The gateway still has the final say. */

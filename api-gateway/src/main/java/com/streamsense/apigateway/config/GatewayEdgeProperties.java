@@ -175,10 +175,7 @@ public class GatewayEdgeProperties {
          * it is one of the self-service paths, where a streamer acts on their own channel.
          */
         public boolean requiresOperator(HttpMethod method, String path) {
-            if (method == null
-                    || HttpMethod.GET.equals(method)
-                    || HttpMethod.HEAD.equals(method)
-                    || HttpMethod.OPTIONS.equals(method)) {
+            if (!isWrite(method)) {
                 return false;
             }
             if (isSelfService(path)) {
@@ -190,6 +187,21 @@ public class GatewayEdgeProperties {
         /** Whether a path is one a streamer may write to for their own channel. */
         public boolean isSelfService(String path) {
             return selfServicePaths.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+        }
+
+        /**
+         * Whether a request starts or stops measurement of the channel it names. Reading one of these paths
+         * is an ordinary read; writing steers the pipeline, so it needs a scope that names a channel.
+         */
+        public boolean isSelfServiceWrite(HttpMethod method, String path) {
+            return isWrite(method) && isSelfService(path);
+        }
+
+        private static boolean isWrite(HttpMethod method) {
+            return method != null
+                    && !HttpMethod.GET.equals(method)
+                    && !HttpMethod.HEAD.equals(method)
+                    && !HttpMethod.OPTIONS.equals(method);
         }
     }
 

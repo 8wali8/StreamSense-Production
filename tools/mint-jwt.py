@@ -46,7 +46,8 @@ def mint(secret: str, subject: str, issuer: str, audience: str, ttl_seconds: int
         "exp": issued_at + ttl_seconds,
     }
     if role:
-        # Twitch sign-in mints "operator" or "streamer"; a token without a role keeps full access.
+        # Twitch sign-in mints "operator" or "streamer". A token without a role (an access link) reads any
+        # channel but cannot steer the pipeline; pass --role operator for the operations page and ingest routes.
         payload["role"] = role
     signing_input = f"{_segment(header)}.{_segment(payload)}"
     signature = hmac.new(secret.encode("utf-8"), signing_input.encode("ascii"), hashlib.sha256).digest()
@@ -62,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--audience", default=DEFAULT_AUDIENCE, help=f"aud claim (default: {DEFAULT_AUDIENCE})")
     parser.add_argument("--ttl-seconds", type=int, default=3600, help="seconds until exp (default: 3600)")
     parser.add_argument("--role", choices=["operator", "streamer"], default=None,
-                        help="role claim; omitted means full access, as before roles existed")
+                        help="role claim; omitted means an access link: reads any channel, cannot steer the pipeline")
     args = parser.parse_args(argv)
 
     if not args.secret:

@@ -205,6 +205,36 @@ p {
   font-weight: 500;
 }
 
+.signed-in-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.signed-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* An operator's "view as a streamer": one field and one small button, under the identity. */
+.view-as {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 14px 10px;
+}
+
+.view-as-row {
+  display: flex;
+  gap: 6px;
+}
+
+.view-as .text-input {
+  min-width: 0;
+  height: 36px;
+  font-size: 13px;
+}
+
 .main-stage {
   min-width: 0;
   padding: 28px 36px 48px;
