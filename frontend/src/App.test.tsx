@@ -8,6 +8,7 @@ import { renderWithApollo } from "./test/apollo";
 import {
   captureChannelCapturing,
   channelIngestJoined,
+  helixStatusPolling,
   sessionSummary,
   sponsorMoments,
   streamAnalytics,
@@ -30,6 +31,7 @@ function stackHandlers() {
     graphqlData("RecentSponsorTranscriptSentiment", { recentSponsorTranscriptSentiment: [] }),
     restJson("get", "/api/chat/twitch/status", twitchStatusConnected),
     restJson("get", "/api/video/capture/status", videoStatusCapturing),
+    restJson("get", "/api/analytics/helix/status", helixStatusPolling),
     restJson("get", "/api/chat/twitch/channels/*", channelIngestJoined),
     restJson("get", "/api/video/capture/channels/*", captureChannelCapturing),
     restJson("get", "/api/sentiment/transcript/recent", []),
