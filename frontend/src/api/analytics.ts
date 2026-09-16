@@ -71,3 +71,24 @@ export function createShareLink(dealId: string): Promise<ShareLink> {
 export function revokeShareLink(dealId: string): Promise<void> {
   return apiSend(`/api/analytics/deals/${encodeURIComponent(dealId)}/share`, { method: "DELETE" });
 }
+
+/**
+ * GET /api/analytics/helix/status: what the Twitch Helix poller last did. Counts only; the watched
+ * logins are not exposed. Times are epoch milliseconds, null when the event has not happened.
+ */
+export type HelixPollStatus = {
+  enabled: boolean;
+  pollIntervalMs: number;
+  lastAttemptAt: number | null;
+  lastPollAt: number | null;
+  watched: number;
+  live: number;
+  closed: number;
+  pausedUntil: number | null;
+  lastError: string | null;
+  lastErrorAt: number | null;
+};
+
+export function getHelixPollStatus(): Promise<HelixPollStatus> {
+  return apiFetch<HelixPollStatus>("/api/analytics/helix/status");
+}

@@ -25,7 +25,7 @@ What it also revealed: a channel with an open `HELIX` session that is no longer 
 ## Deliberately left alone
 
 - **No 429 handling.** None was seen at this scale; the handoff's back-off stays a follow-up if the watch list ever grows past a few dozen logins.
-- **No Helix status pill on `/ops`** yet (step 5 of the handoff).
+- **No Helix status pill on `/ops`** yet (step 5 of the handoff; done later on `helix/02-status-pill`).
 - **The channel list on the VM** is whatever the owner wants; `xqc` was a probe and can go once its live session ends.
 
 ## Verification

@@ -31,9 +31,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Confines a streamer to their own channel. The gateway says who a request is for in two headers it
  * sets itself ({@value #LOGIN_HEADER}, {@value #ROLE_HEADER}); with the streamer role, a request may name
  * only that login: in the {@code /streams/{streamer}} path, the {@code streamer} query parameter, the
- * {@code streamer} of a deal being created, or the owner of a deal or session addressed by id. Requests
- * without the headers (the gateway's own resolvers, the smoke tests) are unscoped, which is safe only
- * because this service is reachable through the gateway alone.
+ * {@code streamer} of a deal being created, or the owner of a deal or session addressed by id. The
+ * operator's routes ({@value #OPERATOR_ONLY}: the Helix poller's status, whose last error is raw) are
+ * refused to that role outright. Requests without the headers (the gateway's own resolvers, the smoke
+ * tests) are unscoped, which is safe only because this service is reachable through the gateway alone.
  */
 @Component
 public class ChannelScopeFilter extends OncePerRequestFilter {
@@ -45,6 +46,7 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
     private static final Pattern STREAMS = Pattern.compile("^/api/analytics/streams/([^/]+)(?:/.*)?$");
     private static final Pattern DEAL = Pattern.compile("^/api/analytics/deals/(\\d+)(?:/.*)?$");
     private static final Pattern SESSION = Pattern.compile("^/api/analytics/sessions/(\\d+)(?:/.*)?$");
+    static final String OPERATOR_ONLY = "/api/analytics/helix/status";
     private static final String PROBLEM_TYPE = "https://streamsense.dev/problems/forbidden";
 
     private final DealService deals;
@@ -73,7 +75,13 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
             return;
         }
         HttpServletRequest scoped = request;
-        String path = request.getRequestURI();
+        // Spring matches routes with matrix parameters (";key=value") removed from each segment; compare the
+        // same way, or "/helix/status;x" would reach the controller unscoped.
+        String path = withoutMatrixParameters(request.getRequestURI());
+        if (path.equals(OPERATOR_ONLY)) {
+            forbid(request, response, "operator_required", "This is for operators");
+            return;
+        }
         String owner = null;
         Matcher streams = STREAMS.matcher(path);
         Matcher deal = DEAL.matcher(path);
@@ -100,7 +108,7 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
                     .orElse(null);
         }
         if (owner != null && !normalize(owner).equals(normalize(login))) {
-            forbid(request, response);
+            forbid(request, response, "channel_forbidden", "This channel is not yours to see");
             return;
         }
         chain.doFilter(scoped, response);
@@ -117,19 +125,24 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
         }
     }
 
-    private void forbid(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void forbid(HttpServletRequest request, HttpServletResponse response, String reason, String detail)
+            throws IOException {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("type", PROBLEM_TYPE);
         body.put("title", HttpStatus.FORBIDDEN.getReasonPhrase());
         body.put("status", HttpStatus.FORBIDDEN.value());
-        body.put("detail", "This channel is not yours to see");
+        body.put("detail", detail);
         body.put("instance", request.getRequestURI());
         body.put("service", serviceName);
         body.put("timestamp", Instant.now().toString());
-        body.put("reason", "channel_forbidden");
+        body.put("reason", reason);
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.getOutputStream().write(objectMapper.writeValueAsBytes(body));
+    }
+
+    static String withoutMatrixParameters(String uri) {
+        return uri.replaceAll(";[^/]*", "");
     }
 
     static String normalize(String channel) {
