@@ -18,3 +18,20 @@ export function isDemoPath(pathname: string): boolean {
 export function isDemoMode(): boolean {
   return typeof window !== "undefined" && isDemoPath(window.location.pathname);
 }
+
+/**
+ * Where a bare `/demo` goes: the newest report in the snapshot, about the sponsor it is a deal for.
+ * `sessions/latest` resolves the id from the snapshot, so a re-export needs nothing changed here.
+ */
+export const DEMO_LANDING = `sessions/latest?sponsor=${encodeURIComponent(DEMO_SPONSOR)}`;
+
+/**
+ * Point a bare `/demo` at the landing report before the router mounts, so the demo opens on a
+ * finished stream rather than a live console with nothing in it. Rewritten rather than routed as a
+ * redirect: the home page is still a page, and the sidebar's Home link has to reach it.
+ */
+export function openDemoLanding(win: Window = window): void {
+  const { pathname } = win.location;
+  if (pathname !== DEMO_BASE && pathname !== `${DEMO_BASE}/`) return;
+  win.history.replaceState(win.history.state, "", `${DEMO_BASE}/${DEMO_LANDING}`);
+}
