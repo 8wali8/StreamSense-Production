@@ -76,7 +76,7 @@ export function HistoryPanel({ sessions, summaries, sponsor, loading }: HistoryP
           return (
             <Link className="history-row" to={`/sessions/${session.id}${sponsorQuery}`} key={session.id}>
               <span>
-                <strong>{session.title ?? "Untitled stream"}</strong>
+                <strong title={session.title ?? undefined}>{session.title ?? "Untitled stream"}</strong>
                 <small>
                   {formatStart(session.startedAt)} · {formatDuration(session.durationMs)}
                 </small>

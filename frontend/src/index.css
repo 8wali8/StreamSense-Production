@@ -1451,6 +1451,10 @@ p {
 }
 
 .live-strip-offline > div > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
 }
@@ -1667,8 +1671,12 @@ p {
   background: var(--panel-raised);
 }
 
+/* Stream titles run long (a Twitch title is up to 140 characters of emoji); two lines, the rest on hover. */
 .history-row strong {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-weight: 500;
 }
 

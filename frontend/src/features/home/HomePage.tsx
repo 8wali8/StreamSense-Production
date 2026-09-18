@@ -108,7 +108,7 @@ export function HomePage() {
       {/* The demo is a snapshot; there is nothing to point at a channel there, and an access link steers nothing. */}
       {!isDemoMode() && canStartMeasurement() && (
         <ErrorBoundary label="measurement">
-          <MeasureChannel channel={selectedStreamer} />
+          <MeasureChannel channel={selectedStreamer} channelLive={sessions.data ? live != null : null} />
         </ErrorBoundary>
       )}
 
@@ -119,8 +119,9 @@ export function HomePage() {
         loading={sessions.loading && !sessions.data}
       />
 
-      {/* The demo is a snapshot of past streams; a live console with nothing live in it would only distract. */}
-      {!isDemoMode() && (
+      {/* Only while the channel is live: offline, the strip above points at the last report, and a player
+          showing "offline" under a LIVE badge would only distract. The demo is past streams and never has it. */}
+      {!isDemoMode() && live && (
         <ErrorBoundary label="live console">
           <LiveStreamConsole streamer={selectedStreamer} sponsor={known ? sponsor : undefined} />
         </ErrorBoundary>

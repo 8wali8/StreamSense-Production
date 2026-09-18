@@ -53,6 +53,39 @@ describe("SessionReportPage", () => {
     expect(screen.getByText("!redbull in chat")).toBeInTheDocument();
   });
 
+  it('says when no sponsor was tracked instead of naming one "Sponsor"', async () => {
+    server.use(
+      graphqlData("SessionSummary", {
+        sessionSummary: sessionSummary({
+          sponsor: null,
+          onScreenMs: 0,
+          mentions: 0,
+          mentionPositiveShare: null,
+          value: { ...sessionSummary().value, mediaValue: 0 },
+        }),
+      }),
+      graphqlData("SponsorMoments", {
+        sponsorMoments: {
+          ...sponsorMoments(),
+          sponsor: null,
+          segments: [],
+          voiceMentions: [],
+          chatMoments: [],
+          riskSpikes: [],
+        },
+      }),
+    );
+    renderAt("/sessions/7");
+
+    expect(await screen.findByText("No sponsor tracked · @redbull-testing")).toBeInTheDocument();
+    expect(screen.getByText("Media value · no sponsor tracked")).toBeInTheDocument();
+    expect(screen.getByText("Mentions")).toBeInTheDocument();
+    expect(screen.queryByText(/– positive/)).not.toBeInTheDocument();
+    const timeline = within(await screen.findByLabelText("Sponsor moments"));
+    expect(timeline.getByText(/No sponsor was tracked in this stream/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sponsor · @/)).not.toBeInTheDocument();
+  });
+
   it("renders the timeline error without losing the numbers, and a missing session plainly", async () => {
     server.use(
       graphqlData("SessionSummary", {

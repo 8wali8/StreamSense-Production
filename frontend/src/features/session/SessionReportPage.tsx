@@ -60,7 +60,8 @@ export function SessionReportPage() {
 
   const summary = report.summary;
   const session = summary.session;
-  const sponsor = summary.sponsor ?? "Sponsor";
+  // Null when no sponsor was tracked in this stream: the page says so rather than naming one "Sponsor".
+  const sponsor = summary.sponsor ?? null;
   const querySuffix = sponsorParam ? `?sponsor=${encodeURIComponent(sponsorParam)}` : "";
   const best = report.moments?.best ?? null;
   const weakest = report.moments?.weakest ?? null;
@@ -71,13 +72,13 @@ export function SessionReportPage() {
       <header className="page-header">
         <div>
           <div className="eyebrow">
-            {sponsor} · @{session.streamer}
+            {sponsor ?? "No sponsor tracked"} · @{session.streamer}
           </div>
           <h1>{session.title ?? `Stream on ${formatStart(session.startedAt)}`}</h1>
           <p className="page-lede">
             {formatStart(session.startedAt)} · {formatDuration(session.durationMs)}
             {session.live ? " · live now" : ""}
-            {summary.dealId != null && (
+            {summary.dealId != null && sponsor && (
               <>
                 {" · "}
                 <Link to={`/deals/${summary.dealId}`}>Part of the {sponsor} deal</Link>
@@ -95,16 +96,26 @@ export function SessionReportPage() {
         </div>
         <div className="rstat">
           <div className="v">{formatCount(summary.mentions)}</div>
-          <div className="l">Mentions · {formatShare(summary.mentionPositiveShare)} positive</div>
+          <div className="l">
+            {summary.mentionPositiveShare == null
+              ? "Mentions"
+              : `Mentions · ${formatShare(summary.mentionPositiveShare)} positive`}
+          </div>
         </div>
         <div className="rstat">
           <div className="v">{formatCount(summary.averageViewers)}</div>
           <div className="l">Avg viewers · peak {formatCount(summary.peakViewers)}</div>
         </div>
         <div className="rstat rstat-value">
-          <div className="v tone-brand-text">{value.mediaValue == null ? "–" : formatMoney(value.mediaValue)}</div>
+          <div className="v tone-brand-text">
+            {sponsor === null || value.mediaValue == null ? "–" : formatMoney(value.mediaValue)}
+          </div>
           <div className="l">
-            {value.mediaValue == null ? "Media value · needs viewer data" : "Media value · estimate"}
+            {sponsor === null
+              ? "Media value · no sponsor tracked"
+              : value.mediaValue == null
+                ? "Media value · needs viewer data"
+                : "Media value · estimate"}
           </div>
         </div>
       </div>
@@ -124,7 +135,7 @@ export function SessionReportPage() {
           />
         ) : (
           <section className="report-card timeline">
-            <h2>Where {sponsor} showed up</h2>
+            <h2>{sponsor ? `Where ${sponsor} showed up` : "Sponsor moments"}</h2>
             <div
               className={report.momentsError ? "error-state" : "empty-state"}
               role={report.momentsError ? "alert" : undefined}
