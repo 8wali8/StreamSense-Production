@@ -42,7 +42,7 @@ export function LiveStrip({ session, summary, sponsor, loading }: LiveStripProps
           <strong>
             Last stream ended {session.endedAt ? formatStart(session.endedAt) : formatStart(session.startedAt)}
           </strong>
-          <span>
+          <span title={session.title ?? undefined}>
             {session.title ?? "Untitled stream"} · {formatDuration(session.durationMs)}
           </span>
         </div>

@@ -100,6 +100,8 @@ describe("HomePage", () => {
     expect(await strip.findByText("21m 40s")).toBeInTheDocument();
     expect(strip.getByText("17 chat · 9 voice")).toBeInTheDocument();
     expect(strip.getByRole("link", { name: "Open the live report" })).toHaveAttribute("href", "/sessions/8");
+    // Live, the console is there.
+    expect(screen.getByText("All chat and transcript")).toBeInTheDocument();
 
     const history = within(screen.getByLabelText("History"));
     const row = await history.findByRole("link", { name: /F1 Replay Night/ });
@@ -123,7 +125,11 @@ describe("HomePage", () => {
     const strip = within(await screen.findByLabelText("Live status"));
     expect(strip.getByText("Offline")).toBeInTheDocument();
     expect(strip.getByRole("link", { name: "View session report" })).toHaveAttribute("href", "/sessions/7");
-    expect(screen.getByText("All chat and transcript")).toBeInTheDocument();
+    // Offline there is no live console: no player under a LIVE badge, no feeds.
+    expect(screen.queryByText("All chat and transcript")).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Live Twitch stream/)).not.toBeInTheDocument();
+    // Measurement is on, and the card says nothing will arrive while the channel is offline.
+    expect(await screen.findByText(/Nothing arrives until @redbull-testing goes live/)).toBeInTheDocument();
   });
 
   it("follows the running deal's sponsor when the operations page names none", async () => {
@@ -237,6 +243,6 @@ describe("HomePage", () => {
     expect(screen.getByText(/^Razer from /, { selector: ".page-header .pill" })).toBeInTheDocument();
     expect(screen.queryByText(/No deals yet/)).not.toBeInTheDocument();
     // Nothing is followed until it starts, so the numbers still say so.
-    expect(screen.getAllByText("No sponsor yet").length).toBeGreaterThan(0);
+    expect(screen.getByText("Sponsor on screen per sponsored hour")).toBeInTheDocument();
   });
 });

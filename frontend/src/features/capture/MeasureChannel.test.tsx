@@ -36,6 +36,14 @@ describe("MeasureChannel", () => {
     expect(screen.getByRole("button", { name: "Stop measuring" })).toBeInTheDocument();
   });
 
+  it("says nothing arrives while a measured channel is offline", async () => {
+    server.use(restJson("get", CHAT, chatBody(true)), restJson("get", CAPTURE, captureBody("CAPTURING")));
+    renderWithApollo(<MeasureChannel channel="ninja" channelLive={false} />);
+    expect(
+      await screen.findByText("Chat and video are being measured. Nothing arrives until @ninja goes live."),
+    ).toBeInTheDocument();
+  });
+
   it("names the half that refused instead of claiming the channel is measured", async () => {
     server.use(
       restJson("get", CHAT, chatBody(false)),

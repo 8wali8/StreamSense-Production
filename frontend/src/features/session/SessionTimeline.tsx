@@ -3,7 +3,8 @@ import { formatOffset, vodUrl, type VodSession } from "./report-format";
 import { buildTimeline, type TimelineInput, type TimelineMoment } from "./timeline";
 
 type SessionTimelineProps = {
-  sponsor: string;
+  /** The sponsor the moments are about; null when none was tracked in this stream. */
+  sponsor: string | null;
   session: VodSession;
   input: TimelineInput;
 };
@@ -22,11 +23,12 @@ export function SessionTimeline({ sponsor, session, input }: SessionTimelineProp
   const selected =
     moments.find((moment) => moment.id === selectedId) ?? moments.find((m) => m.kind === "segment") ?? null;
   const link = selected ? vodUrl(session, selected.offsetMs) : null;
+  const heading = sponsor ? `Where ${sponsor} showed up` : "Sponsor moments";
 
   return (
-    <section className="report-card timeline" aria-label={`Where ${sponsor} showed up`}>
+    <section className="report-card timeline" aria-label={heading}>
       <div className="timeline-heading">
-        <h2>Where {sponsor} showed up</h2>
+        <h2>{heading}</h2>
         <div className="timeline-legend">
           <span>
             <i className="legend-seg" /> On screen
@@ -93,7 +95,11 @@ export function SessionTimeline({ sponsor, session, input }: SessionTimelineProp
           )}
         </div>
       ) : (
-        <div className="timeline-selected muted-text">No {sponsor} moments were recorded in this stream.</div>
+        <div className="timeline-selected muted-text">
+          {sponsor
+            ? `No ${sponsor} moments were recorded in this stream.`
+            : "No sponsor was tracked in this stream, so there are no moments to show."}
+        </div>
       )}
     </section>
   );
