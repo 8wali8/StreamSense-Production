@@ -4,7 +4,7 @@
 - `production-hardening-followups.md`: the second series (branches 21 onward), collected from the follow-ups the first fourteen branches recorded.
 - `cloud-hosting.md`: the plan for running the Compose stack on one GCP VM (branches `cloud/00` to `cloud/04`): decisions, verification ladder, branch sequence, phase two.
 - `demo-page.md`: the public `/demo` route on a sealed snapshot, why a snapshot rather than a demo account, and how it fits the code.
-- `handoffs/`: self-contained briefs for a fresh session to continue a piece of work (`console-auth.md`: signing in without pasting a token; `helix-poller.md`: turning on the Twitch Helix poller on the VM).
+- `handoffs/`: self-contained briefs for a fresh session to continue a piece of work (`console-auth.md`: signing in without pasting a token, now history; `helix-poller.md`: turning on the Twitch Helix poller on the VM, done; `first-deal.md`: the new-deal form and the deal path as a streamer; `retire-access-links.md`: removing the role-less token, so every sign-in is Twitch).
 - `branches/`: one note per hardening branch with what changed, what was left alone, how it was verified, and what the reviewer should check by hand.
 - `history/`: earlier planning and hand-off documents kept for context, not maintained:
   - `roadmap-12-week.md`, `production-gap-plan.md`: the original roadmap and gap plan.
