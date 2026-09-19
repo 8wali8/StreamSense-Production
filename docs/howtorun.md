@@ -87,7 +87,7 @@ printf '%s' 'replace-me-with-at-least-32-bytes-of-secret' > secrets/STREAMSENSE_
 STREAMSENSE_GATEWAY_AUTH_ENABLED=true docker compose up -d --force-recreate api-gateway
 ```
 
-Mint a matching bearer token with `python tools/mint-jwt.py --subject demo-user` (details under "Verify auth toggle" below); add `--role operator` to use the Operations page and the ingest routes, since a token without a role only reads. Restore the local bypass mode with:
+Mint a matching bearer token with `python tools/mint-jwt.py --subject demo-user --role operator` (details under "Verify auth toggle" below); `--role` is required, `operator` for every channel and the Operations page, `streamer` for the one channel `--subject` names. Restore the local bypass mode with:
 
 ```bash
 STREAMSENSE_GATEWAY_AUTH_ENABLED=false docker compose up -d api-gateway
@@ -955,10 +955,10 @@ curl -X POST http://localhost:8080/graphql \
   -d '{"query":"{ health }"}'
 ```
 
-Mint a token with the same secret (`tools/mint-jwt.py` needs only the Python standard library) and the request succeeds; a token signed with any other key is rejected with `invalid_jwt_signature`:
+Mint a token with the same secret (`tools/mint-jwt.py` needs only the Python standard library) and the request succeeds; a token signed with any other key is rejected with `invalid_jwt_signature`, and one without a `role` claim (the tool refuses to mint one; every token names an operator or a streamer) with `missing_role`:
 
 ```bash
-TOKEN=$(python tools/mint-jwt.py --subject demo-user)
+TOKEN=$(python tools/mint-jwt.py --subject demo-user --role operator)
 curl -X POST http://localhost:8080/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \

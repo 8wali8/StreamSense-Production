@@ -4,7 +4,6 @@ import {
   authTokenClaims,
   authTokenExpiry,
   authTokenFromHash,
-  authTokenFromInput,
   captureAccessLink,
   clearAuthToken,
   canStartMeasurement,
@@ -14,7 +13,8 @@ import {
 } from "./auth-token";
 import { EXPIRES_2030, fakeJwt } from "../test/tokens";
 
-const TOKEN = fakeJwt({ sub: "demo-viewer", exp: EXPIRES_2030 });
+const TOKEN = fakeJwt({ sub: "ninja", login: "ninja", role: "streamer", exp: EXPIRES_2030 });
+const OPERATOR = fakeJwt({ sub: "ops", login: "ops", role: "operator", exp: EXPIRES_2030 });
 
 function blockedStorage() {
   const refuse = () => {
@@ -28,17 +28,12 @@ describe("auth-token", () => {
     clearAuthToken(null);
   });
 
-  it("reads the token from an access link and rejects what is not one", () => {
+  it("reads the token from a page's fragment and rejects what is not one", () => {
     expect(authTokenFromHash(`#token=${TOKEN}`)).toBe(TOKEN);
     expect(authTokenFromHash(`#from=mail&token=${TOKEN}`)).toBe(TOKEN);
     expect(authTokenFromHash("#token=")).toBeNull();
     expect(authTokenFromHash("#token=not a token")).toBeNull();
     expect(authTokenFromHash("")).toBeNull();
-
-    expect(authTokenFromInput(` https://streamsense.dev/#token=${TOKEN} `)).toBe(TOKEN);
-    expect(authTokenFromInput(`${TOKEN}\n`)).toBe(TOKEN);
-    expect(authTokenFromInput("https://streamsense.dev/")).toBeNull();
-    expect(authTokenFromInput("paste the token here")).toBeNull();
   });
 
   it("keeps the token for this page load when storage refuses it", () => {
@@ -54,7 +49,7 @@ describe("auth-token", () => {
     expect(authHeaders(storage, null)).toEqual({});
   });
 
-  it("keeps the token from an access link and takes the fragment out of the address bar", () => {
+  it("keeps the token a sign-in came back with and takes the fragment out of the address bar", () => {
     const replaced: string[] = [];
     const win = {
       location: { hash: `#token=${TOKEN}`, pathname: "/deals/3", search: "?tab=streams" },
@@ -74,34 +69,37 @@ describe("auth-token", () => {
     expect(replaced).toHaveLength(1);
   });
 
-  it("reads who a Twitch sign-in token is for, and lets access links keep full access", () => {
-    const streamer = fakeJwt({ sub: "ninja", login: "ninja", role: "streamer", exp: EXPIRES_2030 });
-    expect(authTokenClaims(streamer)).toEqual({
+  it("reads who a token is for, and which of them is an operator", () => {
+    expect(authTokenClaims(TOKEN)).toEqual({
       expiry: new Date(EXPIRES_2030 * 1000),
       login: "ninja",
       role: "streamer",
     });
-    expect(authTokenClaims(TOKEN)).toEqual({ expiry: new Date(EXPIRES_2030 * 1000), login: null, role: null });
+    // A token minted by hand for a script names no login; the role still says what it may do.
+    expect(authTokenClaims(fakeJwt({ sub: "streamsense-deploy", role: "operator", exp: EXPIRES_2030 }))).toEqual({
+      expiry: new Date(EXPIRES_2030 * 1000),
+      login: null,
+      role: "operator",
+    });
     expect(authTokenClaims("nope")).toEqual({ expiry: null, login: null, role: null });
 
     const holding = (token: string | null) => ({ getItem: () => token });
+    // No token at all: auth is off locally, and everything shows.
     expect(isOperatorSession(holding(null))).toBe(true);
-    // An access link has no role: it reads, it is not an operator.
     expect(isOperatorSession(holding(TOKEN))).toBe(false);
-    expect(isOperatorSession(holding(streamer))).toBe(false);
-    expect(isOperatorSession(holding(fakeJwt({ sub: "ops", login: "ops", role: "operator" })))).toBe(true);
+    expect(isOperatorSession(holding(OPERATOR))).toBe(true);
 
     // Measurement is offered to whoever the gateway lets steer one channel: an operator, or a streamer on
-    // their own. An access link reads any channel and starts nothing.
+    // their own.
     expect(canStartMeasurement(holding(null))).toBe(true);
-    expect(canStartMeasurement(holding(streamer))).toBe(true);
-    expect(canStartMeasurement(holding(fakeJwt({ sub: "ops", login: "ops", role: "operator" })))).toBe(true);
-    expect(canStartMeasurement(holding(TOKEN))).toBe(false);
+    expect(canStartMeasurement(holding(TOKEN))).toBe(true);
+    expect(canStartMeasurement(holding(OPERATOR))).toBe(true);
+    expect(canStartMeasurement(holding("nope"))).toBe(false);
   });
 
   it("reads the expiry claim without verifying the token", () => {
     expect(authTokenExpiry(TOKEN)).toEqual(new Date(EXPIRES_2030 * 1000));
-    expect(authTokenExpiry(fakeJwt({ sub: "no-expiry" }))).toBeNull();
+    expect(authTokenExpiry(fakeJwt({ sub: "no-expiry", role: "streamer" }))).toBeNull();
     expect(authTokenExpiry("not.a-jwt.at-all")).toBeNull();
   });
 });

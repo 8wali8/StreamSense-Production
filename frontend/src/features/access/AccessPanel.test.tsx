@@ -15,13 +15,14 @@ describe("AccessPanel", () => {
     stopViewAs();
   });
 
-  it("shows how long the access link is good for and signs out on request", async () => {
+  it("names a Twitch sign-in by its login and role, and signs out on request", async () => {
     const reload = vi.fn();
     const user = userEvent.setup();
-    window.localStorage.setItem(KEY, fakeJwt({ sub: "demo-viewer", exp: EXPIRES_2030 }));
+    window.localStorage.setItem(KEY, fakeJwt({ sub: "ninja", login: "ninja", role: "streamer", exp: EXPIRES_2030 }));
     render(<AccessPanel reload={reload} />);
-    expect(screen.getByText(/^Until .*2030$/)).toBeInTheDocument();
-    // An access link is not an operator, so there is nobody to view as.
+    expect(screen.getByText("Signed in as")).toBeInTheDocument();
+    expect(screen.getByText("@ninja · streamer")).toBeInTheDocument();
+    // A streamer is not an operator, so there is nobody to view as.
     expect(screen.queryByLabelText("View as a streamer")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
@@ -29,12 +30,11 @@ describe("AccessPanel", () => {
     expect(reload).toHaveBeenCalledOnce();
   });
 
-  it("names a Twitch sign-in by its login and role", () => {
-    window.localStorage.setItem(KEY, fakeJwt({ sub: "ninja", login: "ninja", role: "streamer", exp: EXPIRES_2030 }));
+  it("names a token minted by hand for a script by its role alone", () => {
+    window.localStorage.setItem(KEY, fakeJwt({ sub: "streamsense-deploy", role: "operator", exp: EXPIRES_2030 }));
     render(<AccessPanel reload={vi.fn()} />);
     expect(screen.getByText("Signed in as")).toBeInTheDocument();
-    expect(screen.getByText("@ninja · streamer")).toBeInTheDocument();
-    expect(screen.queryByLabelText("View as a streamer")).not.toBeInTheDocument();
+    expect(screen.getByText("operator")).toBeInTheDocument();
   });
 
   it("lets an operator view the console as a streamer, and come back", async () => {

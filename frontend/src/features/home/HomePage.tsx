@@ -105,7 +105,7 @@ export function HomePage() {
         </div>
       )}
 
-      {/* The demo is a snapshot; there is nothing to point at a channel there, and an access link steers nothing. */}
+      {/* The demo is a snapshot; there is nothing to point at a channel there. */}
       {!isDemoMode() && canStartMeasurement() && (
         <ErrorBoundary label="measurement">
           <MeasureChannel channel={selectedStreamer} channelLive={sessions.data ? live != null : null} />

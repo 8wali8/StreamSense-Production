@@ -3,8 +3,8 @@ import { ApiError } from "./api-client";
 
 export type ErrorLike = { message: string } | Error | null | undefined;
 
-/** What the gateway's 401 means to a viewer: the console has no token it accepts. */
-export const NO_ACCESS_MESSAGE = "this console needs an access link; open the one you were sent";
+/** What the gateway's 401 means to whoever is looking: the console has no token it accepts. */
+export const NO_ACCESS_MESSAGE = "this console needs a sign-in; sign in with Twitch again";
 /** The gateway's 403: signed in, but as a streamer where an operator is needed. */
 export const NOT_ALLOWED_MESSAGE = "your account is not allowed to change this; an operator can";
 

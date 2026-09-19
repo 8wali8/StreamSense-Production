@@ -91,7 +91,8 @@ export default function App() {
       </BrowserRouter>
     );
   }
-  // An access link or a share link carries its token in the URL; keep it before anything renders.
+  // A Twitch sign-in comes back with its token in the URL fragment, and a share link carries its token in the
+  // query; keep either before anything renders.
   captureAccessLink(window);
   captureShareToken(window.location.search);
   return (

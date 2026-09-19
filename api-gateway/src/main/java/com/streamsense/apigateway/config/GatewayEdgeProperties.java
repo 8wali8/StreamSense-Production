@@ -74,7 +74,7 @@ public class GatewayEdgeProperties {
         // Twitch logins that sign in as operators; everyone else who signs in with Twitch is a streamer.
         private List<String> operators = new ArrayList<>();
         // Paths where anything but a read steers the pipeline (channel switching, profiles, ingest, ML calls):
-        // a token whose role is not operator is refused there. Tokens without a role keep their full access.
+        // a token whose role is not operator is refused there.
         private List<String> operatorOnlyPaths =
                 List.of("/api/chat/**", "/api/video/**", "/api/sentiment/**", "/ml/**");
         // Carved out of the paths above: a streamer starts and stops measurement of their own channel here.
@@ -187,14 +187,6 @@ public class GatewayEdgeProperties {
         /** Whether a path is one a streamer may write to for their own channel. */
         public boolean isSelfService(String path) {
             return selfServicePaths.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
-        }
-
-        /**
-         * Whether a request starts or stops measurement of the channel it names. Reading one of these paths
-         * is an ordinary read; writing steers the pipeline, so it needs a scope that names a channel.
-         */
-        public boolean isSelfServiceWrite(HttpMethod method, String path) {
-            return isWrite(method) && isSelfService(path);
         }
 
         private static boolean isWrite(HttpMethod method) {

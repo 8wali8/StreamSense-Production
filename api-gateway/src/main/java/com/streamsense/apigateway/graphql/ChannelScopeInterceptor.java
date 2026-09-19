@@ -29,7 +29,7 @@ import reactor.core.publisher.Mono;
  * {@code streamer} argument (queries and subscriptions alike) must name their login; a request for
  * another channel is answered with {@code CHANNEL_FORBIDDEN} before anything runs. Fields that take an
  * id instead (a deal, a session) check ownership in their resolver through the scope this puts on the
- * GraphQL context. Operators and access links pass untouched.
+ * GraphQL context. Operators pass untouched.
  */
 @Component
 public class ChannelScopeInterceptor implements WebGraphQlInterceptor {
@@ -45,7 +45,7 @@ public class ChannelScopeInterceptor implements WebGraphQlInterceptor {
         request.configureExecutionInput(
                 (input, builder) -> builder.graphQLContext(context -> context.put(AuthScope.GRAPHQL_CONTEXT_KEY, scope))
                         .build());
-        if (scope.isConfined() && asksForAnotherChannel(request.getDocument(), request.getVariables(), scope)) {
+        if (!scope.isOperator() && asksForAnotherChannel(request.getDocument(), request.getVariables(), scope)) {
             return Mono.just(forbidden(request));
         }
         return chain.next(request);
