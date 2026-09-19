@@ -128,11 +128,15 @@ describe("deals", () => {
     const deals = within(await screen.findByLabelText("Deals"));
     await user.click(deals.getByRole("button", { name: "New deal" }));
     const form = within(deals.getByLabelText("New deal"));
-    // The sponsor is pre-filled from the selection; the command and fee are typed.
+    // The sponsor is pre-filled from the selection and the dates and promised streams sit up front.
     expect(form.getByLabelText("Sponsor")).toHaveValue("Red Bull");
-    await user.type(form.getByLabelText("Fee (private to you)"), "2500");
-    await user.type(form.getByLabelText("Chat command"), "redbull");
     await user.type(form.getByLabelText("Promised streams"), "4");
+    // The fee and the chat signals wait behind "More settings", closed until opened.
+    expect(form.getByLabelText("Fee in USD (private to you)")).not.toBeVisible();
+    await user.click(form.getByText("More settings"));
+    expect(form.getByLabelText("Fee in USD (private to you)")).toBeVisible();
+    await user.type(form.getByLabelText("Fee in USD (private to you)"), "2500");
+    await user.type(form.getByLabelText("Chat command"), "redbull");
     await user.click(form.getByRole("button", { name: "Create deal" }));
 
     expect(await deals.findByRole("link", { name: /Red Bull/ })).toHaveAttribute("href", "/deals/3");
