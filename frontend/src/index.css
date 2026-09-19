@@ -512,6 +512,13 @@ p {
   background: var(--accent-hover);
 }
 
+/* A form's submit is disabled until it is valid; it has to look that way, or a click that does nothing reads as broken. */
+.button-primary:disabled {
+  background: var(--accent);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .button-secondary {
   background: var(--line);
   color: var(--text);
@@ -1772,6 +1779,61 @@ p {
   grid-column: 1 / -1;
 }
 
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* The terms a first deal can wait for: closed by default, the summary is the toggle. */
+.new-deal-more {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.new-deal-more summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 0;
+  color: var(--text-soft);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.new-deal-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.new-deal-more summary::before {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-right: 8px;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--muted);
+  content: "";
+  transition: transform 0.15s;
+}
+
+.new-deal-more[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.new-deal-more summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.new-deal-more > .field-hint {
+  margin-bottom: 10px;
+}
+
 .deal-row {
   display: flex;
   justify-content: space-between;
@@ -1831,7 +1893,8 @@ p {
 }
 
 @media (max-width: 720px) {
-  .new-deal {
+  .new-deal,
+  .new-deal-more .form-grid {
     grid-template-columns: 1fr;
   }
 }

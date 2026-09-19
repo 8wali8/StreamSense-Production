@@ -84,7 +84,9 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
       {vods === null && !error && <div className="empty-state">Looking up recordings...</div>}
       {vods !== null && rows.length === 0 && (
         <div className="empty-state">
-          {showAll ? "Twitch has no recordings for this channel." : "No recordings inside the deal's dates."}
+          {vods.length === 0
+            ? "Twitch has no recordings for this channel. Streams measured from now on appear in the deal on their own."
+            : "No recordings inside the deal's dates. Show all recordings to import an earlier one."}
         </div>
       )}
       {rows.map((vod) => {

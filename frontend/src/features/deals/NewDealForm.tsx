@@ -27,7 +27,11 @@ function optionalText(value: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-/** The deal's terms. Only the sponsor and start date are required; the rates fall back to the configured ones. */
+/**
+ * The deal's terms. Only the sponsor and start date are required; the rates fall back to the configured ones.
+ * A first deal needs the sponsor and the dates, so those sit up front; the fee, the chat signals, and the rates
+ * wait behind "More settings", closed until the streamer wants them.
+ */
 export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: NewDealFormProps) {
   const [sponsor, setSponsor] = useState(defaultSponsor);
   const [starts, setStarts] = useState(toDateInput(Date.now()));
@@ -82,14 +86,23 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
         void submit();
       }}
     >
-      <label className="field">
+      <label className="field field-wide">
         <span className="field-label">Sponsor</span>
         <input
           className="text-input"
           value={sponsor}
           onChange={(e) => setSponsor(e.target.value)}
-          placeholder="Red Bull"
+          placeholder="The sponsor's name"
         />
+      </label>
+      <label className="field">
+        <span className="field-label">Starts</span>
+        <input className="text-input" type="date" value={starts} onChange={(e) => setStarts(e.target.value)} />
+      </label>
+      <label className="field">
+        <span className="field-label">Ends</span>
+        <input className="text-input" type="date" value={ends} onChange={(e) => setEnds(e.target.value)} />
+        <span className="field-hint">Leave empty for an open-ended deal.</span>
       </label>
       <label className="field">
         <span className="field-label">Promised streams</span>
@@ -101,71 +114,71 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
           placeholder="optional"
         />
       </label>
-      <label className="field">
-        <span className="field-label">Starts</span>
-        <input className="text-input" type="date" value={starts} onChange={(e) => setStarts(e.target.value)} />
-      </label>
-      <label className="field">
-        <span className="field-label">Ends</span>
-        <input className="text-input" type="date" value={ends} onChange={(e) => setEnds(e.target.value)} />
-      </label>
-      <label className="field">
-        <span className="field-label">Fee (private to you)</span>
-        <input
-          className="text-input"
-          inputMode="decimal"
-          value={fee}
-          onChange={(e) => setFee(e.target.value)}
-          placeholder="2500"
-        />
-      </label>
-      <label className="field">
-        <span className="field-label">Chat command</span>
-        <input
-          className="text-input"
-          value={chatCommand}
-          onChange={(e) => setChatCommand(e.target.value)}
-          placeholder="!redbull"
-        />
-      </label>
-      <label className="field">
-        <span className="field-label">CPM per 30-second equivalent</span>
-        <input
-          className="text-input"
-          inputMode="decimal"
-          value={cpm}
-          onChange={(e) => setCpm(e.target.value)}
-          placeholder="configured default"
-        />
-      </label>
-      <label className="field">
-        <span className="field-label">Host read rate per 1,000 listeners</span>
-        <input
-          className="text-input"
-          inputMode="decimal"
-          value={hostReadRate}
-          onChange={(e) => setHostReadRate(e.target.value)}
-          placeholder="configured default"
-        />
-      </label>
-      <label className="field">
-        <span className="field-label">Tracked link</span>
-        <input
-          className="text-input"
-          value={trackedLink}
-          onChange={(e) => setTrackedLink(e.target.value)}
-          placeholder="https://redbull.com/f1"
-        />
-      </label>
-      <label className="field">
-        <span className="field-label">Channel point reward</span>
-        <input
-          className="text-input"
-          value={reward}
-          onChange={(e) => setReward(e.target.value)}
-          placeholder="optional"
-        />
-      </label>
+
+      <details className="new-deal-more">
+        <summary>More settings</summary>
+        <p className="field-hint">The fee, the chat signals to count, and the rates the report prices exposure at.</p>
+        <div className="form-grid">
+          <label className="field">
+            <span className="field-label">Fee in USD (private to you)</span>
+            <input
+              className="text-input"
+              inputMode="decimal"
+              value={fee}
+              onChange={(e) => setFee(e.target.value)}
+              placeholder="optional"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Chat command</span>
+            <input
+              className="text-input"
+              value={chatCommand}
+              onChange={(e) => setChatCommand(e.target.value)}
+              placeholder="!command"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">CPM per 30-second equivalent, USD</span>
+            <input
+              className="text-input"
+              inputMode="decimal"
+              value={cpm}
+              onChange={(e) => setCpm(e.target.value)}
+              placeholder="configured default"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Host read rate per 1,000 listeners, USD</span>
+            <input
+              className="text-input"
+              inputMode="decimal"
+              value={hostReadRate}
+              onChange={(e) => setHostReadRate(e.target.value)}
+              placeholder="configured default"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Tracked link</span>
+            <input
+              className="text-input"
+              value={trackedLink}
+              onChange={(e) => setTrackedLink(e.target.value)}
+              placeholder="https://"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Channel point reward</span>
+            <input
+              className="text-input"
+              value={reward}
+              onChange={(e) => setReward(e.target.value)}
+              placeholder="optional"
+            />
+          </label>
+        </div>
+      </details>
+
       <div className="form-actions">
         <button className="button-primary" type="submit" disabled={saving || !valid}>
           {saving ? "Creating..." : "Create deal"}
