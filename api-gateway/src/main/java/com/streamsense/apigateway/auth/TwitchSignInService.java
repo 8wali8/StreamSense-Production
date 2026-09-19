@@ -14,8 +14,8 @@ import reactor.core.publisher.Mono;
 /**
  * Sign in with Twitch, start to finish. {@link #begin} sends the browser to Twitch with a sealed state
  * cookie; {@link #complete} turns the callback into the gateway's own token and the address to send
- * the browser to. The token travels in the URL fragment, which browsers never send to a server, so the
- * console picks it up exactly as it does an access link and nothing else in the gateway changes.
+ * the browser to. The token travels in the URL fragment, which browsers never send to a server; the
+ * console takes it out of the address bar on load and keeps it, and nothing else in the gateway changes.
  */
 @Component
 public class TwitchSignInService {

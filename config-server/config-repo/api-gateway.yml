@@ -57,8 +57,8 @@ streamsense:
         - /graphiql/**
       # Twitch logins (comma separated) that sign in as operators; everyone else signs in as a streamer.
       operators: ${STREAMSENSE_GATEWAY_AUTH_OPERATORS:}
-      # Anything but a read here steers the pipeline and needs the operator role (tokens minted without a
-      # role, the access links, keep full access).
+      # Anything but a read here steers the pipeline and needs the operator role. Every accepted token
+      # carries a role; one without is refused at the door (missing_role).
       operator-only-paths:
         - /api/chat/**
         - /api/video/**

@@ -41,7 +41,10 @@ class GatewayWebSocketAuthIntegrationTest {
     @Test
     void acceptsConnectionInitCarryingAValidBearerToken() {
         Session session = GraphqlTransportWsProbe.connect(
-                port, Map.of("Authorization", "Bearer " + TestJwtTokens.validToken("demo-user")), true, TIMEOUT);
+                port,
+                Map.of("Authorization", "Bearer " + TestJwtTokens.tokenWithRole("demo-user", "streamer")),
+                true,
+                TIMEOUT);
 
         assertThat(session.acknowledged()).isTrue();
         assertThat(session.messages()).anySatisfy(message -> assertThat(message).contains("\"health\":\"ok\""));

@@ -41,7 +41,7 @@ describe("describeError", () => {
     expect(describeError(badRequest)).toBe("the request was rejected as invalid");
   });
 
-  it("tells a viewer without a valid token to use their access link", () => {
+  it("tells whoever has no valid token to sign in again", () => {
     expect(describeError(new ApiError("/api/chat/twitch/status", 401, null))).toBe(NO_ACCESS_MESSAGE);
     const gatewayRefused = new ServerError("Response not successful: Received status code 401", {
       response: new Response(null, { status: 401 }),

@@ -2036,16 +2036,6 @@ p {
   font-size: 15px;
 }
 
-.login-card form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.login-card .button-primary {
-  color: #08201d;
-}
-
 /* The sign-in header: the sponsor detector's bounding box on the wordmark. */
 .detect-header {
   position: relative;
@@ -2212,22 +2202,6 @@ p {
   width: 18px;
   height: 18px;
   fill: currentColor;
-}
-
-.login-divider {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  color: var(--subtle);
-  font-size: 12px;
-}
-
-.login-divider::before,
-.login-divider::after {
-  flex: 1;
-  height: 1px;
-  background: var(--line);
-  content: "";
 }
 
 /* ---------- Demo ---------- */

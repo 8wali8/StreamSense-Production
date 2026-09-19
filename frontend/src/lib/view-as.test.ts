@@ -6,7 +6,6 @@ import { isOperatorView, readViewAs, startViewAs, stopViewAs, VIEW_AS_STORAGE_KE
 
 const OPERATOR = fakeJwt({ sub: "8wali8", login: "8wali8", role: "operator", exp: EXPIRES_2030 });
 const STREAMER = fakeJwt({ sub: "ninja", login: "ninja", role: "streamer", exp: EXPIRES_2030 });
-const ACCESS_LINK = fakeJwt({ sub: "demo-viewer", exp: EXPIRES_2030 });
 
 function memory(initial: string | null = null) {
   let value = initial;
@@ -57,7 +56,6 @@ describe("view as", () => {
     expect(isOperatorView(holding(OPERATOR), memory())).toBe(true);
     expect(isOperatorView(holding(OPERATOR), memory("ninja"))).toBe(false);
     expect(isOperatorView(holding(STREAMER), memory())).toBe(false);
-    expect(isOperatorView(holding(ACCESS_LINK), memory())).toBe(false);
     // No token at all: auth is off locally, everything shows.
     expect(isOperatorView(holding(null), memory())).toBe(true);
   });

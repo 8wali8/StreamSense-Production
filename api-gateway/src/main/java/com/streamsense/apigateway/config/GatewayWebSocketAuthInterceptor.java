@@ -77,9 +77,7 @@ public class GatewayWebSocketAuthInterceptor implements WebSocketGraphQlIntercep
 
         if (result.valid()) {
             sessionInfo.getAttributes().put(SUBJECT_ATTRIBUTE, result.subject());
-            if (result.role() != null) {
-                sessionInfo.getAttributes().put(ROLE_ATTRIBUTE, result.role());
-            }
+            sessionInfo.getAttributes().put(ROLE_ATTRIBUTE, result.role());
             scheduleExpiry(sessionInfo, result.expiresAt());
             return Mono.empty();
         }

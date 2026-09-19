@@ -8,28 +8,23 @@ class AuthScopeTest {
 
     private static final AuthScope OPERATOR = new AuthScope("ops", GatewayTokenIssuer.ROLE_OPERATOR);
     private static final AuthScope STREAMER = new AuthScope("ninja", GatewayTokenIssuer.ROLE_STREAMER);
-    private static final AuthScope ACCESS_LINK = new AuthScope("demo-viewer", null);
 
     @Test
     void onlyAnOperatorSignInSteersThePipeline() {
         assertThat(OPERATOR.isOperator()).isTrue();
         assertThat(STREAMER.isOperator()).isFalse();
-        assertThat(ACCESS_LINK.isOperator()).isFalse();
+        // The validator never lets a token without a role through; should one appear, it is nobody's operator.
+        assertThat(new AuthScope("stray", null).isOperator()).isFalse();
     }
 
     @Test
-    void aStreamerIsConfinedToTheirOwnChannelAndNobodyElseIs() {
-        assertThat(STREAMER.isConfined()).isTrue();
+    void aStreamerIsConfinedToTheirOwnChannelAndAnOperatorIsNot() {
         assertThat(STREAMER.allows("ninja")).isTrue();
         assertThat(STREAMER.allows("@Ninja ")).isTrue();
         assertThat(STREAMER.allows("pokimane")).isFalse();
         assertThat(STREAMER.allows(null)).isTrue();
 
-        assertThat(OPERATOR.isConfined()).isFalse();
         assertThat(OPERATOR.allows("pokimane")).isTrue();
-        // An access link reads any channel; its subject is not a channel and must not be compared as one.
-        assertThat(ACCESS_LINK.isConfined()).isFalse();
-        assertThat(ACCESS_LINK.allows("pokimane")).isTrue();
     }
 
     @Test
