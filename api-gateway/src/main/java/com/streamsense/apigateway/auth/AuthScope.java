@@ -5,11 +5,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Who a request is for, once the token has been checked: the login and the role. A streamer is
- * confined to their own channel; an operator, or a token minted without a role (an access link),
- * may look at any channel; only an operator may steer the pipeline. Carried on the exchange for the
- * filters, on the WebSocket session for subscriptions, on the GraphQL context for resolvers, and to
- * the services as two headers.
+ * Who a request is for, once the token has been checked: the login and the role. Two cases: an
+ * operator, who may look at any channel and steer the pipeline, and everyone else, who is confined to
+ * their own channel. Carried on the exchange for the filters, on the WebSocket session for
+ * subscriptions, on the GraphQL context for resolvers, and to the services as two headers.
  */
 public record AuthScope(String login, String role) {
 
@@ -26,19 +25,14 @@ public record AuthScope(String login, String role) {
     private static final Pattern CHANNEL_PATH =
             Pattern.compile("^/api/(?:chat/twitch|video/capture)/channels/([^/?]+)(?:[/?].*)?$");
 
-    /** Whether this scope may steer the pipeline: a Twitch sign-in on the operators list, nothing else. */
+    /** Whether this scope may steer the pipeline and read any channel: a Twitch sign-in on the operators list. */
     public boolean isOperator() {
         return GatewayTokenIssuer.ROLE_OPERATOR.equals(role);
     }
 
-    /** Whether this scope is confined to its own channel: a token with a role that is not operator, a streamer. */
-    public boolean isConfined() {
-        return role != null && !isOperator();
-    }
-
-    /** Whether this scope may read the given channel (a streamer only their own; anyone else, any). */
+    /** Whether this scope may read the given channel (an operator any; anyone else only their own). */
     public boolean allows(String channel) {
-        return !isConfined() || channel == null || normalize(channel).equals(normalize(login));
+        return isOperator() || channel == null || normalize(channel).equals(normalize(login));
     }
 
     /** The channel a REST request is about, from its path or its {@code streamer} query parameter; null when none. */

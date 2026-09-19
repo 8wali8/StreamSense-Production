@@ -121,7 +121,7 @@ class GatewayAuthWebFilterIntegrationTest {
                 .post()
                 .uri("/graphql")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestJwtTokens.validToken("demo-user"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestJwtTokens.tokenWithRole("demo-user", "streamer"))
                 .bodyValue("{\"query\":\"{ health }\"}")
                 .exchange()
                 .expectStatus()

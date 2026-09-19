@@ -6,8 +6,8 @@
 #
 #   streamsense-deploy [deploy]   pull the repository, refresh secrets, pull the images, start the stack, verify
 #   streamsense-deploy verify     health of every container, then the console and the gateway through the edge
-#   streamsense-deploy link       print an access link for the console (TTL from --ttl-seconds, default 30 days)
-#   streamsense-deploy token      print a bare bearer token instead (same options)
+#   streamsense-deploy token      print an operator bearer token for a script or curl (TTL from --ttl-seconds,
+#                                 default 30 days); people sign in to the console with Twitch instead
 #   streamsense-deploy status     docker compose ps
 #
 # Environment (all optional):
@@ -94,11 +94,13 @@ hmac_secret() {
   tr -d '[:space:]' < "$STREAMSENSE_DIR/secrets/STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET"
 }
 
+# An operator token: the gateway accepts nothing without a role, and the health check and any script
+# run from this VM act as the operator. The signing secret goes through the environment, never the
+# command line (visible in /proc).
 mint_token() {
   local ttl="${1:-2592000}"
-  # The signing secret goes through the environment, never the command line (visible in /proc).
   STREAMSENSE_GATEWAY_AUTH_HMAC_SECRET="$(hmac_secret)" \
-    python3 "$STREAMSENSE_DIR/tools/mint-jwt.py" --subject demo-viewer --ttl-seconds "$ttl"
+    python3 "$STREAMSENSE_DIR/tools/mint-jwt.py" --subject streamsense-deploy --role operator --ttl-seconds "$ttl"
 }
 
 update_checkout() {
@@ -231,27 +233,6 @@ verify_edge() {
   echo "Console: $(console_url)"
 }
 
-# The token travels in the URL fragment: the browser never sends a fragment, so it stays out of
-# Caddy's and nginx's access logs, and the console drops it from the address bar once it has it.
-access_link() {
-  echo "$(console_url)#token=$(mint_token "${1:-2592000}")"
-}
-
-print_sharing_instructions() {
-  cat <<MSG
-
-Share with a viewer:
-
-  $(access_link)
-
-Opening the link signs that browser in: the console keeps the token and removes it from the address
-bar. The console's sign-in page also accepts the link pasted whole. The link is valid for 30 days;
-run "streamsense-deploy link" for a new one. Anyone holding the link can read everything the console
-shows, so send it the way you would send a password. The link cannot steer the pipeline: the
-operations page is for operators signed in with Twitch.
-MSG
-}
-
 cmd_deploy() {
   require_root
   require_env_file
@@ -267,7 +248,6 @@ cmd_deploy() {
   compose up -d --no-build --remove-orphans
   wait_for_health
   verify_edge
-  print_sharing_instructions
 }
 
 cmd_verify() {
@@ -292,14 +272,10 @@ ttl_option() {
 
 cmd_token() {
   require_root
-  mint_token "$(ttl_option "$@")"
-}
-
-cmd_link() {
-  require_root
-  require_env_file
-  resolve_versions
-  access_link "$(ttl_option "$@")"
+  local ttl
+  ttl="$(ttl_option "$@")"
+  echo "operator token, valid for $ttl seconds; it steers the pipeline, so treat it as the secret it was signed with" >&2
+  mint_token "$ttl"
 }
 
 cmd_status() {
@@ -313,9 +289,8 @@ cmd_status() {
 case "${1:-deploy}" in
   deploy) cmd_deploy ;;
   verify) cmd_verify ;;
-  link) shift; cmd_link "$@" ;;
   token) shift; cmd_token "$@" ;;
   status) cmd_status ;;
   -h|--help|help) sed -n '2,22p' "$0" ;;
-  *) die "unknown command ${1}; try deploy, verify, link, token, status" ;;
+  *) die "unknown command ${1}; try deploy, verify, token, status" ;;
 esac

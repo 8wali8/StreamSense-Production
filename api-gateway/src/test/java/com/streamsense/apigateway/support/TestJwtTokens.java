@@ -20,19 +20,12 @@ public final class TestJwtTokens {
     /** At least 32 bytes, as HS256 requires; wired into test properties and signing alike. */
     public static final String TEST_SECRET = "streamsense-test-hmac-secret-0123456789abcdef";
 
+    /** The role every token here carries unless a test asks for another: the widest scope, so nothing is refused for it. */
+    public static final String DEFAULT_ROLE = "operator";
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private TestJwtTokens() {}
-
-    public static String validToken(String subject) {
-        return token(
-                subject,
-                "streamsense-local",
-                List.of("streamsense-clients"),
-                Instant.now().plusSeconds(600).getEpochSecond(),
-                null,
-                "HS256");
-    }
 
     /** A token as Twitch sign-in mints it: the login as subject, plus the role claim. */
     public static String tokenWithRole(String login, String role) {
@@ -57,6 +50,19 @@ public final class TestJwtTokens {
         }
     }
 
+    /** Well signed and in date, but without a role: the shape the retired access links had, refused since. */
+    public static String tokenWithoutRole(String subject) {
+        return signed(
+                TEST_SECRET,
+                subject,
+                "streamsense-local",
+                List.of("streamsense-clients"),
+                Instant.now().plusSeconds(600).getEpochSecond(),
+                null,
+                JWSAlgorithm.HS256,
+                null);
+    }
+
     public static String expiredToken(String subject) {
         return token(
                 subject,
@@ -67,6 +73,7 @@ public final class TestJwtTokens {
                 "HS256");
     }
 
+    /** A token with the given registered claims and the default role. */
     public static String token(
             String subject, String issuer, List<String> audience, long exp, Long nbf, String algorithm) {
         return tokenSignedWith(TEST_SECRET, subject, issuer, audience, exp, nbf, algorithm);
@@ -80,6 +87,22 @@ public final class TestJwtTokens {
             // tests can exercise the rejection paths.
             return unsignedToken(subject, issuer, audience, exp, nbf, algorithm);
         }
+        return signed(secret, subject, issuer, audience, exp, nbf, jwsAlgorithm, DEFAULT_ROLE);
+    }
+
+    public static String malformedToken() {
+        return "not-a-jwt";
+    }
+
+    private static String signed(
+            String secret,
+            String subject,
+            String issuer,
+            List<String> audience,
+            long exp,
+            Long nbf,
+            JWSAlgorithm algorithm,
+            String role) {
         try {
             JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                     .subject(subject)
@@ -89,8 +112,11 @@ public final class TestJwtTokens {
             if (nbf != null) {
                 claims.notBeforeTime(new Date(nbf * 1000L));
             }
+            if (role != null) {
+                claims.claim("role", role);
+            }
             SignedJWT jwt = new SignedJWT(
-                    new JWSHeader.Builder(jwsAlgorithm).type(JOSEObjectType.JWT).build(), claims.build());
+                    new JWSHeader.Builder(algorithm).type(JOSEObjectType.JWT).build(), claims.build());
             jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
             return jwt.serialize();
         } catch (JOSEException exception) {
@@ -98,16 +124,12 @@ public final class TestJwtTokens {
         }
     }
 
-    public static String malformedToken() {
-        return "not-a-jwt";
-    }
-
     private static String unsignedToken(
             String subject, String issuer, List<String> audience, long exp, Long nbf, String algorithm) {
         try {
             String header = encodeJson("{\"alg\":\"" + algorithm + "\",\"typ\":\"JWT\"}");
-            String payload =
-                    encodeJson(OBJECT_MAPPER.writeValueAsString(new JwtPayload(subject, issuer, audience, exp, nbf)));
+            String payload = encodeJson(OBJECT_MAPPER.writeValueAsString(
+                    new JwtPayload(subject, issuer, audience, exp, nbf, DEFAULT_ROLE)));
             return header + "." + payload + ".signature";
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(exception);
@@ -118,5 +140,5 @@ public final class TestJwtTokens {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
-    private record JwtPayload(String sub, String iss, List<String> aud, long exp, Long nbf) {}
+    private record JwtPayload(String sub, String iss, List<String> aud, long exp, Long nbf, String role) {}
 }

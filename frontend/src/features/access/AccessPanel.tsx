@@ -10,9 +10,9 @@ type Props = {
 };
 
 /**
- * Sidebar footer: who is signed in (a Twitch login and its role) or how long the access link is good
- * for, and the way out. An operator can also view the console as a streamer: pinned to that channel,
- * without the operations page, until they stop. The gate ensures there is a token.
+ * Sidebar footer: who is signed in (a Twitch login and its role) and the way out. An operator can also
+ * view the console as a streamer: pinned to that channel, without the operations page, until they
+ * stop. The gate ensures there is a token.
  */
 export function AccessPanel({
   reload = () => window.location.reload(),
@@ -22,17 +22,13 @@ export function AccessPanel({
   const viewingAs = readViewAs();
   const operator = isOperatorSession();
   const [viewAsInput, setViewAsInput] = useState("");
-  const expiry = claims?.expiry ?? null;
-  let line = "Access link";
-  if (claims?.login) {
-    line = `@${claims.login} · ${claims.role ?? "viewer"}`;
-  } else if (expiry) {
-    line = `Until ${expiry.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
-  }
+  // A token minted by hand for a script carries a role but no login; the console names it by the role alone.
+  const role = claims?.role ?? "unknown";
+  const line = claims?.login ? `@${claims.login} · ${role}` : role;
   return (
     <>
       <div className="signed-in" aria-label="Access">
-        <span className="eyebrow">{viewingAs ? "Viewing as" : claims?.login ? "Signed in as" : "Access"}</span>
+        <span className="eyebrow">{viewingAs ? "Viewing as" : "Signed in as"}</span>
         <strong>{viewingAs ? `@${viewingAs} · streamer` : line}</strong>
         {viewingAs && <span className="signed-in-note">Signed in as {line}</span>}
         <span className="signed-in-actions">

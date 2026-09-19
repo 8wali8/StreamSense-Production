@@ -14,7 +14,8 @@
 # - Memory limits copied from the Kubernetes manifests (k8s/**), so the JVMs size their heaps from the
 #   cgroup (-XX:MaxRAMPercentage=75) instead of from the whole machine. About 25 GiB in total.
 # - Containers restart with the VM and logs rotate, so a stopped-and-started VM comes back on its own.
-# - Gateway auth on (viewers use a token from tools/mint-jwt.py), GraphiQL off, two trusted proxy hops
+# - Gateway auth on (people sign in with Twitch; tools/mint-jwt.py mints a token for a script), GraphiQL off,
+#   two trusted proxy hops
 #   (Caddy sets X-Forwarded-For and the console's nginx appends its own).
 # Twitch credentials and toggles, the domain, and the image tag come from the --env-file above: the
 # base file interpolates ${TWITCH_*} and ${STREAMSENSE_TWITCH_*} from the Compose environment, which
