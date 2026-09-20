@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -14,7 +15,13 @@ class AudioSampler:
         self.timeout_seconds = timeout_seconds
         self.duration_seconds = duration_seconds
 
-    def capture(self, hls_url: str, output_path: Path, seek_seconds: float | None = None) -> tuple[Path, int]:
+    def capture(
+        self,
+        hls_url: str,
+        output_path: Path,
+        seek_seconds: float | None = None,
+        cancel: threading.Event | None = None,
+    ) -> tuple[Path, int]:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         command = [
             "ffmpeg",
@@ -45,7 +52,7 @@ class AudioSampler:
 
         start = time.monotonic()
         try:
-            result = run_bounded(command, self.timeout_seconds)
+            result = run_bounded(command, self.timeout_seconds, cancel)
         except subprocess.TimeoutExpired as exc:
             raise AudioCaptureError("ffmpeg audio capture timed out") from exc
 

@@ -2,19 +2,28 @@ package com.streamsense.analyticsservice.service;
 
 import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.api.VodImport;
+import com.streamsense.analyticsservice.api.VodImportStatus;
 import com.streamsense.analyticsservice.api.VodListing;
 import com.streamsense.analyticsservice.imports.CaptureReplayClient;
 import com.streamsense.analyticsservice.imports.ChatReplayClient;
+import com.streamsense.analyticsservice.imports.ReplayStatus;
 import com.streamsense.analyticsservice.model.StreamSessionRow;
+import com.streamsense.analyticsservice.model.VodImportRow;
 import com.streamsense.analyticsservice.persistence.StreamSessionRepository;
+import com.streamsense.analyticsservice.persistence.VodImportRepository;
 import com.streamsense.analyticsservice.twitch.HelixVideo;
 import com.streamsense.analyticsservice.twitch.TwitchHelixClient;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,6 +31,14 @@ import org.springframework.stereotype.Service;
  * a deal already running. The recording's metadata becomes a session with Twitch's bounds; its chat
  * and its frames and audio are replayed through the normal pipeline with the original timestamps,
  * so every number is computed the same way as for a live stream.
+ *
+ * <p>This service owns the import's state. chat-service and video-capture-service each run their half
+ * and keep its status in memory, which a restart wipes; the row here ({@code vod_imports}) is what the
+ * console reads and what a stop or a resume is decided from. It is refreshed from both services while
+ * an import is active, on a schedule and whenever a channel's imports are asked for. A stop is
+ * fanned out to both halves and the import reads STOPPING until each has confirmed; a later import
+ * request for a stopped or failed recording resumes both halves from the offset the slower one
+ * reached, which is safe because every replayed event id is deterministic.
  */
 @Service
 public class VodImportService {
@@ -33,18 +50,35 @@ public class VodImportService {
     private final ObjectProvider<CaptureReplayClient> captureReplay;
     private final StreamSessionService sessions;
     private final StreamSessionRepository sessionRows;
+    private final VodImportRepository imports;
+    private final Clock clock;
 
+    @Autowired
     public VodImportService(
             ObjectProvider<TwitchHelixClient> helix,
             ObjectProvider<ChatReplayClient> chatReplay,
             ObjectProvider<CaptureReplayClient> captureReplay,
             StreamSessionService sessions,
-            StreamSessionRepository sessionRows) {
+            StreamSessionRepository sessionRows,
+            VodImportRepository imports) {
+        this(helix, chatReplay, captureReplay, sessions, sessionRows, imports, Clock.systemUTC());
+    }
+
+    VodImportService(
+            ObjectProvider<TwitchHelixClient> helix,
+            ObjectProvider<ChatReplayClient> chatReplay,
+            ObjectProvider<CaptureReplayClient> captureReplay,
+            StreamSessionService sessions,
+            StreamSessionRepository sessionRows,
+            VodImportRepository imports,
+            Clock clock) {
         this.helix = helix;
         this.chatReplay = chatReplay;
         this.captureReplay = captureReplay;
         this.sessions = sessions;
         this.sessionRows = sessionRows;
+        this.imports = imports;
+        this.clock = clock;
     }
 
     /** The channel's recordings, newest first, each with the session it was imported into if any. */
@@ -69,8 +103,13 @@ public class VodImportService {
         return result;
     }
 
+    /** Starts an import, or resumes a stopped or failed one from the offset both halves had reached. */
     public VodImport importVod(String streamer, String vodId, Integer averageViewers) {
         String login = login(streamer);
+        Optional<VodImportRow> existing = imports.find(login, vodId);
+        if (existing.isPresent() && existing.get().isActive()) {
+            throw new IllegalStateException("recording " + vodId + " is already being imported");
+        }
         HelixVideo video = requireHelix()
                 .video(vodId)
                 .orElseThrow(() -> new IllegalArgumentException("Twitch has no recording with id " + vodId));
@@ -91,6 +130,9 @@ public class VodImportService {
                 video.durationMs(),
                 key,
                 averageViewers);
+        long startOffset = existing.filter(VodImportRow::isResumable)
+                .map(VodImportRow::offsetSeconds)
+                .orElse(0L);
 
         List<String> problems = new ArrayList<>();
         boolean chatStarted = false;
@@ -99,7 +141,7 @@ public class VodImportService {
             problems.add("chat replay is not configured (streamsense.services.chat-service.base-url)");
         } else {
             try {
-                chat.replay(login, video.id(), video.createdAt(), key);
+                chat.replay(login, video.id(), video.createdAt(), key, startOffset);
                 chatStarted = true;
             } catch (RuntimeException ex) {
                 log.warn("chat replay could not start vod={} : {}", vodId, ex.getMessage());
@@ -112,14 +154,220 @@ public class VodImportService {
             problems.add("capture replay is not configured (streamsense.services.video-capture-service.base-url)");
         } else {
             try {
-                capture.replay(login, video.id(), video.url(), video.createdAt(), video.durationMs(), key);
+                capture.replay(login, video.id(), video.url(), video.createdAt(), video.durationMs(), key, startOffset);
                 captureStarted = true;
             } catch (RuntimeException ex) {
                 log.warn("capture replay could not start vod={} : {}", vodId, ex.getMessage());
                 problems.add("capture replay could not start: " + ex.getMessage());
             }
         }
-        return new VodImport(session, key, chatStarted, captureStarted, problems);
+        long now = clock.millis();
+        String started = chatStarted && captureStarted ? VodImportRow.QUEUED : VodImportRow.FAILED;
+        VodImportRow row = new VodImportRow(
+                login,
+                vodId,
+                session.id(),
+                started,
+                startOffset,
+                video.durationMs() / 1000,
+                chatStarted ? ReplayStatus.QUEUED : ReplayStatus.FAILED,
+                startOffset,
+                captureStarted ? ReplayStatus.QUEUED : ReplayStatus.FAILED,
+                startOffset,
+                problems.isEmpty() ? null : truncate(String.join("; ", problems)),
+                now,
+                now);
+        imports.save(row);
+        return new VodImport(session, key, chatStarted, captureStarted, problems, toStatus(row));
+    }
+
+    /**
+     * Stops one recording's import: both halves are told, and the import reads STOPPING until each has
+     * confirmed. Stopping an import that is not running answers its current status and changes nothing.
+     */
+    public VodImportStatus stop(String streamer, String vodId) {
+        String login = login(streamer);
+        VodImportRow row = imports.find(login, vodId)
+                .orElseThrow(() -> new IllegalArgumentException("no import of recording " + vodId + " to stop"));
+        if (!row.isActive()) {
+            return toStatus(row);
+        }
+        VodImportRow stopping = row.withState(VodImportRow.STOPPING, clock.millis());
+        imports.save(stopping);
+        return toStatus(refresh(stopping));
+    }
+
+    /** Every import the channel has asked for, the active ones brought up to date first. */
+    public List<VodImportStatus> statuses(String streamer) {
+        String login = login(streamer);
+        List<VodImportStatus> result = new ArrayList<>();
+        for (VodImportRow row : imports.findByStreamer(login)) {
+            result.add(toStatus(row.isActive() ? refresh(row) : row));
+        }
+        return result;
+    }
+
+    /** Brings every active import up to date, so a stop or a finish is recorded even when nobody is watching. */
+    @Scheduled(fixedDelayString = "${streamsense.analytics.vod-import-refresh-ms:5000}")
+    public void refreshActiveImports() {
+        for (VodImportRow row : imports.findActive()) {
+            try {
+                refresh(row);
+            } catch (RuntimeException ex) {
+                log.warn(
+                        "could not refresh import vod={} streamer={}: {}",
+                        row.vodId(),
+                        row.streamer(),
+                        ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Asks both services where the import stands and records the answer. A stop still pending is sent
+     * to whichever half is still running. A half the service no longer knows about (it restarted) is
+     * failed, never resumed on its own: the streamer decides with Resume.
+     */
+    private VodImportRow refresh(VodImportRow row) {
+        boolean stopping = VodImportRow.STOPPING.equals(row.state());
+        Half chat = half(
+                row.chatState(),
+                row.chatOffsetSeconds(),
+                stopping,
+                chatReplay.getIfAvailable(),
+                client -> client.status(row.vodId()),
+                client -> client.stop(row.vodId()),
+                "chat-service");
+        Half capture = half(
+                row.captureState(),
+                row.captureOffsetSeconds(),
+                stopping,
+                captureReplay.getIfAvailable(),
+                client -> client.status(row.vodId()),
+                client -> client.stop(row.vodId()),
+                "video-capture-service");
+        long offset = Math.min(chat.reached(row.durationSeconds()), capture.reached(row.durationSeconds()));
+        String state = combined(stopping, chat, capture);
+        String error = capture.error() != null ? capture.error() : chat.error();
+        if (error == null && !VodImportRow.FAILED.equals(state)) {
+            error = null;
+        } else if (error == null) {
+            error = row.lastError();
+        }
+        VodImportRow updated = new VodImportRow(
+                row.streamer(),
+                row.vodId(),
+                row.sessionId(),
+                state,
+                Math.max(row.offsetSeconds(), Math.min(offset, row.durationSeconds())),
+                row.durationSeconds(),
+                chat.state(),
+                chat.offset(),
+                capture.state(),
+                capture.offset(),
+                truncate(error),
+                row.requestedAt(),
+                clock.millis());
+        if (!updated.state().equals(row.state())) {
+            log.info(
+                    "import vod={} streamer={} {} -> {} at offset={}s (chat {}, capture {})",
+                    row.vodId(),
+                    row.streamer(),
+                    row.state(),
+                    updated.state(),
+                    updated.offsetSeconds(),
+                    chat.state(),
+                    capture.state());
+        }
+        imports.save(updated);
+        return updated;
+    }
+
+    private static <C> Half half(
+            String lastState,
+            long lastOffset,
+            boolean stopping,
+            C client,
+            Function<C, Optional<ReplayStatus>> status,
+            Function<C, Optional<ReplayStatus>> stop,
+            String serviceName) {
+        boolean wasActive = ReplayStatus.QUEUED.equals(lastState) || ReplayStatus.RUNNING.equals(lastState);
+        if (client == null || !wasActive) {
+            // Never started there, or already settled: nothing to ask.
+            return new Half(lastState, lastOffset, null);
+        }
+        Optional<ReplayStatus> answer;
+        try {
+            answer = status.apply(client);
+            if (stopping
+                    && answer.map(ReplayStatus::isActive).orElse(false)
+                    && !answer.get().stopRequested()) {
+                answer = stop.apply(client).or(() -> Optional.empty());
+            }
+        } catch (RuntimeException ex) {
+            // Unreachable for the moment: keep what was last known and try again on the next refresh.
+            log.debug("{} did not answer for the import: {}", serviceName, ex.getMessage());
+            return new Half(lastState, lastOffset, null);
+        }
+        if (answer.isEmpty()) {
+            return new Half(
+                    ReplayStatus.FAILED,
+                    lastOffset,
+                    serviceName + " lost track of the import (restarted?); resume to continue from " + lastOffset
+                            + "s");
+        }
+        ReplayStatus reported = answer.get();
+        return new Half(reported.state(), Math.max(lastOffset, reported.offsetSeconds()), reported.lastError());
+    }
+
+    private static String combined(boolean stopping, Half chat, Half capture) {
+        boolean anyActive = chat.isActive() || capture.isActive();
+        if (anyActive) {
+            if (stopping) {
+                return VodImportRow.STOPPING;
+            }
+            boolean bothQueued =
+                    ReplayStatus.QUEUED.equals(chat.state()) && ReplayStatus.QUEUED.equals(capture.state());
+            return bothQueued ? VodImportRow.QUEUED : VodImportRow.IMPORTING;
+        }
+        if (stopping || ReplayStatus.STOPPED.equals(chat.state()) || ReplayStatus.STOPPED.equals(capture.state())) {
+            return VodImportRow.STOPPED;
+        }
+        if (ReplayStatus.FAILED.equals(chat.state()) || ReplayStatus.FAILED.equals(capture.state())) {
+            return VodImportRow.FAILED;
+        }
+        return VodImportRow.DONE;
+    }
+
+    /** One half of an import as last reported: its state, the offset it reached, and its error if any. */
+    private record Half(String state, long offset, String error) {
+
+        boolean isActive() {
+            return ReplayStatus.QUEUED.equals(state) || ReplayStatus.RUNNING.equals(state);
+        }
+
+        /** Where this half has got to: a finished half counts as the whole recording. */
+        long reached(long durationSeconds) {
+            return ReplayStatus.DONE.equals(state) ? durationSeconds : offset;
+        }
+    }
+
+    private static VodImportStatus toStatus(VodImportRow row) {
+        return new VodImportStatus(
+                row.streamer(),
+                row.vodId(),
+                row.sessionId(),
+                row.state(),
+                row.offsetSeconds(),
+                row.durationSeconds(),
+                row.chatState(),
+                row.captureState(),
+                row.lastError(),
+                row.updatedAt());
+    }
+
+    private static String truncate(String error) {
+        return error == null || error.length() <= 512 ? error : error.substring(0, 512);
     }
 
     /** The streamSessionId every replayed event of a recording carries. */

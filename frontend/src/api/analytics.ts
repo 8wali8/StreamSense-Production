@@ -44,19 +44,51 @@ export function listVods(streamer: string, limit = 20): Promise<VodListing[]> {
   return apiFetch<VodListing[]>(`/api/analytics/streams/${encodeURIComponent(streamer)}/vods`, { params: { limit } });
 }
 
-/** POST .../vods/{vodId}/import: creates the session and starts the chat and capture replays. */
+/**
+ * Where a recording's import stands, as analytics-service records it (it owns the state; the two
+ * replay services only run their halves). `offsetSeconds` follows the slower half; a resume
+ * continues from there. STOPPING means a stop was asked for and one half has yet to confirm.
+ */
+export type VodImportStatus = {
+  streamer: string;
+  vodId: string;
+  sessionId: number | null;
+  state: "QUEUED" | "IMPORTING" | "STOPPING" | "STOPPED" | "DONE" | "FAILED" | (string & {});
+  offsetSeconds: number;
+  durationSeconds: number;
+  chatState: string;
+  captureState: string;
+  lastError: string | null;
+  updatedAt: number;
+};
+
+/** GET .../vods/imports: every import the channel asked for, the active ones brought up to date. */
+export function listVodImports(streamer: string): Promise<VodImportStatus[]> {
+  return apiFetch<VodImportStatus[]>(`/api/analytics/streams/${encodeURIComponent(streamer)}/vods/imports`);
+}
+
+/** POST .../vods/{vodId}/import: creates the session and starts (or resumes) the chat and capture replays. */
 export type VodImport = {
   session: { id: string | number };
   streamSessionId: string;
   chatReplayStarted: boolean;
   captureReplayStarted: boolean;
   problems: string[];
+  status: VodImportStatus;
 };
 
 export function importVod(streamer: string, vodId: string, averageViewers?: number): Promise<VodImport> {
   return apiFetch<VodImport>(
     `/api/analytics/streams/${encodeURIComponent(streamer)}/vods/${encodeURIComponent(vodId)}/import`,
     { method: "POST", body: averageViewers == null ? {} : { averageViewers } },
+  );
+}
+
+/** POST .../vods/{vodId}/stop: ends both halves of the import; what was published stays. */
+export function stopVodImport(streamer: string, vodId: string): Promise<VodImportStatus> {
+  return apiFetch<VodImportStatus>(
+    `/api/analytics/streams/${encodeURIComponent(streamer)}/vods/${encodeURIComponent(vodId)}/stop`,
+    { method: "POST" },
   );
 }
 

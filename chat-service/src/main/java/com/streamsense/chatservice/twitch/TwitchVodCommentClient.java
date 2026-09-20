@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.springframework.stereotype.Component;
 
@@ -120,8 +121,20 @@ public class TwitchVodCommentClient {
      * because it loops over a short window many times.
      */
     public void forEachPage(String vodId, double startOffsetSeconds, Consumer<List<TwitchVodChatComment>> consumer) {
+        forEachPage(vodId, startOffsetSeconds, consumer, () -> false);
+    }
+
+    /** As above, but stops asking Twitch for more pages once {@code stop} answers true. */
+    public void forEachPage(
+            String vodId,
+            double startOffsetSeconds,
+            Consumer<List<TwitchVodChatComment>> consumer,
+            BooleanSupplier stop) {
         String cursor = null;
         for (int page = 0; page < Math.max(1, properties.getMaxPages()); page++) {
+            if (stop.getAsBoolean()) {
+                return;
+            }
             JsonNode root = requestPage(vodId, startOffsetSeconds, cursor);
             JsonNode commentsNode = root.path("data").path("video").path("comments");
             JsonNode edges = commentsNode.path("edges");
