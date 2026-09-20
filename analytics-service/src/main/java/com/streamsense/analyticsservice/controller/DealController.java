@@ -3,6 +3,7 @@ package com.streamsense.analyticsservice.controller;
 import com.streamsense.analyticsservice.api.Deal;
 import com.streamsense.analyticsservice.api.DealCreateRequest;
 import com.streamsense.analyticsservice.api.DealSummary;
+import com.streamsense.analyticsservice.api.DealUpdateRequest;
 import com.streamsense.analyticsservice.api.ShareLink;
 import com.streamsense.analyticsservice.service.DealService;
 import jakarta.validation.Valid;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -51,6 +53,21 @@ public class DealController {
     public ResponseEntity<Deal> get(@PathVariable("id") long id) {
         return deals.get(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound()
                 .build());
+    }
+
+    /** Replaces the deal's terms; the streamer stays. Bad input is a 400 problem, like creation. */
+    @PutMapping("/{id}")
+    public ResponseEntity<Deal> update(@PathVariable("id") long id, @RequestBody @Valid DealUpdateRequest request) {
+        return deals.update(id, request).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound()
+                .build());
+    }
+
+    /** Removes the deal; 409 while it is shared. Operators only: the scope filter refuses a streamer. */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable("id") long id) {
+        return deals.delete(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 
     /** Mints (or returns) the deal's read-only share token. */

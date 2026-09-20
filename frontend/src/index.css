@@ -1860,6 +1860,21 @@ p {
 
 .deal-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The owner's edit form on the deal page: the same form as the home page's, in its own panel. */
+.deal-edit .new-deal {
+  padding-top: 14px;
+  border-bottom: 0;
+}
+
+/* One line asking whether to delete, with the answer beside it. */
+.deal-confirm {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }

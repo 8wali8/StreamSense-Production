@@ -32,9 +32,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * sets itself ({@value #LOGIN_HEADER}, {@value #ROLE_HEADER}); with the streamer role, a request may name
  * only that login: in the {@code /streams/{streamer}} path, the {@code streamer} query parameter, the
  * {@code streamer} of a deal being created, or the owner of a deal or session addressed by id. The
- * operator's routes ({@value #OPERATOR_ONLY}: the Helix poller's status, whose last error is raw) are
- * refused to that role outright. Requests without the headers (the gateway's own resolvers, the smoke
- * tests) are unscoped, which is safe only because this service is reachable through the gateway alone.
+ * operator's routes ({@value #OPERATOR_ONLY}: the Helix poller's status, whose last error is raw) and
+ * a deal's deletion are refused to that role outright. Requests without the headers (the gateway's own
+ * resolvers, the smoke tests) are unscoped, which is safe only because this service is reachable
+ * through the gateway alone.
  */
 @Component
 public class ChannelScopeFilter extends OncePerRequestFilter {
@@ -45,6 +46,9 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
 
     private static final Pattern STREAMS = Pattern.compile("^/api/analytics/streams/([^/]+)(?:/.*)?$");
     private static final Pattern DEAL = Pattern.compile("^/api/analytics/deals/(\\d+)(?:/.*)?$");
+    /** The deal itself, not its share link: deleting one is the operator's call. */
+    private static final Pattern DEAL_ITSELF = Pattern.compile("^/api/analytics/deals/\\d+$");
+
     private static final Pattern SESSION = Pattern.compile("^/api/analytics/sessions/(\\d+)(?:/.*)?$");
     static final String OPERATOR_ONLY = "/api/analytics/helix/status";
     private static final String PROBLEM_TYPE = "https://streamsense.dev/problems/forbidden";
@@ -78,7 +82,8 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
         // Spring matches routes with matrix parameters (";key=value") removed from each segment; compare the
         // same way, or "/helix/status;x" would reach the controller unscoped.
         String path = withoutMatrixParameters(request.getRequestURI());
-        if (path.equals(OPERATOR_ONLY)) {
+        if (path.equals(OPERATOR_ONLY)
+                || (DEAL_ITSELF.matcher(path).matches() && "DELETE".equalsIgnoreCase(request.getMethod()))) {
             forbid(request, response, "operator_required", "This is for operators");
             return;
         }

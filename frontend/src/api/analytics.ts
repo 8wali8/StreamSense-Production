@@ -27,6 +27,22 @@ export function createDeal(request: DealCreateRequest): Promise<Deal> {
   return apiFetch<Deal>("/api/analytics/deals", { method: "POST", body: request });
 }
 
+/**
+ * PUT /api/analytics/deals/{id}: the deal's terms from now on, as a whole (a term left out is cleared, a
+ * rate left out returns to the configured default). The streamer is the deal's and is not sent. Reports
+ * inside the deal re-price on their next load. Ending a deal is an update whose `endsAt` is now.
+ */
+export type DealUpdateRequest = Omit<DealCreateRequest, "streamer">;
+
+export function updateDeal(dealId: string, request: DealUpdateRequest): Promise<Deal> {
+  return apiFetch<Deal>(`/api/analytics/deals/${encodeURIComponent(dealId)}`, { method: "PUT", body: request });
+}
+
+/** DELETE /api/analytics/deals/{id}: operators only, and refused (409) while the deal is shared. */
+export function deleteDeal(dealId: string): Promise<void> {
+  return apiSend(`/api/analytics/deals/${encodeURIComponent(dealId)}`, { method: "DELETE" });
+}
+
 /** GET /api/analytics/streams/{streamer}/vods: the channel's recordings on Twitch, newest first. */
 export type VodListing = {
   vodId: string;

@@ -113,6 +113,36 @@ public class DealRepository {
                 .findFirst();
     }
 
+    /** Replaces the deal's terms (everything but the streamer, the share token, and the creation time). */
+    public boolean update(DealRow deal, long now) {
+        return jdbcTemplate.update(
+                        """
+                        update deals
+                           set sponsor = ?, starts_at = ?, ends_at = ?, promised_streams = ?, fee = ?, currency = ?,
+                               cpm_per_30s_equivalent = ?, host_read_rate_per_1000 = ?, tracked_link = ?,
+                               chat_command = ?, channel_point_reward = ?, updated_at = ?
+                         where id = ?
+                        """,
+                        deal.sponsor(),
+                        deal.startsAt(),
+                        deal.endsAt(),
+                        deal.promisedStreams(),
+                        deal.fee(),
+                        deal.currency(),
+                        deal.cpmPer30sEquivalent(),
+                        deal.hostReadRatePer1000(),
+                        deal.trackedLink(),
+                        deal.chatCommand(),
+                        deal.channelPointReward(),
+                        now,
+                        deal.id())
+                > 0;
+    }
+
+    public boolean delete(long id) {
+        return jdbcTemplate.update("delete from deals where id = ?", id) > 0;
+    }
+
     /** Sets or clears (null) the share token. */
     public void updateShareToken(long id, String token, long now) {
         jdbcTemplate.update("update deals set share_token = ?, updated_at = ? where id = ?", token, now, id);
