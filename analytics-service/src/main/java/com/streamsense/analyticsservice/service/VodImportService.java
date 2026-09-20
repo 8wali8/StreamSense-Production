@@ -5,6 +5,7 @@ import com.streamsense.analyticsservice.api.VodChatLogSummary;
 import com.streamsense.analyticsservice.api.VodImport;
 import com.streamsense.analyticsservice.api.VodImportStatus;
 import com.streamsense.analyticsservice.api.VodListing;
+import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.imports.CaptureReplayClient;
 import com.streamsense.analyticsservice.imports.ChatLogParser;
 import com.streamsense.analyticsservice.imports.ChatReplayClient;
@@ -64,6 +65,7 @@ public class VodImportService {
     private final VodImportRepository imports;
     private final VodChatLogRepository chatLogs;
     private final ChatLogParser chatLogParser;
+    private final StreamSenseProperties properties;
     private final Clock clock;
 
     @Autowired
@@ -75,7 +77,8 @@ public class VodImportService {
             StreamSessionRepository sessionRows,
             VodImportRepository imports,
             VodChatLogRepository chatLogs,
-            ChatLogParser chatLogParser) {
+            ChatLogParser chatLogParser,
+            StreamSenseProperties properties) {
         this(
                 helix,
                 chatReplay,
@@ -85,6 +88,7 @@ public class VodImportService {
                 imports,
                 chatLogs,
                 chatLogParser,
+                properties,
                 Clock.systemUTC());
     }
 
@@ -97,6 +101,7 @@ public class VodImportService {
             VodImportRepository imports,
             VodChatLogRepository chatLogs,
             ChatLogParser chatLogParser,
+            StreamSenseProperties properties,
             Clock clock) {
         this.helix = helix;
         this.chatReplay = chatReplay;
@@ -106,6 +111,7 @@ public class VodImportService {
         this.imports = imports;
         this.chatLogs = chatLogs;
         this.chatLogParser = chatLogParser;
+        this.properties = properties;
         this.clock = clock;
     }
 
@@ -187,7 +193,14 @@ public class VodImportService {
         } else {
             try {
                 capture.replay(
-                        login, video.id(), video.url(), video.createdAt(), video.durationMs(), key, captureStart);
+                        login,
+                        video.id(),
+                        video.url(),
+                        video.createdAt(),
+                        video.durationMs(),
+                        key,
+                        captureStart,
+                        properties.getAnalytics().getVodImportTranscriptIntervalSeconds());
                 captureStarted = true;
             } catch (RuntimeException ex) {
                 log.warn("capture replay could not start vod={} : {}", vodId, ex.getMessage());

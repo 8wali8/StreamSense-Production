@@ -33,6 +33,9 @@ streamsense:
     low-data-minimum-events: ${STREAMSENSE_ANALYTICS_LOW_DATA_MINIMUM_EVENTS:5}
     capture-session-idle-close-minutes: ${STREAMSENSE_ANALYTICS_CAPTURE_SESSION_IDLE_CLOSE_MINUTES:10}
     max-range-hours: ${STREAMSENSE_ANALYTICS_MAX_RANGE_HOURS:48}
+    # The transcript stride a VOD import asks the capture service for: the live segment length, so an
+    # imported session counts every voice mention. Pinned here and never sent by the console.
+    vod-import-transcript-interval-seconds: ${STREAMSENSE_ANALYTICS_VOD_IMPORT_TRANSCRIPT_INTERVAL_SECONDS:10}
     value:
       # Media value assumptions for the session report; a deal overrides them per request.
       cpm-per-30s-equivalent: ${STREAMSENSE_ANALYTICS_VALUE_CPM:12.0}
