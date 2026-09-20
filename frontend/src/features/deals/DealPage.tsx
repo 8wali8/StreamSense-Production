@@ -1,8 +1,11 @@
 import { useQuery } from "@apollo/client/react";
-import { Link, useParams } from "react-router";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+import { deleteDeal, updateDeal } from "../../api/analytics";
 import type { DealSummaryQuery, DealSummaryQueryVariables } from "../../graphql/generated";
 import { DEAL_SUMMARY_QUERY } from "../../graphql/queries";
 import { describeError } from "../../lib/errors";
+import { isOperatorView } from "../../lib/view-as";
 import {
   formatCount,
   formatDuration,
@@ -14,18 +17,41 @@ import {
 import { dealDates, feeMultiple, streamsProgress } from "./deal-format";
 import { isDemoMode } from "../../demo/mode";
 import { readShareToken } from "../../lib/share-token";
+import { DealForm } from "./DealForm";
 import { DealTrend } from "./DealTrend";
 import { ImportStreams } from "./ImportStreams";
 import { ShareControl } from "./ShareControl";
 
-/** S5: how one deal is going. Totals, the trend, and every stream inside it. The share control waits for 07. */
+type DealAction = "idle" | "editing" | "confirming-delete";
+
+/**
+ * How one deal is going: totals, the trend, every stream inside it, and, for the owner, the controls to
+ * share it, change its terms, end it today, or (an operator) delete it once it is unshared.
+ */
 export function DealPage() {
   const { dealId = "" } = useParams();
+  const navigate = useNavigate();
   const query = useQuery<DealSummaryQuery, DealSummaryQueryVariables>(DEAL_SUMMARY_QUERY, {
     variables: { id: dealId },
     skip: !dealId,
     fetchPolicy: "cache-and-network",
   });
+  const [action, setAction] = useState<DealAction>("idle");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function run(work: () => Promise<void>) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await work();
+    } catch (err) {
+      setActionError(describeError(err instanceof Error ? err : new Error("the change failed")));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (query.loading && !query.data) {
     return (
@@ -54,9 +80,41 @@ export function DealPage() {
 
   const { deal, totals, sessions } = summary;
   const multiple = feeMultiple(totals.mediaValue, deal.fee);
-  // A shared tab and the demo are both read-only views: no share control, no imports.
+  // A shared tab and the demo are both read-only views: no share control, no imports, no changes.
   const sharedView = readShareToken() != null || isDemoMode();
   const sponsorQuery = `?sponsor=${encodeURIComponent(deal.sponsor)}`;
+  // Ending is for a deal that has started and not ended (one still to come is edited or deleted instead);
+  // deleting is the operator's call, and only once it is unshared.
+  const canEnd = deal.startsAt <= Date.now() && (deal.endsAt == null || deal.endsAt > Date.now());
+  const canDelete = !sharedView && isOperatorView();
+
+  function endToday() {
+    void run(async () => {
+      // The whole deal goes back with only the end changed: an update is not a patch.
+      await updateDeal(deal.id, {
+        sponsor: deal.sponsor,
+        startsAt: deal.startsAt,
+        endsAt: Date.now(),
+        ...(deal.promisedStreams != null ? { promisedStreams: deal.promisedStreams } : {}),
+        ...(deal.fee != null ? { fee: deal.fee } : {}),
+        ...(deal.currency ? { currency: deal.currency } : {}),
+        cpmPer30sEquivalent: deal.cpmPer30sEquivalent,
+        hostReadRatePer1000: deal.hostReadRatePer1000,
+        ...(deal.trackedLink ? { trackedLink: deal.trackedLink } : {}),
+        ...(deal.chatCommand ? { chatCommand: deal.chatCommand } : {}),
+        ...(deal.channelPointReward ? { channelPointReward: deal.channelPointReward } : {}),
+      });
+      setNotice("The deal ended today. Edit it to pick another end date.");
+      await query.refetch();
+    });
+  }
+
+  function remove() {
+    void run(async () => {
+      await deleteDeal(deal.id);
+      await navigate("/");
+    });
+  }
 
   return (
     <div className="page report deal-page">
@@ -79,8 +137,89 @@ export function DealPage() {
               onChanged={() => void query.refetch()}
             />
           )}
+          {!sharedView && action === "idle" && (
+            <>
+              <button
+                className="button-secondary button-sm"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setNotice(null);
+                  setAction("editing");
+                }}
+              >
+                Edit
+              </button>
+              {canEnd && (
+                <button className="button-secondary button-sm" type="button" disabled={busy} onClick={endToday}>
+                  {busy ? "Ending..." : "End today"}
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  className="button-secondary button-sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setNotice(null);
+                    setAction("confirming-delete");
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+            </>
+          )}
         </div>
       </header>
+
+      {action === "editing" && (
+        <section className="panel deal-edit" aria-label="Edit this deal">
+          <DealForm
+            streamer={deal.streamer}
+            deal={deal}
+            onCancel={() => setAction("idle")}
+            onSaved={() => {
+              // The header's actions act on the deal as loaded, so they stay hidden until the refetch lands.
+              void run(async () => {
+                await query.refetch();
+                setAction("idle");
+                setNotice("Saved. Every report inside the deal is priced with the new terms from now on.");
+              });
+            }}
+          />
+        </section>
+      )}
+      {action === "confirming-delete" && (
+        <div className="status-line deal-confirm" role="alert">
+          <span>
+            Delete this deal for good? Its streams stay; they just stop belonging to it.
+            {deal.shareToken ? " Revoke the share link first." : ""}
+          </span>
+          <button
+            className="button-primary button-sm"
+            type="button"
+            disabled={busy || deal.shareToken != null}
+            onClick={remove}
+          >
+            {busy ? "Deleting..." : "Delete"}
+          </button>
+          <button
+            className="button-secondary button-sm"
+            type="button"
+            disabled={busy}
+            onClick={() => setAction("idle")}
+          >
+            Keep
+          </button>
+        </div>
+      )}
+      {notice && <div className="status-line">{notice}</div>}
+      {actionError && (
+        <div className="error-state" role="alert">
+          {actionError}
+        </div>
+      )}
 
       <div className="report-tiles">
         <div className="rstat">

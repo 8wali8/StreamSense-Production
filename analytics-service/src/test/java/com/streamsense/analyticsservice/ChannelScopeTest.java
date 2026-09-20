@@ -1,7 +1,9 @@
 package com.streamsense.analyticsservice;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -99,6 +101,44 @@ class ChannelScopeTest {
                         .header(LOGIN, "someone-else")
                         .header(ROLE, "streamer"))
                 .andExpect(status().isForbidden());
+        // A streamer edits their own deal (the body names no streamer, so it cannot move), never another's,
+        // and deletes none: that is the operator's call. The share link stays theirs to revoke.
+        mockMvc.perform(put("/api/analytics/deals/" + dealId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sponsor\":\"Prime\",\"startsAt\":1788000000000}")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.streamer").value("owner"))
+                .andExpect(jsonPath("$.sponsor").value("Prime"));
+        mockMvc.perform(put("/api/analytics/deals/" + dealId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sponsor\":\"Prime\",\"startsAt\":1788000000000}")
+                        .header(LOGIN, "someone-else")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("channel_forbidden"));
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId)
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("operator_required"));
+        // A login with no role at all (the gateway refuses such tokens; this service does not rely on it) is
+        // confined the same way.
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId).header(LOGIN, "owner"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("operator_required"));
+        mockMvc.perform(get("/api/analytics/deals/" + dealId).header(LOGIN, "someone-else"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("channel_forbidden"));
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId + "/share")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId)
+                        .header(LOGIN, "ops")
+                        .header(ROLE, "operator"))
+                .andExpect(status().isNoContent());
         mockMvc.perform(get("/api/analytics/sessions/" + ownSession)
                         .header(LOGIN, "owner")
                         .header(ROLE, "streamer"))

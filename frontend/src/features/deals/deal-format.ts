@@ -39,6 +39,14 @@ export function toDateInput(at: number): string {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
+/**
+ * The last day of a deal for a date input. A deal's end is exclusive (the midnight after its last day, what
+ * `fromDateInput(value, true)` produces), so the day to show is the one the instant before it falls on.
+ */
+export function toEndDateInput(endsAt: number): string {
+  return toDateInput(endsAt - 1);
+}
+
 /** Epoch millis at local midnight for a yyyy-mm-dd input; null for an empty or malformed value. */
 export function fromDateInput(value: string, endOfDay = false): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());

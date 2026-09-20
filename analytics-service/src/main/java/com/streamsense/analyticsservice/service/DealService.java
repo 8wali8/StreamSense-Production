@@ -3,6 +3,7 @@ package com.streamsense.analyticsservice.service;
 import com.streamsense.analyticsservice.api.Deal;
 import com.streamsense.analyticsservice.api.DealCreateRequest;
 import com.streamsense.analyticsservice.api.DealSummary;
+import com.streamsense.analyticsservice.api.DealUpdateRequest;
 import com.streamsense.analyticsservice.api.SessionSummary;
 import com.streamsense.analyticsservice.api.ShareLink;
 import com.streamsense.analyticsservice.api.StreamSession;
@@ -30,11 +31,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Deals: create, list, read, and the roll-up of every session inside a deal's dates. A deal points
- * relevance scoring at its sponsor for the channel from the moment it is the channel's current deal
- * (the newest one covering now): at creation when its dates already do, otherwise when
+ * Deals: create, list, read, update, delete, and the roll-up of every session inside a deal's dates.
+ * A deal points relevance scoring at its sponsor for the channel from the moment it is the channel's
+ * current deal (the newest one covering now): at creation when its dates already do, otherwise when
  * {@link #activateStartedDeals()} sees it begin, or sees it become current again because a newer
- * overlapping deal ended.
+ * overlapping deal ended; an update or a deletion points at the channel's current deal afresh.
  */
 @Service
 public class DealService {
@@ -82,8 +83,81 @@ public class DealService {
 
     public Deal create(DealCreateRequest request) {
         String streamer = normalizeLogin(request.streamer());
+        if (streamer == null) {
+            throw new IllegalArgumentException("streamer and sponsor are required");
+        }
+        long now = clock.millis();
+        DealRow row = terms(
+                0,
+                streamer,
+                null,
+                now,
+                new DealUpdateRequest(
+                        request.sponsor(),
+                        request.startsAt(),
+                        request.endsAt(),
+                        request.promisedStreams(),
+                        request.fee(),
+                        request.currency(),
+                        request.cpmPer30sEquivalent(),
+                        request.hostReadRatePer1000(),
+                        request.trackedLink(),
+                        request.chatCommand(),
+                        request.channelPointReward()));
+        long id = deals.insert(row, now);
+        DealRow stored = deals.findById(id).orElseThrow();
+        if (stored.covers(now)) {
+            activate(stored);
+        }
+        return toApi(stored, now);
+    }
+
+    /**
+     * Replaces a deal's terms. The sessions inside it are found by its dates at read time, so every
+     * report inside the new dates is priced with the new terms on its next load and nothing is
+     * backfilled. Relevance follows: the channel's current deal is pointed at again if it changed.
+     * Empty when the deal is unknown.
+     */
+    public Optional<Deal> update(long id, DealUpdateRequest request) {
+        Optional<DealRow> found = deals.findById(id);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        DealRow existing = found.get();
+        long now = clock.millis();
+        deals.update(
+                terms(existing.id(), existing.streamer(), existing.shareToken(), existing.createdAt(), request), now);
+        DealRow stored = deals.findById(id).orElseThrow();
+        repoint(stored.streamer(), stored.id());
+        return Optional.of(toApi(stored, now));
+    }
+
+    /**
+     * Removes a deal for good. Refused while the deal is shared (a sent link would break silently), so
+     * the share link is revoked first. The sessions inside it stay; they simply belong to no deal, or to
+     * an older one covering them. False when the deal is unknown.
+     */
+    public boolean delete(long id) {
+        Optional<DealRow> found = deals.findById(id);
+        if (found.isEmpty()) {
+            return false;
+        }
+        DealRow deal = found.get();
+        // The delete itself checks the token again, so a link minted between the read and the delete survives.
+        if (deal.shareToken() != null || !deals.deleteUnshared(deal.id())) {
+            if (deals.findById(deal.id()).isEmpty()) {
+                return false;
+            }
+            throw new IllegalStateException("revoke the deal's share link before deleting it");
+        }
+        repoint(deal.streamer(), deal.id());
+        return true;
+    }
+
+    /** The validated, normalised row the request describes; the id, streamer, share token, and creation time are given. */
+    private DealRow terms(long id, String streamer, String shareToken, long createdAt, DealUpdateRequest request) {
         String sponsor = clean(request.sponsor());
-        if (streamer == null || sponsor == null) {
+        if (sponsor == null) {
             throw new IllegalArgumentException("streamer and sponsor are required");
         }
         if (request.endsAt() != null && request.endsAt() <= request.startsAt()) {
@@ -95,9 +169,8 @@ public class DealService {
         }
         String command = normalizeCommand(request.chatCommand());
         StreamSenseProperties.Value value = properties.getAnalytics().getValue();
-        long now = clock.millis();
-        DealRow row = new DealRow(
-                0,
+        return new DealRow(
+                id,
                 streamer,
                 sponsor,
                 request.startsAt(),
@@ -112,14 +185,27 @@ public class DealService {
                 trackedLink,
                 command,
                 clean(request.channelPointReward()),
-                null,
-                now);
-        long id = deals.insert(row, now);
-        DealRow stored = deals.findById(id).orElseThrow();
-        if (stored.covers(now)) {
-            activate(stored);
+                shareToken,
+                createdAt);
+    }
+
+    /**
+     * After a deal changed or went away. If it is the channel's current deal, point at it again: its
+     * sponsor may have changed. If it was the pointed-at deal and is current no longer, point at
+     * whichever deal is current now, if any; when none is, relevance stays where it was, as it does
+     * when a deal ends on its own. A change to any other deal leaves the pointer alone.
+     */
+    private void repoint(String streamer, long changedDealId) {
+        Optional<DealRow> current =
+                deals.findCovering(streamer, clock.millis()).stream().findFirst();
+        if (current.isPresent() && current.get().id() == changedDealId) {
+            activate(current.get());
+            return;
         }
-        return toApi(stored, now);
+        if (Long.valueOf(changedDealId).equals(pointedDeal.get(streamer))) {
+            pointedDeal.remove(streamer);
+            current.ifPresent(this::activate);
+        }
     }
 
     /**

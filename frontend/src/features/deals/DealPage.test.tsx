@@ -14,6 +14,7 @@ import {
   videoStatusCapturing,
 } from "../../test/fixtures";
 import { HttpResponse, graphqlData, restJson, restResolver, server } from "../../test/msw";
+import { EXPIRES_2030, fakeJwt } from "../../test/tokens";
 import { SHARE_STORAGE_KEY } from "../../lib/share-token";
 
 /** The deal page's owner view also lists the channel's recordings and polls the capture status. */
@@ -22,6 +23,26 @@ function dealPageHandlers() {
     restJson("get", "/api/analytics/streams/redbull-testing/vods", []),
     restJson("get", "/api/analytics/streams/redbull-testing/vods/imports", []),
     restJson("get", "/api/video/capture/status", videoStatusCapturing),
+  ];
+}
+
+/** The home page's reads, for a test that lands there. */
+function homeHandlers() {
+  return [
+    graphqlData("Sessions", { sessions: [] }),
+    graphqlData("SponsorDetections", { sponsorDetections: [] }),
+    graphqlData("RecentSentiment", { recentSentiment: [] }),
+    graphqlData("RecentSponsorSentiment", { recentSponsorSentiment: [] }),
+    graphqlData("RecentTranscriptSegments", { recentTranscriptSegments: [] }),
+    graphqlData("RecentTranscriptSentiment", { recentTranscriptSentiment: [] }),
+    graphqlData("RecentSponsorTranscriptSentiment", { recentSponsorTranscriptSentiment: [] }),
+    graphqlData("StreamAnalytics", streamAnalytics()),
+    graphqlData("Health", { health: "ok" }),
+    graphqlData("Deals", { deals: [] }),
+    restJson("get", "/api/sentiment/transcript/recent", []),
+    restJson("get", "/api/chat/twitch/status", twitchStatusConnected),
+    restJson("get", "/api/chat/twitch/channels/*", channelIngestJoined),
+    restJson("get", "/api/video/capture/channels/*", captureChannelCapturing),
   ];
 }
 
@@ -97,6 +118,64 @@ describe("deals", () => {
       "/sessions/9?sponsor=Red%20Bull",
     );
     expect(screen.getByRole("button", { name: "Share" })).toBeEnabled();
+  });
+
+  it("edits a deal as a whole, ends it today, and lets an operator delete it once unshared", async () => {
+    let updated: Record<string, unknown> | null = null;
+    let deleted = false;
+    server.use(
+      ...dealPageHandlers(),
+      ...homeHandlers(),
+      graphqlData("DealSummary", { dealSummary: dealSummary() }),
+      restResolver("put", "/api/analytics/deals/3", async ({ request }) => {
+        updated = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(deal({ sponsor: updated.sponsor as string }));
+      }),
+      restResolver("delete", "/api/analytics/deals/3", () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+
+    // A streamer can edit and end their deal; deleting is not theirs.
+    window.localStorage.setItem(
+      "streamsense.authToken",
+      fakeJwt({ sub: "redbull-testing", login: "redbull-testing", role: "streamer", exp: EXPIRES_2030 }),
+    );
+    const streamer = renderAt("/deals/3");
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End today" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    streamer.unmount();
+    window.localStorage.removeItem("streamsense.authToken");
+
+    renderAt("/deals/3");
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const form = within(screen.getByLabelText("Edit deal"));
+    // The form is the deal's: its terms are filled in and, since it has some, "More settings" is open.
+    expect(form.getByLabelText("Sponsor")).toHaveValue("Red Bull");
+    expect(form.getByLabelText("Fee in USD (private to you)")).toBeVisible();
+    expect(form.getByLabelText("Chat command")).toHaveValue("!redbull");
+    await user.clear(form.getByLabelText("Sponsor"));
+    await user.type(form.getByLabelText("Sponsor"), "Red Bull Racing");
+    await user.click(form.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText(/priced with the new terms/)).toBeInTheDocument();
+    // The whole deal went back, without the streamer.
+    expect(updated).toMatchObject({ sponsor: "Red Bull Racing", fee: 2500, chatCommand: "!redbull" });
+    expect(updated).not.toHaveProperty("streamer");
+
+    await user.click(screen.getByRole("button", { name: "End today" }));
+    expect(await screen.findByText(/ended today/)).toBeInTheDocument();
+    expect(updated).toMatchObject({ sponsor: "Red Bull", fee: 2500 });
+    expect((updated as Record<string, unknown> | null)?.endsAt).toBeTypeOf("number");
+
+    // Deleting asks first, then leaves for the home page.
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByText(/Delete this deal for good/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByLabelText("Deals")).toBeInTheDocument();
+    expect(deleted).toBe(true);
   });
 
   it("creates a deal from the home page and lists it", async () => {

@@ -12,11 +12,13 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.streamsense.analyticsservice.api.DealCreateRequest;
 import com.streamsense.analyticsservice.api.DealSummary;
+import com.streamsense.analyticsservice.api.DealUpdateRequest;
 import com.streamsense.analyticsservice.api.SessionSummary;
 import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.api.SummaryOptions;
@@ -245,6 +247,120 @@ class DealsTest {
         service.activateStartedDeals();
         verify(pointer, times(2)).point("overlap", "Logitech");
         verify(pointer, times(1)).point("overlap", "Red Bull");
+    }
+
+    @Test
+    void aDealIsEditedAsAWholeEndedByItsEndDateAndDeletedOnlyOnceUnshared() throws Exception {
+        long now = System.currentTimeMillis();
+        long dealStart = now - 2 * 24 * 3_600_000L;
+        long sessionStart = Math.floorDiv(now - 20 * 60_000L, 60_000L) * 60_000L;
+        String created = mockMvc.perform(post("/api/analytics/deals")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"streamer": "editor", "sponsor": "Logitech", "startsAt": %d, "fee": 1000,
+                                 "cpmPer30sEquivalent": 8, "chatCommand": "logi", "trackedLink": "https://logitech.com/g"}
+                                """
+                                        .formatted(dealStart)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long dealId = Long.parseLong(created.replaceAll("^\\{\"id\":(\\d+).*$", "$1"));
+        sessions.recordHelixLive(new HelixStream("61", "editor", "Ranked", "Valorant", 400, sessionStart));
+
+        // The whole deal is sent back: the sponsor and CPM change, the command and link are dropped, the rate
+        // left out returns to the configured default, and the report inside re-prices on its next read.
+        mockMvc.perform(put("/api/analytics/deals/" + dealId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"sponsor": "Red Bull", "startsAt": %d, "promisedStreams": 2, "fee": 1500,
+                                 "cpmPer30sEquivalent": 12}
+                                """
+                                        .formatted(dealStart)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(dealId))
+                .andExpect(jsonPath("$.streamer").value("editor"))
+                .andExpect(jsonPath("$.sponsor").value("Red Bull"))
+                .andExpect(jsonPath("$.promisedStreams").value(2))
+                .andExpect(jsonPath("$.chatCommand").isEmpty())
+                .andExpect(jsonPath("$.trackedLinkHost").isEmpty())
+                .andExpect(jsonPath("$.hostReadRatePer1000").value(20.0))
+                .andExpect(jsonPath("$.active").value(true));
+        DealSummary summary = deals.summary(dealId).orElseThrow();
+        assertThat(summary.deal().fee()).isEqualTo(1500.0);
+        assertThat(summary.sessions()).hasSize(1);
+        assertThat(summary.sessions().get(0).sponsor()).isEqualTo("Red Bull");
+        assertThat(summary.sessions().get(0).value().cpmPer30sEquivalent()).isEqualTo(12.0);
+
+        // Ending it is an update whose end is now: the deal is no longer active and the session, which started
+        // before the end, is still inside it.
+        long endsAt = System.currentTimeMillis();
+        mockMvc.perform(put("/api/analytics/deals/" + dealId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sponsor\": \"Red Bull\", \"startsAt\": %d, \"endsAt\": %d}"
+                                .formatted(dealStart, endsAt)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false))
+                .andExpect(jsonPath("$.endsAt").value(endsAt));
+        assertThat(deals.summary(dealId).orElseThrow().sessions()).hasSize(1);
+
+        // Bad input and unknown deals answer as creation does.
+        mockMvc.perform(put("/api/analytics/deals/" + dealId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sponsor\": \"Red Bull\", \"startsAt\": 10, \"endsAt\": 5}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/analytics/deals/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sponsor\": \"Red Bull\", \"startsAt\": 10}"))
+                .andExpect(status().isNotFound());
+
+        // A shared deal cannot be deleted; revoked, it can, and then it is gone.
+        deals.share(dealId).orElseThrow();
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("revoke the deal's share link before deleting it"));
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId + "/share")).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/analytics/deals/" + dealId)).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void anEditPointsRelevanceAtTheChannelsCurrentDealAgain() {
+        long t0 = 1_820_000_000_000L;
+        long hour = 3_600_000L;
+        SponsorRelevancePointer pointer = mock(SponsorRelevancePointer.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<SponsorRelevancePointer> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(pointer);
+        SteppingClock clock = new SteppingClock(t0 + hour);
+        DealService service = new DealService(dealRepository, sessions, summaries, properties, provider, clock);
+
+        // A running deal is pointed at on creation; renaming its sponsor points at the new name once.
+        long id =
+                service.create(deal("editable", "Logitech", t0, t0 + 48 * hour)).id();
+        verify(pointer, times(1)).point("editable", "Logitech");
+        service.update(id, terms("Red Bull", t0, t0 + 48 * hour));
+        verify(pointer, times(1)).point("editable", "Red Bull");
+
+        // Ended early, no deal covers now: relevance stays where it was, and the periodic check has nothing to do.
+        service.update(id, terms("Red Bull", t0, t0 + hour));
+        service.activateStartedDeals();
+        verify(pointer, times(1)).point("editable", "Red Bull");
+        verify(pointer, times(1)).point("editable", "Logitech");
+
+        // An older deal that the edit uncovers is pointed at again, and deleting the edited deal changes nothing.
+        service.create(deal("editable", "Razer", t0 - hour, t0 + 72 * hour));
+        verify(pointer, times(1)).point("editable", "Razer");
+        assertThat(service.delete(id)).isTrue();
+        verify(pointer, times(1)).point("editable", "Razer");
+        assertThat(service.get(id)).isEmpty();
+    }
+
+    private static DealUpdateRequest terms(String sponsor, long startsAt, long endsAt) {
+        return new DealUpdateRequest(sponsor, startsAt, endsAt, null, null, null, null, null, null, null, null);
     }
 
     private static DealCreateRequest deal(String streamer, String sponsor, long startsAt, long endsAt) {

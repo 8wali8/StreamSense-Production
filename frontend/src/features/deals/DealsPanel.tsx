@@ -5,7 +5,7 @@ import { describeError } from "../../lib/errors";
 import { isDemoMode } from "../../demo/mode";
 import type { HomeSponsor } from "../home/home-sponsor";
 import { dealDates, dealStartDate } from "./deal-format";
-import { NewDealForm } from "./NewDealForm";
+import { DealForm } from "./DealForm";
 
 type DealsPanelProps = {
   streamer: string;
@@ -48,11 +48,11 @@ export function DealsPanel({ streamer, deals, error, home, onCreated }: DealsPan
       </div>
 
       {creating && (
-        <NewDealForm
+        <DealForm
           streamer={streamer}
           defaultSponsor={home.kind === "manual" ? home.sponsor : ""}
           onCancel={() => setCreating(false)}
-          onCreated={(deal) => {
+          onSaved={(deal) => {
             setCreating(false);
             setStatus(`${deal.sponsor} deal created; relevance scoring now follows it.`);
             onCreated();

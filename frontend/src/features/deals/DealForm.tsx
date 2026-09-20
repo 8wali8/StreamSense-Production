@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { createDeal, type Deal } from "../../api/analytics";
+import { createDeal, updateDeal, type Deal, type DealUpdateRequest } from "../../api/analytics";
 import { describeError } from "../../lib/errors";
-import { fromDateInput, toDateInput } from "./deal-format";
+import { fromDateInput, toDateInput, toEndDateInput } from "./deal-format";
 
-type NewDealFormProps = {
+type DealFormProps = {
   streamer: string;
-  defaultSponsor: string;
-  onCreated: (deal: Deal) => void;
+  /** The deal being edited; absent for a new one. */
+  deal?: Deal;
+  /** The sponsor a new deal starts with (the channel's current sponsor, if any). */
+  defaultSponsor?: string;
+  onSaved: (deal: Deal) => void;
   onCancel: () => void;
 };
 
@@ -27,22 +30,27 @@ function optionalText(value: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
+function numberField(value: number | null | undefined): string {
+  return value == null ? "" : String(value);
+}
+
 /**
- * The deal's terms. Only the sponsor and start date are required; the rates fall back to the configured ones.
- * A first deal needs the sponsor and the dates, so those sit up front; the fee, the chat signals, and the rates
- * wait behind "More settings", closed until the streamer wants them.
+ * The deal's terms, for a new deal or an existing one. Only the sponsor and start date are required; the
+ * rates fall back to the configured ones. A first deal needs the sponsor and the dates, so those sit up
+ * front; the fee, the chat signals, and the rates wait behind "More settings", closed until the streamer
+ * wants them (open from the start when editing a deal that has any). An edit sends the whole deal back.
  */
-export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: NewDealFormProps) {
-  const [sponsor, setSponsor] = useState(defaultSponsor);
-  const [starts, setStarts] = useState(toDateInput(Date.now()));
-  const [ends, setEnds] = useState("");
-  const [promisedStreams, setPromisedStreams] = useState("");
-  const [fee, setFee] = useState("");
-  const [cpm, setCpm] = useState("");
-  const [hostReadRate, setHostReadRate] = useState("");
-  const [trackedLink, setTrackedLink] = useState("");
-  const [chatCommand, setChatCommand] = useState("");
-  const [reward, setReward] = useState("");
+export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCancel }: DealFormProps) {
+  const [sponsor, setSponsor] = useState(deal?.sponsor ?? defaultSponsor);
+  const [starts, setStarts] = useState(toDateInput(deal?.startsAt ?? Date.now()));
+  const [ends, setEnds] = useState(deal?.endsAt == null ? "" : toEndDateInput(deal.endsAt));
+  const [promisedStreams, setPromisedStreams] = useState(numberField(deal?.promisedStreams));
+  const [fee, setFee] = useState(numberField(deal?.fee));
+  const [cpm, setCpm] = useState(numberField(deal?.cpmPer30sEquivalent));
+  const [hostReadRate, setHostReadRate] = useState(numberField(deal?.hostReadRatePer1000));
+  const [trackedLink, setTrackedLink] = useState(deal?.trackedLink ?? "");
+  const [chatCommand, setChatCommand] = useState(deal?.chatCommand ?? "");
+  const [reward, setReward] = useState(deal?.channelPointReward ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,28 +58,33 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
   const endsAt = ends.trim() === "" ? null : fromDateInput(ends, true);
   const mistyped = [promisedStreams, fee, cpm, hostReadRate].some(isMistypedNumber);
   const valid = sponsor.trim() !== "" && startsAt != null && (ends.trim() === "" || endsAt != null) && !mistyped;
+  const editing = deal != null;
+  const hasTerms =
+    editing &&
+    (deal.fee != null || deal.chatCommand != null || deal.trackedLink != null || deal.channelPointReward != null);
 
   async function submit() {
     if (!valid || startsAt == null) return;
     setSaving(true);
     setError(null);
+    const terms: DealUpdateRequest = {
+      sponsor: sponsor.trim(),
+      startsAt,
+      ...(endsAt != null ? { endsAt } : {}),
+      // The form has no currency field; an edit keeps the deal's, since an update replaces the whole deal.
+      ...(deal?.currency ? { currency: deal.currency } : {}),
+      ...(optionalNumber(promisedStreams) !== undefined ? { promisedStreams: optionalNumber(promisedStreams) } : {}),
+      ...(optionalNumber(fee) !== undefined ? { fee: optionalNumber(fee) } : {}),
+      ...(optionalNumber(cpm) !== undefined ? { cpmPer30sEquivalent: optionalNumber(cpm) } : {}),
+      ...(optionalNumber(hostReadRate) !== undefined ? { hostReadRatePer1000: optionalNumber(hostReadRate) } : {}),
+      ...(optionalText(trackedLink) !== undefined ? { trackedLink: optionalText(trackedLink) } : {}),
+      ...(optionalText(chatCommand) !== undefined ? { chatCommand: optionalText(chatCommand) } : {}),
+      ...(optionalText(reward) !== undefined ? { channelPointReward: optionalText(reward) } : {}),
+    };
     try {
-      const deal = await createDeal({
-        streamer,
-        sponsor: sponsor.trim(),
-        startsAt,
-        ...(endsAt != null ? { endsAt } : {}),
-        ...(optionalNumber(promisedStreams) !== undefined ? { promisedStreams: optionalNumber(promisedStreams) } : {}),
-        ...(optionalNumber(fee) !== undefined ? { fee: optionalNumber(fee) } : {}),
-        ...(optionalNumber(cpm) !== undefined ? { cpmPer30sEquivalent: optionalNumber(cpm) } : {}),
-        ...(optionalNumber(hostReadRate) !== undefined ? { hostReadRatePer1000: optionalNumber(hostReadRate) } : {}),
-        ...(optionalText(trackedLink) !== undefined ? { trackedLink: optionalText(trackedLink) } : {}),
-        ...(optionalText(chatCommand) !== undefined ? { chatCommand: optionalText(chatCommand) } : {}),
-        ...(optionalText(reward) !== undefined ? { channelPointReward: optionalText(reward) } : {}),
-      });
-      onCreated(deal);
+      onSaved(editing ? await updateDeal(deal.id, terms) : await createDeal({ streamer, ...terms }));
     } catch (err) {
-      setError(describeError(err instanceof Error ? err : new Error("failed to create the deal")));
+      setError(describeError(err instanceof Error ? err : new Error("failed to save the deal")));
     } finally {
       setSaving(false);
     }
@@ -80,7 +93,7 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
   return (
     <form
       className="form-grid new-deal"
-      aria-label="New deal"
+      aria-label={editing ? "Edit deal" : "New deal"}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
@@ -115,7 +128,7 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
         />
       </label>
 
-      <details className="new-deal-more">
+      <details className="new-deal-more" open={hasTerms}>
         <summary>More settings</summary>
         <p className="field-hint">The fee, the chat signals to count, and the rates the report prices exposure at.</p>
         <div className="form-grid">
@@ -181,7 +194,7 @@ export function NewDealForm({ streamer, defaultSponsor, onCreated, onCancel }: N
 
       <div className="form-actions">
         <button className="button-primary" type="submit" disabled={saving || !valid}>
-          {saving ? "Creating..." : "Create deal"}
+          {saving ? "Saving..." : editing ? "Save changes" : "Create deal"}
         </button>
         <button className="button-secondary" type="button" onClick={onCancel} disabled={saving}>
           Cancel
