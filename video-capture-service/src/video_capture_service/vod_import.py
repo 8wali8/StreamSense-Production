@@ -6,6 +6,11 @@ offset into the recording and tagging it with the session key the importer chose
 pipeline treats the events exactly like a live stream that happened back then. Frames are sampled at
 the live sample interval, because the exposure arithmetic downstream credits one interval per
 accepted detection; audio is transcribed in consecutive segments unless a wider stride is asked for.
+
+An import can be stopped by the recording it belongs to: the loop checks its own stop event before
+every sample and an ffmpeg run in flight is killed, so a stop lands within a sample interval rather
+than after the capture timeout. What was published stays; a later request for the same recording
+resumes from the offset reached, and every id is deterministic, so the overlap never double-counts.
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ from video_capture_service.kafka_publisher import (
     FrameEvent,
     TranscriptSegmentEvent,
 )
+from video_capture_service.process import ProcessCancelledError
 from video_capture_service.storage import FrameStorage
 from video_capture_service.transcription_client import TranscriptionClient, TranscriptionClientError
 from video_capture_service.twitch_source import TwitchSourceResolver, TwitchStreamResolutionError
@@ -38,6 +44,9 @@ MAX_CONSECUTIVE_FAILURES = 20
 FAILURE_BACKOFF_SECONDS = 5
 MAX_BACKOFF_SECONDS = 60
 
+ACTIVE_STATES = frozenset({"QUEUED", "RUNNING"})
+RESUMABLE_STATES = frozenset({"FAILED", "STOPPED"})
+
 
 @dataclass(frozen=True)
 class VodImportRequest:
@@ -49,7 +58,7 @@ class VodImportRequest:
     stream_session_id: str
     frame_interval_seconds: int
     transcript_interval_seconds: int
-    """Where to start; a resumed import continues from where the failed one stopped."""
+    """Where to start; a resumed import continues from where the failed or stopped one reached."""
     start_offset_seconds: int = 0
 
 
@@ -66,6 +75,8 @@ class VodImportStatus:
     last_error: str | None = None
     started_at: int = field(default_factory=lambda: int(time.time() * 1000))
     updated_at: int = field(default_factory=lambda: int(time.time() * 1000))
+    # Set by stop(); the import thread sees it before the next sample and inside a running ffmpeg.
+    stop_event: threading.Event = field(default_factory=threading.Event, repr=False, compare=False)
 
     def as_dict(self) -> dict:
         return {
@@ -78,6 +89,7 @@ class VodImportStatus:
             "transcriptSegmentsPublished": self.transcript_segments_published,
             "failures": self.failures,
             "lastError": self.last_error,
+            "stopRequested": self.stop_event.is_set(),
             "startedAt": self.started_at,
             "updatedAt": self.updated_at,
         }
@@ -116,7 +128,6 @@ class VodImportManager:
         self.transcription_client = transcription_client
         self.transcript_publisher = transcript_publisher
         self.statuses: dict[str, VodImportStatus] = {}
-        self.stop_event = threading.Event()
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="vod-import")
         self._lock = threading.Lock()
 
@@ -127,10 +138,10 @@ class VodImportManager:
             raise ValueError("durationSeconds and frameIntervalSeconds must be positive")
         with self._lock:
             current = self.statuses.get(request.vod_id)
-            if current is not None and current.state in {"QUEUED", "RUNNING"}:
+            if current is not None and current.state in ACTIVE_STATES:
                 raise RuntimeError(f"import of VOD {request.vod_id} is already running")
-            if current is not None and current.state in {"FAILED", "STOPPED"} and request.start_offset_seconds == 0:
-                # Pick up where the failed run stopped; ids are deterministic, so an overlap is harmless.
+            if current is not None and current.state in RESUMABLE_STATES and request.start_offset_seconds == 0:
+                # Pick up where the earlier run stopped; ids are deterministic, so an overlap is harmless.
                 request = replace(request, start_offset_seconds=current.offset_seconds)
             status = VodImportStatus(
                 vod_id=request.vod_id,
@@ -148,13 +159,38 @@ class VodImportManager:
     def snapshot(self) -> list[dict]:
         return [status.as_dict() for status in self.statuses.values()]
 
-    def stop(self) -> None:
-        self.stop_event.set()
+    def stop(self, vod_id: str) -> VodImportStatus | None:
+        """Stops this recording's import and no other. A queued one ends at once; a running one within a sample.
+
+        Returns the status, or None when nothing is known about the recording. Stopping an import
+        that already ended changes nothing.
+        """
+        with self._lock:
+            status = self.statuses.get(vod_id)
+            if status is None:
+                return None
+            if status.state == "QUEUED":
+                status.state = "STOPPED"
+            if status.state in ACTIVE_STATES:
+                status.stop_event.set()
+            status.updated_at = int(time.time() * 1000)
+            return status
+
+    def shutdown(self) -> None:
+        """Process exit: every import ends; nothing resumes on its own when the service comes back."""
+        with self._lock:
+            for status in self.statuses.values():
+                if status.state == "QUEUED":
+                    status.state = "STOPPED"
+                status.stop_event.set()
         self._executor.shutdown(wait=False, cancel_futures=True)
 
     def _run(self, request: VodImportRequest, status: VodImportStatus) -> None:
         storage, publisher = self.storage, self.publisher
         if storage is None or publisher is None:
+            return
+        if status.state != "QUEUED":
+            # Stopped while it waited its turn.
             return
         status.state = "RUNNING"
         resolver = TwitchSourceResolver(
@@ -176,6 +212,7 @@ class VodImportManager:
         consecutive_failures = 0
         sequence = 0
         transcript_sequence = 0
+        stop = status.stop_event
         try:
             for offset, transcribe in import_schedule(
                 request.duration_seconds,
@@ -183,8 +220,8 @@ class VodImportManager:
                 request.transcript_interval_seconds,
                 request.start_offset_seconds,
             ):
-                if self.stop_event.is_set():
-                    status.state = "STOPPED"
+                if stop.is_set():
+                    self._stopped(request, status)
                     return
                 status.offset_seconds = offset
                 status.updated_at = int(time.time() * 1000)
@@ -197,6 +234,10 @@ class VodImportManager:
                         transcript_sequence += 1
                         self._transcript(request, status, audio_sampler, hls_url, offset, transcript_sequence)
                     consecutive_failures = 0
+                except ProcessCancelledError:
+                    # The stop landed inside ffmpeg; the sample at this offset was not published.
+                    self._stopped(request, status)
+                    return
                 except (TwitchStreamResolutionError, FrameCaptureError) as exc:
                     # The HLS playlist of a recording expires; resolve it again on the next sample.
                     hls_url = None
@@ -211,7 +252,7 @@ class VodImportManager:
                     return
                 if consecutive_failures > 0:
                     # Twitch throttles bursts of HLS seeks and the link can drop; wait before the next sample.
-                    self.stop_event.wait(min(MAX_BACKOFF_SECONDS, FAILURE_BACKOFF_SECONDS * consecutive_failures))
+                    stop.wait(min(MAX_BACKOFF_SECONDS, FAILURE_BACKOFF_SECONDS * consecutive_failures))
             status.offset_seconds = request.duration_seconds
             status.state = "DONE"
             logger.info(
@@ -224,6 +265,18 @@ class VodImportManager:
             )
         finally:
             status.updated_at = int(time.time() * 1000)
+
+    @staticmethod
+    def _stopped(request: VodImportRequest, status: VodImportStatus) -> None:
+        status.state = "STOPPED"
+        logger.info(
+            "VOD import stopped vod=%s channel=%s at offset=%ss frames=%s transcripts=%s",
+            request.vod_id,
+            request.channel,
+            status.offset_seconds,
+            status.frames_published,
+            status.transcript_segments_published,
+        )
 
     def _frame(
         self,
@@ -242,7 +295,7 @@ class VodImportManager:
         frame_id = f"vod-{request.vod_id}-f{offset}"
         temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{frame_id}.{suffix}"
         try:
-            captured_path, _ = sampler.capture(hls_url, temp_path, float(offset))
+            captured_path, _ = sampler.capture(hls_url, temp_path, float(offset), status.stop_event)
             object_key = (
                 f"{self.config.storage.path_prefix}/{request.channel}/{request.stream_session_id}/"
                 f"{sequence:06d}-{frame_id}.{suffix}"
@@ -289,7 +342,7 @@ class VodImportManager:
         started_at = request.base_time_ms + offset * 1000
         ended_at = started_at + self.config.transcript_segment_duration_seconds * 1000
         try:
-            audio_path, _ = audio_sampler.capture(hls_url, temp_path, float(offset))
+            audio_path, _ = audio_sampler.capture(hls_url, temp_path, float(offset), status.stop_event)
             result, _ = client.transcribe(audio_path, request.channel, segment_id, started_at, ended_at)
             text = result.text.strip()[: self.config.transcript_max_chars]
             if not text:

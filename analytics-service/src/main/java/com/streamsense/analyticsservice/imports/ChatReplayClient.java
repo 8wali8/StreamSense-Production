@@ -1,9 +1,10 @@
 package com.streamsense.analyticsservice.imports;
 
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.web.client.RestClient;
 
-/** Asks chat-service to publish a recording's chat with the original timestamps. */
+/** Asks chat-service to publish a recording's chat with the original timestamps, and to report on or stop it. */
 public class ChatReplayClient {
 
     private final RestClient restClient;
@@ -12,7 +13,8 @@ public class ChatReplayClient {
         this.restClient = builder.baseUrl(baseUrl).build();
     }
 
-    public void replay(String channel, String vodId, long baseTimeMs, String streamSessionId) {
+    /** Starts the replay; {@code startOffsetSeconds} above zero resumes from there. */
+    public void replay(String channel, String vodId, long baseTimeMs, String streamSessionId, long startOffsetSeconds) {
         restClient
                 .post()
                 .uri("/api/chat/replay")
@@ -20,8 +22,19 @@ public class ChatReplayClient {
                         "channel", channel,
                         "vodId", vodId,
                         "baseTimeMs", baseTimeMs,
-                        "streamSessionId", streamSessionId))
+                        "streamSessionId", streamSessionId,
+                        "startOffsetSeconds", startOffsetSeconds))
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    /** Empty when chat-service knows nothing about the recording (never started there, or restarted since). */
+    public Optional<ReplayStatus> status(String vodId) {
+        return ReplayCalls.status(restClient, "/api/chat/replay/" + vodId);
+    }
+
+    /** Stops the replay of one recording; empty when chat-service knows nothing about it. */
+    public Optional<ReplayStatus> stop(String vodId) {
+        return ReplayCalls.stop(restClient, "/api/chat/replay/" + vodId);
     }
 }

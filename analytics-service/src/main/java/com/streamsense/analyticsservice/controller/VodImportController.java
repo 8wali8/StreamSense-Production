@@ -2,6 +2,7 @@ package com.streamsense.analyticsservice.controller;
 
 import com.streamsense.analyticsservice.api.VodImport;
 import com.streamsense.analyticsservice.api.VodImportRequest;
+import com.streamsense.analyticsservice.api.VodImportStatus;
 import com.streamsense.analyticsservice.api.VodListing;
 import com.streamsense.analyticsservice.service.VodImportService;
 import jakarta.validation.Valid;
@@ -20,6 +21,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * A channel's recordings and their imports. Every route is under the channel-scoped path, so a
+ * streamer reaches their own channel's and the operator any; the services the import runs on are
+ * never called by the console directly.
+ */
 @Validated
 @RestController
 @RequestMapping("/api/analytics/streams/{streamer}/vods")
@@ -39,7 +45,13 @@ public class VodImportController {
         return imports.list(streamer, limit == null ? 20 : limit);
     }
 
-    /** Imports one recording: creates its session and starts the chat and capture replays. */
+    /** Where every import the channel asked for stands; the active ones are brought up to date first. */
+    @GetMapping("/imports")
+    public List<VodImportStatus> statuses(@PathVariable("streamer") @NotBlank String streamer) {
+        return imports.statuses(streamer);
+    }
+
+    /** Imports one recording: creates its session and starts (or resumes) the chat and capture replays. */
     @PostMapping("/{vodId}/import")
     public ResponseEntity<VodImport> importVod(
             @PathVariable("streamer") @NotBlank String streamer,
@@ -47,5 +59,12 @@ public class VodImportController {
             @RequestBody(required = false) @Valid VodImportRequest request) {
         VodImport started = imports.importVod(streamer, vodId, request == null ? null : request.averageViewers());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(started);
+    }
+
+    /** Stops one recording's import on both services. Idempotent; 400 when the recording was never imported. */
+    @PostMapping("/{vodId}/stop")
+    public VodImportStatus stop(
+            @PathVariable("streamer") @NotBlank String streamer, @PathVariable("vodId") @NotBlank String vodId) {
+        return imports.stop(streamer, vodId);
     }
 }

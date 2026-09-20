@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { importVod, listVods, type VodListing } from "../../api/analytics";
-import { getVideoCaptureStatus } from "../../api/video";
+import { importVod, listVodImports, listVods, stopVodImport, type VodListing } from "../../api/analytics";
 import { usePolledResource } from "../../hooks/usePolledResource";
 import { describeError } from "../../lib/errors";
 import { formatCount, formatDuration, formatStart } from "../session/report-format";
-import { importLabel, recordingsForDeal } from "./import-streams";
+import { canResume, canStop, importLabel, recordingsForDeal } from "./import-streams";
 
 type ImportStreamsProps = {
   streamer: string;
@@ -21,7 +20,9 @@ type ImportStreamsProps = {
  * Twitch recordings. Each import replays the recording's chat, frames, and audio through the
  * pipeline with the original timestamps, so the report is computed the same way as for a live
  * stream. Twitch keeps no concurrent viewer history, so the streamer may enter the stream's average
- * viewers from their dashboard; without it the value tiles stay empty for that stream.
+ * viewers from their dashboard; without it the value tiles stay empty for that stream. A running
+ * import can be stopped from its row and resumed later from where it got to; the state comes from
+ * analytics-service, so it is the same in every tab and after a restart.
  */
 export function ImportStreams({ streamer, startsAt, endsAt, onImported }: ImportStreamsProps) {
   const [vods, setVods] = useState<VodListing[] | null>(null);
@@ -30,8 +31,9 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
   const [viewers, setViewers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [started, setStarted] = useState<Record<string, string[]>>({});
-  const capture = usePolledResource(getVideoCaptureStatus, 10_000, streamer);
-  const imports = new Map((capture.data?.imports ?? []).map((status) => [status.vodId, status]));
+  const loadImports = useCallback(() => listVodImports(streamer), [streamer]);
+  const polled = usePolledResource(loadImports, 5_000, streamer);
+  const imports = new Map((polled.data ?? []).map((status) => [status.vodId, status]));
 
   const load = useCallback(async () => {
     try {
@@ -54,9 +56,22 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
       const result = await importVod(streamer, vod.vodId, Number.isFinite(averageViewers) ? averageViewers : undefined);
       setStarted((current) => ({ ...current, [vod.vodId]: result.problems }));
       await load();
+      polled.refresh();
       onImported();
     } catch (err) {
       setError(describeError(err instanceof Error ? err : new Error("import failed")));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function stop(vod: VodListing) {
+    setBusy(vod.vodId);
+    try {
+      await stopVodImport(streamer, vod.vodId);
+      polled.refresh();
+    } catch (err) {
+      setError(describeError(err instanceof Error ? err : new Error("stop failed")));
     } finally {
       setBusy(null);
     }
@@ -93,10 +108,11 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
         const status = imports.get(vod.vodId);
         const label = importLabel(status);
         const problems = started[vod.vodId] ?? [];
-        // An import is complete only when the capture service says so. No status at all (a replay
-        // that never started, or a capture service restarted since) is as retryable as a failure;
-        // imports are idempotent, so retrying never double-counts.
-        const retryable = vod.sessionId != null && (!status || status.state === "FAILED");
+        // A session with no import recorded was imported before analytics kept this state (or the start
+        // never reached it); imports are idempotent, so asking again never double-counts.
+        const retryable = vod.sessionId != null && !status;
+        const stopping = status?.state === "STOPPING";
+        const tone = status?.state === "FAILED" ? "tone-warn" : "tone-muted";
         return (
           <div className="vod-row" key={vod.vodId}>
             <span>
@@ -109,9 +125,19 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
             </span>
             {vod.sessionId != null ? (
               <span className="vod-actions">
-                {label && <em className={status?.state === "FAILED" ? "tone-warn" : "tone-muted"}>{label}</em>}
+                {label && <em className={tone}>{label}</em>}
                 {!status && <em className="tone-muted">Import not confirmed</em>}
-                {retryable && (
+                {(canStop(status) || stopping) && (
+                  <button
+                    className="button-secondary button-sm"
+                    type="button"
+                    disabled={busy !== null || stopping}
+                    onClick={() => void stop(vod)}
+                  >
+                    {stopping ? "Stopping…" : busy === vod.vodId ? "Stopping…" : "Stop"}
+                  </button>
+                )}
+                {(canResume(status) || retryable) && (
                   <button
                     className="button-secondary button-sm"
                     type="button"
