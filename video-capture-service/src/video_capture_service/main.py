@@ -108,7 +108,7 @@ class CaptureRuntime:
     def stop(self) -> None:
         self.started = False
         if self.imports is not None:
-            self.imports.stop()
+            self.imports.shutdown()
         if self.manager is not None:
             self.manager.stop()
 
@@ -217,9 +217,19 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
     def replay_status(request: Request, vodId: str) -> dict:
         runtime = get_runtime(request)
         status = runtime.imports.status(vodId) if runtime.imports else None
-        if status is None:
+        if status is None or not _may_see_import(request, status.channel):
             raise HTTPException(status_code=404, detail="no import for that recording")
         return status.as_dict()
+
+    @app.delete("/api/video/capture/replay/{vodId}")
+    def stop_replay(request: Request, vodId: str) -> dict:
+        """Stops one recording's import, leaving every other import and the live channels alone. Idempotent."""
+        runtime = get_runtime(request)
+        status = runtime.imports.status(vodId) if runtime.imports else None
+        if status is None or not _may_see_import(request, status.channel):
+            raise HTTPException(status_code=404, detail="no import for that recording")
+        stopped = runtime.imports.stop(vodId) if runtime.imports else None
+        return (stopped or status).as_dict()
 
     @app.post("/api/video/capture/channels")
     def switch_capture_channels(request: Request, body: ChannelSwitchRequest) -> dict:
@@ -278,6 +288,12 @@ def create_app(config: CaptureConfig | None = None) -> FastAPI:
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return app
+
+
+def _may_see_import(request: Request, channel: str) -> bool:
+    """An import is visible to whoever may see its channel: the operator, or that channel's streamer."""
+    own = _own_channel(request)
+    return own is None or own == channel.strip().lower().lstrip("#@")
 
 
 def _own_channel(request: Request) -> str | None:

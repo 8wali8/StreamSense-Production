@@ -6,6 +6,7 @@ import com.streamsense.chatservice.twitch.TwitchVodChatImportService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +34,13 @@ public class VodChatImportController {
     @GetMapping("/{vodId}")
     public ResponseEntity<VodChatImportStatus> status(@PathVariable("vodId") String vodId) {
         return imports.status(vodId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound()
+                .build());
+    }
+
+    /** Stops one recording's import and no other; 404 when nothing is known about the recording. Idempotent. */
+    @DeleteMapping("/{vodId}")
+    public ResponseEntity<VodChatImportStatus> stop(@PathVariable("vodId") String vodId) {
+        return imports.stop(vodId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound()
                 .build());
     }
 }

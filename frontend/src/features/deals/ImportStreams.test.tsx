@@ -2,12 +2,12 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
-import type { VodListing } from "../../api/analytics";
+import type { VodImportStatus, VodListing } from "../../api/analytics";
 import { AppRoutes } from "../../App";
 import { renderWithApollo } from "../../test/apollo";
-import { deal, dealSummary, videoStatusCapturing } from "../../test/fixtures";
+import { deal, dealSummary } from "../../test/fixtures";
 import { HttpResponse, graphqlData, restJson, restResolver, server } from "../../test/msw";
-import { importLabel, recordingsForDeal } from "./import-streams";
+import { canResume, canStop, importLabel, recordingsForDeal } from "./import-streams";
 
 const inside: VodListing = {
   vodId: "2750461300",
@@ -21,6 +21,26 @@ const inside: VodListing = {
 };
 const before: VodListing = { ...inside, vodId: "1", title: "Old stream", createdAt: 1700000000000 };
 
+const base: VodImportStatus = {
+  streamer: "redbull-testing",
+  vodId: "2750461300",
+  sessionId: 12,
+  state: "IMPORTING",
+  offsetSeconds: 0,
+  durationSeconds: 7200,
+  chatState: "RUNNING",
+  captureState: "RUNNING",
+  lastError: null,
+  updatedAt: 1789000100000,
+};
+
+function selectChannel() {
+  window.localStorage.setItem(
+    "streamsense.selection",
+    JSON.stringify({ streamer: "redbull-testing", sponsor: "Red Bull" }),
+  );
+}
+
 describe("ImportStreams", () => {
   it("offers the recordings inside the deal's dates unless asked for all", () => {
     expect(recordingsForDeal([inside, before], deal().startsAt, deal().endsAt, false)).toEqual([inside]);
@@ -31,44 +51,47 @@ describe("ImportStreams", () => {
     ).toHaveLength(1);
   });
 
-  it("describes an import's progress", () => {
-    const base = {
-      vodId: "1",
-      channel: "c",
-      framesPublished: 0,
-      transcriptSegmentsPublished: 0,
-      failures: 0,
-      lastError: null,
-    };
+  it("describes an import's progress and which controls it gets", () => {
     expect(importLabel(undefined)).toBeNull();
-    expect(importLabel({ ...base, state: "QUEUED", offsetSeconds: 0, durationSeconds: 100 })).toBe("Queued");
-    expect(importLabel({ ...base, state: "RUNNING", offsetSeconds: 50, durationSeconds: 200 })).toBe("Importing · 25%");
-    expect(importLabel({ ...base, state: "RUNNING", offsetSeconds: 0, durationSeconds: 0 })).toBe("Importing · 0%");
-    expect(importLabel({ ...base, state: "DONE", offsetSeconds: 200, durationSeconds: 200 })).toBe("Imported");
-    expect(importLabel({ ...base, state: "FAILED", offsetSeconds: 9, durationSeconds: 200, lastError: "ffmpeg" })).toBe(
-      "Import failed: ffmpeg",
+    expect(importLabel({ ...base, state: "QUEUED" })).toBe("Queued");
+    expect(importLabel({ ...base, offsetSeconds: 1800 })).toBe("Importing · 25%");
+    expect(importLabel({ ...base, durationSeconds: 0 })).toBe("Importing · 0%");
+    expect(importLabel({ ...base, state: "STOPPING", offsetSeconds: 1800 })).toBe("Stopping…");
+    // The offset reached and the recording's length, the way the row reads after a stop.
+    expect(importLabel({ ...base, state: "STOPPED", offsetSeconds: 4320, durationSeconds: 43_380 })).toBe(
+      "Stopped at 1h 12m of 12h 03m",
     );
-    expect(importLabel({ ...base, state: "FAILED", offsetSeconds: 9, durationSeconds: 200 })).toBe(
-      "Import failed: unknown error",
-    );
+    expect(importLabel({ ...base, state: "DONE", offsetSeconds: 7200 })).toBe("Imported");
+    expect(importLabel({ ...base, state: "FAILED", lastError: "ffmpeg" })).toBe("Import failed: ffmpeg");
+    expect(importLabel({ ...base, state: "FAILED" })).toBe("Import failed: unknown error");
+
+    expect(canStop({ ...base, state: "QUEUED" })).toBe(true);
+    expect(canStop(base)).toBe(true);
+    expect(canStop({ ...base, state: "STOPPING" })).toBe(false);
+    expect(canStop({ ...base, state: "STOPPED" })).toBe(false);
+    expect(canResume({ ...base, state: "STOPPED" })).toBe(true);
+    expect(canResume({ ...base, state: "FAILED" })).toBe(true);
+    expect(canResume(base)).toBe(false);
+    expect(canResume(undefined)).toBe(false);
   });
 
   it("imports a recording with the streamer's viewer figure and then links to its report", async () => {
     let request: Record<string, unknown> | null = null;
     let listed: VodListing[] = [inside];
-    window.localStorage.setItem(
-      "streamsense.selection",
-      JSON.stringify({ streamer: "redbull-testing", sponsor: "Red Bull" }),
-    );
+    let imports: VodImportStatus[] = [];
+    selectChannel();
     server.use(
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restResolver("get", "/api/analytics/streams/redbull-testing/vods", () => HttpResponse.json(listed)),
+      restResolver("get", "/api/analytics/streams/redbull-testing/vods/imports", () => HttpResponse.json(imports)),
       restResolver(
         "post",
         "/api/analytics/streams/redbull-testing/vods/2750461300/import",
         async ({ request: req }) => {
           request = (await req.json()) as Record<string, unknown>;
           listed = [{ ...inside, sessionId: 12 }];
+          // The capture half failed after half an hour; the import can be resumed from there.
+          imports = [{ ...base, state: "FAILED", offsetSeconds: 1800, lastError: "ffmpeg frame capture timed out" }];
           return HttpResponse.json(
             {
               session: { id: 12 },
@@ -76,27 +99,12 @@ describe("ImportStreams", () => {
               chatReplayStarted: true,
               captureReplayStarted: true,
               problems: [],
+              status: { ...base, state: "QUEUED" },
             },
             { status: 202 },
           );
         },
       ),
-      restJson("get", "/api/video/capture/status", {
-        ...videoStatusCapturing,
-        imports: [
-          {
-            vodId: "2750461300",
-            channel: "redbull-testing",
-            state: "FAILED",
-            offsetSeconds: 1800,
-            durationSeconds: 7200,
-            framesPublished: 180,
-            transcriptSegmentsPublished: 0,
-            failures: 20,
-            lastError: "ffmpeg frame capture timed out",
-          },
-        ],
-      }),
     );
     const user = userEvent.setup();
     renderWithApollo(
@@ -112,21 +120,50 @@ describe("ImportStreams", () => {
 
     expect(await panel.findByRole("link", { name: "Open report" })).toHaveAttribute("href", "/sessions/12");
     expect(request).toEqual({ averageViewers: 850 });
-    // The capture service reports the import stopped; it can be resumed from where it was.
-    expect(panel.getByText("Import failed: ffmpeg frame capture timed out")).toBeInTheDocument();
+    expect(await panel.findByText("Import failed: ffmpeg frame capture timed out")).toBeInTheDocument();
     expect(panel.getByRole("button", { name: "Resume" })).toBeEnabled();
+    expect(panel.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
   });
 
-  it("offers a retry when the capture service does not confirm an import", async () => {
-    window.localStorage.setItem(
-      "streamsense.selection",
-      JSON.stringify({ streamer: "redbull-testing", sponsor: "Red Bull" }),
-    );
+  it("stops a running import from its row and offers to resume it from where it got to", async () => {
+    let imports: VodImportStatus[] = [{ ...base, offsetSeconds: 1800 }];
+    let stopped = false;
+    selectChannel();
     server.use(
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restJson("get", "/api/analytics/streams/redbull-testing/vods", [{ ...inside, sessionId: 12 }]),
-      // A session exists, but the capture service knows nothing about the import (a failed start, or a restart since).
-      restJson("get", "/api/video/capture/status", { ...videoStatusCapturing, imports: [] }),
+      restResolver("get", "/api/analytics/streams/redbull-testing/vods/imports", () => HttpResponse.json(imports)),
+      restResolver("post", "/api/analytics/streams/redbull-testing/vods/2750461300/stop", () => {
+        stopped = true;
+        // Chat confirmed, capture is still winding down: the row says so until the next poll.
+        imports = [{ ...base, state: "STOPPING", offsetSeconds: 1810, chatState: "STOPPED" }];
+        return HttpResponse.json(imports[0]);
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithApollo(
+      <MemoryRouter initialEntries={["/deals/3"]}>
+        <AppRoutes />
+      </MemoryRouter>,
+    );
+
+    const panel = within(await screen.findByLabelText("Earlier streams on Twitch"));
+    expect(await panel.findByText("Importing · 25%")).toBeInTheDocument();
+    // No confirmation: stopping is cheap and reversible.
+    await user.click(panel.getByRole("button", { name: "Stop" }));
+    expect(stopped).toBe(true);
+    expect(await panel.findByText("Stopping…", { selector: "em" })).toBeInTheDocument();
+    expect(panel.getByRole("button", { name: "Stopping…" })).toBeDisabled();
+    expect(panel.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+  });
+
+  it("offers a retry when analytics has no record of an import", async () => {
+    selectChannel();
+    server.use(
+      graphqlData("DealSummary", { dealSummary: dealSummary() }),
+      restJson("get", "/api/analytics/streams/redbull-testing/vods", [{ ...inside, sessionId: 12 }]),
+      // A session exists, but nothing was recorded about its import (imported before this state existed).
+      restJson("get", "/api/analytics/streams/redbull-testing/vods/imports", []),
     );
     renderWithApollo(
       <MemoryRouter initialEntries={["/deals/3"]}>

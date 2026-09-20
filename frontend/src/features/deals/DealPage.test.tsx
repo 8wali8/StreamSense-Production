@@ -21,6 +21,7 @@ import { SHARE_STORAGE_KEY } from "../../lib/share-token";
 function dealPageHandlers() {
   return [
     restJson("get", "/api/analytics/streams/redbull-testing/vods", []),
+    restJson("get", "/api/analytics/streams/redbull-testing/vods/imports", []),
     restJson("get", "/api/video/capture/status", videoStatusCapturing),
   ];
 }

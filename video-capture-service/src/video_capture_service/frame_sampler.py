@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -15,7 +16,13 @@ class FrameSampler:
         self.output_format = output_format
         self.jpeg_quality = jpeg_quality
 
-    def capture(self, hls_url: str, output_path: Path, seek_seconds: float | None = None) -> tuple[Path, int]:
+    def capture(
+        self,
+        hls_url: str,
+        output_path: Path,
+        seek_seconds: float | None = None,
+        cancel: threading.Event | None = None,
+    ) -> tuple[Path, int]:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         quality = max(2, min(31, round((100 - self.jpeg_quality) / 4) + 2))
         command = [
@@ -42,7 +49,7 @@ class FrameSampler:
 
         start = time.monotonic()
         try:
-            result = run_bounded(command, self.timeout_seconds)
+            result = run_bounded(command, self.timeout_seconds, cancel)
         except subprocess.TimeoutExpired as exc:
             raise FrameCaptureError("ffmpeg frame capture timed out") from exc
 
