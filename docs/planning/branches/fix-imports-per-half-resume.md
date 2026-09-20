@@ -5,7 +5,7 @@ Found on the live site on 2026-09-20 while checking imports/01's Stop and Resume
 ## What changed
 
 - **Each half resumes from its own recorded offset.** `vod_imports` already stores where chat-service and video-capture-service each got to; a resume now passes chat its chat offset and capture its capture offset instead of one combined figure. Every replayed id is deterministic, so any overlap is harmless.
-- **A failed half does not pin the combined offset.** While the other half works on, the import's offset (the label's percentage, the "Stopped at …" figure) follows the half still in play; once the import as a whole has failed, the offset names the earliest point of failure, as before. `VodImportService.combinedOffset` holds the rule.
+- **A failed half does not pin the combined offset.** While the other half works on, the import's offset (the label's percentage, the "Stopped at …" figure) follows the halves that have not failed (the failed one is named by its own state and the error). `VodImportService.combinedOffset` holds the rule.
 - Tests: `VodImportStopResumeTest` gained the case above and the resume case now checks that each half gets its own offset. `docs/contracts/sessions.md` says a resume is per half.
 
 ## Verification
