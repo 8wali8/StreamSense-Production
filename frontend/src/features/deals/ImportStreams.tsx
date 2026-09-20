@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { importVod, listVodImports, listVods, stopVodImport, type VodListing } from "../../api/analytics";
+import {
+  importVod,
+  listVodImports,
+  listVods,
+  stopVodImport,
+  uploadVodChatLog,
+  type VodListing,
+} from "../../api/analytics";
 import { usePolledResource } from "../../hooks/usePolledResource";
 import { describeError } from "../../lib/errors";
 import { formatCount, formatDuration, formatStart } from "../session/report-format";
-import { canResume, canStop, importLabel, recordingsForDeal } from "./import-streams";
+import { canFillChat, canResume, canStop, chatLogNote, importLabel, recordingsForDeal } from "./import-streams";
 
 type ImportStreamsProps = {
   streamer: string;
@@ -22,7 +29,9 @@ type ImportStreamsProps = {
  * stream. Twitch keeps no concurrent viewer history, so the streamer may enter the stream's average
  * viewers from their dashboard; without it the value tiles stay empty for that stream. A running
  * import can be stopped from its row and resumed later from where it got to; the state comes from
- * analytics-service, so it is the same in every tab and after a restart.
+ * analytics-service, so it is the same in every tab and after a restart. Twitch offers no download of
+ * a recording's chat, so the chat half comes from a log the streamer hands over on the row, or the
+ * import has video and audio only.
  */
 export function ImportStreams({ streamer, startsAt, endsAt, onImported }: ImportStreamsProps) {
   const [vods, setVods] = useState<VodListing[] | null>(null);
@@ -60,6 +69,21 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
       onImported();
     } catch (err) {
       setError(describeError(err instanceof Error ? err : new Error("import failed")));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function addChatLog(vod: VodListing, file: File | undefined) {
+    if (!file) return;
+    setBusy(vod.vodId);
+    try {
+      await uploadVodChatLog(streamer, vod.vodId, file);
+      setError(null);
+      await load();
+      polled.refresh();
+    } catch (err) {
+      setError(describeError(err instanceof Error ? err : new Error("the chat log could not be read")));
     } finally {
       setBusy(null);
     }
@@ -122,6 +146,23 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
                 Twitch
               </small>
               {problems.length > 0 && <small className="tone-warn">{problems.join("; ")}</small>}
+              <small className="chat-log-line">
+                {chatLogNote(vod, status)}
+                <label className="text-button file-button">
+                  {vod.chatLog ? "Replace chat log" : "Add chat log"}
+                  <input
+                    className="visually-hidden"
+                    type="file"
+                    accept=".json,.csv,.tsv,.txt,.log,application/json,text/csv,text/plain"
+                    disabled={busy !== null}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      void addChatLog(vod, file);
+                    }}
+                  />
+                </label>
+              </small>
             </span>
             {vod.sessionId != null ? (
               <span className="vod-actions">
@@ -137,7 +178,7 @@ export function ImportStreams({ streamer, startsAt, endsAt, onImported }: Import
                     {stopping ? "Stopping…" : busy === vod.vodId ? "Stopping…" : "Stop"}
                   </button>
                 )}
-                {(canResume(status) || retryable) && (
+                {(canResume(status) || retryable || canFillChat(vod, status)) && (
                   <button
                     className="button-secondary button-sm"
                     type="button"
