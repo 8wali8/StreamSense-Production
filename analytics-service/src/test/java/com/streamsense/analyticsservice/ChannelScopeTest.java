@@ -123,6 +123,14 @@ class ChannelScopeTest {
                         .header(ROLE, "streamer"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.reason").value("operator_required"));
+        // A login with no role at all (the gateway refuses such tokens; this service does not rely on it) is
+        // confined the same way.
+        mockMvc.perform(delete("/api/analytics/deals/" + dealId).header(LOGIN, "owner"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("operator_required"));
+        mockMvc.perform(get("/api/analytics/deals/" + dealId).header(LOGIN, "someone-else"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("channel_forbidden"));
         mockMvc.perform(delete("/api/analytics/deals/" + dealId + "/share")
                         .header(LOGIN, "owner")
                         .header(ROLE, "streamer"))

@@ -139,8 +139,9 @@ public class DealRepository {
                 > 0;
     }
 
-    public boolean delete(long id) {
-        return jdbcTemplate.update("delete from deals where id = ?", id) > 0;
+    /** Removes the deal unless it is shared; false when it is, or when it is unknown. One statement, so the two cannot race. */
+    public boolean deleteUnshared(long id) {
+        return jdbcTemplate.update("delete from deals where id = ? and share_token is null", id) > 0;
     }
 
     /** Sets or clears (null) the share token. */

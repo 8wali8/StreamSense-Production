@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createDeal, updateDeal, type Deal, type DealUpdateRequest } from "../../api/analytics";
 import { describeError } from "../../lib/errors";
-import { fromDateInput, toDateInput } from "./deal-format";
+import { fromDateInput, toDateInput, toEndDateInput } from "./deal-format";
 
 type DealFormProps = {
   streamer: string;
@@ -43,7 +43,7 @@ function numberField(value: number | null | undefined): string {
 export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCancel }: DealFormProps) {
   const [sponsor, setSponsor] = useState(deal?.sponsor ?? defaultSponsor);
   const [starts, setStarts] = useState(toDateInput(deal?.startsAt ?? Date.now()));
-  const [ends, setEnds] = useState(deal?.endsAt == null ? "" : toDateInput(deal.endsAt));
+  const [ends, setEnds] = useState(deal?.endsAt == null ? "" : toEndDateInput(deal.endsAt));
   const [promisedStreams, setPromisedStreams] = useState(numberField(deal?.promisedStreams));
   const [fee, setFee] = useState(numberField(deal?.fee));
   const [cpm, setCpm] = useState(numberField(deal?.cpmPer30sEquivalent));
@@ -71,6 +71,8 @@ export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCance
       sponsor: sponsor.trim(),
       startsAt,
       ...(endsAt != null ? { endsAt } : {}),
+      // The form has no currency field; an edit keeps the deal's, since an update replaces the whole deal.
+      ...(deal?.currency ? { currency: deal.currency } : {}),
       ...(optionalNumber(promisedStreams) !== undefined ? { promisedStreams: optionalNumber(promisedStreams) } : {}),
       ...(optionalNumber(fee) !== undefined ? { fee: optionalNumber(fee) } : {}),
       ...(optionalNumber(cpm) !== undefined ? { cpmPer30sEquivalent: optionalNumber(cpm) } : {}),

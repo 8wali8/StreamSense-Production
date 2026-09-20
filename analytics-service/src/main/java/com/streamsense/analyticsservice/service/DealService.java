@@ -143,10 +143,13 @@ public class DealService {
             return false;
         }
         DealRow deal = found.get();
-        if (deal.shareToken() != null) {
+        // The delete itself checks the token again, so a link minted between the read and the delete survives.
+        if (deal.shareToken() != null || !deals.deleteUnshared(deal.id())) {
+            if (deals.findById(deal.id()).isEmpty()) {
+                return false;
+            }
             throw new IllegalStateException("revoke the deal's share link before deleting it");
         }
-        deals.delete(deal.id());
         repoint(deal.streamer(), deal.id());
         return true;
     }

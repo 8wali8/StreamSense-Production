@@ -29,8 +29,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Confines a streamer to their own channel. The gateway says who a request is for in two headers it
- * sets itself ({@value #LOGIN_HEADER}, {@value #ROLE_HEADER}); with the streamer role, a request may name
- * only that login: in the {@code /streams/{streamer}} path, the {@code streamer} query parameter, the
+ * sets itself ({@value #LOGIN_HEADER}, {@value #ROLE_HEADER}); with any role but the operator's (the
+ * gateway issues only {@code operator} and {@code streamer}), a request may name only that login: in the {@code /streams/{streamer}} path, the {@code streamer} query parameter, the
  * {@code streamer} of a deal being created, or the owner of a deal or session addressed by id. The
  * operator's routes ({@value #OPERATOR_ONLY}: the Helix poller's status, whose last error is raw) and
  * a deal's deletion are refused to that role outright. Requests without the headers (the gateway's own
@@ -42,7 +42,7 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
 
     public static final String LOGIN_HEADER = "X-StreamSense-Auth-Login";
     public static final String ROLE_HEADER = "X-StreamSense-Auth-Role";
-    static final String ROLE_STREAMER = "streamer";
+    static final String ROLE_OPERATOR = "operator";
 
     private static final Pattern STREAMS = Pattern.compile("^/api/analytics/streams/([^/]+)(?:/.*)?$");
     private static final Pattern DEAL = Pattern.compile("^/api/analytics/deals/(\\d+)(?:/.*)?$");
@@ -74,7 +74,9 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String role = request.getHeader(ROLE_HEADER);
         String login = request.getHeader(LOGIN_HEADER);
-        if (!ROLE_STREAMER.equals(role) || login == null || login.isBlank()) {
+        // Only the operator role is unconfined. A login with any other role, or none (the gateway refuses
+        // such tokens, but this service does not rely on that), is confined like a streamer.
+        if (login == null || login.isBlank() || ROLE_OPERATOR.equals(role)) {
             chain.doFilter(request, response);
             return;
         }

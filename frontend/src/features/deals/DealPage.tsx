@@ -83,8 +83,9 @@ export function DealPage() {
   // A shared tab and the demo are both read-only views: no share control, no imports, no changes.
   const sharedView = readShareToken() != null || isDemoMode();
   const sponsorQuery = `?sponsor=${encodeURIComponent(deal.sponsor)}`;
-  // Ending is open until the deal has ended; deleting is the operator's call, and only once it is unshared.
-  const canEnd = deal.endsAt == null || deal.endsAt > Date.now();
+  // Ending is for a deal that has started and not ended (one still to come is edited or deleted instead);
+  // deleting is the operator's call, and only once it is unshared.
+  const canEnd = deal.startsAt <= Date.now() && (deal.endsAt == null || deal.endsAt > Date.now());
   const canDelete = !sharedView && isOperatorView();
 
   function endToday() {
@@ -179,9 +180,12 @@ export function DealPage() {
             deal={deal}
             onCancel={() => setAction("idle")}
             onSaved={() => {
-              setAction("idle");
-              setNotice("Saved. Every report inside the deal is priced with the new terms from now on.");
-              void query.refetch();
+              // The header's actions act on the deal as loaded, so they stay hidden until the refetch lands.
+              void run(async () => {
+                await query.refetch();
+                setAction("idle");
+                setNotice("Saved. Every report inside the deal is priced with the new terms from now on.");
+              });
             }}
           />
         </section>

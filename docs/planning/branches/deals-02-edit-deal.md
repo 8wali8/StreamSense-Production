@@ -10,6 +10,17 @@ A deal could be created, read, shared, and unshared, and nothing else: no edit, 
 - **The console.** `NewDealForm.tsx` is now `DealForm.tsx` and takes an optional `deal`: prefilled, "More settings" open when the deal has any term, "Save changes", and the whole deal sent back with `updateDeal`. The deal page's header gains, for the owner, **Edit** (the form in a panel under the header), **End today** (while the deal has not ended; the whole deal goes back with the end set to now), and, for an operator, **Delete**, which asks in a line first ("Delete this deal for good? Its streams stay") and is refused while shared. A shared tab and the demo see none of these. `api/analytics.ts` gains `updateDeal` and `deleteDeal`.
 - **Docs.** `docs/contracts/deals.md` describes both routes and the re-pointing; `CLAUDE.md` names the form's two modes, the deal page's controls, and the scope filter's new refusal.
 
+## After the Codex review
+
+Six findings on the first commit, all taken:
+
+- **Only the operator role is unconfined.** `ChannelScopeFilter` confined only the `streamer` role, so a login with no role would have passed unscoped. The gateway refuses such tokens since the access-link retirement, but the filter no longer relies on it: any role but `operator` is confined.
+- **The edit form showed the day after the deal's last day.** A deal's end is exclusive (the midnight after its last day), so prefilling the date input with it showed the next day and saving unchanged extended the deal by a day. `toEndDateInput` shows the day the instant before the bound falls on; the round trip is tested.
+- **An edit keeps the deal's currency.** The form has no currency field and an update replaces the whole deal, so the deal's currency is sent back rather than falling to `USD`.
+- **"End today" only for a deal that has started.** For one still to come it could only fail (an end before the start); such a deal is edited or deleted instead.
+- **After saving, the header waits for the refetch.** The actions act on the deal as loaded; they were exposed while the old deal was still on screen, and "End today" then would have sent the old terms back. The form now stays until the refetch lands.
+- **Deletion is one statement.** `delete ... where id = ? and share_token is null`, so a link minted between the check and the delete survives; a row that is then still there is the 409, a row that is gone the 404.
+
 ## Verification
 
 | Check | Command | Result |
