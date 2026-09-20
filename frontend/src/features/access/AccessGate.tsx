@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { isUsableToken, readAuthToken, storeAuthToken } from "../../lib/auth-token";
+import { isUsableToken, readAuthToken } from "../../lib/auth-token";
 import { readShareToken } from "../../lib/share-token";
 import { LoginPage } from "./LoginPage";
 
@@ -23,25 +23,17 @@ function takeSignInFailure(win: Pick<Window, "location" | "history"> = window): 
 }
 
 /**
- * Nothing behind it renders until the browser holds a bearer token that has not run out. A tab opened
- * from a share link passes: it authenticates with the share token and gets the reduced shell instead.
- * Signing in only updates state; every transport reads the token per request, so no reload is needed.
+ * Nothing behind it renders until the browser holds a bearer token that has not run out. The token
+ * arrives with the page: a Twitch sign-in comes back with it in the URL fragment, which App captures
+ * before this renders. A tab opened from a share link passes: it authenticates with the share token
+ * and gets the reduced shell instead.
  */
 export function AccessGate({ children, now }: Props) {
-  const [token, setToken] = useState(() => readAuthToken());
+  const [token] = useState(() => readAuthToken());
   const [signInFailure] = useState(() => takeSignInFailure());
 
   if (readShareToken() != null || isUsableToken(token, now)) {
     return <>{children}</>;
   }
-  return (
-    <LoginPage
-      expired={token != null}
-      signInFailure={signInFailure}
-      onSignedIn={(signedIn) => {
-        storeAuthToken(signedIn);
-        setToken(signedIn);
-      }}
-    />
-  );
+  return <LoginPage expired={token != null} signInFailure={signInFailure} />;
 }

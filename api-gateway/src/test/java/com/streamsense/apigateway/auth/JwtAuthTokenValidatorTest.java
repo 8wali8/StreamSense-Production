@@ -49,7 +49,7 @@ class JwtAuthTokenValidatorTest {
 
     @Test
     void rejectsPayloadsEditedAfterSigning() {
-        String[] parts = TestJwtTokens.validToken("demo-user").split("\\.");
+        String[] parts = TestJwtTokens.tokenWithRole("demo-user", "streamer").split("\\.");
         String elevated = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString("{\"sub\":\"admin\"}".getBytes(StandardCharsets.UTF_8));
@@ -66,10 +66,44 @@ class JwtAuthTokenValidatorTest {
         authProperties.setHmacSecret(null);
 
         JwtAuthTokenValidator.ValidationResult result =
-                validator.validate("Bearer " + TestJwtTokens.validToken("demo-user"), authProperties);
+                validator.validate("Bearer " + TestJwtTokens.tokenWithRole("demo-user", "operator"), authProperties);
 
         assertThat(result.valid()).isFalse();
         assertThat(result.reason()).isEqualTo("auth_key_not_configured");
+    }
+
+    @Test
+    void refusesATokenWithoutARole() {
+        // The shape the retired access links had: well signed, in date, and nobody in particular.
+        JwtAuthTokenValidator.ValidationResult result =
+                validator.validate("Bearer " + TestJwtTokens.tokenWithoutRole("demo-viewer"), authProperties);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.reason()).isEqualTo("missing_role");
+    }
+
+    @Test
+    void refusesARoleTheGatewayDoesNotMint() {
+        JwtAuthTokenValidator.ValidationResult result =
+                validator.validate("Bearer " + TestJwtTokens.tokenWithRole("demo-viewer", "viewer"), authProperties);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.reason()).isEqualTo("missing_role");
+    }
+
+    @Test
+    void acceptsBothRolesTheGatewayMints() {
+        assertThat(validator.validate("Bearer " + TestJwtTokens.tokenWithRole("ninja", "streamer"), authProperties))
+                .satisfies(result -> {
+                    assertThat(result.valid()).isTrue();
+                    assertThat(result.role()).isEqualTo("streamer");
+                    assertThat(result.isOperator()).isFalse();
+                });
+        assertThat(validator.validate("Bearer " + TestJwtTokens.tokenWithRole("ops", "operator"), authProperties))
+                .satisfies(result -> {
+                    assertThat(result.valid()).isTrue();
+                    assertThat(result.isOperator()).isTrue();
+                });
     }
 
     @Test
@@ -91,16 +125,17 @@ class JwtAuthTokenValidatorTest {
 
     @Test
     void acceptsTokensMintedByTheDevTool() {
-        // Produced by tools/mint-jwt.py with TEST_SECRET at 2026-04-11T12:00:00Z, ttl 600s; the fixed clock keeps it
-        // live.
+        // Produced by tools/mint-jwt.py --role operator with TEST_SECRET at 2026-04-11T12:00:00Z, ttl 600s; the
+        // fixed clock keeps it live.
         String minted = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-                + "eyJzdWIiOiJtaW50ZWQtdXNlciIsImlzcyI6InN0cmVhbXNlbnNlLWxvY2FsIiwiYXVkIjoic3RyZWFtc2Vuc2UtY2xpZW50cyIsImlhdCI6MTc3NTkwODgwMCwiZXhwIjoxNzc1OTA5NDAwfQ."
-                + "6SNqiGAV9QdX5sKQjUPhQ6ou0kRKROiC2mjx2NpW4pY";
+                + "eyJzdWIiOiJtaW50ZWQtdXNlciIsImlzcyI6InN0cmVhbXNlbnNlLWxvY2FsIiwiYXVkIjoic3RyZWFtc2Vuc2UtY2xpZW50cyIsImlhdCI6MTc3NTkwODgwMCwiZXhwIjoxNzc1OTA5NDAwLCJyb2xlIjoib3BlcmF0b3IifQ."
+                + "eJS9MkukhBX4smQ3SDOd8iaLnwRDoDcbw2AB5jQe1Nw";
 
         JwtAuthTokenValidator.ValidationResult result = validator.validate("Bearer " + minted, authProperties);
 
         assertThat(result.valid()).isTrue();
         assertThat(result.subject()).isEqualTo("minted-user");
+        assertThat(result.role()).isEqualTo("operator");
     }
 
     @Test
@@ -119,6 +154,7 @@ class JwtAuthTokenValidatorTest {
         assertThat(result.valid()).isTrue();
         assertThat(result.subject()).isEqualTo("demo-user");
         assertThat(result.expiresAt()).isEqualTo(Instant.parse("2026-04-11T12:10:00Z"));
+        assertThat(result.role()).isEqualTo(TestJwtTokens.DEFAULT_ROLE);
     }
 
     @Test

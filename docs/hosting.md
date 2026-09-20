@@ -52,9 +52,9 @@ sudo streamsense-deploy
 
 The script checks out the commit it will run (see Updating), refreshes the local secret files (`make secrets`, random values kept between runs), pulls the images at that tag, starts the stack with the overlay, and waits for every container the two Compose files define to report healthy. The first run pulls about 4 GB of images and, once the services are up, ml-engine downloads its models on the first request for each backend (2 to 3 GB in total), so allow ten minutes before the console is fully useful. Later runs are a minute or two.
 
-It then verifies through Caddy that the console answers (over HTTPS with a valid certificate when a domain is set, and that plain HTTP redirects), that the gateway refuses a call without a token, that it accepts one with a token, and that nothing but ports 22, 80, and 443 listens on a public interface; and prints a 30-day access link for viewers.
+It then verifies through Caddy that the console answers (over HTTPS with a valid certificate when a domain is set, and that plain HTTP redirects), that the gateway refuses a call without a token, that it accepts one with a token, and that nothing but ports 22, 80, and 443 listens on a public interface; and prints the console's URL.
 
-`sudo streamsense-deploy verify` repeats the checks; `sudo streamsense-deploy status` is `docker compose ps`; `sudo streamsense-deploy link` mints another access link and `sudo streamsense-deploy token` a bare token (`--ttl-seconds` on either to change the lifetime).
+`sudo streamsense-deploy verify` repeats the checks; `sudo streamsense-deploy status` is `docker compose ps`; `sudo streamsense-deploy token` mints an operator bearer token for a script or a `curl` run against the gateway (`--ttl-seconds` to change its lifetime, 30 days by default). Nobody signs in to the console with one: the console signs in with Twitch, below.
 
 ## Domain and HTTPS
 
@@ -66,21 +66,15 @@ The console can be served at a name of your own instead of the address. It needs
 
 From then on the printed URL and the sharing instructions use `https://streamsense.dev/`, and the console uses `wss` for its subscriptions on its own because it derives the scheme from the page. Removing the `STREAMSENSE_DOMAIN` line and redeploying returns to plain HTTP at the address.
 
-What changes for security: the console is now findable by name and will be probed by scanners within hours. What they reach is the console shell, and a gateway that answers 401 for everything under `/graphql`, `/api`, and `/ml` without a token; every admin UI and service port stays on the loopback. The bearer token remains the access control, so keep giving it only to people you would give the address to. Let's Encrypt publishes every certificate it issues to public transparency logs, so the name itself is public the moment the certificate exists.
+What changes for security: the console is now findable by name and will be probed by scanners within hours. What they reach is the console shell, and a gateway that answers 401 for everything under `/graphql`, `/api`, and `/ml` without a token; every admin UI and service port stays on the loopback. A Twitch sign-in remains the access control; the gateway accepts no token it did not mint for one. Let's Encrypt publishes every certificate it issues to public transparency logs, so the name itself is public the moment the certificate exists.
 
 ## Sharing the console
 
-Send a viewer the access link `streamsense-deploy` printed:
-
-```
-https://streamsense.dev/#token=<token>
-```
-
-Opening it signs that browser in: the console keeps the token in local storage and removes it from the address bar, so a copied or bookmarked URL does not carry it on. The token sits in the URL fragment, which browsers never send, so it does not appear in Caddy's or nginx's access logs. Without a token, or once it has run out, the console shows a sign-in page instead of the app; the link (or the bare token) pasted there signs in as well, and the sidebar's Access entry shows how long it is good for and signs out. Anyone with a link can read everything the console shows and use the manual ingest routes within the rate limits; hand links to people you would hand a password to.
+There is nothing to send. A streamer signs in with Twitch (next section) and sees their own channel; the operator signs in the same way and sees every channel. A sponsor gets a share link from a deal page, read-only for that one deal. Anyone else looks at the demo at `/demo`, which runs on a sealed snapshot and needs no account. Without a token, or once it has run out, the console shows the sign-in page instead of the app, and the sidebar's Access entry names the sign-in and signs out.
 
 ## Sign in with Twitch
 
-Streamers can sign in with their Twitch account instead of an access link. The gateway is the OAuth client and uses the same registered Twitch application as the Helix poller, so the two secret files (`/opt/streamsense/secrets/TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`) must be filled in. Three steps, once:
+Everyone signs in with their Twitch account. The gateway is the OAuth client and uses the same registered Twitch application as the Helix poller, so the two secret files (`/opt/streamsense/secrets/TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`) must be filled in. Three steps, once:
 
 1. **Register the callback URL on the Twitch application.** In the [Twitch developer console](https://dev.twitch.tv/console/apps), open the application and add `https://streamsense.dev/auth/twitch/callback` under OAuth Redirect URLs, exactly. Add `http://localhost:3000/auth/twitch/callback` too if you want to sign in against a local `make up` (auth on: `STREAMSENSE_GATEWAY_AUTH_ENABLED=true`).
 2. **Turn it on in `/etc/streamsense/twitch.env`:**
@@ -92,9 +86,9 @@ STREAMSENSE_GATEWAY_AUTH_OPERATORS=yourtwitchlogin
 ```
 
    Operators are the Twitch logins allowed to switch channels, edit sponsor profiles, and use the manual ingest routes (the Operations page); everyone else signs in as a streamer, who sees their own channel, its reports and deals, and cannot steer the pipeline. The gateway refuses to start if sign-in is on but a credential or the redirect URL is missing.
-3. **Deploy.** `sudo streamsense-deploy`. The sign-in page then shows "Sign in with Twitch" above the access-link field.
+3. **Deploy.** `sudo streamsense-deploy`. The sign-in page then offers "Sign in with Twitch"; while sign-in is off it says so and offers only the demo.
 
-What happens on sign-in: the browser goes to Twitch, authorises the application (the `openid` scope only: who they are, nothing else), and comes back to the gateway's callback, which mints the console's own 7-day token and sends the browser to the page it started from with the token in the URL fragment, exactly like an access link. The Twitch token is revoked straight away; the console keeps nothing of Twitch's. Access links keep working for viewers: every channel's reports and deals, but not the Operations page or the pipeline controls, which need an operator sign-in. To walk the console as a streamer would see it, an operator uses "View as a streamer" in the sidebar's access panel; "Back to my view" returns.
+What happens on sign-in: the browser goes to Twitch, authorises the application (the `openid` scope only: who they are, nothing else), and comes back to the gateway's callback, which mints the console's own 7-day token and sends the browser to the page it started from with the token in the URL fragment, which browsers never send to a server; the console takes it out of the address bar and keeps it in local storage, so a copied or bookmarked URL does not carry it on. The Twitch token is revoked straight away; the console keeps nothing of Twitch's. To walk the console as a streamer would see it, an operator uses "View as a streamer" in the sidebar's access panel; "Back to my view" returns.
 
 ## Between demos
 

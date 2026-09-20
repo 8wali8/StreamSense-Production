@@ -94,10 +94,12 @@ public class JwtAuthTokenValidator {
                 return ValidationResult.invalid("token_not_yet_valid");
             }
 
-            // The role is what Twitch sign-in put there; a token minted without one keeps its full access.
-            String role = payload.hasNonNull(GatewayTokenIssuer.CLAIM_ROLE)
-                    ? payload.path(GatewayTokenIssuer.CLAIM_ROLE).asText()
-                    : null;
+            // The role is what Twitch sign-in put there, and every token carries one: without it there is no
+            // telling an operator from a streamer, so the token is refused rather than given some third scope.
+            String role = payload.path(GatewayTokenIssuer.CLAIM_ROLE).asText();
+            if (!GatewayTokenIssuer.ROLE_OPERATOR.equals(role) && !GatewayTokenIssuer.ROLE_STREAMER.equals(role)) {
+                return ValidationResult.invalid("missing_role");
+            }
             return ValidationResult.valid(payload.path("sub").asText(), Instant.ofEpochSecond(exp), role);
         } catch (JwtSignatureVerifiers.UnverifiableTokenException exception) {
             return ValidationResult.invalid(exception.reason());
@@ -137,12 +139,8 @@ public class JwtAuthTokenValidator {
         return value == null || value.isBlank();
     }
 
-    /** {@code role} is null for a token minted without one (an access link): it reads any channel, it is no operator. */
+    /** A valid result always has a {@code role}, {@code operator} or {@code streamer}; a token without one is invalid. */
     public record ValidationResult(boolean valid, String subject, Instant expiresAt, String role, String reason) {
-
-        public static ValidationResult valid(String subject, Instant expiresAt) {
-            return valid(subject, expiresAt, null);
-        }
 
         public static ValidationResult valid(String subject, Instant expiresAt, String role) {
             return new ValidationResult(true, subject, expiresAt, role, null);
