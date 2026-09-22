@@ -31,7 +31,7 @@ What relevance scoring knows about a sponsor lived in one config list, matched b
 
 | Check | Command | Result |
 |---|---|---|
-| sentiment-service | `mvn -pl sentiment-service -Dmaven.gitcommitid.skip=true spotless:apply verify` in `maven:3.9-eclipse-temurin-21` | build success; 43 tests, 0 failures (5 new in `SponsorCatalogServiceTest` and `SponsorRelevanceProfileServiceTest`); coverage floor held |
+| sentiment-service | `mvn -pl sentiment-service -Dmaven.gitcommitid.skip=true spotless:apply verify` in `maven:3.9-eclipse-temurin-21` | build success; 44 tests, 0 failures (6 new in `SponsorCatalogServiceTest` and `SponsorRelevanceProfileServiceTest`); coverage floor held |
 | analytics-service | the same, `-pl analytics-service` | on `main` at `9d50ee3` every Spring context fails on two V9 migrations (`fix/02-duplicate-v9`, #82); rerun after that merge, see below |
 | Frontend gate | `codegen:check`, `lint`, `format:check`, `test:coverage`, `build` | all pass; 41 files, 168 tests (4 new: `catalog.test.ts`, `SponsorCatalog.test.tsx`); statements 90.01 %, branches 85.38 % |
 

@@ -47,8 +47,8 @@ class SponsorRelevanceProfileServiceTest {
     @Test
     void aStoredProfileWrittenBeforeItsCatalogEntryCatchesUpAtStartUp() {
         when(repository.findAll())
-                .thenReturn(List.of(new SponsorRelevanceProfileEntity(
-                        "8wali8", "redbull", List.of(), List.of("can"), 0.5d, 1L)));
+                .thenReturn(List.of(
+                        new SponsorRelevanceProfileEntity("8wali8", "redbull", List.of(), List.of("can"), 0.5d, 1L)));
         SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
 
         service.seedConfiguredProfiles();
