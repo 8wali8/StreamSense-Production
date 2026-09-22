@@ -17,7 +17,10 @@ public class CaptureReplayClient {
         this.restClient = builder.baseUrl(baseUrl).build();
     }
 
-    /** Starts the replay; {@code startOffsetSeconds} above zero resumes from there. */
+    /**
+     * Starts the replay; {@code startOffsetSeconds} above zero resumes from there. The transcript stride is
+     * sent every time, so the import never depends on the capture service's default for it.
+     */
     public void replay(
             String channel,
             String vodId,
@@ -25,7 +28,8 @@ public class CaptureReplayClient {
             long baseTimeMs,
             long durationMs,
             String streamSessionId,
-            long startOffsetSeconds) {
+            long startOffsetSeconds,
+            int transcriptIntervalSeconds) {
         Map<String, Object> body = new HashMap<>();
         body.put("channel", channel);
         body.put("vodId", vodId);
@@ -34,6 +38,7 @@ public class CaptureReplayClient {
         body.put("durationSeconds", durationMs / 1000);
         body.put("streamSessionId", streamSessionId);
         body.put("startOffsetSeconds", startOffsetSeconds);
+        body.put("transcriptIntervalSeconds", transcriptIntervalSeconds);
         restClient.post().uri("/api/video/capture/replay").body(body).retrieve().toBodilessEntity();
     }
 

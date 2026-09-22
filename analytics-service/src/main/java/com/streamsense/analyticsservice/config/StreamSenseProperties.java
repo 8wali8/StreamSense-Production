@@ -175,12 +175,26 @@ public class StreamSenseProperties {
         private int captureSessionIdleCloseMinutes = 10;
         /** Longest absolute range a query may ask for. */
         private int maxRangeHours = 48;
+        /**
+         * The transcript stride a VOD import asks video-capture-service for, in seconds. Pinned here, and
+         * never taken from the console: 10 is the live capture's segment length, so an imported session
+         * counts every voice mention exactly as a live one does. Widening it would drop mentions.
+         */
+        private int vodImportTranscriptIntervalSeconds = 10;
 
         private final Value value = new Value();
         private final Response response = new Response();
 
         public int getMaxRangeHours() {
             return maxRangeHours;
+        }
+
+        public int getVodImportTranscriptIntervalSeconds() {
+            return vodImportTranscriptIntervalSeconds;
+        }
+
+        public void setVodImportTranscriptIntervalSeconds(int vodImportTranscriptIntervalSeconds) {
+            this.vodImportTranscriptIntervalSeconds = vodImportTranscriptIntervalSeconds;
         }
 
         public void setMaxRangeHours(int maxRangeHours) {

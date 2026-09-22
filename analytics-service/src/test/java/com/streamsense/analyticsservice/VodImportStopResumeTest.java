@@ -108,7 +108,8 @@ class VodImportStopResumeTest {
                 .andExpect(jsonPath("$.status.state").value("QUEUED"))
                 .andExpect(jsonPath("$.status.durationSeconds").value(7200));
         verify(chat).replay(eq(streamer), eq(VOD), anyLong(), anyString(), eq(0L), anyList());
-        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(0L));
+        // The transcript stride is pinned in analytics config (10 s, the live segment length) and always sent.
+        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(0L), eq(10));
 
         // Reading the channel's imports brings the active one up to date: the label follows the slower half.
         mockMvc.perform(get(BASE + "imports"))
@@ -147,7 +148,7 @@ class VodImportStopResumeTest {
                 .andExpect(jsonPath("$.status.state").value("QUEUED"))
                 .andExpect(jsonPath("$.status.offsetSeconds").value(620));
         verify(chat).replay(eq(streamer), eq(VOD), anyLong(), anyString(), eq(960L), anyList());
-        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(620L));
+        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(620L), eq(10));
 
         // Both halves finish: the import is done, at the recording's full length.
         when(chat.status(VOD)).thenReturn(Optional.of(reported("DONE", 7100)));
@@ -213,7 +214,7 @@ class VodImportStopResumeTest {
         // The chat half is asked from 0 s both times (the first import and the resume); capture from 380 s.
         verify(chat, org.mockito.Mockito.times(2))
                 .replay(eq(streamer), eq(VOD), anyLong(), anyString(), eq(0L), anyList());
-        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(380L));
+        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(380L), eq(10));
     }
 
     @Test
