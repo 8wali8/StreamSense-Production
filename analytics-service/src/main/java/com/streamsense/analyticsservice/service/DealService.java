@@ -12,6 +12,7 @@ import com.streamsense.analyticsservice.api.SummaryOptions;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.model.DealLogoRow;
 import com.streamsense.analyticsservice.model.DealRow;
+import com.streamsense.analyticsservice.model.SponsorUsage;
 import com.streamsense.analyticsservice.persistence.DealRepository;
 import com.streamsense.analyticsservice.relevance.SponsorRelevancePointer;
 import java.net.URI;
@@ -300,6 +301,11 @@ public class DealService {
         }
         long now = clock.millis();
         return deals.findByShareToken(cleaned).map(row -> toApi(row, now));
+    }
+
+    /** Every sponsor deals name, grouped without regard to case, for the operator's catalog. */
+    public List<SponsorUsage> sponsorUsage() {
+        return deals.sponsorUsage();
     }
 
     /** Streamers with a deal running now, for the Helix poller's watch list. */

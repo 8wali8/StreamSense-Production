@@ -5,6 +5,7 @@ import com.streamsense.analyticsservice.api.DealCreateRequest;
 import com.streamsense.analyticsservice.api.DealSummary;
 import com.streamsense.analyticsservice.api.DealUpdateRequest;
 import com.streamsense.analyticsservice.api.ShareLink;
+import com.streamsense.analyticsservice.model.SponsorUsage;
 import com.streamsense.analyticsservice.service.DealService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -47,6 +48,12 @@ public class DealController {
             @RequestParam(value = "streamer", required = false) String streamer,
             @RequestParam(value = "limit", required = false) @Min(1) @Max(200) Integer limit) {
         return deals.list(streamer, limit);
+    }
+
+    /** Every sponsor deals name, grouped without regard to case. Operators only: the scope filter refuses a streamer. */
+    @GetMapping("/sponsors")
+    public List<SponsorUsage> sponsors() {
+        return deals.sponsorUsage();
     }
 
     @GetMapping("/{id}")

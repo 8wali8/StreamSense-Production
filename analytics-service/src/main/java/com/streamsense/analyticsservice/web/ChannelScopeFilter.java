@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,12 +31,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Confines a streamer to their own channel. The gateway says who a request is for in two headers it
  * sets itself ({@value #LOGIN_HEADER}, {@value #ROLE_HEADER}); with any role but the operator's (the
- * gateway issues only {@code operator} and {@code streamer}), a request may name only that login: in the {@code /streams/{streamer}} path, the {@code streamer} query parameter, the
- * {@code streamer} of a deal being created, or the owner of a deal or session addressed by id. The
- * operator's routes ({@value #OPERATOR_ONLY}: the Helix poller's status, whose last error is raw) and
- * a deal's deletion are refused to that role outright. Requests without the headers (the gateway's own
- * resolvers, the smoke tests) are unscoped, which is safe only because this service is reachable
- * through the gateway alone.
+ * gateway issues only {@code operator} and {@code streamer}), a request may name only that login: in
+ * the {@code /streams/{streamer}} path, the {@code streamer} query parameter, the {@code streamer} of
+ * a deal being created, or the owner of a deal or session addressed by id. The operator's routes
+ * ({@link #OPERATOR_ONLY}: the Helix poller's status, whose last error is raw, and the sponsors every
+ * channel's deals name) and a deal's deletion are refused to that role outright. Requests without the
+ * headers (the gateway's own resolvers, the smoke tests) are unscoped, which is safe only because this
+ * service is reachable through the gateway alone.
  */
 @Component
 public class ChannelScopeFilter extends OncePerRequestFilter {
@@ -50,7 +52,9 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
     private static final Pattern DEAL_ITSELF = Pattern.compile("^/api/analytics/deals/\\d+$");
 
     private static final Pattern SESSION = Pattern.compile("^/api/analytics/sessions/(\\d+)(?:/.*)?$");
-    static final String OPERATOR_ONLY = "/api/analytics/helix/status";
+    /** The Helix poller's status, whose last error is raw, and every sponsor deals name across all channels. */
+    static final Set<String> OPERATOR_ONLY = Set.of("/api/analytics/helix/status", "/api/analytics/deals/sponsors");
+
     private static final String PROBLEM_TYPE = "https://streamsense.dev/problems/forbidden";
 
     private final DealService deals;
@@ -84,7 +88,7 @@ public class ChannelScopeFilter extends OncePerRequestFilter {
         // Spring matches routes with matrix parameters (";key=value") removed from each segment; compare the
         // same way, or "/helix/status;x" would reach the controller unscoped.
         String path = withoutMatrixParameters(request.getRequestURI());
-        if (path.equals(OPERATOR_ONLY)
+        if (OPERATOR_ONLY.contains(path)
                 || (DEAL_ITSELF.matcher(path).matches() && "DELETE".equalsIgnoreCase(request.getMethod()))) {
             forbid(request, response, "operator_required", "This is for operators");
             return;

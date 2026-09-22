@@ -1,6 +1,8 @@
 package com.streamsense.sentimentservice.service;
 
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
+import com.streamsense.sentimentservice.dto.SponsorCatalogEntry;
+import com.streamsense.sentimentservice.dto.SponsorCatalogUpdateRequest;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
 import com.streamsense.sentimentservice.persistence.SponsorRelevanceProfileEntity;
@@ -21,25 +23,45 @@ import org.springframework.util.StringUtils;
 /**
  * The sponsor profile relevance scoring uses per streamer. Profiles live in the database and are
  * mirrored in memory for the hot path; the configured seeds only fill in streamers that have no
- * stored profile yet, so an operator's or a deal's choice survives a restart.
+ * stored profile yet, so an operator's or a deal's choice survives a restart. A profile keeps the
+ * sponsor's name as the deal or the operator spelled it (the reports match mentions by that name)
+ * and borrows the aliases and terms of the catalog entry that name reaches, by name or by alias.
  */
 @Service
 public class SponsorRelevanceProfileService {
 
     private final StreamSenseProperties properties;
     private final SponsorRelevanceProfileRepository repository;
+    private final SponsorCatalogService catalog;
     private final ConcurrentMap<String, SponsorRelevanceProfile> activeProfiles = new ConcurrentHashMap<>();
 
     public SponsorRelevanceProfileService(
-            StreamSenseProperties properties, SponsorRelevanceProfileRepository repository) {
+            StreamSenseProperties properties,
+            SponsorRelevanceProfileRepository repository,
+            SponsorCatalogService catalog) {
         this.properties = properties;
         this.repository = repository;
+        this.catalog = catalog;
     }
 
     @PostConstruct
     public void seedConfiguredProfiles() {
         for (SponsorRelevanceProfileEntity stored : repository.findAll()) {
-            activeProfiles.put(normalize(stored.getStreamer()), toProfile(stored));
+            SponsorRelevanceProfile profile = toProfile(stored);
+            activeProfiles.put(normalize(stored.getStreamer()), profile);
+            // A profile written before its catalog entry existed, or before the entry gained a term, catches up
+            // here; the merge keeps the channel's own terms, so this is the same as saving it again.
+            List<String> aliases = mergedTerms(configuredAliases(profile.getSponsor()), profile.getAliases());
+            List<String> terms = mergedTerms(configuredSemanticTerms(profile.getSponsor()), profile.getSemanticTerms());
+            if (!aliases.equals(profile.getAliases()) || !terms.equals(profile.getSemanticTerms())) {
+                SponsorRelevanceUpdateRequest refresh = new SponsorRelevanceUpdateRequest();
+                refresh.setStreamer(profile.getStreamer());
+                refresh.setSponsor(profile.getSponsor());
+                refresh.setAliases(profile.getAliases());
+                refresh.setSemanticTerms(profile.getSemanticTerms());
+                refresh.setMinScore(profile.getMinScore());
+                update(refresh);
+            }
         }
         for (StreamSenseProperties.Seed seed :
                 properties.getSentiment().getRelevance().getSeeds()) {
@@ -98,6 +120,30 @@ public class SponsorRelevanceProfileService {
         activeProfiles.clear();
     }
 
+    /**
+     * Replaces a catalog entry and brings the profiles that reach it up to date: each such profile
+     * gains the entry's aliases and terms (what it already had stays, so a channel's own additions
+     * survive a catalog edit; a term removed from the catalog is removed from the channel by hand).
+     */
+    public SponsorCatalogEntry updateCatalogEntry(SponsorCatalogUpdateRequest request) {
+        SponsorCatalogEntry entry = catalog.upsert(request);
+        for (SponsorRelevanceProfile profile : activeProfiles.values()) {
+            if (catalog.find(profile.getSponsor())
+                    .filter(found -> found.name().equals(entry.name()))
+                    .isEmpty()) {
+                continue;
+            }
+            SponsorRelevanceUpdateRequest refresh = new SponsorRelevanceUpdateRequest();
+            refresh.setStreamer(profile.getStreamer());
+            refresh.setSponsor(profile.getSponsor());
+            refresh.setAliases(profile.getAliases());
+            refresh.setSemanticTerms(profile.getSemanticTerms());
+            refresh.setMinScore(profile.getMinScore());
+            update(refresh);
+        }
+        return entry;
+    }
+
     private static SponsorRelevanceProfile toProfile(SponsorRelevanceProfileEntity stored) {
         SponsorRelevanceProfile profile = new SponsorRelevanceProfile();
         profile.setStreamer(stored.getStreamer());
@@ -109,22 +155,11 @@ public class SponsorRelevanceProfileService {
     }
 
     private List<String> configuredAliases(String sponsor) {
-        return configuredSponsor(sponsor)
-                .map(StreamSenseProperties.Sponsor::getAliases)
-                .orElseGet(List::of);
+        return catalog.find(sponsor).map(SponsorCatalogEntry::aliases).orElseGet(List::of);
     }
 
     private List<String> configuredSemanticTerms(String sponsor) {
-        return configuredSponsor(sponsor)
-                .map(StreamSenseProperties.Sponsor::getSemanticTerms)
-                .orElseGet(List::of);
-    }
-
-    private Optional<StreamSenseProperties.Sponsor> configuredSponsor(String sponsor) {
-        String normalizedSponsor = normalize(sponsor);
-        return properties.getSentiment().getRelevance().getSponsors().stream()
-                .filter(candidate -> normalize(candidate.getName()).equals(normalizedSponsor))
-                .findFirst();
+        return catalog.find(sponsor).map(SponsorCatalogEntry::semanticTerms).orElseGet(List::of);
     }
 
     @SafeVarargs

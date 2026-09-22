@@ -39,6 +39,8 @@ function stackHandlers() {
     restJson("post", "/api/video/capture/channels", { channels: ["redbull-testing"] }),
     restJson("post", "/api/sentiment/relevance/sponsors", {}),
     restJson("get", "/api/sentiment/relevance/sponsors/*", null, 404),
+    restJson("get", "/api/sentiment/relevance/catalog", []),
+    restJson("get", "/api/analytics/deals/sponsors", []),
     graphqlData("Deals", { deals: [] }),
   ];
 }

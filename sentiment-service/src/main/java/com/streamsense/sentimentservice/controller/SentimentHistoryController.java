@@ -1,12 +1,15 @@
 package com.streamsense.sentimentservice.controller;
 
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
+import com.streamsense.sentimentservice.dto.SponsorCatalogEntry;
+import com.streamsense.sentimentservice.dto.SponsorCatalogUpdateRequest;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
 import com.streamsense.sentimentservice.events.SentimentAnalysisEvent;
 import com.streamsense.sentimentservice.events.TranscriptSegmentEvent;
 import com.streamsense.sentimentservice.events.TranscriptSentimentEvent;
 import com.streamsense.sentimentservice.service.SentimentService;
+import com.streamsense.sentimentservice.service.SponsorCatalogService;
 import com.streamsense.sentimentservice.service.SponsorRelevanceProfileService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,9 +17,11 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,14 +34,17 @@ public class SentimentHistoryController {
 
     private final SentimentService sentimentService;
     private final SponsorRelevanceProfileService sponsorRelevanceProfileService;
+    private final SponsorCatalogService sponsorCatalog;
     private final StreamSenseProperties properties;
 
     public SentimentHistoryController(
             SentimentService sentimentService,
             SponsorRelevanceProfileService sponsorRelevanceProfileService,
+            SponsorCatalogService sponsorCatalog,
             StreamSenseProperties properties) {
         this.sentimentService = sentimentService;
         this.sponsorRelevanceProfileService = sponsorRelevanceProfileService;
+        this.sponsorCatalog = sponsorCatalog;
         this.properties = properties;
     }
 
@@ -133,5 +141,26 @@ public class SentimentHistoryController {
     public SponsorRelevanceProfile updateSponsorRelevance(
             @RequestBody @jakarta.validation.Valid SponsorRelevanceUpdateRequest request) {
         return sponsorRelevanceProfileService.update(request);
+    }
+
+    /** The sponsor catalog, by name. */
+    @GetMapping("/relevance/catalog")
+    public List<SponsorCatalogEntry> sponsorCatalog() {
+        return sponsorCatalog.list();
+    }
+
+    /** Replaces or adds the entry of that name, and brings the channel profiles that reach it up to date. */
+    @PutMapping("/relevance/catalog")
+    public SponsorCatalogEntry updateSponsorCatalogEntry(
+            @RequestBody @jakarta.validation.Valid SponsorCatalogUpdateRequest request) {
+        return sponsorRelevanceProfileService.updateCatalogEntry(request);
+    }
+
+    /** Removes the entry of that name (case does not matter); channel profiles keep what they borrowed. */
+    @DeleteMapping("/relevance/catalog/{name}")
+    public ResponseEntity<Void> deleteSponsorCatalogEntry(@PathVariable("name") @NotBlank String name) {
+        return sponsorCatalog.delete(name)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 }

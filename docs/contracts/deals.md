@@ -28,11 +28,21 @@ dealSummary(id: ID!): DealSummary
 
 ## Sponsor relevance profiles (sentiment-service)
 
-The profile relevance scoring uses per streamer (sponsor, aliases, semantic terms, minimum score) is stored in `sponsor_relevance_profiles` and mirrored in memory. At start-up the stored rows load first; the `streamsense.sentiment.relevance.seeds` in config-repo only fill in streamers with no stored profile, so an operator's or a deal's choice survives a restart.
+The profile relevance scoring uses per streamer (sponsor, aliases, semantic terms, minimum score) is stored in `sponsor_relevance_profiles` and mirrored in memory. At start-up the stored rows load first; the `streamsense.sentiment.relevance.seeds` in config-repo only fill in streamers with no stored profile, so an operator's or a deal's choice survives a restart. A profile keeps the sponsor's name as the deal or the operator spelled it, because the reports match mentions by that name, and borrows the aliases and terms of the catalog entry that name reaches.
 
 - `GET /api/sentiment/relevance/sponsors` every stored profile.
 - `GET /api/sentiment/relevance/sponsors/{streamer}` the profile in effect, 404 when the channel has none.
-- `POST /api/sentiment/relevance/sponsors` replaces the channel's profile (`streamer`, `sponsor`, optional `aliases`, `semanticTerms`, `minScore`; the sponsor's configured aliases and terms are merged in). Unknown fields, including the retired `campaignGoal`, are ignored.
+- `POST /api/sentiment/relevance/sponsors` replaces the channel's profile (`streamer`, `sponsor`, optional `aliases`, `semanticTerms`, `minScore`; the catalog entry's aliases and terms are merged in). Unknown fields, including the retired `campaignGoal`, are ignored.
+
+### The sponsor catalog
+
+What is known about a sponsor across every channel: its canonical `name`, the `aliases` it goes by, the `semanticTerms` that mean it, and its `minScore` (null for the configured default). Stored in `sponsor_catalog`, keyed by the lower-cased name, and mirrored in memory. An entry is reached by its name or by any of its aliases, case aside, so a deal that says "redbull" reaches "Red Bull". The configured `streamsense.sentiment.relevance.sponsors` only fill in names the table does not hold, so an operator's edit survives a restart and a config change never overwrites it. Operators own the catalog: the gateway refuses a streamer anything but a read on `/api/sentiment/**`.
+
+- `GET /api/sentiment/relevance/catalog` every entry, by name.
+- `PUT /api/sentiment/relevance/catalog` replaces or adds the entry of that `name` (the whole entry; terms are trimmed and de-duplicated) and brings the channel profiles that reach it up to date: each gains the entry's aliases and terms and keeps its own, so a term removed from the catalog is removed from a channel by hand.
+- `DELETE /api/sentiment/relevance/catalog/{name}` removes the entry (204, 404 when unknown); channel profiles keep what they borrowed.
+
+analytics-service answers which sponsors deals name: `GET /api/analytics/deals/sponsors` lists every sponsor grouped without regard to case (`sponsor`, `deals`, `channels`, `latestStartsAt`), most recently started first, operators only. The Operations page's catalog section compares the two and lists the sponsors no entry reaches.
 
 ## Share links
 

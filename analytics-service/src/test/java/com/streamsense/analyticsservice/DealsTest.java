@@ -147,6 +147,11 @@ class DealsTest {
                 .andExpect(jsonPath("$.totals.streams").value(1))
                 .andExpect(jsonPath("$.sessions[0].dealId").value(dealId));
         mockMvc.perform(get("/api/analytics/deals/999999")).andExpect(status().isNotFound());
+        // The sponsors deals name, grouped without regard to case: this deal's "Red Bull" is among them.
+        mockMvc.perform(get("/api/analytics/deals/sponsors"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.sponsor == 'Red Bull')].deals").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.sponsor == 'Red Bull')].channels").isNotEmpty());
 
         // Sharing mints one token that stays stable, resolves to the deal, and stops resolving once revoked.
         String token = deals.share(dealId).orElseThrow().token();

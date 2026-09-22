@@ -29,6 +29,35 @@ export function updateSponsorProfile(profile: SponsorProfile): Promise<void> {
   return apiSend("/api/sentiment/relevance/sponsors", { body: profile });
 }
 
+/**
+ * The sponsor catalog (`/api/sentiment/relevance/catalog`): what is known about a sponsor across every
+ * channel. A deal that names the sponsor by name or by any alias borrows the entry's aliases and terms
+ * into the channel's profile; `minScore` null means the configured default.
+ */
+export type SponsorCatalogEntry = {
+  name: string;
+  aliases: string[];
+  semanticTerms: string[];
+  minScore: number | null;
+  updatedAt: number;
+};
+
+export function listSponsorCatalog(): Promise<SponsorCatalogEntry[]> {
+  return apiFetch<SponsorCatalogEntry[]>("/api/sentiment/relevance/catalog");
+}
+
+/** PUT: replaces or adds the entry of that name (case does not matter) and refreshes the profiles that reach it. */
+export function saveSponsorCatalogEntry(
+  entry: Omit<SponsorCatalogEntry, "updatedAt" | "minScore"> & { minScore?: number },
+): Promise<SponsorCatalogEntry> {
+  return apiFetch<SponsorCatalogEntry>("/api/sentiment/relevance/catalog", { method: "PUT", body: entry });
+}
+
+/** DELETE: removes the entry; channel profiles keep what they borrowed. */
+export function removeSponsorCatalogEntry(name: string): Promise<void> {
+  return apiSend(`/api/sentiment/relevance/catalog/${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
 /** GET /api/sentiment/relevance/sponsors/{streamer}: the stored profile in effect, or null when the channel has none. */
 export async function getSponsorProfile(streamer: string): Promise<SponsorProfile | null> {
   try {
