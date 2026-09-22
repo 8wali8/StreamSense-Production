@@ -130,9 +130,11 @@ public class VodImportService {
                 video.durationMs(),
                 key,
                 averageViewers);
-        long startOffset = existing.filter(VodImportRow::isResumable)
-                .map(VodImportRow::offsetSeconds)
-                .orElse(0L);
+        // Each half resumes from where it got to, not from the import's combined offset: a half that failed
+        // early must not send the other back to the start, and ids are deterministic so overlap is harmless.
+        Optional<VodImportRow> resumable = existing.filter(VodImportRow::isResumable);
+        long chatStart = resumable.map(VodImportRow::chatOffsetSeconds).orElse(0L);
+        long captureStart = resumable.map(VodImportRow::captureOffsetSeconds).orElse(0L);
 
         List<String> problems = new ArrayList<>();
         boolean chatStarted = false;
@@ -141,7 +143,7 @@ public class VodImportService {
             problems.add("chat replay is not configured (streamsense.services.chat-service.base-url)");
         } else {
             try {
-                chat.replay(login, video.id(), video.createdAt(), key, startOffset);
+                chat.replay(login, video.id(), video.createdAt(), key, chatStart);
                 chatStarted = true;
             } catch (RuntimeException ex) {
                 log.warn("chat replay could not start vod={} : {}", vodId, ex.getMessage());
@@ -154,7 +156,8 @@ public class VodImportService {
             problems.add("capture replay is not configured (streamsense.services.video-capture-service.base-url)");
         } else {
             try {
-                capture.replay(login, video.id(), video.url(), video.createdAt(), video.durationMs(), key, startOffset);
+                capture.replay(
+                        login, video.id(), video.url(), video.createdAt(), video.durationMs(), key, captureStart);
                 captureStarted = true;
             } catch (RuntimeException ex) {
                 log.warn("capture replay could not start vod={} : {}", vodId, ex.getMessage());
@@ -168,12 +171,12 @@ public class VodImportService {
                 vodId,
                 session.id(),
                 started,
-                startOffset,
+                Math.min(chatStart, captureStart),
                 video.durationMs() / 1000,
                 chatStarted ? ReplayStatus.QUEUED : ReplayStatus.FAILED,
-                startOffset,
+                chatStart,
                 captureStarted ? ReplayStatus.QUEUED : ReplayStatus.FAILED,
-                startOffset,
+                captureStart,
                 problems.isEmpty() ? null : truncate(String.join("; ", problems)),
                 now,
                 now);
@@ -246,8 +249,8 @@ public class VodImportService {
                 client -> client.status(row.vodId()),
                 client -> client.stop(row.vodId()),
                 "video-capture-service");
-        long offset = Math.min(chat.reached(row.durationSeconds()), capture.reached(row.durationSeconds()));
         String state = combined(stopping, chat, capture);
+        long offset = combinedOffset(chat, capture, row.durationSeconds());
         String error = capture.error() != null ? capture.error() : chat.error();
         if (error == null && !VodImportRow.FAILED.equals(state)) {
             error = null;
@@ -339,11 +342,29 @@ public class VodImportService {
         return VodImportRow.DONE;
     }
 
+    /**
+     * How far the import as a whole has got: the slower of the halves that have not failed, so a half that
+     * fell over early does not pin the label at that point while the other works on. The failed half is
+     * named by its own state and the error; a resume takes each half's own offset regardless.
+     */
+    private static long combinedOffset(Half chat, Half capture, long durationSeconds) {
+        long chatReached = chat.reached(durationSeconds);
+        long captureReached = capture.reached(durationSeconds);
+        if (chat.isFailed() == capture.isFailed()) {
+            return Math.min(chatReached, captureReached);
+        }
+        return chat.isFailed() ? captureReached : chatReached;
+    }
+
     /** One half of an import as last reported: its state, the offset it reached, and its error if any. */
     private record Half(String state, long offset, String error) {
 
         boolean isActive() {
             return ReplayStatus.QUEUED.equals(state) || ReplayStatus.RUNNING.equals(state);
+        }
+
+        boolean isFailed() {
+            return ReplayStatus.FAILED.equals(state);
         }
 
         /** Where this half has got to: a finished half counts as the whole recording. */

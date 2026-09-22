@@ -48,10 +48,6 @@ import org.springframework.test.web.servlet.MockMvc;
         })
 class VodImportStopResumeTest {
 
-    private static final String STREAMER = "racer";
-    private static final String VOD = "2750461300";
-    private static final String BASE = "/api/analytics/streams/" + STREAMER + "/vods/";
-
     @MockitoBean
     private TwitchHelixClient helix;
 
@@ -64,10 +60,15 @@ class VodImportStopResumeTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private void recordingExists() {
+    /** Each test has its own channel and recording: the rows live in one database, and a channel's list is per streamer. */
+    private void recordingExists(String streamer, String vod) {
         HelixVideo video = new HelixVideo(
-                VOD, null, STREAMER, "Monza", 1788631200000L, 7_200_000L, "https://www.twitch.tv/videos/" + VOD, 900);
-        when(helix.video(VOD)).thenReturn(Optional.of(video));
+                vod, null, streamer, "Monza", 1788631200000L, 7_200_000L, "https://www.twitch.tv/videos/" + vod, 900);
+        when(helix.video(vod)).thenReturn(Optional.of(video));
+    }
+
+    private static String base(String streamer) {
+        return "/api/analytics/streams/" + streamer + "/vods/";
     }
 
     private static ReplayStatus reported(String state, long offset) {
@@ -76,7 +77,10 @@ class VodImportStopResumeTest {
 
     @Test
     void aStopReachesBothHalvesAndAResumeContinuesFromTheSlowerOne() throws Exception {
-        recordingExists();
+        String streamer = "racer1";
+        String VOD = "2750461300";
+        String BASE = base(streamer);
+        recordingExists(streamer, VOD);
         when(chat.status(VOD)).thenReturn(Optional.of(reported("RUNNING", 900)));
         when(capture.status(VOD)).thenReturn(Optional.of(reported("RUNNING", 600)));
 
@@ -86,8 +90,8 @@ class VodImportStopResumeTest {
                 .andExpect(jsonPath("$.captureReplayStarted").value(true))
                 .andExpect(jsonPath("$.status.state").value("QUEUED"))
                 .andExpect(jsonPath("$.status.durationSeconds").value(7200));
-        verify(chat).replay(eq(STREAMER), eq(VOD), anyLong(), anyString(), eq(0L));
-        verify(capture).replay(eq(STREAMER), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(0L));
+        verify(chat).replay(eq(streamer), eq(VOD), anyLong(), anyString(), eq(0L));
+        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(0L));
 
         // Reading the channel's imports brings the active one up to date: the label follows the slower half.
         mockMvc.perform(get(BASE + "imports"))
@@ -120,13 +124,13 @@ class VodImportStopResumeTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("STOPPED"));
 
-        // Resume: the existing import action, and both halves are asked to continue from 620 s.
+        // Resume: the existing import action, and each half is asked to continue from where it got to.
         mockMvc.perform(post(BASE + VOD + "/import"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status.state").value("QUEUED"))
                 .andExpect(jsonPath("$.status.offsetSeconds").value(620));
-        verify(chat).replay(eq(STREAMER), eq(VOD), anyLong(), anyString(), eq(620L));
-        verify(capture).replay(eq(STREAMER), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(620L));
+        verify(chat).replay(eq(streamer), eq(VOD), anyLong(), anyString(), eq(960L));
+        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(620L));
 
         // Both halves finish: the import is done, at the recording's full length.
         when(chat.status(VOD)).thenReturn(Optional.of(reported("DONE", 7100)));
@@ -138,21 +142,26 @@ class VodImportStopResumeTest {
 
     @Test
     void aHalfItsServiceHasForgottenFailsInsteadOfResumingOnItsOwn() throws Exception {
-        recordingExists();
+        String streamer = "racer2";
+        String VOD = "2750461301";
+        String BASE = base(streamer);
+        recordingExists(streamer, VOD);
         mockMvc.perform(post(BASE + VOD + "/import")).andExpect(status().isAccepted());
 
         // video-capture-service restarted and knows nothing of the import; chat-service is still at it.
         when(chat.status(VOD)).thenReturn(Optional.of(reported("RUNNING", 300)));
         when(capture.status(VOD)).thenReturn(Optional.empty());
+        // The offset follows the half still working; the lost half is named by its state and the error.
         mockMvc.perform(get(BASE + "imports"))
                 .andExpect(jsonPath("$[0].state").value("IMPORTING"))
+                .andExpect(jsonPath("$[0].offsetSeconds").value(300))
                 .andExpect(jsonPath("$[0].captureState").value("FAILED"))
                 .andExpect(jsonPath("$[0].lastError").value(org.hamcrest.Matchers.containsString("lost track")));
-        // Once chat finishes too, the import as a whole is failed at the offset the lost half had reached (0 s).
+        // Once chat finishes too, the import as a whole is failed; the chat half reached the end.
         when(chat.status(VOD)).thenReturn(Optional.of(reported("DONE", 7100)));
         mockMvc.perform(get(BASE + "imports"))
                 .andExpect(jsonPath("$[0].state").value("FAILED"))
-                .andExpect(jsonPath("$[0].offsetSeconds").value(0));
+                .andExpect(jsonPath("$[0].offsetSeconds").value(7200));
         verify(capture, never()).stop(anyString());
 
         // Nothing was ever imported for another recording: a stop of it is a client error, not a crash.
@@ -160,7 +169,36 @@ class VodImportStopResumeTest {
     }
 
     @Test
+    void aFailedHalfDoesNotPinTheOtherHalfsProgressOrItsResume() throws Exception {
+        String streamer = "racer3";
+        String VOD = "2750461302";
+        String BASE = base(streamer);
+        recordingExists(streamer, VOD);
+        mockMvc.perform(post(BASE + VOD + "/import")).andExpect(status().isAccepted());
+
+        // The chat half failed at once (Twitch refused it); the capture half works on. The label follows
+        // the half still in play, not the one that fell over at 0 s.
+        when(chat.status(VOD)).thenReturn(Optional.of(new ReplayStatus("FAILED", 0, false, "refused")));
+        when(capture.status(VOD)).thenReturn(Optional.of(reported("RUNNING", 371)));
+        mockMvc.perform(get(BASE + "imports"))
+                .andExpect(jsonPath("$[0].state").value("IMPORTING"))
+                .andExpect(jsonPath("$[0].offsetSeconds").value(371));
+
+        // Stopped there; a resume sends the capture half back to 371 s and the chat half to its own 0 s.
+        when(chat.stop(VOD)).thenReturn(Optional.of(new ReplayStatus("FAILED", 0, false, "refused")));
+        when(capture.stop(VOD)).thenReturn(Optional.of(new ReplayStatus("STOPPED", 380, true, null)));
+        mockMvc.perform(post(BASE + VOD + "/stop"))
+                .andExpect(jsonPath("$.state").value("STOPPED"))
+                .andExpect(jsonPath("$.offsetSeconds").value(380));
+        mockMvc.perform(post(BASE + VOD + "/import")).andExpect(status().isAccepted());
+        // The chat half is asked from 0 s both times (the first import and the resume); capture from 380 s.
+        verify(chat, org.mockito.Mockito.times(2)).replay(eq(streamer), eq(VOD), anyLong(), anyString(), eq(0L));
+        verify(capture).replay(eq(streamer), eq(VOD), anyString(), anyLong(), anyLong(), anyString(), eq(380L));
+    }
+
+    @Test
     void aStreamerReachesOnlyTheirOwnChannelsImports() throws Exception {
+        String VOD = "2750461309";
         mockMvc.perform(get("/api/analytics/streams/pokimane/vods/imports")
                         .header(ChannelScopeFilter.ROLE_HEADER, "streamer")
                         .header(ChannelScopeFilter.LOGIN_HEADER, "ninja"))
