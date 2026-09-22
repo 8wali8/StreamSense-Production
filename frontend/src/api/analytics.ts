@@ -54,7 +54,31 @@ export type VodListing = {
   viewCount: number;
   /** The session the recording was imported into, once it has been. */
   sessionId: number | null;
+  /** The chat log the streamer supplied for it, if any. */
+  chatLog: VodChatLogSummary | null;
 };
+
+/** The chat log kept for a recording: how many lines, the span they cover, when it was uploaded. */
+export type VodChatLogSummary = {
+  fileName: string | null;
+  lineCount: number;
+  firstOffsetSeconds: number;
+  lastOffsetSeconds: number;
+  uploadedAt: number;
+};
+
+/**
+ * PUT .../vods/{vodId}/chat-log: hands over a chat log (JSON, CSV, or a chat client's text log) for the
+ * recording. A text log's times are wall clock, so the browser's zone goes along to place them.
+ */
+export async function uploadVodChatLog(streamer: string, vodId: string, file: File): Promise<VodChatLogSummary> {
+  const content = await readText(file);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return apiFetch<VodChatLogSummary>(
+    `/api/analytics/streams/${encodeURIComponent(streamer)}/vods/${encodeURIComponent(vodId)}/chat-log`,
+    { method: "PUT", text: content, params: { fileName: file.name, timezone }, timeoutMs: 120_000 },
+  );
+}
 
 export function listVods(streamer: string, limit = 20): Promise<VodListing[]> {
   return apiFetch<VodListing[]>(`/api/analytics/streams/${encodeURIComponent(streamer)}/vods`, { params: { limit } });
@@ -72,6 +96,7 @@ export type VodImportStatus = {
   state: "QUEUED" | "IMPORTING" | "STOPPING" | "STOPPED" | "DONE" | "FAILED" | (string & {});
   offsetSeconds: number;
   durationSeconds: number;
+  /** NONE when no chat log was supplied: the import has video and audio only. */
   chatState: string;
   captureState: string;
   lastError: string | null;
@@ -139,4 +164,15 @@ export type HelixPollStatus = {
 
 export function getHelixPollStatus(): Promise<HelixPollStatus> {
   return apiFetch<HelixPollStatus>("/api/analytics/helix/status");
+}
+
+/** The file's text; older browsers (and jsdom) have no `Blob.text`, so a FileReader stands in. */
+function readText(file: File): Promise<string> {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error ?? new Error("the file could not be read"));
+    reader.readAsText(file);
+  });
 }

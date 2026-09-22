@@ -37,6 +37,8 @@ export type RequestOptions = {
   baseUrl?: string;
   /** Serialised as JSON; sets the Content-Type. */
   body?: unknown;
+  /** Sent as is with a text/plain Content-Type (a file's contents); exclusive with `body`. */
+  text?: string;
   signal?: AbortSignal;
   /** Applied when no signal is given. Every call is bounded. */
   timeoutMs?: number;
@@ -88,13 +90,15 @@ export async function apiRequest(path: string, options: RequestOptions = {}): Pr
   const headers: Record<string, string> = { Accept: "application/json", ...authHeaders(options.storage) };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
+  } else if (options.text !== undefined) {
+    headers["Content-Type"] = "text/plain; charset=utf-8";
   }
 
   // `path` is always origin-relative; the base is applied exactly once here.
   const response = await fetch(buildUrl(path, options.params, options.baseUrl ?? env.apiBaseUrl), {
     method: options.method ?? "GET",
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: options.body !== undefined ? JSON.stringify(options.body) : options.text,
     signal: options.signal ?? timeoutSignal(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
   });
 

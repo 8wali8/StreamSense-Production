@@ -114,7 +114,8 @@ class VodImportTest {
                 .andExpect(jsonPath("$[0].vodId").value("2750461300"))
                 .andExpect(jsonPath("$[0].sessionId").doesNotExist());
 
-        // No replay services are configured in tests, so the import records the session and reports why.
+        // No replay services are configured in tests, so the import records the session and reports why; there
+        // is no chat log, so the chat half is simply none.
         mockMvc.perform(post("/api/analytics/streams/" + STREAMER + "/vods/2750461300/import")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"averageViewers\": 850}"))
@@ -126,7 +127,8 @@ class VodImportTest {
                 .andExpect(jsonPath("$.session.averageViewers").value(850.0))
                 .andExpect(jsonPath("$.streamSessionId").value(STREAMER + "-vod-2750461300"))
                 .andExpect(jsonPath("$.chatReplayStarted").value(false))
-                .andExpect(jsonPath("$.problems.length()").value(2));
+                .andExpect(jsonPath("$.status.chatState").value("NONE"))
+                .andExpect(jsonPath("$.problems.length()").value(1));
 
         StreamSession imported = sessions.list(STREAMER, null, null, null).get(0);
         mockMvc.perform(get("/api/analytics/streams/" + STREAMER + "/vods"))

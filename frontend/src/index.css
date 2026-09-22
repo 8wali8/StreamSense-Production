@@ -1957,6 +1957,22 @@ p {
   font-size: 12px;
 }
 
+.chat-log-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+
+.file-button {
+  cursor: pointer;
+}
+
+.file-button:has(input:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .vod-actions {
   display: flex;
   align-items: center;
