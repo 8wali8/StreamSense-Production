@@ -37,6 +37,8 @@ export type RequestOptions = {
   baseUrl?: string;
   /** Serialised as JSON and sets the Content-Type; a FormData (a file upload) is sent as it is, with the boundary the browser sets. */
   body?: unknown;
+  /** Sent as is with a text/plain Content-Type (a file's contents); exclusive with `body`. */
+  text?: string;
   signal?: AbortSignal;
   /** Applied when no signal is given. Every call is bounded. */
   timeoutMs?: number;
@@ -89,13 +91,15 @@ export async function apiRequest(path: string, options: RequestOptions = {}): Pr
   const form = options.body instanceof FormData;
   if (options.body !== undefined && !form) {
     headers["Content-Type"] = "application/json";
+  } else if (options.text !== undefined) {
+    headers["Content-Type"] = "text/plain; charset=utf-8";
   }
 
   // `path` is always origin-relative; the base is applied exactly once here.
   const response = await fetch(buildUrl(path, options.params, options.baseUrl ?? env.apiBaseUrl), {
     method: options.method ?? "GET",
     headers,
-    body: options.body === undefined ? undefined : form ? (options.body as FormData) : JSON.stringify(options.body),
+    body: options.body === undefined ? options.text : form ? (options.body as FormData) : JSON.stringify(options.body),
     signal: options.signal ?? timeoutSignal(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
   });
 

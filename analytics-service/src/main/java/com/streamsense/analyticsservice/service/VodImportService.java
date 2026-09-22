@@ -1,22 +1,30 @@
 package com.streamsense.analyticsservice.service;
 
 import com.streamsense.analyticsservice.api.StreamSession;
+import com.streamsense.analyticsservice.api.VodChatLogSummary;
 import com.streamsense.analyticsservice.api.VodImport;
 import com.streamsense.analyticsservice.api.VodImportStatus;
 import com.streamsense.analyticsservice.api.VodListing;
 import com.streamsense.analyticsservice.imports.CaptureReplayClient;
+import com.streamsense.analyticsservice.imports.ChatLogParser;
 import com.streamsense.analyticsservice.imports.ChatReplayClient;
 import com.streamsense.analyticsservice.imports.ReplayStatus;
+import com.streamsense.analyticsservice.model.ChatLogLine;
 import com.streamsense.analyticsservice.model.StreamSessionRow;
+import com.streamsense.analyticsservice.model.VodChatLogRow;
 import com.streamsense.analyticsservice.model.VodImportRow;
 import com.streamsense.analyticsservice.persistence.StreamSessionRepository;
+import com.streamsense.analyticsservice.persistence.VodChatLogRepository;
 import com.streamsense.analyticsservice.persistence.VodImportRepository;
 import com.streamsense.analyticsservice.twitch.HelixVideo;
 import com.streamsense.analyticsservice.twitch.TwitchHelixClient;
 import java.time.Clock;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -45,12 +53,17 @@ public class VodImportService {
 
     private static final Logger log = LoggerFactory.getLogger(VodImportService.class);
 
+    /** The chat half's state when no log was supplied: nothing to replay, nothing failed, nothing to wait for. */
+    public static final String CHAT_NONE = "NONE";
+
     private final ObjectProvider<TwitchHelixClient> helix;
     private final ObjectProvider<ChatReplayClient> chatReplay;
     private final ObjectProvider<CaptureReplayClient> captureReplay;
     private final StreamSessionService sessions;
     private final StreamSessionRepository sessionRows;
     private final VodImportRepository imports;
+    private final VodChatLogRepository chatLogs;
+    private final ChatLogParser chatLogParser;
     private final Clock clock;
 
     @Autowired
@@ -60,8 +73,19 @@ public class VodImportService {
             ObjectProvider<CaptureReplayClient> captureReplay,
             StreamSessionService sessions,
             StreamSessionRepository sessionRows,
-            VodImportRepository imports) {
-        this(helix, chatReplay, captureReplay, sessions, sessionRows, imports, Clock.systemUTC());
+            VodImportRepository imports,
+            VodChatLogRepository chatLogs,
+            ChatLogParser chatLogParser) {
+        this(
+                helix,
+                chatReplay,
+                captureReplay,
+                sessions,
+                sessionRows,
+                imports,
+                chatLogs,
+                chatLogParser,
+                Clock.systemUTC());
     }
 
     VodImportService(
@@ -71,6 +95,8 @@ public class VodImportService {
             StreamSessionService sessions,
             StreamSessionRepository sessionRows,
             VodImportRepository imports,
+            VodChatLogRepository chatLogs,
+            ChatLogParser chatLogParser,
             Clock clock) {
         this.helix = helix;
         this.chatReplay = chatReplay;
@@ -78,6 +104,8 @@ public class VodImportService {
         this.sessions = sessions;
         this.sessionRows = sessionRows;
         this.imports = imports;
+        this.chatLogs = chatLogs;
+        this.chatLogParser = chatLogParser;
         this.clock = clock;
     }
 
@@ -85,11 +113,16 @@ public class VodImportService {
     public List<VodListing> list(String streamer, int limit) {
         String login = login(streamer);
         List<VodListing> result = new ArrayList<>();
+        Map<String, VodChatLogRow> logs = new HashMap<>();
+        for (VodChatLogRow row : chatLogs.findByStreamer(login)) {
+            logs.put(row.vodId(), row);
+        }
         for (HelixVideo video : requireHelix().archives(login, limit)) {
             Long sessionId = sessionRows
                     .findByVodId(login, video.id())
                     .map(row -> row.id())
                     .orElse(null);
+            VodChatLogRow logRow = logs.get(video.id());
             result.add(new VodListing(
                     video.id(),
                     video.streamId(),
@@ -98,7 +131,8 @@ public class VodImportService {
                     video.durationMs(),
                     video.url(),
                     video.viewCount(),
-                    sessionId));
+                    sessionId,
+                    logRow == null ? null : summary(logRow)));
         }
         return result;
     }
@@ -130,23 +164,21 @@ public class VodImportService {
                 video.durationMs(),
                 key,
                 averageViewers);
-        long startOffset = existing.filter(VodImportRow::isResumable)
-                .map(VodImportRow::offsetSeconds)
-                .orElse(0L);
+        // Each half resumes from where it got to, not from the import's combined offset: a half that failed
+        // early must not send the other back to the start, and ids are deterministic so overlap is harmless.
+        Optional<VodImportRow> resumable = existing.filter(VodImportRow::isResumable);
+        long chatStart = resumable.map(VodImportRow::chatOffsetSeconds).orElse(0L);
+        long captureStart = resumable.map(VodImportRow::captureOffsetSeconds).orElse(0L);
 
         List<String> problems = new ArrayList<>();
+        // The chat half comes from a log the streamer supplied, or there is none: Twitch offers no download
+        // of a recording's chat and refuses automated access to its own replay.
+        List<ChatLogLine> lines = chatLogs.lines(login, vodId);
         boolean chatStarted = false;
-        ChatReplayClient chat = chatReplay.getIfAvailable();
-        if (chat == null) {
-            problems.add("chat replay is not configured (streamsense.services.chat-service.base-url)");
-        } else {
-            try {
-                chat.replay(login, video.id(), video.createdAt(), key, startOffset);
-                chatStarted = true;
-            } catch (RuntimeException ex) {
-                log.warn("chat replay could not start vod={} : {}", vodId, ex.getMessage());
-                problems.add("chat replay could not start: " + ex.getMessage());
-            }
+        String chatState = CHAT_NONE;
+        if (!lines.isEmpty()) {
+            chatStarted = startChat(login, video, key, chatStart, lines, problems);
+            chatState = chatStarted ? ReplayStatus.QUEUED : ReplayStatus.FAILED;
         }
         boolean captureStarted = false;
         CaptureReplayClient capture = captureReplay.getIfAvailable();
@@ -154,7 +186,8 @@ public class VodImportService {
             problems.add("capture replay is not configured (streamsense.services.video-capture-service.base-url)");
         } else {
             try {
-                capture.replay(login, video.id(), video.url(), video.createdAt(), video.durationMs(), key, startOffset);
+                capture.replay(
+                        login, video.id(), video.url(), video.createdAt(), video.durationMs(), key, captureStart);
                 captureStarted = true;
             } catch (RuntimeException ex) {
                 log.warn("capture replay could not start vod={} : {}", vodId, ex.getMessage());
@@ -162,23 +195,96 @@ public class VodImportService {
             }
         }
         long now = clock.millis();
-        String started = chatStarted && captureStarted ? VodImportRow.QUEUED : VodImportRow.FAILED;
+        boolean chatOk = chatStarted || lines.isEmpty();
+        String started = chatOk && captureStarted ? VodImportRow.QUEUED : VodImportRow.FAILED;
         VodImportRow row = new VodImportRow(
                 login,
                 vodId,
                 session.id(),
                 started,
-                startOffset,
+                lines.isEmpty() ? captureStart : Math.min(chatStart, captureStart),
                 video.durationMs() / 1000,
-                chatStarted ? ReplayStatus.QUEUED : ReplayStatus.FAILED,
-                startOffset,
+                chatState,
+                chatStart,
                 captureStarted ? ReplayStatus.QUEUED : ReplayStatus.FAILED,
-                startOffset,
+                captureStart,
                 problems.isEmpty() ? null : truncate(String.join("; ", problems)),
                 now,
                 now);
         imports.save(row);
         return new VodImport(session, key, chatStarted, captureStarted, problems, toStatus(row));
+    }
+
+    private boolean startChat(
+            String login,
+            HelixVideo video,
+            String key,
+            long chatStart,
+            List<ChatLogLine> lines,
+            List<String> problems) {
+        ChatReplayClient chat = chatReplay.getIfAvailable();
+        if (chat == null) {
+            problems.add("chat replay is not configured (streamsense.services.chat-service.base-url)");
+            return false;
+        }
+        try {
+            chat.replay(login, video.id(), video.createdAt(), key, chatStart, lines);
+            return true;
+        } catch (RuntimeException ex) {
+            log.warn("chat replay could not start vod={} : {}", video.id(), ex.getMessage());
+            problems.add("chat replay could not start: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Keeps a chat log for the recording, replacing any earlier one. An import that is running without
+     * chat starts its chat half from the log at once; a finished or stopped one gets it on Resume.
+     *
+     * @param zone the zone a text log's wall-clock times are in (the streamer's browser)
+     */
+    public VodChatLogSummary uploadChatLog(
+            String streamer, String vodId, String fileName, ZoneId zone, String content) {
+        String login = login(streamer);
+        HelixVideo video = requireHelix()
+                .video(vodId)
+                .orElseThrow(() -> new IllegalArgumentException("Twitch has no recording with id " + vodId));
+        if (!video.userLogin().isBlank() && !video.userLogin().equals(login)) {
+            throw new IllegalArgumentException("recording " + vodId + " belongs to @" + video.userLogin());
+        }
+        List<ChatLogLine> lines = chatLogParser.parse(content, video.createdAt(), video.durationMs(), zone);
+        long now = clock.millis();
+        VodChatLogRow saved = chatLogs.save(login, vodId, fileName, lines, now);
+        log.info("chat log kept for vod={} streamer={} lines={} file={}", vodId, login, lines.size(), fileName);
+
+        Optional<VodImportRow> row = imports.find(login, vodId);
+        if (row.isPresent()
+                && row.get().isActive()
+                && CHAT_NONE.equals(row.get().chatState())) {
+            List<String> problems = new ArrayList<>();
+            boolean started = startChat(login, video, streamSessionId(login, vodId), 0, lines, problems);
+            VodImportRow current = row.get();
+            imports.save(new VodImportRow(
+                    current.streamer(),
+                    current.vodId(),
+                    current.sessionId(),
+                    current.state(),
+                    current.offsetSeconds(),
+                    current.durationSeconds(),
+                    started ? ReplayStatus.QUEUED : ReplayStatus.FAILED,
+                    0,
+                    current.captureState(),
+                    current.captureOffsetSeconds(),
+                    problems.isEmpty() ? current.lastError() : truncate(String.join("; ", problems)),
+                    current.requestedAt(),
+                    now));
+        }
+        return summary(saved);
+    }
+
+    private static VodChatLogSummary summary(VodChatLogRow row) {
+        return new VodChatLogSummary(
+                row.fileName(), row.lineCount(), row.firstOffsetSeconds(), row.lastOffsetSeconds(), row.uploadedAt());
     }
 
     /**
@@ -246,8 +352,8 @@ public class VodImportService {
                 client -> client.status(row.vodId()),
                 client -> client.stop(row.vodId()),
                 "video-capture-service");
-        long offset = Math.min(chat.reached(row.durationSeconds()), capture.reached(row.durationSeconds()));
         String state = combined(stopping, chat, capture);
+        long offset = combinedOffset(chat, capture, row.durationSeconds());
         String error = capture.error() != null ? capture.error() : chat.error();
         if (error == null && !VodImportRow.FAILED.equals(state)) {
             error = null;
@@ -339,6 +445,20 @@ public class VodImportService {
         return VodImportRow.DONE;
     }
 
+    /**
+     * How far the import as a whole has got: the slower of the halves that have not failed, so a half that
+     * fell over early does not pin the label at that point while the other works on. The failed half is
+     * named by its own state and the error; a resume takes each half's own offset regardless.
+     */
+    private static long combinedOffset(Half chat, Half capture, long durationSeconds) {
+        long chatReached = chat.reached(durationSeconds);
+        long captureReached = capture.reached(durationSeconds);
+        if (chat.isFailed() == capture.isFailed()) {
+            return Math.min(chatReached, captureReached);
+        }
+        return chat.isFailed() ? captureReached : chatReached;
+    }
+
     /** One half of an import as last reported: its state, the offset it reached, and its error if any. */
     private record Half(String state, long offset, String error) {
 
@@ -346,9 +466,13 @@ public class VodImportService {
             return ReplayStatus.QUEUED.equals(state) || ReplayStatus.RUNNING.equals(state);
         }
 
-        /** Where this half has got to: a finished half counts as the whole recording. */
+        boolean isFailed() {
+            return ReplayStatus.FAILED.equals(state);
+        }
+
+        /** Where this half has got to: a finished half, or one with nothing to do, counts as the whole recording. */
         long reached(long durationSeconds) {
-            return ReplayStatus.DONE.equals(state) ? durationSeconds : offset;
+            return ReplayStatus.DONE.equals(state) || CHAT_NONE.equals(state) ? durationSeconds : offset;
         }
     }
 

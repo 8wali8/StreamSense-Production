@@ -7,7 +7,7 @@ import { AppRoutes } from "../../App";
 import { renderWithApollo } from "../../test/apollo";
 import { deal, dealSummary } from "../../test/fixtures";
 import { HttpResponse, PNG_HEAD, graphqlData, restBytes, restJson, restResolver, server } from "../../test/msw";
-import { canResume, canStop, importLabel, recordingsForDeal } from "./import-streams";
+import { canFillChat, canResume, canStop, chatLogNote, importLabel, recordingsForDeal } from "./import-streams";
 
 const inside: VodListing = {
   vodId: "2750461300",
@@ -18,6 +18,7 @@ const inside: VodListing = {
   url: "https://www.twitch.tv/videos/2750461300",
   viewCount: 1200,
   sessionId: null,
+  chatLog: null,
 };
 const before: VodListing = { ...inside, vodId: "1", title: "Old stream", createdAt: 1700000000000 };
 
@@ -62,6 +63,9 @@ describe("ImportStreams", () => {
       "Stopped at 1h 12m of 12h 03m",
     );
     expect(importLabel({ ...base, state: "DONE", offsetSeconds: 7200 })).toBe("Imported");
+    expect(importLabel({ ...base, state: "DONE", offsetSeconds: 7200, chatState: "NONE" })).toBe(
+      "Imported (video and audio; no chat)",
+    );
     expect(importLabel({ ...base, state: "FAILED", lastError: "ffmpeg" })).toBe("Import failed: ffmpeg");
     expect(importLabel({ ...base, state: "FAILED" })).toBe("Import failed: unknown error");
 
@@ -73,6 +77,24 @@ describe("ImportStreams", () => {
     expect(canResume({ ...base, state: "FAILED" })).toBe(true);
     expect(canResume(base)).toBe(false);
     expect(canResume(undefined)).toBe(false);
+
+    // The chat half comes from a supplied log, or there is none; a log handed over late is replayed on Resume.
+    const log = {
+      fileName: "chat.json",
+      lineCount: 1234,
+      firstOffsetSeconds: 1,
+      lastOffsetSeconds: 7000,
+      uploadedAt: 1,
+    };
+    expect(chatLogNote(inside, undefined)).toBe("No chat log");
+    expect(chatLogNote(inside, { ...base, chatState: "NONE" })).toBe("No chat log: video and audio only");
+    expect(chatLogNote({ ...inside, chatLog: log }, base)).toBe("1,234 chat lines");
+    expect(chatLogNote({ ...inside, chatLog: log }, { ...base, state: "DONE", chatState: "NONE" })).toBe(
+      "1,234 chat lines, replayed on Resume",
+    );
+    expect(canFillChat({ ...inside, chatLog: log }, { ...base, state: "DONE", chatState: "NONE" })).toBe(true);
+    expect(canFillChat({ ...inside, chatLog: log }, { ...base, state: "DONE" })).toBe(false);
+    expect(canFillChat(inside, { ...base, state: "DONE", chatState: "NONE" })).toBe(false);
   });
 
   it("imports a recording with the streamer's viewer figure and then links to its report", async () => {
@@ -81,6 +103,7 @@ describe("ImportStreams", () => {
     let imports: VodImportStatus[] = [];
     selectChannel();
     server.use(
+      restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restResolver("get", "/api/analytics/streams/redbull-testing/vods", () => HttpResponse.json(listed)),
@@ -132,6 +155,7 @@ describe("ImportStreams", () => {
     selectChannel();
     server.use(
       restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
+      restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restJson("get", "/api/analytics/streams/redbull-testing/vods", [{ ...inside, sessionId: 12 }]),
       restResolver("get", "/api/analytics/streams/redbull-testing/vods/imports", () => HttpResponse.json(imports)),
@@ -159,9 +183,58 @@ describe("ImportStreams", () => {
     expect(panel.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
   });
 
+  it("hands a chat log over for a recording and shows what was kept", async () => {
+    let listed: VodListing[] = [inside];
+    let upload: { body: string; fileName: string | null; timezone: string | null } | null = null;
+    selectChannel();
+    server.use(
+      restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
+      graphqlData("DealSummary", { dealSummary: dealSummary() }),
+      restResolver("get", "/api/analytics/streams/redbull-testing/vods", () => HttpResponse.json(listed)),
+      restJson("get", "/api/analytics/streams/redbull-testing/vods/imports", []),
+      restResolver(
+        "put",
+        "/api/analytics/streams/redbull-testing/vods/2750461300/chat-log",
+        async ({ request: req }) => {
+          const url = new URL(req.url);
+          upload = {
+            body: await req.text(),
+            fileName: url.searchParams.get("fileName"),
+            timezone: url.searchParams.get("timezone"),
+          };
+          const summary = {
+            fileName: "chat.csv",
+            lineCount: 2,
+            firstOffsetSeconds: 10,
+            lastOffsetSeconds: 20,
+            uploadedAt: 1,
+          };
+          listed = [{ ...inside, chatLog: summary }];
+          return HttpResponse.json(summary);
+        },
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithApollo(
+      <MemoryRouter initialEntries={["/deals/3"]}>
+        <AppRoutes />
+      </MemoryRouter>,
+    );
+
+    const panel = within(await screen.findByLabelText("Earlier streams on Twitch"));
+    expect(await panel.findByText("No chat log")).toBeInTheDocument();
+    const csv = "offset,user,message\n10,alice,hi\n20,bob,there\n";
+    await user.upload(panel.getByLabelText("Add chat log"), new File([csv], "chat.csv", { type: "text/csv" }));
+
+    expect(await panel.findByText("2 chat lines")).toBeInTheDocument();
+    expect(upload).toEqual({ body: csv, fileName: "chat.csv", timezone: expect.any(String) });
+    expect(panel.getByLabelText("Replace chat log")).toBeInTheDocument();
+  });
+
   it("offers a retry when analytics has no record of an import", async () => {
     selectChannel();
     server.use(
+      restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restJson("get", "/api/analytics/streams/redbull-testing/vods", [{ ...inside, sessionId: 12 }]),

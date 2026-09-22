@@ -2,7 +2,7 @@ package com.streamsense.chatservice.controller;
 
 import com.streamsense.chatservice.api.VodChatImportRequest;
 import com.streamsense.chatservice.api.VodChatImportStatus;
-import com.streamsense.chatservice.twitch.TwitchVodChatImportService;
+import com.streamsense.chatservice.service.VodChatImportService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,14 +14,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Replaying a recording's chat into a VOD import, called by analytics-service. */
+/** Replaying a supplied chat log into a VOD import, called by analytics-service with the log's lines. */
 @RestController
 @RequestMapping("/api/chat/replay")
 public class VodChatImportController {
 
-    private final TwitchVodChatImportService imports;
+    private final VodChatImportService imports;
 
-    public VodChatImportController(TwitchVodChatImportService imports) {
+    public VodChatImportController(VodChatImportService imports) {
         this.imports = imports;
     }
 
