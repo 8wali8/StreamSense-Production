@@ -1,6 +1,13 @@
 import { Link } from "react-router";
 import type { SessionsQuery, SessionSummaryQuery } from "../../graphql/generated";
-import { formatCount, formatDuration, formatScore, formatShare, formatStart } from "../session/report-format";
+import {
+  formatCount,
+  formatDuration,
+  formatScore,
+  formatShare,
+  formatStart,
+  onScreenNote,
+} from "../session/report-format";
 
 type Session = SessionsQuery["sessions"][number];
 type Summary = NonNullable<SessionSummaryQuery["sessionSummary"]>;
@@ -71,7 +78,7 @@ export function LiveStrip({ session, summary, sponsor, loading }: LiveStripProps
         <div className="stat">
           <div className="v tone-brand-text">{summary ? formatDuration(summary.onScreenMs) : "–"}</div>
           <div className="l">{sponsor ?? "Sponsor"} on screen so far</div>
-          <div className="s">{summary ? `${formatShare(summary.onScreenShare)} of stream` : ""}</div>
+          <div className="s">{summary ? onScreenNote(summary.onScreenTracking, summary.onScreenShare) : ""}</div>
         </div>
         <div className="stat">
           <div className="v">{summary ? formatCount(summary.mentions) : "–"}</div>

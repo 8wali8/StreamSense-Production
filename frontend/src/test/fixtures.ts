@@ -370,6 +370,14 @@ export function sessionSummary(overrides: Partial<SessionSummaryFixture> = {}): 
       trackedLinkHost: "redbull.com",
       linkPosts: 84,
     },
+    onScreenTracking: {
+      __typename: "OnScreenTracking",
+      state: "ON",
+      examinedFrames: 360,
+      unavailableFrames: 0,
+      noLogoFrames: 0,
+      unavailableMs: 0,
+    },
   };
   return { ...base, ...overrides };
 }

@@ -22,6 +22,11 @@ public class SponsorDetectionEvent {
     private String twitchStreamId;
     private Long videoTimestampMs;
     private Boolean fallback;
+    /** DETECTED, NOT_DETECTED, NO_LOGO, or UNAVAILABLE; see {@link DetectionOutcome#resolve} for events without one. */
+    private String outcome;
+
+    private Long dealId;
+    private Long logoId;
 
     public String getDetectionEventId() {
         return detectionEventId;
@@ -188,5 +193,29 @@ public class SponsorDetectionEvent {
 
     public void setFallback(Boolean fallback) {
         this.fallback = fallback;
+    }
+
+    public String getOutcome() {
+        return outcome;
+    }
+
+    public void setOutcome(String outcome) {
+        this.outcome = outcome;
+    }
+
+    public Long getDealId() {
+        return dealId;
+    }
+
+    public void setDealId(Long dealId) {
+        this.dealId = dealId;
+    }
+
+    public Long getLogoId() {
+        return logoId;
+    }
+
+    public void setLogoId(Long logoId) {
+        this.logoId = logoId;
     }
 }

@@ -195,6 +195,22 @@ class DealLogosTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void theCurrentDealRouteAnswersTheDealWithItsLogosOrNotFound() throws Exception {
+        long dealId = createDeal("current").id();
+        mockMvc.perform(multipart("/api/analytics/deals/{id}/logos", dealId)
+                        .file(part("logo.png", "image/png", png(64, 64, false))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/analytics/streams/{streamer}/current-deal", "@Current"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(dealId))
+                .andExpect(jsonPath("$.sponsor").value("Red Bull"))
+                .andExpect(jsonPath("$.logos[0].ref").value(startsWith("s3://test-logos/deals/" + dealId + "/")));
+        mockMvc.perform(get("/api/analytics/streams/{streamer}/current-deal", "nobody"))
+                .andExpect(status().isNotFound());
+    }
+
     private Deal createDeal(String streamer) {
         long now = System.currentTimeMillis();
         return deals.create(new DealCreateRequest(

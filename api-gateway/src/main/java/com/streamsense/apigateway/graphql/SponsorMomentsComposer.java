@@ -85,6 +85,8 @@ final class SponsorMomentsComposer {
     private static List<ExposureSegment> segments(
             String sponsor, List<SponsorDetectionEvent> detections, long start, long gapMs) {
         List<SponsorDetectionEvent> ordered = detections.stream()
+                // A frame that was looked at and had no logo, or could not be looked at, is not on-screen time.
+                .filter(SponsorDetectionEvent::isDetected)
                 .filter(event -> matches(sponsor, event.getSponsor()))
                 .sorted(Comparator.comparingLong(SponsorDetectionEvent::getCapturedAt))
                 .toList();

@@ -27,6 +27,21 @@ def test_sponsor_endpoint_returns_valid_shape(client):
         assert 0.0 <= body[key] <= 1.0
 
 
+def test_sponsor_endpoint_stamps_the_deal_sponsor_and_says_detected(client):
+    payload = sponsor_payload() | {
+        "sponsor": "Red Bull",
+        "dealId": 3,
+        "logoId": 7,
+        "logoRefs": ["s3://streamsense-logos/deals/3/a.png"],
+    }
+
+    body = client.post("/ml/sponsor", json=payload).json()
+
+    # The placeholder always finds something; with a deal named it is that deal's sponsor, not one of its own.
+    assert body["sponsor"] == "Red Bull"
+    assert body["outcome"] == "DETECTED"
+
+
 def test_sponsor_detection_is_deterministic(client):
     first = client.post("/ml/sponsor", json=sponsor_payload()).json()
     second = client.post("/ml/sponsor", json=sponsor_payload()).json()

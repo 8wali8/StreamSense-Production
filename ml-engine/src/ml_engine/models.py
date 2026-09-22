@@ -47,6 +47,12 @@ class SponsorRequest(BaseModel):
     videoTimestampMs: int | None = None
     artifactContentType: str | None = None
     artifactSizeBytes: int | None = None
+    # The channel's current deal, when it has a logo: the name detections are stamped with, the deal and
+    # first logo ids recorded on them, and the logo images (s3:// URIs) a real detector looks for.
+    sponsor: str | None = None
+    dealId: int | None = None
+    logoId: int | None = None
+    logoRefs: list[str] = []
 
 
 class SponsorResponse(BaseModel):
@@ -57,6 +63,8 @@ class SponsorResponse(BaseModel):
     y: float
     width: float
     height: float
+    # DETECTED (the logo is at the box) or NOT_DETECTED (looked, did not find it; zero confidence and box).
+    outcome: str = "DETECTED"
 
 
 class SegmentationRequest(BaseModel):

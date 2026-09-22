@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from ml_engine.models import SentimentRequest, SentimentResponse
+from ml_engine.models import SentimentRequest, SentimentResponse, SponsorRequest, SponsorResponse
 
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "docs" / "schemas"
 
@@ -37,6 +37,40 @@ def test_response_model_matches_schema() -> None:
     response = SentimentResponse(label="POSITIVE", score=0.75, modelVersion="lexical-v1")
 
     assert violations("ml-sentiment-response.schema.json", response.model_dump()) == []
+
+
+def test_sponsor_request_with_a_logo_parses_and_matches_its_schema() -> None:
+    sample = {
+        "frameId": "frame-1",
+        "streamer": "racer",
+        "frameRef": "s3://streamsense-frames/racer/s1/000001-frame-1.jpg",
+        "frameSequence": 1,
+        "capturedAt": 1710000000000,
+        "source": "TWITCH",
+        "sponsor": "Red Bull",
+        "dealId": 3,
+        "logoId": 7,
+        "logoRefs": ["s3://streamsense-logos/deals/3/a.png"],
+    }
+    assert violations("ml-sponsor-request.schema.json", sample) == []
+
+    request = SponsorRequest.model_validate(sample)
+
+    assert request.logoRefs == ["s3://streamsense-logos/deals/3/a.png"]
+    assert violations("ml-sponsor-request.schema.json", request.model_dump()) == []
+
+
+def test_sponsor_response_matches_its_schema_for_both_outcomes() -> None:
+    found = SponsorResponse(
+        sponsor="Red Bull", confidence=0.9, modelVersion="stub-v1", x=0.1, y=0.1, width=0.2, height=0.2
+    )
+    missed = SponsorResponse(
+        sponsor="Red Bull", confidence=0.0, modelVersion="stub-v1", x=0, y=0, width=0, height=0, outcome="NOT_DETECTED"
+    )
+
+    assert violations("ml-sponsor-response.schema.json", found.model_dump()) == []
+    assert violations("ml-sponsor-response.schema.json", missed.model_dump()) == []
+    assert violations("ml-sponsor-response.schema.json", {**found.model_dump(), "outcome": "MAYBE"}) != []
 
 
 def test_schema_rejects_an_unknown_label() -> None:

@@ -85,6 +85,15 @@ public class VideoMetrics {
                 .increment();
     }
 
+    /** One count per frame by what happened to it: DETECTED, NOT_DETECTED, NO_LOGO, or UNAVAILABLE. */
+    public void incrementOutcome(String outcome) {
+        Counter.builder("streamsense_sponsor_outcomes_total")
+                .description("Sampled frames by detection outcome")
+                .tag("outcome", outcome == null ? "unknown" : outcome)
+                .register(meterRegistry)
+                .increment();
+    }
+
     public void incrementSponsorFallback(String reason) {
         Counter.builder("streamsense_sponsor_fallback_total")
                 .description("Total number of fallback sponsor detections")
