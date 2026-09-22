@@ -59,4 +59,14 @@ export function restResolver(method: "get" | "post" | "put" | "delete", path: st
   return http[method](`*${path}`, resolver);
 }
 
+/** A REST handler answering with raw bytes (an image), backed by a plain ArrayBuffer as fetch's body type wants. */
+export function restBytes(path: string, bytes: number[], contentType: string) {
+  const body = new Uint8Array(new ArrayBuffer(bytes.length));
+  body.set(bytes);
+  return http.get(`*${path}`, () => new HttpResponse(body, { headers: { "Content-Type": contentType } }));
+}
+
+/** The first bytes of a PNG: image enough for a data URL in a test. */
+export const PNG_HEAD = [0x89, 0x50, 0x4e, 0x47];
+
 export { HttpResponse, delay, graphql, http };

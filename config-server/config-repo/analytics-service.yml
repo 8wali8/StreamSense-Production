@@ -46,6 +46,19 @@ streamsense:
       # Counted when a request names no command or link host; empty means none.
       default-chat-command: ${STREAMSENSE_ANALYTICS_RESPONSE_CHAT_COMMAND:}
       default-tracked-link-host: ${STREAMSENSE_ANALYTICS_RESPONSE_LINK_HOST:}
+  logos:
+    # The sponsor logos uploaded on deals: bytes in this bucket on the frame store (created on first use),
+    # rows in deal_logos. The credentials are the frame storage's; `memory` is for tests only.
+    store: s3
+    bucket: streamsense-logos
+    endpoint: http://minio:9000
+    region: us-east-1
+    access-key: ${STREAMSENSE_FRAME_STORAGE_ACCESS_KEY}
+    secret-key: ${STREAMSENSE_FRAME_STORAGE_SECRET_KEY}
+    max-bytes: 5242880
+    max-per-deal: 2
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000
   services:
     sentiment-service:
       # Creating a deal points relevance scoring at its sponsor for the channel; best effort, bounded.
@@ -83,6 +96,12 @@ streamsense:
       token-refresh-margin-seconds: 60
 
 spring:
+  servlet:
+    multipart:
+      # A logo upload; the service checks the bytes against streamsense.logos.max-bytes as well.
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     consumer:

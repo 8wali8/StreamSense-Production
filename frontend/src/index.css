@@ -1865,6 +1865,83 @@ p {
   gap: 10px;
 }
 
+/* The sponsor's logo: a drop zone with the picker inside, and the logos the deal has. */
+.logo-picker {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-raised);
+}
+
+.logo-picker.dragging {
+  border-color: var(--accent);
+}
+
+.logo-picker.full {
+  opacity: 0.7;
+}
+
+.logo-picker-label {
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.logo-picker input[type="file"] {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.logo-chosen,
+.logo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.logo-chosen li,
+.logo-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.logo-pending {
+  display: inline-block;
+  width: 96px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--panel-raised);
+}
+
+.logo-list img {
+  max-height: 48px;
+  max-width: 160px;
+  background: #fff;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.deal-logos .logo-list {
+  margin: 0 16px 12px;
+}
+
+.deal-logos .logo-picker {
+  margin: 0 16px 14px;
+}
+
+.deal-logos .error-state {
+  margin: 0 16px 14px;
+}
+
 /* The owner's edit form on the deal page: the same form as the home page's, in its own panel. */
 .deal-edit .new-deal {
   padding-top: 14px;

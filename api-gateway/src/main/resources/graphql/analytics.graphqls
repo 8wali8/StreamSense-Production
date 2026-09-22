@@ -233,6 +233,19 @@ type Deal {
   # The read-only share token when the deal is shared; private to the streamer like the fee.
   shareToken: String
   createdAt: Float!
+  # The sponsor's logos on-screen detection looks for, oldest upload first; empty means tracking is off.
+  logos: [DealLogo!]!
+}
+
+# One logo on a deal. The image itself is read from the REST route
+# GET /api/analytics/deals/{id}/logos/{logoId}, so a share link (GraphQL only) sees the facts, not the bytes.
+type DealLogo {
+  id: ID!
+  contentType: String!
+  width: Int!
+  height: Int!
+  sizeBytes: Int!
+  uploadedAt: Float!
 }
 
 # Totals over the streams inside a deal's dates. Money is null until a stream had viewer samples;

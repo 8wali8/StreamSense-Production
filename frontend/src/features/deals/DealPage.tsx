@@ -18,6 +18,7 @@ import { dealDates, feeMultiple, streamsProgress } from "./deal-format";
 import { isDemoMode } from "../../demo/mode";
 import { readShareToken } from "../../lib/share-token";
 import { DealForm } from "./DealForm";
+import { DealLogos } from "./DealLogos";
 import { DealTrend } from "./DealTrend";
 import { ImportStreams } from "./ImportStreams";
 import { ShareControl } from "./ShareControl";
@@ -87,6 +88,8 @@ export function DealPage() {
   // deleting is the operator's call, and only once it is unshared.
   const canEnd = deal.startsAt <= Date.now() && (deal.endsAt == null || deal.endsAt > Date.now());
   const canDelete = !sharedView && isOperatorView();
+  // On-screen time is only tracked against a logo; without one the media value is not a number.
+  const tracking = deal.logos.length > 0;
 
   function endToday() {
     void run(async () => {
@@ -179,12 +182,12 @@ export function DealPage() {
             streamer={deal.streamer}
             deal={deal}
             onCancel={() => setAction("idle")}
-            onSaved={() => {
+            onSaved={(_saved, problem) => {
               // The header's actions act on the deal as loaded, so they stay hidden until the refetch lands.
               void run(async () => {
                 await query.refetch();
                 setAction("idle");
-                setNotice("Saved. Every report inside the deal is priced with the new terms from now on.");
+                setNotice(problem ?? "Saved. Every report inside the deal is priced with the new terms from now on.");
               });
             }}
           />
@@ -225,7 +228,9 @@ export function DealPage() {
         <div className="rstat">
           <div className="v tone-brand-text">{formatDuration(totals.onScreenMs)}</div>
           <div className="l">
-            On screen · {formatShare(totals.onScreenShare)} of {formatDuration(totals.streamedMs)}
+            {tracking
+              ? `On screen · ${formatShare(totals.onScreenShare)} of ${formatDuration(totals.streamedMs)}`
+              : "On screen · tracking is off, no logo on the deal"}
           </div>
         </div>
         <div className="rstat">
@@ -242,16 +247,22 @@ export function DealPage() {
           </div>
         </div>
         <div className="rstat rstat-value">
-          <div className="v tone-brand-text">{totals.mediaValue == null ? "–" : formatMoney(totals.mediaValue)}</div>
+          <div className="v tone-brand-text">
+            {!tracking || totals.mediaValue == null ? "–" : formatMoney(totals.mediaValue)}
+          </div>
           <div className="l">
-            {totals.mediaValue == null
-              ? "Media value · needs viewer data"
-              : multiple == null
-                ? "Media value · estimate"
-                : `Media value · ${multiple}× the ${formatMoney(deal.fee)} fee`}
+            {!tracking
+              ? "Media value · on-screen tracking is off"
+              : totals.mediaValue == null
+                ? "Media value · needs viewer data"
+                : multiple == null
+                  ? "Media value · estimate"
+                  : `Media value · ${multiple}× the ${formatMoney(deal.fee)} fee`}
           </div>
         </div>
       </div>
+
+      <DealLogos deal={deal} sharedView={sharedView} onChanged={() => void query.refetch()} />
 
       <DealTrend
         sponsor={deal.sponsor}

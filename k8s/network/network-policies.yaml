@@ -491,7 +491,7 @@ kind: NetworkPolicy
 metadata:
   name: analytics-service
   namespace: streamsense
-  # Kafka consumer, Postgres, sentiment-service (deal relevance), and the Twitch Helix API for stream sessions
+  # Kafka consumer, Postgres, sentiment-service (deal relevance), MinIO (deal logos), and the Twitch Helix API for stream sessions
 spec:
   podSelector:
     matchLabels:
@@ -558,6 +558,13 @@ spec:
               app: sentiment-service
       ports:
         - port: 8083
+    # the sponsor logos uploaded on deals live in the frame store's MinIO
+    - to:
+        - podSelector:
+            matchLabels:
+              app: minio
+      ports:
+        - port: 9000
     # a VOD import replays the recording's chat and its frames and audio through these two
     - to:
         - podSelector:
@@ -1119,7 +1126,7 @@ kind: NetworkPolicy
 metadata:
   name: minio
   namespace: streamsense
-  # frame storage for video-capture-service and ml-engine
+  # frame storage for video-capture-service and ml-engine; deal logos for analytics-service
 spec:
   podSelector:
     matchLabels:
@@ -1133,6 +1140,9 @@ spec:
         - podSelector:
             matchLabels:
               app: video-capture-service
+        - podSelector:
+            matchLabels:
+              app: analytics-service
       ports:
         - port: 9000
   egress:

@@ -467,6 +467,24 @@ export function sponsorMoments(): WithTypenames<NonNullable<SponsorMomentsQuery[
   };
 }
 
+export type DealLogoFixture = WithTypenames<DealsQuery["deals"][number]["logos"][number]> & {
+  __typename: "DealLogo";
+};
+
+/** The Red Bull wordmark as uploaded on the deal. */
+export function dealLogo(overrides: Partial<DealLogoFixture> = {}): DealLogoFixture {
+  return {
+    __typename: "DealLogo",
+    id: "7",
+    contentType: "image/png",
+    width: 512,
+    height: 192,
+    sizeBytes: 24576,
+    uploadedAt: 1788400500000,
+    ...overrides,
+  };
+}
+
 export type DealFixture = WithTypenames<DealsQuery["deals"][number]> & { __typename: "Deal" };
 
 /** The Red Bull deal on the replay channel: four promised streams, a fee, a command, and a tracked link. */
@@ -490,6 +508,7 @@ export function deal(overrides: Partial<DealFixture> = {}): DealFixture {
     active: true,
     shareToken: null,
     createdAt: 1788400000000,
+    logos: [dealLogo()],
     ...overrides,
   };
 }

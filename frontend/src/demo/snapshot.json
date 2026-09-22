@@ -16,6 +16,17 @@
       "fee": 800.0,
       "hostReadRatePer1000": 15.0,
       "id": "3",
+      "logos": [
+       {
+        "__typename": "DealLogo",
+        "contentType": "image/png",
+        "height": 192,
+        "id": "1",
+        "sizeBytes": 24576,
+        "uploadedAt": 1788400500000,
+        "width": 512
+       }
+      ],
       "promisedStreams": 6,
       "shareToken": null,
       "sponsor": "Red Bull",
@@ -48,6 +59,17 @@
        "fee": 800.0,
        "hostReadRatePer1000": 15.0,
        "id": "3",
+       "logos": [
+        {
+         "__typename": "DealLogo",
+         "contentType": "image/png",
+         "height": 192,
+         "id": "1",
+         "sizeBytes": 24576,
+         "uploadedAt": 1788400500000,
+         "width": 512
+        }
+       ],
        "promisedStreams": 6,
        "shareToken": null,
        "sponsor": "Red Bull",
@@ -208,6 +230,17 @@
        "fee": 800.0,
        "hostReadRatePer1000": 15.0,
        "id": "3",
+       "logos": [
+        {
+         "__typename": "DealLogo",
+         "contentType": "image/png",
+         "height": 192,
+         "id": "1",
+         "sizeBytes": 24576,
+         "uploadedAt": 1788400500000,
+         "width": 512
+        }
+       ],
        "promisedStreams": 6,
        "shareToken": null,
        "sponsor": "Red Bull",

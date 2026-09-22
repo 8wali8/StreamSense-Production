@@ -10,6 +10,7 @@ public class StreamSenseProperties {
     private final Processing processing = new Processing();
     private final Twitch twitch = new Twitch();
     private final Services services = new Services();
+    private final Logos logos = new Logos();
 
     public Topics getTopics() {
         return topics;
@@ -29,6 +30,126 @@ public class StreamSenseProperties {
 
     public Services getServices() {
         return services;
+    }
+
+    public Logos getLogos() {
+        return logos;
+    }
+
+    /**
+     * The sponsor logos uploaded on deals: rows in {@code deal_logos}, bytes in an S3-compatible
+     * bucket ({@code store=s3}, the default; {@code memory} for tests). The bounds are what an upload
+     * is checked against before it is kept.
+     */
+    public static class Logos {
+        private String store = "s3";
+        private String bucket = "streamsense-logos";
+        private String endpoint;
+        private String region = "us-east-1";
+        private String accessKey;
+        private String secretKey;
+        private long maxBytes = 5L * 1024 * 1024;
+        private int maxPerDeal = 2;
+        private int minPixels = 32;
+        private int maxPixels = 8192;
+        private int connectTimeoutMs = 2000;
+        private int readTimeoutMs = 5000;
+
+        public String getStore() {
+            return store;
+        }
+
+        public void setStore(String store) {
+            this.store = store;
+        }
+
+        public String getBucket() {
+            return bucket;
+        }
+
+        public void setBucket(String bucket) {
+            this.bucket = bucket;
+        }
+
+        public String getEndpoint() {
+            return endpoint;
+        }
+
+        public void setEndpoint(String endpoint) {
+            this.endpoint = endpoint;
+        }
+
+        public String getRegion() {
+            return region;
+        }
+
+        public void setRegion(String region) {
+            this.region = region;
+        }
+
+        public String getAccessKey() {
+            return accessKey;
+        }
+
+        public void setAccessKey(String accessKey) {
+            this.accessKey = accessKey;
+        }
+
+        public String getSecretKey() {
+            return secretKey;
+        }
+
+        public void setSecretKey(String secretKey) {
+            this.secretKey = secretKey;
+        }
+
+        public long getMaxBytes() {
+            return maxBytes;
+        }
+
+        public void setMaxBytes(long maxBytes) {
+            this.maxBytes = maxBytes;
+        }
+
+        public int getMaxPerDeal() {
+            return maxPerDeal;
+        }
+
+        public void setMaxPerDeal(int maxPerDeal) {
+            this.maxPerDeal = maxPerDeal;
+        }
+
+        public int getMinPixels() {
+            return minPixels;
+        }
+
+        public void setMinPixels(int minPixels) {
+            this.minPixels = minPixels;
+        }
+
+        public int getMaxPixels() {
+            return maxPixels;
+        }
+
+        public void setMaxPixels(int maxPixels) {
+            this.maxPixels = maxPixels;
+        }
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
     }
 
     /** Other StreamSense services this one calls. No base URL means the call is never made. */

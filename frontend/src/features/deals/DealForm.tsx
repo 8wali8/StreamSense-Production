@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { createDeal, updateDeal, type Deal, type DealUpdateRequest } from "../../api/analytics";
+import { createDeal, updateDeal, uploadDealLogo, type Deal, type DealUpdateRequest } from "../../api/analytics";
 import { describeError } from "../../lib/errors";
 import { fromDateInput, toDateInput, toEndDateInput } from "./deal-format";
+import { MAX_LOGOS } from "./logo-files";
+import { LogoPicker } from "./LogoPicker";
 
 type DealFormProps = {
   streamer: string;
@@ -9,7 +11,8 @@ type DealFormProps = {
   deal?: Deal;
   /** The sponsor a new deal starts with (the channel's current sponsor, if any). */
   defaultSponsor?: string;
-  onSaved: (deal: Deal) => void;
+  /** The deal is saved; `problem` is set when a logo chosen with it could not be uploaded afterwards. */
+  onSaved: (deal: Deal, problem?: string) => void;
   onCancel: () => void;
 };
 
@@ -39,6 +42,8 @@ function numberField(value: number | null | undefined): string {
  * rates fall back to the configured ones. A first deal needs the sponsor and the dates, so those sit up
  * front; the fee, the chat signals, and the rates wait behind "More settings", closed until the streamer
  * wants them (open from the start when editing a deal that has any). An edit sends the whole deal back.
+ * The sponsor's logo is chosen here too and uploaded right after the deal is saved, since a logo belongs
+ * to a deal that exists; a deal without one still works, with on-screen tracking off.
  */
 export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCancel }: DealFormProps) {
   const [sponsor, setSponsor] = useState(deal?.sponsor ?? defaultSponsor);
@@ -51,6 +56,7 @@ export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCance
   const [trackedLink, setTrackedLink] = useState(deal?.trackedLink ?? "");
   const [chatCommand, setChatCommand] = useState(deal?.chatCommand ?? "");
   const [reward, setReward] = useState(deal?.channelPointReward ?? "");
+  const [logoFiles, setLogoFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +68,8 @@ export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCance
   const hasTerms =
     editing &&
     (deal.fee != null || deal.chatCommand != null || deal.trackedLink != null || deal.channelPointReward != null);
+  const existingLogos = deal?.logos.length ?? 0;
+  const logoSlots = Math.max(0, MAX_LOGOS - existingLogos - logoFiles.length);
 
   async function submit() {
     if (!valid || startsAt == null) return;
@@ -81,13 +89,27 @@ export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCance
       ...(optionalText(chatCommand) !== undefined ? { chatCommand: optionalText(chatCommand) } : {}),
       ...(optionalText(reward) !== undefined ? { channelPointReward: optionalText(reward) } : {}),
     };
+    let saved: Deal;
     try {
-      onSaved(editing ? await updateDeal(deal.id, terms) : await createDeal({ streamer, ...terms }));
+      saved = editing ? await updateDeal(deal.id, terms) : await createDeal({ streamer, ...terms });
     } catch (err) {
       setError(describeError(err instanceof Error ? err : new Error("failed to save the deal")));
-    } finally {
       setSaving(false);
+      return;
     }
+    // The deal exists from here on; a logo that fails to upload is reported, never a reason to save twice.
+    let problem: string | undefined;
+    for (const file of logoFiles) {
+      try {
+        await uploadDealLogo(saved.id, file);
+      } catch (err) {
+        problem ??= `The deal was saved, but the logo ${file.name} could not be uploaded: ${describeError(
+          err instanceof Error ? err : new Error("upload failed"),
+        )}. Add it on the deal page.`;
+      }
+    }
+    setSaving(false);
+    onSaved(saved, problem);
   }
 
   return (
@@ -127,6 +149,38 @@ export function DealForm({ streamer, deal, defaultSponsor = "", onSaved, onCance
           placeholder="optional"
         />
       </label>
+
+      <div className="field field-wide">
+        <span className="field-label">Sponsor logo</span>
+        <LogoPicker
+          remaining={logoSlots}
+          busy={saving}
+          onFiles={(files) => setLogoFiles((chosen) => [...chosen, ...files].slice(0, MAX_LOGOS - existingLogos))}
+        />
+        {logoFiles.length > 0 && (
+          <ul className="logo-chosen">
+            {logoFiles.map((file) => (
+              <li key={`${file.name}-${file.size}`}>
+                <span>{file.name}</span>
+                <button
+                  className="button-secondary button-sm"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setLogoFiles((chosen) => chosen.filter((other) => other !== file))}
+                  aria-label={`Remove ${file.name}`}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <span className="field-hint">
+          {existingLogos > 0
+            ? `The deal already has ${existingLogos === 1 ? "one logo" : "two logos"}; the deal page lists them.`
+            : "Without a logo the report counts voice and chat mentions and says on-screen tracking is off."}
+        </span>
+      </div>
 
       <details className="new-deal-more" open={hasTerms}>
         <summary>More settings</summary>

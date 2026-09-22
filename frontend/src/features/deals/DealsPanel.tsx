@@ -52,9 +52,9 @@ export function DealsPanel({ streamer, deals, error, home, onCreated }: DealsPan
           streamer={streamer}
           defaultSponsor={home.kind === "manual" ? home.sponsor : ""}
           onCancel={() => setCreating(false)}
-          onSaved={(deal) => {
+          onSaved={(deal, problem) => {
             setCreating(false);
-            setStatus(`${deal.sponsor} deal created; relevance scoring now follows it.`);
+            setStatus(problem ?? `${deal.sponsor} deal created; relevance scoring now follows it.`);
             onCreated();
           }}
         />

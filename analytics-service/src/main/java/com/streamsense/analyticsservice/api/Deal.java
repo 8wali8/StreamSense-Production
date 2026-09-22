@@ -1,10 +1,14 @@
 package com.streamsense.analyticsservice.api;
 
+import java.util.List;
+
 /**
  * One sponsorship deal as the API reports it. {@code fee} is what the streamer is paid and is
  * private to them; {@code active} is true while the dates cover now. {@code trackedLinkHost} is the
  * host of the tracked link, which is what chat posts are matched on. {@code shareToken} is the
  * read-only share token when the deal is shared; like the fee it is private to the streamer.
+ * {@code logos} are the sponsor's logos on-screen detection looks for, oldest upload first; empty
+ * means on-screen tracking is off for the deal.
  */
 public record Deal(
         long id,
@@ -23,4 +27,5 @@ public record Deal(
         String channelPointReward,
         boolean active,
         String shareToken,
-        long createdAt) {}
+        long createdAt,
+        List<DealLogo> logos) {}

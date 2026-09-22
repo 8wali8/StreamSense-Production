@@ -13,7 +13,7 @@ import {
   twitchStatusConnected,
   videoStatusCapturing,
 } from "../../test/fixtures";
-import { HttpResponse, graphqlData, restJson, restResolver, server } from "../../test/msw";
+import { HttpResponse, PNG_HEAD, graphqlData, restBytes, restJson, restResolver, server } from "../../test/msw";
 import { EXPIRES_2030, fakeJwt } from "../../test/tokens";
 import { SHARE_STORAGE_KEY } from "../../lib/share-token";
 
@@ -23,7 +23,18 @@ function dealPageHandlers() {
     restJson("get", "/api/analytics/streams/redbull-testing/vods", []),
     restJson("get", "/api/analytics/streams/redbull-testing/vods/imports", []),
     restJson("get", "/api/video/capture/status", videoStatusCapturing),
+    // The fixture deal's logo, fetched for its picture.
+    restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
   ];
+}
+
+/**
+ * The file name in a logo upload, read off the multipart body itself (the request's own parser would
+ * build its file parts with jsdom's File class and reject them). Null unless the body is multipart.
+ */
+async function uploadedName(request: Request): Promise<string | null> {
+  if (!request.headers.get("content-type")?.startsWith("multipart/form-data")) return null;
+  return /filename="([^"]+)"/.exec(await request.text())?.[1] ?? null;
 }
 
 /** The home page's reads, for a test that lands there. */
@@ -178,8 +189,53 @@ describe("deals", () => {
     expect(deleted).toBe(true);
   });
 
+  it("adds and removes the sponsor's logo on the deal page, and says when tracking is off", async () => {
+    let uploaded: string | null = null;
+    let removed = false;
+    server.use(
+      ...dealPageHandlers(),
+      graphqlData("DealSummary", { dealSummary: dealSummary({ deal: deal({ logos: [] }) }) }),
+      restResolver("post", "/api/analytics/deals/3/logos", async ({ request }) => {
+        uploaded = await uploadedName(request);
+        server.use(graphqlData("DealSummary", { dealSummary: dealSummary() }));
+        return HttpResponse.json(
+          { id: 7, dealId: 3, contentType: "image/png", width: 512, height: 192, sizeBytes: 3, uploadedAt: 1 },
+          { status: 201 },
+        );
+      }),
+      restResolver("delete", "/api/analytics/deals/3/logos/7", () => {
+        removed = true;
+        server.use(graphqlData("DealSummary", { dealSummary: dealSummary({ deal: deal({ logos: [] }) }) }));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/deals/3");
+
+    // Without a logo the deal says so, and the media value is not a number.
+    expect(await screen.findByText("On-screen tracking is off until you add the sponsor's logo.")).toBeInTheDocument();
+    expect(screen.getByText("Media value · on-screen tracking is off")).toBeInTheDocument();
+
+    await user.upload(
+      screen.getByLabelText("Choose a logo file"),
+      new File(["png"], "redbull.png", { type: "image/png" }),
+    );
+    // The image is fetched with the token (an <img src> would carry none) and shown as a data URL.
+    expect(await screen.findByRole("img", { name: "Red Bull logo 1" })).toHaveAttribute(
+      "src",
+      "data:image/png;base64,iVBORw==",
+    );
+    expect(uploaded).toBe("redbull.png");
+    expect(screen.getByText("Media value · 1.4× the $2,500 fee")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove Red Bull logo 1" }));
+    expect(await screen.findByText("On-screen tracking is off until you add the sponsor's logo.")).toBeInTheDocument();
+    expect(removed).toBe(true);
+  });
+
   it("creates a deal from the home page and lists it", async () => {
     let created: Record<string, unknown> | null = null;
+    let uploaded: string | null = null;
     server.use(
       graphqlData("Sessions", { sessions: [] }),
       graphqlData("SponsorDetections", { sponsorDetections: [] }),
@@ -199,7 +255,13 @@ describe("deals", () => {
       restResolver("post", "/api/analytics/deals", async ({ request }) => {
         created = (await request.json()) as Record<string, unknown>;
         server.use(graphqlData("Deals", { deals: [deal()] }));
-        return HttpResponse.json(deal(), { status: 201 });
+        return HttpResponse.json(deal({ logos: [] }), { status: 201 });
+      }),
+      restResolver("post", "/api/analytics/deals/3/logos", async ({ request }) => {
+        // The logo follows the deal: it is uploaded once the deal has an id.
+        expect(created).not.toBeNull();
+        uploaded = await uploadedName(request);
+        return HttpResponse.json({ id: 7, dealId: 3 }, { status: 201 });
       }),
     );
     const user = userEvent.setup();
@@ -217,9 +279,12 @@ describe("deals", () => {
     expect(form.getByLabelText("Fee in USD (private to you)")).toBeVisible();
     await user.type(form.getByLabelText("Fee in USD (private to you)"), "2500");
     await user.type(form.getByLabelText("Chat command"), "redbull");
+    await user.upload(form.getByLabelText("Choose a logo file"), new File(["png"], "logo.png", { type: "image/png" }));
+    expect(form.getByText("logo.png")).toBeInTheDocument();
     await user.click(form.getByRole("button", { name: "Create deal" }));
 
     expect(await deals.findByRole("link", { name: /Red Bull/ })).toHaveAttribute("href", "/deals/3");
+    expect(uploaded).toBe("logo.png");
     expect(created).toMatchObject({
       streamer: "redbull-testing",
       sponsor: "Red Bull",

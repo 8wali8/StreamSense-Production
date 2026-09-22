@@ -1,6 +1,7 @@
 package com.streamsense.apigateway.analytics;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record Deal(
@@ -20,7 +21,13 @@ public record Deal(
         String channelPointReward,
         boolean active,
         String shareToken,
-        long createdAt) {
+        long createdAt,
+        List<DealLogo> logos) {
+
+    /** A deal answered without logos (an older analytics-service, a test fixture) has none, not null. */
+    public Deal {
+        logos = logos == null ? List.of() : List.copyOf(logos);
+    }
 
     /** The deal as a share link may see it: no fee, no token. */
     public Deal forSharedView() {
@@ -41,6 +48,7 @@ public record Deal(
                 channelPointReward,
                 active,
                 null,
-                createdAt);
+                createdAt,
+                logos);
     }
 }
