@@ -66,6 +66,7 @@ export type Deal = {
   fee?: Maybe<Scalars['Float']['output']>;
   hostReadRatePer1000: Scalars['Float']['output'];
   id: Scalars['ID']['output'];
+  logos: Array<DealLogo>;
   promisedStreams?: Maybe<Scalars['Int']['output']>;
   shareToken?: Maybe<Scalars['String']['output']>;
   sponsor: Scalars['String']['output'];
@@ -73,6 +74,15 @@ export type Deal = {
   streamer: Scalars['String']['output'];
   trackedLink?: Maybe<Scalars['String']['output']>;
   trackedLinkHost?: Maybe<Scalars['String']['output']>;
+};
+
+export type DealLogo = {
+  contentType: Scalars['String']['output'];
+  height: Scalars['Int']['output'];
+  id: Scalars['ID']['output'];
+  sizeBytes: Scalars['Int']['output'];
+  uploadedAt: Scalars['Float']['output'];
+  width: Scalars['Int']['output'];
 };
 
 export type DealSummary = {
@@ -659,21 +669,21 @@ export type DealsQueryVariables = Exact<{
 }>;
 
 
-export type DealsQuery = { deals: Array<{ id: string, streamer: string, sponsor: string, startsAt: number, endsAt: number | null, promisedStreams: number | null, fee: number | null, currency: string, cpmPer30sEquivalent: number, hostReadRatePer1000: number, trackedLink: string | null, trackedLinkHost: string | null, chatCommand: string | null, channelPointReward: string | null, active: boolean, shareToken: string | null, createdAt: number }> };
+export type DealsQuery = { deals: Array<{ id: string, streamer: string, sponsor: string, startsAt: number, endsAt: number | null, promisedStreams: number | null, fee: number | null, currency: string, cpmPer30sEquivalent: number, hostReadRatePer1000: number, trackedLink: string | null, trackedLinkHost: string | null, chatCommand: string | null, channelPointReward: string | null, active: boolean, shareToken: string | null, createdAt: number, logos: Array<{ id: string, contentType: string, width: number, height: number, sizeBytes: number, uploadedAt: number }> }> };
 
 export type DealQueryVariables = Exact<{
   id: string;
 }>;
 
 
-export type DealQuery = { deal: { id: string, streamer: string, sponsor: string, startsAt: number, endsAt: number | null, promisedStreams: number | null, fee: number | null, currency: string, cpmPer30sEquivalent: number, hostReadRatePer1000: number, trackedLink: string | null, trackedLinkHost: string | null, chatCommand: string | null, channelPointReward: string | null, active: boolean, shareToken: string | null, createdAt: number } | null };
+export type DealQuery = { deal: { id: string, streamer: string, sponsor: string, startsAt: number, endsAt: number | null, promisedStreams: number | null, fee: number | null, currency: string, cpmPer30sEquivalent: number, hostReadRatePer1000: number, trackedLink: string | null, trackedLinkHost: string | null, chatCommand: string | null, channelPointReward: string | null, active: boolean, shareToken: string | null, createdAt: number, logos: Array<{ id: string, contentType: string, width: number, height: number, sizeBytes: number, uploadedAt: number }> } | null };
 
 export type DealSummaryQueryVariables = Exact<{
   id: string;
 }>;
 
 
-export type DealSummaryQuery = { dealSummary: { deal: { id: string, streamer: string, sponsor: string, startsAt: number, endsAt: number | null, promisedStreams: number | null, fee: number | null, currency: string, cpmPer30sEquivalent: number, hostReadRatePer1000: number, trackedLink: string | null, trackedLinkHost: string | null, chatCommand: string | null, channelPointReward: string | null, active: boolean, shareToken: string | null, createdAt: number }, totals: { streams: number, liveStreams: number, streamedMs: number, onScreenMs: number, onScreenShare: number | null, mentions: number, chatMentions: number, voiceMentions: number, mentionSentiment: number | null, averageViewers: number | null, logoValue: number | null, hostReadValue: number | null, mediaValue: number | null, commandUses: number, linkPosts: number }, sessions: Array<{ onScreenMs: number, onScreenShare: number | null, mentions: number, mentionSentiment: number | null, averageViewers: number | null, session: { id: string, title: string | null, startedAt: number, endedAt: number | null, live: boolean, durationMs: number, averageViewers: number | null, peakViewers: number | null }, risk: { level: string }, value: { mediaValue: number | null } }> } | null };
+export type DealSummaryQuery = { dealSummary: { deal: { id: string, streamer: string, sponsor: string, startsAt: number, endsAt: number | null, promisedStreams: number | null, fee: number | null, currency: string, cpmPer30sEquivalent: number, hostReadRatePer1000: number, trackedLink: string | null, trackedLinkHost: string | null, chatCommand: string | null, channelPointReward: string | null, active: boolean, shareToken: string | null, createdAt: number, logos: Array<{ id: string, contentType: string, width: number, height: number, sizeBytes: number, uploadedAt: number }> }, totals: { streams: number, liveStreams: number, streamedMs: number, onScreenMs: number, onScreenShare: number | null, mentions: number, chatMentions: number, voiceMentions: number, mentionSentiment: number | null, averageViewers: number | null, logoValue: number | null, hostReadValue: number | null, mediaValue: number | null, commandUses: number, linkPosts: number }, sessions: Array<{ onScreenMs: number, onScreenShare: number | null, mentions: number, mentionSentiment: number | null, averageViewers: number | null, session: { id: string, title: string | null, startedAt: number, endedAt: number | null, live: boolean, durationMs: number, averageViewers: number | null, peakViewers: number | null }, risk: { level: string }, value: { mediaValue: number | null } }> } | null };
 
 export type OnChatMessageSubscriptionVariables = Exact<{
   streamer: string;

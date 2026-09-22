@@ -458,6 +458,14 @@ export const DEALS_QUERY = gql`
       active
       shareToken
       createdAt
+      logos {
+        id
+        contentType
+        width
+        height
+        sizeBytes
+        uploadedAt
+      }
     }
   }
 `;
@@ -482,6 +490,14 @@ export const DEAL_QUERY = gql`
       active
       shareToken
       createdAt
+      logos {
+        id
+        contentType
+        width
+        height
+        sizeBytes
+        uploadedAt
+      }
     }
   }
 `;
@@ -507,6 +523,14 @@ export const DEAL_SUMMARY_QUERY = gql`
         active
         shareToken
         createdAt
+        logos {
+          id
+          contentType
+          width
+          height
+          sizeBytes
+          uploadedAt
+        }
       }
       totals {
         streams

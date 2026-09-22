@@ -26,6 +26,7 @@ import com.streamsense.analyticsservice.config.StreamSenseProperties;
 import com.streamsense.analyticsservice.events.ChatMessageEvent;
 import com.streamsense.analyticsservice.persistence.DealRepository;
 import com.streamsense.analyticsservice.relevance.SponsorRelevancePointer;
+import com.streamsense.analyticsservice.service.DealLogoService;
 import com.streamsense.analyticsservice.service.DealService;
 import com.streamsense.analyticsservice.service.MetricAggregationService;
 import com.streamsense.analyticsservice.service.SessionSummaryService;
@@ -78,6 +79,9 @@ class DealsTest {
 
     @Autowired
     private DealRepository dealRepository;
+
+    @Autowired
+    private DealLogoService logoService;
 
     @Autowired
     private StreamSenseProperties properties;
@@ -185,6 +189,7 @@ class DealsTest {
                 sessions,
                 summaries,
                 properties,
+                logoService,
                 provider,
                 Clock.fixed(Instant.ofEpochMilli(created), UTC));
         beforeStart.create(new DealCreateRequest(
@@ -209,6 +214,7 @@ class DealsTest {
                 sessions,
                 summaries,
                 properties,
+                logoService,
                 provider,
                 Clock.fixed(Instant.ofEpochMilli(startsAt + 60_000L), UTC));
         assertThat(afterStart.activateStartedDeals()).isGreaterThanOrEqualTo(1);
@@ -225,7 +231,8 @@ class DealsTest {
         ObjectProvider<SponsorRelevancePointer> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(pointer);
         SteppingClock clock = new SteppingClock(t0);
-        DealService service = new DealService(dealRepository, sessions, summaries, properties, provider, clock);
+        DealService service =
+                new DealService(dealRepository, sessions, summaries, properties, logoService, provider, clock);
 
         // A long deal with Logitech, then a one-hour deal with Red Bull created inside it: each is pointed at as it
         // becomes current.
@@ -336,7 +343,8 @@ class DealsTest {
         ObjectProvider<SponsorRelevancePointer> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(pointer);
         SteppingClock clock = new SteppingClock(t0 + hour);
-        DealService service = new DealService(dealRepository, sessions, summaries, properties, provider, clock);
+        DealService service =
+                new DealService(dealRepository, sessions, summaries, properties, logoService, provider, clock);
 
         // A running deal is pointed at on creation; renaming its sponsor points at the new name once.
         long id =

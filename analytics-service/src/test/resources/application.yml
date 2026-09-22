@@ -6,3 +6,8 @@ spring:
 eureka:
   client:
     enabled: false
+
+streamsense:
+  logos:
+    # No MinIO in a test: logo bytes live in a map for the life of the context.
+    store: memory

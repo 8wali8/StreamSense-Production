@@ -148,6 +148,17 @@ spec:
                 secretKeyRef:
                   name: streamsense-secrets
                   key: POSTGRES_PASSWORD
+            # Deal logos are kept in MinIO under streamsense-logos with the frame storage credentials.
+            - name: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+            - name: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: streamsense-secrets
+                  key: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
             - name: STREAMSENSE_TWITCH_HELIX_ENABLED
               value: "false"
             - name: TWITCH_CLIENT_ID

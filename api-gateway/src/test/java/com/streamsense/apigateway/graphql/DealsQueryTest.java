@@ -39,7 +39,9 @@ class DealsQueryTest {
             {"id": 3, "streamer": "redbull-testing", "sponsor": "Red Bull", "startsAt": 1788400000000,
              "endsAt": null, "promisedStreams": 4, "fee": 2500.0, "currency": "USD", "cpmPer30sEquivalent": 12.0,
              "hostReadRatePer1000": 15.0, "trackedLink": "https://www.redbull.com/f1", "trackedLinkHost": "redbull.com",
-             "chatCommand": "!redbull", "channelPointReward": null, "active": true, "shareToken": "tok-abc", "createdAt": 1788400000000}
+             "chatCommand": "!redbull", "channelPointReward": null, "active": true, "shareToken": "tok-abc", "createdAt": 1788400000000,
+             "logos": [{"id": 7, "dealId": 3, "contentType": "image/png", "width": 512, "height": 192, "sizeBytes": 24576,
+                        "uploadedAt": 1788400500000, "ref": "s3://streamsense-logos/deals/3/a.png"}]}
             """;
 
     @DynamicPropertySource
@@ -82,13 +84,16 @@ class DealsQueryTest {
                 .document(
                         """
                         query {
-                          deals(streamer: "redbull-testing", limit: 10) { id sponsor chatCommand trackedLinkHost active fee }
+                          deals(streamer: "redbull-testing", limit: 10) { id sponsor chatCommand trackedLinkHost active fee logos { id width } }
                         }
                         """)
                 .execute()
                 .path("deals[0].id")
                 .entity(String.class)
                 .isEqualTo("3")
+                .path("deals[0].logos[0].width")
+                .entity(Integer.class)
+                .isEqualTo(512)
                 .path("deals[0].trackedLinkHost")
                 .entity(String.class)
                 .isEqualTo("redbull.com")

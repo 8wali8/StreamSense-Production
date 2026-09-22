@@ -260,7 +260,12 @@ services:
       - POSTGRES_PASSWORD
       - TWITCH_CLIENT_ID
       - TWITCH_CLIENT_SECRET
+      # Deal logos are stored in the frame store's MinIO under streamsense-logos.
+      - STREAMSENSE_FRAME_STORAGE_ACCESS_KEY
+      - STREAMSENSE_FRAME_STORAGE_SECRET_KEY
     depends_on:
+      minio:
+        condition: service_started
       eureka-server:
         condition: service_healthy
       config-server:

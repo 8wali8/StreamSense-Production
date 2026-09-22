@@ -1,8 +1,11 @@
 import type { DealsQuery } from "../graphql/generated";
-import { apiFetch, apiSend } from "../lib/api-client";
+import { apiFetch, apiRequest, apiSend } from "../lib/api-client";
 
 /** A deal as the gateway returns it; the REST create response has the same shape. */
 export type Deal = DealsQuery["deals"][number];
+
+/** One of the deal's logos, as the gateway lists them on the deal. */
+export type DealLogo = Deal["logos"][number];
 
 /**
  * POST /api/analytics/deals. Rates default to the configured media value assumptions when absent;
@@ -41,6 +44,50 @@ export function updateDeal(dealId: string, request: DealUpdateRequest): Promise<
 /** DELETE /api/analytics/deals/{id}: operators only, and refused (409) while the deal is shared. */
 export function deleteDeal(dealId: string): Promise<void> {
   return apiSend(`/api/analytics/deals/${encodeURIComponent(dealId)}`, { method: "DELETE" });
+}
+
+/**
+ * POST /api/analytics/deals/{id}/logos, multipart with the image in `file`. The service decides the type from
+ * the bytes (PNG or JPEG), measures it, and refuses a third logo (409) or a bad image (400). The REST logo
+ * carries a storage ref the console does not use; the GraphQL shape is what the deal lists.
+ */
+export function uploadDealLogo(dealId: string, file: File): Promise<DealLogo> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  return apiFetch<DealLogo>(`/api/analytics/deals/${encodeURIComponent(dealId)}/logos`, {
+    method: "POST",
+    body: form,
+    // A few megabytes over a slow uplink take longer than an API call.
+    timeoutMs: 60_000,
+  });
+}
+
+/** DELETE /api/analytics/deals/{id}/logos/{logoId}: the logo and its stored image go; detection stops using it. */
+export function removeDealLogo(dealId: string, logoId: string): Promise<void> {
+  return apiSend(`/api/analytics/deals/${encodeURIComponent(dealId)}/logos/${encodeURIComponent(logoId)}`, {
+    method: "DELETE",
+  });
+}
+
+/**
+ * GET /api/analytics/deals/{id}/logos/{logoId}, the image itself, as a data URL for an <img>. Fetched through the
+ * client rather than linked, because an <img src> carries no bearer token and the gateway would refuse it.
+ */
+export async function fetchDealLogo(dealId: string, logoId: string): Promise<string> {
+  const response = await apiRequest(
+    `/api/analytics/deals/${encodeURIComponent(dealId)}/logos/${encodeURIComponent(logoId)}`,
+  );
+  const type = response.headers.get("content-type") ?? "application/octet-stream";
+  return `data:${type};base64,${base64Of(new Uint8Array(await response.arrayBuffer()))}`;
+}
+
+/** Base64 of the bytes, in slices small enough for `String.fromCharCode` to take as arguments. */
+function base64Of(bytes: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x2000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x2000));
+  }
+  return btoa(binary);
 }
 
 /** GET /api/analytics/streams/{streamer}/vods: the channel's recordings on Twitch, newest first. */

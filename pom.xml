@@ -45,6 +45,8 @@
     <resilience4j.version>2.4.0</resilience4j.version>
     <nimbus-jose-jwt.version>9.37.3</nimbus-jose-jwt.version>
     <json-schema-validator.version>1.5.9</json-schema-validator.version>
+    <!-- S3 client for the deal logos analytics-service keeps in MinIO; Renovate keeps this current -->
+    <awssdk.version>2.46.7</awssdk.version>
     <!-- Boot 3.5.16 manages 42.7.11, which carries CVE-2026-54291 (SCRAM client); Renovate keeps this current. -->
     <postgresql.version>42.7.12</postgresql.version>
 
@@ -71,6 +73,13 @@
         <groupId>io.github.resilience4j</groupId>
         <artifactId>resilience4j-bom</artifactId>
         <version>${resilience4j.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>bom</artifactId>
+        <version>${awssdk.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

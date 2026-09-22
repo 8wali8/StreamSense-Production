@@ -2,6 +2,7 @@ package com.streamsense.analyticsservice.service;
 
 import com.streamsense.analyticsservice.api.Deal;
 import com.streamsense.analyticsservice.api.DealCreateRequest;
+import com.streamsense.analyticsservice.api.DealLogo;
 import com.streamsense.analyticsservice.api.DealSummary;
 import com.streamsense.analyticsservice.api.DealUpdateRequest;
 import com.streamsense.analyticsservice.api.SessionSummary;
@@ -9,6 +10,7 @@ import com.streamsense.analyticsservice.api.ShareLink;
 import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.api.SummaryOptions;
 import com.streamsense.analyticsservice.config.StreamSenseProperties;
+import com.streamsense.analyticsservice.model.DealLogoRow;
 import com.streamsense.analyticsservice.model.DealRow;
 import com.streamsense.analyticsservice.persistence.DealRepository;
 import com.streamsense.analyticsservice.relevance.SponsorRelevancePointer;
@@ -50,6 +52,7 @@ public class DealService {
     private final StreamSessionService sessions;
     private final SessionSummaryService summaries;
     private final StreamSenseProperties properties;
+    private final DealLogoService logos;
     private final ObjectProvider<SponsorRelevancePointer> relevance;
     private final Clock clock;
     /** The deal this instance last pointed relevance at, per streamer; a restart points the running ones once more, which is harmless. */
@@ -61,8 +64,9 @@ public class DealService {
             StreamSessionService sessions,
             SessionSummaryService summaries,
             StreamSenseProperties properties,
+            DealLogoService logos,
             ObjectProvider<SponsorRelevancePointer> relevance) {
-        this(deals, sessions, summaries, properties, relevance, Clock.systemUTC());
+        this(deals, sessions, summaries, properties, logos, relevance, Clock.systemUTC());
     }
 
     /** For tests that need a fixed clock, for example to see a scheduled deal begin. */
@@ -71,12 +75,14 @@ public class DealService {
             StreamSessionService sessions,
             SessionSummaryService summaries,
             StreamSenseProperties properties,
+            DealLogoService logos,
             ObjectProvider<SponsorRelevancePointer> relevance,
             Clock clock) {
         this.deals = deals;
         this.sessions = sessions;
         this.summaries = summaries;
         this.properties = properties;
+        this.logos = logos;
         this.relevance = relevance;
         this.clock = clock;
     }
@@ -143,6 +149,8 @@ public class DealService {
             return false;
         }
         DealRow deal = found.get();
+        // Read before the delete: the rows cascade away with the deal, the objects behind them do not.
+        List<DealLogoRow> logoRows = logos.rowsOf(deal.id());
         // The delete itself checks the token again, so a link minted between the read and the delete survives.
         if (deal.shareToken() != null || !deals.deleteUnshared(deal.id())) {
             if (deals.findById(deal.id()).isEmpty()) {
@@ -150,6 +158,7 @@ public class DealService {
             }
             throw new IllegalStateException("revoke the deal's share link before deleting it");
         }
+        logos.deleteObjects(logoRows);
         repoint(deal.streamer(), deal.id());
         return true;
     }
@@ -250,7 +259,11 @@ public class DealService {
         long now = clock.millis();
         String login = normalizeLogin(streamer);
         List<DealRow> rows = login == null ? deals.findAll(limit) : deals.findByStreamer(login, limit);
-        return rows.stream().map(row -> toApi(row, now)).toList();
+        Map<Long, List<DealLogo>> logosByDeal =
+                logos.listByDeals(rows.stream().map(DealRow::id).toList());
+        return rows.stream()
+                .map(row -> toApi(row, now, logosByDeal.getOrDefault(row.id(), List.of())))
+                .toList();
     }
 
     public Optional<Deal> get(long id) {
@@ -411,7 +424,11 @@ public class DealService {
         return Math.round(value * 10_000d) / 10_000d;
     }
 
-    private static Deal toApi(DealRow row, long now) {
+    private Deal toApi(DealRow row, long now) {
+        return toApi(row, now, logos.list(row.id()));
+    }
+
+    private static Deal toApi(DealRow row, long now, List<DealLogo> logos) {
         return new Deal(
                 row.id(),
                 row.streamer(),
@@ -429,7 +446,8 @@ public class DealService {
                 row.channelPointReward(),
                 row.covers(now),
                 row.shareToken(),
-                row.createdAt());
+                row.createdAt(),
+                logos);
     }
 
     /** The host of an absolute http(s) link, lower-cased without a leading www; null otherwise. */

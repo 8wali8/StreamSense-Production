@@ -6,7 +6,7 @@ import type { VodImportStatus, VodListing } from "../../api/analytics";
 import { AppRoutes } from "../../App";
 import { renderWithApollo } from "../../test/apollo";
 import { deal, dealSummary } from "../../test/fixtures";
-import { HttpResponse, graphqlData, restJson, restResolver, server } from "../../test/msw";
+import { HttpResponse, PNG_HEAD, graphqlData, restBytes, restJson, restResolver, server } from "../../test/msw";
 import { canResume, canStop, importLabel, recordingsForDeal } from "./import-streams";
 
 const inside: VodListing = {
@@ -81,6 +81,7 @@ describe("ImportStreams", () => {
     let imports: VodImportStatus[] = [];
     selectChannel();
     server.use(
+      restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restResolver("get", "/api/analytics/streams/redbull-testing/vods", () => HttpResponse.json(listed)),
       restResolver("get", "/api/analytics/streams/redbull-testing/vods/imports", () => HttpResponse.json(imports)),
@@ -130,6 +131,7 @@ describe("ImportStreams", () => {
     let stopped = false;
     selectChannel();
     server.use(
+      restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restJson("get", "/api/analytics/streams/redbull-testing/vods", [{ ...inside, sessionId: 12 }]),
       restResolver("get", "/api/analytics/streams/redbull-testing/vods/imports", () => HttpResponse.json(imports)),
@@ -160,6 +162,7 @@ describe("ImportStreams", () => {
   it("offers a retry when analytics has no record of an import", async () => {
     selectChannel();
     server.use(
+      restBytes("/api/analytics/deals/3/logos/7", PNG_HEAD, "image/png"),
       graphqlData("DealSummary", { dealSummary: dealSummary() }),
       restJson("get", "/api/analytics/streams/redbull-testing/vods", [{ ...inside, sessionId: 12 }]),
       // A session exists, but nothing was recorded about its import (imported before this state existed).
