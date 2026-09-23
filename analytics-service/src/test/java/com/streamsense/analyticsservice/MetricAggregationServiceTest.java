@@ -211,6 +211,44 @@ class MetricAggregationServiceTest {
                 .isZero();
     }
 
+    @Test
+    void outcomesCountAsExaminedUnavailableOrNoLogoAndOnlyDetectionsCanBeLowConfidence() {
+        long now = System.currentTimeMillis();
+        String sessionId = "outcomes-" + now;
+        String topic = properties.getTopics().getSponsorDetections();
+        SponsorDetectionEvent found = sponsorDetection("o-found", "outcome-streamer", sessionId, "Red Bull", 0.9, now);
+        found.setOutcome("DETECTED");
+        SponsorDetectionEvent missed =
+                sponsorDetection("o-missed", "outcome-streamer", sessionId, "Red Bull", 0.0, now);
+        missed.setOutcome("NOT_DETECTED");
+        SponsorDetectionEvent noLogo =
+                sponsorDetection("o-nologo", "outcome-streamer", sessionId, "Red Bull", 0.0, now);
+        noLogo.setOutcome("NO_LOGO");
+        SponsorDetectionEvent down = sponsorDetection("o-down", "outcome-streamer", sessionId, "Red Bull", 0.0, now);
+        down.setOutcome("UNAVAILABLE");
+        down.setModelVersion("fallback");
+        for (SponsorDetectionEvent event : List.of(found, missed, noLogo, down)) {
+            aggregationService.aggregateSponsorDetection(topic, event);
+        }
+
+        var summary = queryService.summary("outcome-streamer", sessionId, 15);
+        var redBull = summary.sponsorExposure().topSponsors().get(0);
+        assertThat(redBull.detectionCount()).isEqualTo(4);
+        assertThat(redBull.acceptedDetectionCount()).isEqualTo(1);
+        // Looked for and not found is not a weak detection: only the found-but-too-weak kind counts there.
+        assertThat(redBull.lowConfidenceDetectionCount()).isZero();
+        assertThat(redBull.examinedDetectionCount()).isEqualTo(2);
+        assertThat(redBull.noLogoDetectionCount()).isEqualTo(1);
+        assertThat(redBull.fallbackDetectionCount()).isEqualTo(1);
+        assertThat(summary.sponsorExposure().estimatedExposureMs()).isEqualTo(10000);
+        // Only the frame that could not be examined counts against the numbers' quality.
+        RiskFactor sponsorQuality = summary.risk().factors().stream()
+                .filter(factor -> factor.name().equals("sponsorQualityRisk"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(sponsorQuality.value()).isCloseTo(1.0d / 4.0d, within(1e-9));
+    }
+
     private static SponsorDetectionEvent sponsorDetection(
             String detectionEventId,
             String streamer,

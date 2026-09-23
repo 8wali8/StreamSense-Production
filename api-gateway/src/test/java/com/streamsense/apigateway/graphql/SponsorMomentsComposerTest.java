@@ -101,6 +101,48 @@ class SponsorMomentsComposerTest {
         assertThat(moments.segments()).isEmpty();
     }
 
+    @Test
+    void aFrameLookedAtWithoutTheLogoOrNotLookedAtIsNotOnScreen() {
+        StreamSession session = new StreamSession(
+                7L,
+                "racer",
+                "HELIX",
+                "41",
+                null,
+                "racer",
+                "Monza",
+                "F1",
+                START,
+                START + 3_600_000L,
+                false,
+                3_600_000L,
+                1500,
+                1200.0,
+                30,
+                null);
+        SponsorDetectionEvent missed = detection("Red Bull", START + 10_000L, 0.9, null);
+        missed.setOutcome("NOT_DETECTED");
+        SponsorDetectionEvent unavailable = detection("Red Bull", START + 20_000L, 0.9, null);
+        unavailable.setOutcome("UNAVAILABLE");
+        SponsorDetectionEvent found = detection("Red Bull", START + 30_000L, 0.9, null);
+        found.setOutcome("DETECTED");
+        SponsorDetectionEvent legacy = detection("Red Bull", START + 40_000L, 0.9, null);
+
+        SponsorMoments moments = SponsorMomentsComposer.compose(
+                session,
+                "Red Bull",
+                List.of(missed, unavailable, found, legacy),
+                List.of(),
+                List.of(),
+                List.of(),
+                30_000L,
+                0.5);
+
+        assertThat(moments.segments()).hasSize(1);
+        assertThat(moments.segments().get(0).startedAt()).isEqualTo(START + 30_000L);
+        assertThat(moments.segments().get(0).detections()).isEqualTo(2);
+    }
+
     private static SponsorDetectionEvent detection(String sponsor, long at, double confidence, Long videoTs) {
         SponsorDetectionEvent event = new SponsorDetectionEvent();
         event.setDetectionEventId("d-" + at);

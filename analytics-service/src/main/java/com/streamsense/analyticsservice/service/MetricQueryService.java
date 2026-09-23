@@ -89,8 +89,9 @@ public class MetricQueryService {
         SentimentMetricSummary transcriptSentiment = transcriptSentimentSummary(buckets);
         SponsorExposureSummary sponsorSummary = sponsorSummary(sponsorMetrics);
         // Summed over every sponsor in the window; the summary only keeps the top five for display.
+        // Frames whose answer cannot be trusted: too weak to credit, or never examined at all.
         long lowConfidenceDetections = sponsorMetrics.stream()
-                .mapToLong(SponsorExposureMetric::lowConfidenceDetectionCount)
+                .mapToLong(metric -> metric.lowConfidenceDetectionCount() + metric.fallbackDetectionCount())
                 .sum();
         EngagementMetrics engagement = engagementSummary(buckets);
         BrandSafetyMetrics risk = risk(
@@ -421,7 +422,9 @@ public class MetricQueryService {
                 average,
                 metric.maxConfidence() == null ? null : round(metric.maxConfidence()),
                 metric.fallbackDetectionCount(),
-                metric.lowConfidenceDetectionCount());
+                metric.lowConfidenceDetectionCount(),
+                metric.examinedDetectionCount(),
+                metric.noLogoDetectionCount());
     }
 
     private QueryWindow window(

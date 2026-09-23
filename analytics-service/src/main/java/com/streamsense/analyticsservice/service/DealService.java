@@ -307,6 +307,12 @@ public class DealService {
         return deals.findStreamersWithDealCovering(clock.millis());
     }
 
+    /** The deal the channel is in right now, with its logos: what a frame is examined against. Empty when none. */
+    public Optional<Deal> current(String streamer) {
+        long now = clock.millis();
+        return dealFor(streamer, now, null).map(row -> toApi(row, now));
+    }
+
     /** The deal a session belongs to: the newest one on its channel covering its start, for the sponsor if named. */
     public Optional<DealRow> dealFor(String streamer, long startedAt, String sponsor) {
         String login = normalizeLogin(streamer);

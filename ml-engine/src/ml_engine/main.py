@@ -227,16 +227,21 @@ def _inference_router() -> APIRouter:
                     frame_sequence=request.frameSequence,
                     frame_signature=frame_image.signature if frame_image else None,
                     proposals=proposals,
+                    sponsor=request.sponsor,
+                    logo_refs=tuple(request.logoRefs),
                 )
             )
         logger.info(
-            "sponsor request processed frameId=%s streamer=%s sponsor=%s confidence=%.3f modelVersion=%s proposals=%s",
+            "sponsor request processed frameId=%s streamer=%s sponsor=%s outcome=%s confidence=%.3f modelVersion=%s"
+            " proposals=%s logos=%s",
             request.frameId,
             request.streamer,
             detection.sponsor,
+            detection.outcome,
             detection.confidence,
             detection.model_version,
             len(proposals),
+            len(request.logoRefs),
         )
         return SponsorResponse(
             sponsor=detection.sponsor,
@@ -246,6 +251,7 @@ def _inference_router() -> APIRouter:
             y=detection.y,
             width=detection.width,
             height=detection.height,
+            outcome=detection.outcome,
         )
 
     @router.post("/segment", response_model=SegmentationResponse)

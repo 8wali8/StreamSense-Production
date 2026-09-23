@@ -3,6 +3,7 @@ package com.streamsense.analyticsservice.persistence;
 import com.streamsense.analyticsservice.model.SponsorBucketExposure;
 import com.streamsense.analyticsservice.model.SponsorBucketMetric;
 import com.streamsense.analyticsservice.model.SponsorBucketTotals;
+import com.streamsense.analyticsservice.model.SponsorOutcomeTotals;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -33,8 +34,7 @@ public class SponsorMetricBucketRepository {
             int bucketSizeSeconds,
             String sponsor,
             double confidence,
-            boolean accepted,
-            boolean fallback,
+            DetectionTally tally,
             long exposureMs,
             double area,
             long now) {
@@ -56,6 +56,8 @@ public class SponsorMetricBucketRepository {
                     accepted_detection_count = accepted_detection_count + ?,
                     low_confidence_detection_count = low_confidence_detection_count + ?,
                     fallback_detection_count = fallback_detection_count + ?,
+                    examined_detection_count = examined_detection_count + ?,
+                    no_logo_detection_count = no_logo_detection_count + ?,
                     estimated_exposure_ms = estimated_exposure_ms + ?,
                     confidence_sum = confidence_sum + ?,
                     max_confidence = case when max_confidence is null or max_confidence < ? then ? else max_confidence end,
@@ -63,14 +65,16 @@ public class SponsorMetricBucketRepository {
                     updated_at = ?
                 where streamer = ? and session_key = ? and bucket_start = ? and bucket_size_seconds = ? and sponsor = ?
                 """,
-                accepted ? 1 : 0,
-                accepted ? 0 : 1,
-                fallback ? 1 : 0,
-                accepted ? exposureMs : 0,
+                tally.accepted() ? 1 : 0,
+                tally.lowConfidence() ? 1 : 0,
+                tally.unavailable() ? 1 : 0,
+                tally.examined() ? 1 : 0,
+                tally.noLogo() ? 1 : 0,
+                tally.accepted() ? exposureMs : 0,
                 confidence,
                 confidence,
                 confidence,
-                accepted ? area : 0.0d,
+                tally.accepted() ? area : 0.0d,
                 now,
                 streamer,
                 sessionKey,
@@ -94,7 +98,9 @@ public class SponsorMetricBucketRepository {
                        sum(fallback_detection_count) as fallback_detection_count,
                        sum(estimated_exposure_ms) as estimated_exposure_ms,
                        sum(confidence_sum) as confidence_sum,
-                       max(max_confidence) as max_confidence
+                       max(max_confidence) as max_confidence,
+                       sum(examined_detection_count) as examined_detection_count,
+                       sum(no_logo_detection_count) as no_logo_detection_count
                 from sponsor_metric_buckets
                 where streamer = ?
                   and bucket_size_seconds = ?
@@ -105,6 +111,38 @@ public class SponsorMetricBucketRepository {
                         + " group by sponsor order by accepted_detection_count desc, detection_count desc, sponsor asc",
                 args,
                 this::mapSponsor);
+    }
+
+    /** What happened to every sampled frame in the window, over every sponsor: the session's on-screen tracking state. */
+    public SponsorOutcomeTotals findOutcomeTotals(
+            String streamer, String sessionKey, long windowStart, long windowEnd, int bucketSizeSeconds) {
+        String sessionClause = sessionKey == null ? "" : " and session_key = ?";
+        Object[] args = sessionKey == null
+                ? new Object[] {streamer, bucketSizeSeconds, windowStart, windowEnd}
+                : new Object[] {streamer, bucketSizeSeconds, windowStart, windowEnd, sessionKey};
+        return jdbcTemplate
+                .query(
+                        """
+                        select coalesce(sum(detection_count), 0) as frames,
+                               coalesce(sum(examined_detection_count), 0) as examined,
+                               coalesce(sum(fallback_detection_count), 0) as unavailable,
+                               coalesce(sum(no_logo_detection_count), 0) as no_logo
+                        from sponsor_metric_buckets
+                        where streamer = ?
+                          and bucket_size_seconds = ?
+                          and bucket_start >= ?
+                          and bucket_start < ?
+                        """
+                                + sessionClause,
+                        (rs, rowNum) -> new SponsorOutcomeTotals(
+                                rs.getLong("frames"),
+                                rs.getLong("examined"),
+                                rs.getLong("unavailable"),
+                                rs.getLong("no_logo")),
+                        args)
+                .stream()
+                .findFirst()
+                .orElse(SponsorOutcomeTotals.NONE);
     }
 
     public List<SponsorBucketTotals> findSponsorTotalsByBucket(
@@ -282,8 +320,17 @@ public class SponsorMetricBucketRepository {
                 rs.getLong("fallback_detection_count"),
                 rs.getLong("estimated_exposure_ms"),
                 rs.getDouble("confidence_sum"),
-                rs.getObject("max_confidence", Double.class));
+                rs.getObject("max_confidence", Double.class),
+                rs.getLong("examined_detection_count"),
+                rs.getLong("no_logo_detection_count"));
     }
+
+    /**
+     * How one detection counts: accepted (on-screen time), low confidence (looked, found something too weak
+     * to credit), unavailable (could not be examined), examined (looked at all), no logo (not looked for).
+     */
+    public record DetectionTally(
+            boolean accepted, boolean lowConfidence, boolean unavailable, boolean examined, boolean noLogo) {}
 
     private SponsorBucketTotals mapTotals(ResultSet rs, int rowNum) throws SQLException {
         return new SponsorBucketTotals(

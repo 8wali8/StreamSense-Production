@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streamsense.dev/schemas/ml-sponsor-response.schema.json",
+  "title": "MlSponsorResponse",
+  "description": "POST /ml/sponsor: whether the logo was found in the frame, and where.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sponsor", "confidence", "modelVersion", "x", "y", "width", "height"],
+  "properties": {
+    "sponsor": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "modelVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "x": { "type": "number", "minimum": 0, "maximum": 1 },
+    "y": { "type": "number", "minimum": 0, "maximum": 1 },
+    "width": { "type": "number", "minimum": 0, "maximum": 1 },
+    "height": { "type": "number", "minimum": 0, "maximum": 1 },
+    "outcome": {
+      "type": ["string", "null"],
+      "enum": ["DETECTED", "NOT_DETECTED", null],
+      "description": "DETECTED: the logo is at the box. NOT_DETECTED: looked and did not find it (confidence 0, zero box). Absent from an older engine means DETECTED."
+    }
+  }
+}

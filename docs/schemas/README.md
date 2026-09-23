@@ -1,6 +1,6 @@
 # StreamSense event and API schemas
 
-One JSON Schema (draft 2020-12) per Kafka event, plus the two ml-engine sentiment payloads, named `<subject>.schema.json`. The other ml-engine payloads (sponsor relevance, sponsor detection, segmentation, transcription) are defined by the Pydantic models in `ml-engine/src/main/python/app/models.py` and are not schema-checked yet; adding them is listed as a follow-up in the branch record.
+One JSON Schema (draft 2020-12) per Kafka event, plus the ml-engine sentiment and sponsor payloads, named `<subject>.schema.json`. The other ml-engine payloads (sponsor relevance, segmentation, transcription) are defined by the Pydantic models in `ml-engine/src/ml_engine/models.py` and are not schema-checked yet.
 These are enforced, not documentation: every producer and consumer test validates a serialised
 sample against its schema (networknt `json-schema-validator` in Java, `jsonschema` in Python), and
 `tools/schema/check_compat.py` fails CI when a change would break existing consumers.
@@ -15,6 +15,8 @@ sample against its schema (networknt `json-schema-validator` in Java, `jsonschem
 | `sponsor-detection-event.schema.json` | `stream.sponsor.detections` | video-service | analytics-service, api-gateway |
 | `ml-sentiment-request.schema.json` | `POST /ml/sentiment` request | sentiment-service | ml-engine |
 | `ml-sentiment-response.schema.json` | `POST /ml/sentiment` response | ml-engine | sentiment-service |
+| `ml-sponsor-request.schema.json` | `POST /ml/sponsor` request (the frame, and the deal's sponsor and logo refs when it has one) | video-service | ml-engine |
+| `ml-sponsor-response.schema.json` | `POST /ml/sponsor` response (the detection and its `outcome`) | ml-engine | video-service |
 
 ## Rules
 

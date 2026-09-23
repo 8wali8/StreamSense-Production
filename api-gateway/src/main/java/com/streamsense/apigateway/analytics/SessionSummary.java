@@ -20,7 +20,12 @@ public record SessionSummary(
         SentimentMetricSummary transcriptSentiment,
         EngagementMetrics engagement,
         SessionValue value,
-        DirectResponse response) {
+        DirectResponse response,
+        OnScreenTracking onScreenTracking) {
+
+    /** Whether the frames were examined for the sponsor's logo: ON, PARTIAL, UNAVAILABLE, OFF, or NO_FRAMES. */
+    public record OnScreenTracking(
+            String state, long examinedFrames, long unavailableFrames, long noLogoFrames, long unavailableMs) {}
 
     public record SessionValue(
             Double logoValue,

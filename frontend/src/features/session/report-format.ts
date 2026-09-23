@@ -82,6 +82,46 @@ export function vodUrl(session: VodSession, offsetMs: number): string | null {
   return `https://www.twitch.tv/videos/${videoId}?t=${hours}h${minutes}m${seconds}s`;
 }
 
+/** Whether the stream's frames were examined for the sponsor's logo, as the report carries it. */
+export type OnScreenTrackingLike = { state: string; unavailableMs: number } | null | undefined;
+
+/**
+ * What stands under the on-screen number: the share of the stream, or why there is none. An older
+ * report without a tracking block reads as tracked.
+ */
+export function onScreenNote(tracking: OnScreenTrackingLike, share: number | null | undefined): string {
+  switch (tracking?.state) {
+    case "OFF":
+      return "tracking is off, no logo on the deal";
+    case "UNAVAILABLE":
+      return "tracking was unavailable";
+    case "NO_FRAMES":
+      return "no video captured";
+    case "PARTIAL":
+      return `${formatShare(share)} of stream · unavailable for ${formatDuration(tracking?.unavailableMs)}`;
+    default:
+      return `${formatShare(share)} of stream`;
+  }
+}
+
+/** The on-screen tile's line. */
+export function onScreenLabel(tracking: OnScreenTrackingLike, share: number | null | undefined): string {
+  return `On screen · ${onScreenNote(tracking, share)}`;
+}
+
+/** The media value tile's line: why it is a dash, or that it is an estimate. */
+export function mediaValueLabel(
+  sponsor: string | null | undefined,
+  tracking: OnScreenTrackingLike,
+  mediaValue: number | null | undefined,
+): string {
+  if (sponsor == null) return "Media value · no sponsor tracked";
+  if (tracking?.state === "OFF") return "Media value · on-screen tracking is off";
+  if (tracking?.state === "UNAVAILABLE") return "Media value · on-screen tracking was unavailable";
+  if (mediaValue == null) return "Media value · needs viewer data";
+  return "Media value · estimate";
+}
+
 /** Plain-language names for the risk factors the analytics service reports. */
 export function riskFactorName(name: string): string {
   switch (name) {

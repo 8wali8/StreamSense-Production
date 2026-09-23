@@ -68,6 +68,15 @@ public class SponsorDetectionEntity {
     @Column(name = "video_timestamp_ms")
     private Long videoTimestampMs;
 
+    @Column(name = "outcome", length = 16)
+    private String outcome;
+
+    @Column(name = "deal_id")
+    private Long dealId;
+
+    @Column(name = "logo_id")
+    private Long logoId;
+
     public String getDetectionEventId() {
         return detectionEventId;
     }
@@ -220,6 +229,30 @@ public class SponsorDetectionEntity {
         this.videoTimestampMs = videoTimestampMs;
     }
 
+    public String getOutcome() {
+        return outcome;
+    }
+
+    public void setOutcome(String outcome) {
+        this.outcome = outcome;
+    }
+
+    public Long getDealId() {
+        return dealId;
+    }
+
+    public void setDealId(Long dealId) {
+        this.dealId = dealId;
+    }
+
+    public Long getLogoId() {
+        return logoId;
+    }
+
+    public void setLogoId(Long logoId) {
+        this.logoId = logoId;
+    }
+
     public SponsorDetectionEvent toEvent() {
         SponsorDetectionEvent event = new SponsorDetectionEvent();
         event.setDetectionEventId(detectionEventId);
@@ -243,6 +276,11 @@ public class SponsorDetectionEntity {
         event.setVideoTimestampMs(videoTimestampMs);
         // Not persisted: derived from the model version so a history read matches what was published.
         event.setFallback(SponsorDetectionEvent.isFallbackModelVersion(modelVersion));
+        // Rows from before outcomes read as the outcome their model version implies.
+        event.setOutcome(com.streamsense.videoservice.events.DetectionOutcome.resolve(outcome, modelVersion)
+                .name());
+        event.setDealId(dealId);
+        event.setLogoId(logoId);
         return event;
     }
 
@@ -267,6 +305,9 @@ public class SponsorDetectionEntity {
         entity.setStreamSessionId(event.getStreamSessionId());
         entity.setTwitchStreamId(event.getTwitchStreamId());
         entity.setVideoTimestampMs(event.getVideoTimestampMs());
+        entity.setOutcome(event.getOutcome());
+        entity.setDealId(event.getDealId());
+        entity.setLogoId(event.getLogoId());
         return entity;
     }
 }
