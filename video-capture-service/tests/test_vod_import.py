@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from typing import ClassVar
 
 from fastapi.testclient import TestClient
 
@@ -90,10 +91,57 @@ class FakePublisher:
         pass
 
 
-def manager(monkeypatch) -> tuple[VodImportManager, FakePublisher]:
+class FakePass:
+    """Plays the sequential pass: hands over a file for every index until ``dies_at``, where it ends early."""
+
+    dies_at: ClassVar[int | None] = None
+    started: ClassVar[list[int]] = []
+
+    def __init__(self, hls_url, scratch_dir, start_offset_seconds, frame_interval_seconds, *args, **kwargs):
+        self.scratch_dir = Path(scratch_dir)
+        self.start_offset = start_offset_seconds
+        self.throttled: list[int] = []
+        FakePass.started.append(start_offset_seconds)
+
+    def start(self):
+        self.scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    def frame_path(self, index):
+        return self.scratch_dir / f"f-{index:08d}.jpg"
+
+    def audio_path(self, index):
+        return self.scratch_dir / f"a-{index:08d}.wav"
+
+    def wait_for(self, path, next_path, cancel):
+        if cancel.is_set():
+            raise ProcessCancelledError("ffmpeg was cancelled")
+        index = int(path.stem.split("-")[1])
+        if FakePass.dies_at is not None and index >= FakePass.dies_at:
+            return None
+        path.write_bytes(b"sample")
+        return path
+
+    def throttle(self, consumed):
+        self.throttled.append(consumed)
+
+    def returncode(self):
+        return 1 if FakePass.dies_at is not None else 0
+
+    def last_error(self):
+        return "the playlist stopped answering" if FakePass.dies_at is not None else ""
+
+    def close(self):
+        pass
+
+
+def manager(monkeypatch, mode: str = "seek") -> tuple[VodImportManager, FakePublisher]:
     monkeypatch.setenv("STREAMSENSE_TWITCH_VIDEO_ENABLED", "true")
     monkeypatch.setenv("TWITCH_VIDEO_CHANNELS", "racer")
     monkeypatch.setenv("STREAMSENSE_FRAME_STORAGE_BACKEND", "filesystem")
+    monkeypatch.setenv("TWITCH_VOD_IMPORT_MODE", mode)
+    monkeypatch.setattr("video_capture_service.vod_import.SequentialPass", FakePass)
+    FakePass.dies_at = None
+    FakePass.started = []
     monkeypatch.setattr("video_capture_service.vod_import.TwitchSourceResolver", FakeResolver)
     monkeypatch.setattr("video_capture_service.vod_import.FrameSampler", HoldingSampler)
     HoldingSampler.release = threading.Event()
@@ -192,3 +240,58 @@ def test_stop_route_is_scoped_to_the_streamers_own_channel(monkeypatch):
         assert client.get("/api/video/capture/replay/77", headers=mine).status_code == 404
         assert client.delete("/api/video/capture/replay/77", headers=mine).status_code == 404
         assert client.delete("/api/video/capture/replay/77").json()["state"] == "DONE"
+
+
+def test_the_sequential_pass_publishes_every_frame_in_order_and_paces_ffmpeg(monkeypatch):
+    imports, publisher = manager(monkeypatch, mode="sequential")
+    try:
+        HoldingSampler.release.set()
+        status = imports.start(request("1"))
+        assert wait_for(lambda: status.state == "DONE")
+        assert [event.frameId for event in publisher.published] == [f"vod-1-f{offset}" for offset in range(0, 100, 10)]
+        assert status.frames_published == 10
+        assert status.offset_seconds == 100
+        # One pass from the start; the consumer told ffmpeg where it was after every sample.
+        assert FakePass.started == [0]
+    finally:
+        imports.shutdown()
+
+
+def test_a_pass_that_dies_is_continued_by_seeking_from_where_it_got_to(monkeypatch):
+    imports, publisher = manager(monkeypatch, mode="sequential")
+    try:
+        HoldingSampler.release.set()
+        FakePass.dies_at = 4
+        status = imports.start(request("1"))
+        assert wait_for(lambda: status.state == "DONE")
+        # Frames 0..30 came from the pass, 40..90 from the seeking fallback: no gap and no repeat.
+        assert [event.frameId for event in publisher.published] == [f"vod-1-f{offset}" for offset in range(0, 100, 10)]
+        assert FakePass.started == [0]
+    finally:
+        imports.shutdown()
+
+
+def test_a_stop_during_the_pass_lands_before_the_next_sample(monkeypatch):
+    imports, publisher = manager(monkeypatch, mode="sequential")
+    try:
+        # The stop is set from inside the publisher: the next wait sees it and ends the pass.
+        original = publisher.publish
+
+        def publish_then_stop(event):
+            original(event)
+            imports.stop("1")
+            return 1
+
+        publisher.publish = publish_then_stop
+        status = imports.start(request("1"))
+        assert wait_for(lambda: status.state == "STOPPED", timeout=3)
+        assert [event.frameId for event in publisher.published] == ["vod-1-f0"]
+        # Resuming picks up at the next offset, with a fresh pass from there.
+        HoldingSampler.release.set()
+        publisher.publish = original
+        resumed = imports.start(request("1"))
+        assert wait_for(lambda: resumed.state == "DONE")
+        assert FakePass.started == [0, 10]
+        assert resumed.frames_published == 9
+    finally:
+        imports.shutdown()

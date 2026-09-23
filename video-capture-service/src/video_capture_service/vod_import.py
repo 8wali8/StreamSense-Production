@@ -7,6 +7,11 @@ pipeline treats the events exactly like a live stream that happened back then. F
 the live sample interval, because the exposure arithmetic downstream credits one interval per
 accepted detection; audio is transcribed in consecutive segments unless a wider stride is asked for.
 
+The recording is read in one sequential ffmpeg pass (``vod_stream``): a frame every interval and the
+audio in interval-long chunks, consumed in order as ffmpeg decodes, with ffmpeg paused when it runs
+ahead. A pass that dies is continued by seeking into the recording once per sample, the older path
+(``TWITCH_VOD_IMPORT_MODE=seek`` makes it the only path).
+
 An import can be stopped by the recording it belongs to: the loop checks its own stop event before
 every sample and an ffmpeg run in flight is killed, so a stop lands within a sample interval rather
 than after the capture timeout. What was published stays; a later request for the same recording
@@ -16,6 +21,7 @@ resumes from the offset reached, and every id is deterministic, so the overlap n
 from __future__ import annotations
 
 import logging
+import shutil
 import tempfile
 import threading
 import time
@@ -35,6 +41,7 @@ from video_capture_service.process import ProcessCancelledError
 from video_capture_service.storage import FrameStorage
 from video_capture_service.transcription_client import TranscriptionClient, TranscriptionClientError
 from video_capture_service.twitch_source import TwitchSourceResolver, TwitchStreamResolutionError
+from video_capture_service.vod_stream import SequentialPass, SequentialPassError
 
 logger = logging.getLogger(__name__)
 
@@ -196,63 +203,39 @@ class VodImportManager:
         resolver = TwitchSourceResolver(
             self.config.quality, self.config.stream_resolve_timeout_seconds, self.config.twitch_oauth_token
         )
-        sampler = FrameSampler(
-            self.config.frame_capture_timeout_seconds, self.config.output_format, self.config.jpeg_quality
-        )
-        audio_sampler = AudioSampler(
-            self.config.transcript_audio_capture_timeout_seconds, self.config.transcript_segment_duration_seconds
-        )
         transcribe_enabled = (
             self.config.transcript_enabled
             and self.transcription_client is not None
             and self.transcript_publisher is not None
         )
         suffix = "jpg" if self.config.output_format in {"jpg", "jpeg"} else self.config.output_format
-        hls_url: str | None = None
-        consecutive_failures = 0
-        sequence = 0
-        transcript_sequence = 0
-        stop = status.stop_event
+        schedule = import_schedule(
+            request.duration_seconds,
+            request.frame_interval_seconds,
+            request.transcript_interval_seconds,
+            request.start_offset_seconds,
+        )
         try:
-            for offset, transcribe in import_schedule(
-                request.duration_seconds,
-                request.frame_interval_seconds,
-                request.transcript_interval_seconds,
-                request.start_offset_seconds,
-            ):
-                if stop.is_set():
-                    self._stopped(request, status)
+            position = 0
+            if self.config.vod_import_mode == "sequential" and schedule:
+                reached = self._run_sequential(
+                    request, status, schedule, storage, publisher, resolver, suffix, transcribe_enabled
+                )
+                if reached is None:
                     return
-                status.offset_seconds = offset
-                status.updated_at = int(time.time() * 1000)
-                try:
-                    if hls_url is None:
-                        hls_url = resolver.resolve_url(request.vod_url, request.channel)
-                    sequence += 1
-                    self._frame(request, status, storage, publisher, sampler, hls_url, offset, sequence, suffix)
-                    if transcribe and transcribe_enabled:
-                        transcript_sequence += 1
-                        self._transcript(request, status, audio_sampler, hls_url, offset, transcript_sequence)
-                    consecutive_failures = 0
-                except ProcessCancelledError:
-                    # The stop landed inside ffmpeg; the sample at this offset was not published.
-                    self._stopped(request, status)
+                position = reached
+            if position < len(schedule):
+                if position > 0:
+                    logger.warning(
+                        "VOD import continues by seeking vod=%s from offset=%ss",
+                        request.vod_id,
+                        schedule[position][0],
+                    )
+                finished = self._run_seeking(
+                    request, status, schedule[position:], storage, publisher, resolver, suffix, transcribe_enabled
+                )
+                if not finished:
                     return
-                except (TwitchStreamResolutionError, FrameCaptureError) as exc:
-                    # The HLS playlist of a recording expires; resolve it again on the next sample.
-                    hls_url = None
-                    consecutive_failures += 1
-                    self._failure(status, f"capture at {offset}s: {exc}")
-                except Exception as exc:  # noqa: BLE001 - the import must reach the end; failures are counted
-                    consecutive_failures += 1
-                    self._failure(status, f"at {offset}s: {exc}")
-                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                    status.state = "FAILED"
-                    logger.warning("VOD import gave up vod=%s after %s failures", request.vod_id, consecutive_failures)
-                    return
-                if consecutive_failures > 0:
-                    # Twitch throttles bursts of HLS seeks and the link can drop; wait before the next sample.
-                    stop.wait(min(MAX_BACKOFF_SECONDS, FAILURE_BACKOFF_SECONDS * consecutive_failures))
             status.offset_seconds = request.duration_seconds
             status.state = "DONE"
             logger.info(
@@ -265,6 +248,159 @@ class VodImportManager:
             )
         finally:
             status.updated_at = int(time.time() * 1000)
+
+    def _run_sequential(
+        self,
+        request: VodImportRequest,
+        status: VodImportStatus,
+        schedule: list[tuple[int, bool]],
+        storage: FrameStorage,
+        publisher: EventPublisher,
+        resolver: TwitchSourceResolver,
+        suffix: str,
+        transcribe_enabled: bool,
+    ) -> int | None:
+        """One ffmpeg pass over the schedule. Returns how many entries were handled (the whole schedule
+        when the pass ran to the end), or None when the import was stopped."""
+        scratch = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"vod-pass-{request.vod_id}"
+        shutil.rmtree(scratch, ignore_errors=True)
+        try:
+            hls_url = resolver.resolve_url(request.vod_url, request.channel)
+        except TwitchStreamResolutionError as exc:
+            self._failure(status, f"resolving the recording: {exc}")
+            return 0
+        run = SequentialPass(
+            hls_url,
+            scratch,
+            request.start_offset_seconds,
+            request.frame_interval_seconds,
+            request.transcript_interval_seconds,
+            transcribe_enabled,
+            self.config.output_format,
+            self.config.jpeg_quality,
+            self.config.frame_capture_timeout_seconds,
+            max(60, 4 * self.config.frame_capture_timeout_seconds),
+            self.config.vod_import_backlog_samples,
+        )
+        try:
+            run.start()
+        except SequentialPassError as exc:
+            self._failure(status, f"sequential pass: {exc}")
+            return 0
+        stop = status.stop_event
+        sequence = 0
+        transcript_sequence = 0
+        index = 0
+        try:
+            for index, (offset, transcribe) in enumerate(schedule):
+                if stop.is_set():
+                    self._stopped(request, status)
+                    return None
+                status.offset_seconds = offset
+                status.updated_at = int(time.time() * 1000)
+                frame = run.wait_for(run.frame_path(index), run.frame_path(index + 1), stop)
+                if frame is None:
+                    if len(schedule) - index <= 1:
+                        # The recording ended a hair before Twitch's stated length: nothing is missing.
+                        return len(schedule)
+                    logger.warning(
+                        "VOD import pass ended early vod=%s at offset=%ss (exit=%s): %s",
+                        request.vod_id,
+                        offset,
+                        run.returncode(),
+                        run.last_error() or "no error output",
+                    )
+                    return index
+                sequence += 1
+                try:
+                    self._publish_frame(request, status, storage, publisher, frame, offset, sequence, suffix)
+                except Exception as exc:  # noqa: BLE001 - the pass must reach the end; failures are counted
+                    self._failure(status, f"at {offset}s: {exc}")
+                finally:
+                    self._unlink(frame)
+                if transcribe and transcribe_enabled:
+                    audio_index = round((offset - request.start_offset_seconds) / request.transcript_interval_seconds)
+                    audio = run.wait_for(run.audio_path(audio_index), run.audio_path(audio_index + 1), stop)
+                    if audio is None:
+                        self._failure(status, f"transcript at {offset}s: the pass produced no audio")
+                    else:
+                        transcript_sequence += 1
+                        try:
+                            self._transcribe_file(request, status, audio, offset, transcript_sequence)
+                        finally:
+                            self._unlink(audio)
+                # The sample is done: a stop or a resume from here starts at the next one.
+                status.offset_seconds = min(request.duration_seconds, offset + request.frame_interval_seconds)
+                run.throttle(index + 1)
+            return len(schedule)
+        except ProcessCancelledError:
+            self._stopped(request, status)
+            return None
+        except SequentialPassError as exc:
+            self._failure(status, f"sequential pass at {status.offset_seconds}s: {exc}")
+            return index
+        finally:
+            run.close()
+
+    def _run_seeking(
+        self,
+        request: VodImportRequest,
+        status: VodImportStatus,
+        schedule: list[tuple[int, bool]],
+        storage: FrameStorage,
+        publisher: EventPublisher,
+        resolver: TwitchSourceResolver,
+        suffix: str,
+        transcribe_enabled: bool,
+    ) -> bool:
+        """One ffmpeg seek per sample. Returns True when the schedule ran through, False when it stopped or gave up."""
+        sampler = FrameSampler(
+            self.config.frame_capture_timeout_seconds, self.config.output_format, self.config.jpeg_quality
+        )
+        audio_sampler = AudioSampler(
+            self.config.transcript_audio_capture_timeout_seconds, self.config.transcript_segment_duration_seconds
+        )
+        hls_url: str | None = None
+        consecutive_failures = 0
+        sequence = status.frames_published
+        transcript_sequence = status.transcript_segments_published
+        stop = status.stop_event
+        for offset, transcribe in schedule:
+            if stop.is_set():
+                self._stopped(request, status)
+                return False
+            status.offset_seconds = offset
+            status.updated_at = int(time.time() * 1000)
+            try:
+                if hls_url is None:
+                    hls_url = resolver.resolve_url(request.vod_url, request.channel)
+                sequence += 1
+                self._frame(request, status, storage, publisher, sampler, hls_url, offset, sequence, suffix)
+                if transcribe and transcribe_enabled:
+                    transcript_sequence += 1
+                    self._transcript(request, status, audio_sampler, hls_url, offset, transcript_sequence)
+                consecutive_failures = 0
+                status.offset_seconds = min(request.duration_seconds, offset + request.frame_interval_seconds)
+            except ProcessCancelledError:
+                # The stop landed inside ffmpeg; the sample at this offset was not published.
+                self._stopped(request, status)
+                return False
+            except (TwitchStreamResolutionError, FrameCaptureError) as exc:
+                # The HLS playlist of a recording expires; resolve it again on the next sample.
+                hls_url = None
+                consecutive_failures += 1
+                self._failure(status, f"capture at {offset}s: {exc}")
+            except Exception as exc:  # noqa: BLE001 - the import must reach the end; failures are counted
+                consecutive_failures += 1
+                self._failure(status, f"at {offset}s: {exc}")
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                status.state = "FAILED"
+                logger.warning("VOD import gave up vod=%s after %s failures", request.vod_id, consecutive_failures)
+                return False
+            if consecutive_failures > 0:
+                # Twitch throttles bursts of HLS seeks and the link can drop; wait before the next sample.
+                stop.wait(min(MAX_BACKOFF_SECONDS, FAILURE_BACKOFF_SECONDS * consecutive_failures))
+        return True
 
     @staticmethod
     def _stopped(request: VodImportRequest, status: VodImportStatus) -> None:
@@ -290,40 +426,51 @@ class VodImportManager:
         sequence: int,
         suffix: str,
     ) -> None:
-        # Deterministic per offset: a resumed import re-samples the same frame id, and video-service derives
-        # the detection id from it, so analytics never counts an offset twice.
         frame_id = f"vod-{request.vod_id}-f{offset}"
         temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{frame_id}.{suffix}"
         try:
             captured_path, _ = sampler.capture(hls_url, temp_path, float(offset), status.stop_event)
-            object_key = (
-                f"{self.config.storage.path_prefix}/{request.channel}/{request.stream_session_id}/"
-                f"{sequence:06d}-{frame_id}.{suffix}"
-            )
-            stored = storage.store(captured_path, object_key, "image/jpeg" if suffix == "jpg" else "image/png")
-            publisher.publish(
-                FrameEvent(
-                    frameId=frame_id,
-                    streamer=request.channel,
-                    frameRef=stored.frame_ref,
-                    frameSequence=sequence,
-                    capturedAt=request.base_time_ms + offset * 1000,
-                    source=SOURCE,
-                    channelLogin=request.channel,
-                    streamSessionId=request.stream_session_id,
-                    twitchStreamId=request.vod_id,
-                    videoTimestampMs=offset * 1000,
-                    artifactContentType=stored.content_type,
-                    artifactSizeBytes=stored.size_bytes,
-                    captureWorkerId=self.config.worker_id,
-                )
-            )
-            status.frames_published += 1
+            self._publish_frame(request, status, storage, publisher, captured_path, offset, sequence, suffix)
         finally:
-            try:
-                temp_path.unlink(missing_ok=True)
-            except OSError:
-                logger.warning("failed to remove temp frame path=%s", temp_path)
+            self._unlink(temp_path)
+
+    def _publish_frame(
+        self,
+        request: VodImportRequest,
+        status: VodImportStatus,
+        storage: FrameStorage,
+        publisher: EventPublisher,
+        captured_path: Path,
+        offset: int,
+        sequence: int,
+        suffix: str,
+    ) -> None:
+        # Deterministic per offset: a resumed import re-samples the same frame id, and video-service derives
+        # the detection id from it, so analytics never counts an offset twice.
+        frame_id = f"vod-{request.vod_id}-f{offset}"
+        object_key = (
+            f"{self.config.storage.path_prefix}/{request.channel}/{request.stream_session_id}/"
+            f"{sequence:06d}-{frame_id}.{suffix}"
+        )
+        stored = storage.store(captured_path, object_key, "image/jpeg" if suffix == "jpg" else "image/png")
+        publisher.publish(
+            FrameEvent(
+                frameId=frame_id,
+                streamer=request.channel,
+                frameRef=stored.frame_ref,
+                frameSequence=sequence,
+                capturedAt=request.base_time_ms + offset * 1000,
+                source=SOURCE,
+                channelLogin=request.channel,
+                streamSessionId=request.stream_session_id,
+                twitchStreamId=request.vod_id,
+                videoTimestampMs=offset * 1000,
+                artifactContentType=stored.content_type,
+                artifactSizeBytes=stored.size_bytes,
+                captureWorkerId=self.config.worker_id,
+            )
+        )
+        status.frames_published += 1
 
     def _transcript(
         self,
@@ -334,15 +481,32 @@ class VodImportManager:
         offset: int,
         sequence: int,
     ) -> None:
+        segment_id = f"vod-{request.vod_id}-a{offset}"
+        temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{segment_id}.wav"
+        try:
+            audio_path, _ = audio_sampler.capture(hls_url, temp_path, float(offset), status.stop_event)
+            self._transcribe_file(request, status, audio_path, offset, sequence)
+        except AudioCaptureError as exc:
+            # A silent or failed segment is not a reason to stop the frames.
+            self._failure(status, f"transcript at {offset}s: {exc}")
+        finally:
+            self._unlink(temp_path)
+
+    def _transcribe_file(
+        self,
+        request: VodImportRequest,
+        status: VodImportStatus,
+        audio_path: Path,
+        offset: int,
+        sequence: int,
+    ) -> None:
         client, publisher = self.transcription_client, self.transcript_publisher
         if client is None or publisher is None:
             return
         segment_id = f"vod-{request.vod_id}-a{offset}"
-        temp_path = Path(tempfile.gettempdir()) / "streamsense-video-capture" / f"{segment_id}.wav"
         started_at = request.base_time_ms + offset * 1000
         ended_at = started_at + self.config.transcript_segment_duration_seconds * 1000
         try:
-            audio_path, _ = audio_sampler.capture(hls_url, temp_path, float(offset), status.stop_event)
             result, _ = client.transcribe(audio_path, request.channel, segment_id, started_at, ended_at)
             text = result.text.strip()[: self.config.transcript_max_chars]
             if not text:
@@ -367,14 +531,16 @@ class VodImportManager:
                 )
             )
             status.transcript_segments_published += 1
-        except (AudioCaptureError, TranscriptionClientError) as exc:
+        except TranscriptionClientError as exc:
             # A silent or failed segment is not a reason to stop the frames.
             self._failure(status, f"transcript at {offset}s: {exc}")
-        finally:
-            try:
-                temp_path.unlink(missing_ok=True)
-            except OSError:
-                logger.warning("failed to remove temp audio path=%s", temp_path)
+
+    @staticmethod
+    def _unlink(path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("failed to remove temp path=%s", path)
 
     @staticmethod
     def _failure(status: VodImportStatus, error: str) -> None:

@@ -121,6 +121,12 @@ class CaptureConfig:
     transcript_preview_chars: int
     ml_engine_url: str
     worker_id: str
+    # How a VOD import reads the recording: "sequential" is one ffmpeg pass over the playlist (a frame every
+    # interval and the audio in interval-long chunks, paused when it runs ahead); "seek" is one ffmpeg seek per
+    # sample, the older path and the fallback when a pass dies.
+    vod_import_mode: str
+    # How many samples the sequential pass may run ahead of the consumer before it is paused.
+    vod_import_backlog_samples: int
     storage: StorageConfig
     replay_aliases: dict[str, ReplayAliasConfig]
 
@@ -167,6 +173,8 @@ class CaptureConfig:
             transcript_preview_chars=_int_env("STREAMSENSE_TRANSCRIPT_PREVIEW_CHARS", 160),
             ml_engine_url=os.getenv("ML_ENGINE_URL", "http://ml-engine:8000").strip().rstrip("/"),
             worker_id=os.getenv("STREAMSENSE_VIDEO_CAPTURE_WORKER_ID", "video-capture-service-1").strip(),
+            vod_import_mode=os.getenv("TWITCH_VOD_IMPORT_MODE", "sequential").strip().lower() or "sequential",
+            vod_import_backlog_samples=_int_env("TWITCH_VOD_IMPORT_BACKLOG_SAMPLES", 30),
             storage=storage,
             replay_aliases=_replay_aliases_from_env(),
         )
@@ -202,6 +210,10 @@ class CaptureConfig:
                 raise ValueError("ML_ENGINE_URL is required")
         if self.stream_resolve_timeout_seconds < 1:
             raise ValueError("TWITCH_VIDEO_STREAM_RESOLVE_TIMEOUT_SECONDS must be positive")
+        if self.vod_import_mode not in {"sequential", "seek"}:
+            raise ValueError("TWITCH_VOD_IMPORT_MODE must be sequential or seek")
+        if self.vod_import_backlog_samples < 2:
+            raise ValueError("TWITCH_VOD_IMPORT_BACKLOG_SAMPLES must be at least 2")
         if self.storage.backend not in {"s3", "filesystem"}:
             raise ValueError("STREAMSENSE_FRAME_STORAGE_BACKEND must be s3 or filesystem")
         if self.storage.backend == "s3":
