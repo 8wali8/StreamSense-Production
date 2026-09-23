@@ -32,7 +32,7 @@ What relevance scoring knows about a sponsor lived in one config list, matched b
 | Check | Command | Result |
 |---|---|---|
 | sentiment-service | `mvn -pl sentiment-service -Dmaven.gitcommitid.skip=true spotless:apply verify` in `maven:3.9-eclipse-temurin-21` | build success; 44 tests, 0 failures (6 new in `SponsorCatalogServiceTest` and `SponsorRelevanceProfileServiceTest`); coverage floor held |
-| analytics-service | the same, `-pl analytics-service` | on `main` at `9d50ee3` every Spring context fails on two V9 migrations (`fix/02-duplicate-v9`, #82); rerun after that merge, see below |
+| analytics-service | the same, `-pl analytics-service clean spotless:check verify`, after merging `main` at `f152ef6` (#81, the logo migration renumbered to V10; on `9d50ee3` two V9 migrations failed every Spring context) | build success; 70 tests, 0 failures; Spotless and the coverage floor hold. A first run without `clean` failed the same way as `9d50ee3`: `target/classes` still held the old V9 file, which Maven never deletes on its own |
 | Frontend gate | `codegen:check`, `lint`, `format:check`, `test:coverage`, `build` | all pass; 41 files, 168 tests (4 new: `catalog.test.ts`, `SponsorCatalog.test.tsx`); statements 90.01 %, branches 85.38 % |
 
 ## What to check by hand
