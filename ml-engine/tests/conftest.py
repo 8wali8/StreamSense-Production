@@ -17,7 +17,7 @@ from PIL import Image
 
 from ml_engine.frame_store import FrameStore
 from ml_engine.main import create_app, get_registry
-from ml_engine.registry import BackendInfo
+from ml_engine.registry import BackendInfo, create_sponsor_detector
 from ml_engine.relevance import SponsorRelevanceInput, SponsorRelevanceResult
 from ml_engine.segmentation import RegionProposal
 from ml_engine.sentiment import SentimentResult
@@ -30,7 +30,6 @@ from ml_engine.settings import (
     SponsorSettings,
     WhisperSettings,
 )
-from ml_engine.sponsor import DeterministicSponsorDetector
 from ml_engine.transcription import TranscriptionResult
 
 
@@ -43,7 +42,7 @@ def make_settings(**overrides: Any) -> Settings:
         "segmentation": SegmentationSettings(backend=""),
         "whisper": WhisperSettings(),
         "frame_storage": FrameStorageSettings(),
-        "sponsor": SponsorSettings(),
+        "sponsor": SponsorSettings(backend="stub"),
     }
     base.update(overrides)
     return Settings(**base)
@@ -104,7 +103,8 @@ class FakeRegistry:
     relevance: Any = field(default_factory=FakeRelevance)
     transcriber: Any = field(default_factory=FakeTranscriber)
     segmenter: Any = field(default_factory=FakeSegmenter)
-    sponsor_detector: Any = field(default_factory=DeterministicSponsorDetector)
+    # None: built from the settings, the way the real registry does it (the stub, or the matcher when asked for).
+    sponsor_detector: Any = None
     frame_store: FrameStore | None = None
     ready: bool = True
 
@@ -113,9 +113,18 @@ class FakeRegistry:
             self.frame_store = FrameStore(
                 self.settings.frame_storage, require_frame_read=self.settings.sponsor.require_frame_read
             )
+        if self.sponsor_detector is None:
+            self.sponsor_detector = create_sponsor_detector(self.settings, self.frame_store)
+
+    @property
+    def sponsor_backend(self) -> str:
+        return "deterministic-stub" if self.settings.sponsor.normalized_backend == "stub" else "logo-match"
 
     def info(self) -> list[BackendInfo]:
-        return [BackendInfo("sentiment", "fake", "fake-model", True)]
+        return [
+            BackendInfo("sentiment", "fake", "fake-model", True),
+            BackendInfo("sponsor", self.sponsor_backend, self.sponsor_detector.model_version, True),
+        ]
 
 
 ClientFactory = Callable[..., tuple[TestClient, FakeRegistry]]

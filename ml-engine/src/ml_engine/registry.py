@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ml_engine.frame_store import FrameStore
+from ml_engine.logo_match import LogoMatchDetector
 from ml_engine.relevance import RelevanceAnalyzer, create_relevance_analyzer
 from ml_engine.segmentation import Segmenter, create_segmenter
 from ml_engine.sentiment import SentimentAnalyzer, create_sentiment_analyzer
@@ -41,12 +42,12 @@ class BackendRegistry:
         self._relevance: RelevanceAnalyzer | None = None
         self._segmenter: Segmenter | None = None
         self._transcriber: WhisperTranscriber | None = None
-        self._sponsor_detector: SponsorDetector = DeterministicSponsorDetector()
         self._frame_store = FrameStore(
             settings.frame_storage,
             require_frame_read=settings.sponsor.require_frame_read,
             max_frame_bytes=settings.frame_storage.max_bytes,
         )
+        self._sponsor_detector: SponsorDetector = create_sponsor_detector(settings, self._frame_store)
         self._ready = False
 
     # ------------------------------------------------------------------ lifecycle
@@ -107,6 +108,10 @@ class BackendRegistry:
         return self._sponsor_detector
 
     @property
+    def sponsor_backend(self) -> str:
+        return "deterministic-stub" if self.settings.sponsor.normalized_backend == "stub" else "logo-match"
+
+    @property
     def frame_store(self) -> FrameStore:
         return self._frame_store
 
@@ -126,8 +131,18 @@ class BackendRegistry:
                 "segmentation", s.segmentation.backend or "none", s.segmentation.model_version, _loaded(self._segmenter)
             ),
             BackendInfo("transcription", "faster-whisper", s.whisper.model, _loaded(self._transcriber)),
-            BackendInfo("sponsor", "deterministic-stub", "stub-v1", True),
+            BackendInfo("sponsor", self.sponsor_backend, self._sponsor_detector.model_version, True),
         ]
+
+
+def create_sponsor_detector(settings: Settings, frame_store: FrameStore) -> SponsorDetector:
+    """The placeholder only when asked for by name; anything else is the real matcher."""
+    backend = settings.sponsor.normalized_backend
+    if backend == "stub":
+        return DeterministicSponsorDetector()
+    if backend != "logo-match":
+        raise ValueError(f"unknown sponsor backend {settings.sponsor.backend!r}: use logo-match or stub")
+    return LogoMatchDetector(settings.sponsor.to_match_config(), frame_store)
 
 
 class ModelNotReadyError(RuntimeError):

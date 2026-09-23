@@ -69,6 +69,8 @@ spec:
                 secretKeyRef:
                   name: streamsense-secrets
                   key: STREAMSENSE_FRAME_STORAGE_SECRET_KEY
+            - name: STREAMSENSE_SPONSOR_BACKEND
+              value: logo-match
             - name: STREAMSENSE_SPONSOR_REQUIRE_FRAME_READ
               value: "false"
             - name: STREAMSENSE_WHISPER_MODEL

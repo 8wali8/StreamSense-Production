@@ -50,7 +50,7 @@ def test_sponsor_detection_is_deterministic(client):
 
 
 def test_sponsor_endpoint_reads_real_frame_fixture(make_client, tmp_path):
-    client, _ = make_client(sponsor=SponsorSettings(require_frame_read=True))
+    client, _ = make_client(sponsor=SponsorSettings(backend="stub", require_frame_read=True))
     frame_path = tmp_path / "frame.ppm"
     frame_path.write_bytes(b"P6\n1 1\n255\n\xff\x00\x00")
 
@@ -61,7 +61,9 @@ def test_sponsor_endpoint_reads_real_frame_fixture(make_client, tmp_path):
 
 
 def test_sponsor_endpoint_uses_region_proposals_when_segmentation_enabled(make_client, tmp_path):
-    client, registry = make_client(sponsor=SponsorSettings(require_frame_read=True, segmentation_enabled=True))
+    client, registry = make_client(
+        sponsor=SponsorSettings(backend="stub", require_frame_read=True, segmentation_enabled=True)
+    )
     registry.segmenter = FakeSegmenter(
         [RegionProposal.from_bounds("visual-region", 0.9, 0.1, 0.1, 0.5, 0.5, source="heuristic")]
     )
@@ -94,7 +96,7 @@ def test_heuristic_segmentation_end_to_end(real_lightweight_client, tmp_path):
 
 
 def test_required_frame_read_failure_returns_503(make_client, tmp_path):
-    client, _ = make_client(sponsor=SponsorSettings(require_frame_read=True))
+    client, _ = make_client(sponsor=SponsorSettings(backend="stub", require_frame_read=True))
 
     response = client.post("/ml/sponsor", json=sponsor_payload(f"file://{tmp_path / 'missing.jpg'}"))
 
