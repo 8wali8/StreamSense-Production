@@ -210,9 +210,13 @@ def _inference_router() -> APIRouter:
                 request.frameRef,
                 exc,
             )
-            if settings.sponsor.require_frame_read:
+            if settings.sponsor.require_frame_read or registry.sponsor_detector.requires_frame:
                 raise
             frame_image = None
+        if frame_image is None and registry.sponsor_detector.requires_frame:
+            # The matcher cannot answer without pixels: an unreadable reference is an outage for that frame,
+            # not a detection of nothing, so video-service records it as unavailable.
+            raise FrameArtifactError(f"logo matching needs a readable frameRef: {request.frameRef}")
 
         proposals = []
         if frame_image and settings.sponsor.segmentation_enabled:
@@ -229,8 +233,10 @@ def _inference_router() -> APIRouter:
                     proposals=proposals,
                     sponsor=request.sponsor,
                     logo_refs=tuple(request.logoRefs),
+                    frame_image=frame_image.image if frame_image else None,
                 )
             )
+        metrics.sponsor_outcomes.labels(backend=registry.sponsor_backend, outcome=detection.outcome).inc()
         logger.info(
             "sponsor request processed frameId=%s streamer=%s sponsor=%s outcome=%s confidence=%.3f modelVersion=%s"
             " proposals=%s logos=%s",

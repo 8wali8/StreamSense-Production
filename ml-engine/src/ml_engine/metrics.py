@@ -36,6 +36,12 @@ inference_failures = Counter(
     labelnames=("backend", "error"),
 )
 
+sponsor_outcomes = Counter(
+    "ml_sponsor_outcomes_total",
+    "Sponsor detections by backend and outcome (DETECTED or NOT_DETECTED)",
+    ["backend", "outcome"],
+)
+
 forced_failures = Counter(
     "streamsense_ml_forced_failures_total",
     "Requests rejected because ML_ENGINE_FORCE_FAILURE is on",

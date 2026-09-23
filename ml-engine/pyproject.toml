@@ -23,6 +23,8 @@ dependencies = [
     "faster-whisper>=1.0,<2",
     "pydantic-settings>=2.5,<3",
     "prometheus-client>=0.20,<1",
+    # Logo matching (SIFT keypoints, RANSAC homography, correlation check) for the real sponsor detector. Pinned exactly.
+    "opencv-python-headless==5.0.0.93",
 ]
 
 [build-system]

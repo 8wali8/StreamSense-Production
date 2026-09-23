@@ -2,6 +2,8 @@ import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 
+from PIL import Image
+
 from ml_engine.segmentation import RegionProposal
 
 SPONSORS = [
@@ -39,9 +41,17 @@ class SponsorDetectionContext:
     # and the name every detection of the frame is stamped with.
     sponsor: str | None = None
     logo_refs: tuple[str, ...] = ()
+    # The decoded frame, when the store could read it; the real detector needs it, the placeholder does not.
+    frame_image: Image.Image | None = None
 
 
 class SponsorDetector(Protocol):
+    # True for a detector that cannot answer without the frame's pixels.
+    requires_frame: bool
+
+    @property
+    def model_version(self) -> str: ...
+
     def detect(self, context: SponsorDetectionContext) -> SponsorDetection:
         pass
 
@@ -52,6 +62,12 @@ class DeterministicSponsorDetector:
     It always answers DETECTED. With a sponsor in the context the detection carries that name, so the
     analytics downstream keys it under the deal; without one it picks from the fixed list as it always did.
     """
+
+    requires_frame = False
+
+    @property
+    def model_version(self) -> str:
+        return "stub-v1"
 
     def detect(self, context: SponsorDetectionContext) -> SponsorDetection:
         proposals = context.proposals or []
@@ -113,6 +129,7 @@ def detect_sponsor(
     detector: SponsorDetector | None = None,
     sponsor: str | None = None,
     logo_refs: tuple[str, ...] = (),
+    frame_image: Image.Image | None = None,
 ) -> SponsorDetection:
     resolved = detector or DeterministicSponsorDetector()
     return resolved.detect(
@@ -124,6 +141,7 @@ def detect_sponsor(
             proposals=proposals,
             sponsor=sponsor,
             logo_refs=logo_refs,
+            frame_image=frame_image,
         )
     )
 

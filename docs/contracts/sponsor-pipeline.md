@@ -3,7 +3,7 @@
 ## Ownership
 
 - `video-service` owns frame ingest, sponsor inference orchestration, persistence, and sponsor detection history.
-- `ml-engine` owns deterministic sponsor inference behind `POST /ml/sponsor`.
+- `ml-engine` owns sponsor inference behind `POST /ml/sponsor`: the logo matcher (`STREAMSENSE_SPONSOR_BACKEND=logo-match`, the default), or the placeholder (`stub`) for tests and the demo snapshot only.
 - `api-gateway` owns GraphQL sponsor history and live subscription access.
 
 ## Event Flow
@@ -52,6 +52,12 @@ Every sampled frame yields one `SponsorDetectionEvent` whatever happened to it, 
 | `UNAVAILABLE` | could not be examined: ml-engine failed, or the deal could not be looked up | `UNKNOWN` | `fallback` |
 
 `dealId` and `logoId` say what the frame was examined against. An event from before outcomes (null) reads as `UNAVAILABLE` when its model version is `fallback` and `DETECTED` otherwise. analytics-service tallies each frame accordingly: only a `DETECTED` frame can be accepted (on-screen time) or low confidence; `DETECTED` and `NOT_DETECTED` frames are examined; `NO_LOGO` and `UNAVAILABLE` are counted apart, and the session report's `onScreenTracking` is built from those totals (see `sessions.md`). The gateway's timeline builds on-screen segments from `DETECTED` frames only.
+
+## The detector
+
+`logo-match-v1` (`ml-engine/src/ml_engine/logo_match.py`) finds the deal's logo in a frame by local features: SIFT keypoints on the frame (searched at most `max-frame-side` wide, 1280) and on each logo (upscaled to at least `min-logo-side`, 256, on its short side), matched with Lowe's ratio test (`lowe-ratio` 0.75), a homography fitted by RANSAC over the matches (at least `min-inliers` 12 agreeing, and `min-inlier-ratio` 0.3 of the kept ones), a sanity check on the placement the homography names (convex, not mirrored, of real size, mostly inside the frame), and a normalised correlation of the frame region warped back into the logo's frame against the logo itself (`min-correlation` 0.45). Failing any gate is `NOT_DETECTED`; passing every one is `DETECTED` with the box of the placement and a confidence of `0.5 + 0.25 × correlation + 0.25 × inlier strength`, which always clears analytics' acceptance floor of 0.50: the gates decide, the confidence says how strongly. Every setting is `STREAMSENSE_SPONSOR_<NAME>` (`ml_engine.settings.SponsorSettings`). The matcher is deterministic for the same frame and logo (RANSAC is re-seeded per call), so a recording imported twice gives the same numbers. Two logos are tried and the stronger match wins; logo features are cached per ref (`logo-cache-size` 16); at most `max-concurrent` (2) frames are matched at once and the rest wait. A frame the store cannot read is a 503 (`frame artifact read failed`), which video-service records as `UNAVAILABLE`.
+
+`tools/ml/eval_logo_detector.py` scores the detector against the PRD's quality bar: `synthesize` writes the three controlled streams as sampled frames with a `schedule.json`, `run` detects them and prints false on-screen minutes per hour, missed share, on-off-on runs, recall per placement, and milliseconds per frame; a real stream's frames go through the same `run` with a schedule written from the overlay plan.
 
 ## `SponsorDetectionEvent`
 

@@ -15,6 +15,7 @@ from typing import Any
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ml_engine.logo_match import LogoMatchConfig
 from ml_engine.relevance import DEFAULT_CACHE_DIR as DEFAULT_RELEVANCE_CACHE_DIR
 from ml_engine.relevance import DEFAULT_MIN_SCORE, RelevanceConfig
 from ml_engine.relevance import DEFAULT_MODEL as DEFAULT_RELEVANCE_MODEL
@@ -213,10 +214,42 @@ class FrameStorageSettings(_EnvSettings):
 
 
 class SponsorSettings(_EnvSettings):
+    """The sponsor detector: ``logo-match`` (the real one, the default) or ``stub`` (tests and the demo only)."""
+
     model_config = SettingsConfigDict(env_prefix="STREAMSENSE_SPONSOR_", extra="ignore")
 
+    backend: str = "logo-match"
     segmentation_enabled: bool = False
     require_frame_read: bool = False
+    # The matcher's gates, all defaulting to the strict side; see logo_match.LogoMatchConfig.
+    max_frame_side: int = 1280
+    min_logo_side: int = 256
+    lowe_ratio: float = 0.75
+    min_inliers: int = 12
+    min_inlier_ratio: float = 0.3
+    ransac_reprojection_px: float = 4.0
+    min_correlation: float = 0.45
+    min_box_side: float = 0.02
+    max_concurrent: int = 2
+    logo_cache_size: int = 16
+
+    @property
+    def normalized_backend(self) -> str:
+        return self.backend.strip().lower()
+
+    def to_match_config(self) -> LogoMatchConfig:
+        return LogoMatchConfig(
+            max_frame_side=self.max_frame_side,
+            min_logo_side=self.min_logo_side,
+            lowe_ratio=self.lowe_ratio,
+            min_inliers=self.min_inliers,
+            min_inlier_ratio=self.min_inlier_ratio,
+            ransac_reprojection_px=self.ransac_reprojection_px,
+            min_correlation=self.min_correlation,
+            min_box_side=self.min_box_side,
+            max_concurrent=self.max_concurrent,
+            logo_cache_size=self.logo_cache_size,
+        )
 
 
 class Settings(_EnvSettings):
