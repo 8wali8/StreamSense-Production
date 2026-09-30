@@ -80,6 +80,9 @@ describe("SponsorCatalog", () => {
     const entries = within(await screen.findByLabelText("Catalog entries"));
     await user.click(entries.getByRole("button", { name: "Edit" }));
     const form = within(screen.getByLabelText("Edit Red Bull"));
+    // The name is the entry's key, so it cannot be typed over while editing.
+    expect(form.getByLabelText(/^Sponsor/)).toHaveValue("Red Bull");
+    expect(form.getByLabelText(/^Sponsor/)).toHaveAttribute("readonly");
     expect(form.getByLabelText(/Aliases/)).toHaveValue("red bull, redbull");
     await user.type(form.getByLabelText(/Aliases/), ", rb");
     await user.type(form.getByLabelText(/Minimum relevance score/), "0.6");

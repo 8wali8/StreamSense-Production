@@ -9,7 +9,10 @@ public class SponsorRelevanceProfile {
     private String sponsor;
     private List<String> aliases = new ArrayList<>();
     private List<String> semanticTerms = new ArrayList<>();
+    /** The score in effect: the channel's override, else the catalog entry's, else the configured default. */
     private Double minScore;
+    /** The score the channel chose for itself, or null when it follows the catalog or the default. */
+    private Double minScoreOverride;
 
     public String getStreamer() {
         return streamer;
@@ -49,5 +52,13 @@ public class SponsorRelevanceProfile {
 
     public void setMinScore(Double minScore) {
         this.minScore = minScore;
+    }
+
+    public Double getMinScoreOverride() {
+        return minScoreOverride;
+    }
+
+    public void setMinScoreOverride(Double minScoreOverride) {
+        this.minScoreOverride = minScoreOverride;
     }
 }

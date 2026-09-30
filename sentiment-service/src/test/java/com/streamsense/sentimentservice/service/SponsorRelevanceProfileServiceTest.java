@@ -85,6 +85,65 @@ class SponsorRelevanceProfileServiceTest {
         assertThat(service.findActive("ninja").orElseThrow().getSemanticTerms()).isEmpty();
     }
 
+    @Test
+    void anEditThatDropsTheAliasAProfileIsSpelledByStillReachesThatProfile() {
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
+        SponsorRelevanceUpdateRequest pointed = new SponsorRelevanceUpdateRequest();
+        pointed.setStreamer("8wali8");
+        pointed.setSponsor("redbull");
+        service.update(pointed);
+
+        // "redbull" reached Red Bull before the edit; the edit keeps only "rb".
+        SponsorCatalogUpdateRequest edit = new SponsorCatalogUpdateRequest();
+        edit.setName("Red Bull");
+        edit.setAliases(List.of("rb"));
+        edit.setSemanticTerms(List.of("f1"));
+        service.updateCatalogEntry(edit);
+
+        SponsorRelevanceProfile refreshed = service.findActive("8wali8").orElseThrow();
+        assertThat(refreshed.getAliases()).containsExactly("rb", "red bull", "redbull");
+        assertThat(refreshed.getSemanticTerms()).containsExactly("f1", "energy drink", "wings");
+    }
+
+    @Test
+    void theMinimumScoreIsTheChannelsOwnElseTheCatalogEntrysElseTheDefault() {
+        StreamSenseProperties properties = propertiesWithRedBullSeed();
+        SponsorRelevanceProfileService service = service(properties);
+        double configured = properties.getSentiment().getRelevance().getMinScore();
+        SponsorRelevanceUpdateRequest follows = new SponsorRelevanceUpdateRequest();
+        follows.setStreamer("8wali8");
+        follows.setSponsor("redbull");
+        SponsorRelevanceUpdateRequest chooses = new SponsorRelevanceUpdateRequest();
+        chooses.setStreamer("ninja");
+        chooses.setSponsor("Red Bull");
+        chooses.setMinScore(0.9d);
+        SponsorRelevanceUpdateRequest unknown = new SponsorRelevanceUpdateRequest();
+        unknown.setStreamer("shroud");
+        unknown.setSponsor("Rockstar");
+
+        // No entry score yet: the default, with nothing stored as the channel's own.
+        assertThat(service.update(follows).getMinScore()).isEqualTo(configured);
+        assertThat(service.update(follows).getMinScoreOverride()).isNull();
+        service.update(chooses);
+        service.update(unknown);
+
+        // The entry gains a score: the channel that follows takes it, the one that chose keeps its own, and a
+        // sponsor the catalog does not know stays on the default.
+        SponsorCatalogUpdateRequest edit = new SponsorCatalogUpdateRequest();
+        edit.setName("Red Bull");
+        edit.setAliases(List.of("red bull", "redbull"));
+        edit.setMinScore(0.7d);
+        service.updateCatalogEntry(edit);
+
+        assertThat(service.findActive("8wali8").orElseThrow().getMinScore()).isEqualTo(0.7d);
+        assertThat(service.findActive("8wali8").orElseThrow().getMinScoreOverride())
+                .isNull();
+        assertThat(service.findActive("ninja").orElseThrow().getMinScore()).isEqualTo(0.9d);
+        assertThat(service.findActive("ninja").orElseThrow().getMinScoreOverride())
+                .isEqualTo(0.9d);
+        assertThat(service.findActive("shroud").orElseThrow().getMinScore()).isEqualTo(configured);
+    }
+
     private StreamSenseProperties propertiesWithRedBullSeed() {
         StreamSenseProperties properties = new StreamSenseProperties();
 

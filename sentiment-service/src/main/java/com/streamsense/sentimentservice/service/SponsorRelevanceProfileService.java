@@ -26,6 +26,8 @@ import org.springframework.util.StringUtils;
  * stored profile yet, so an operator's or a deal's choice survives a restart. A profile keeps the
  * sponsor's name as the deal or the operator spelled it (the reports match mentions by that name)
  * and borrows the aliases and terms of the catalog entry that name reaches, by name or by alias.
+ * Its minimum score is the channel's own override when it has one, else the entry's, else the
+ * configured default; only the override is stored.
  */
 @Service
 public class SponsorRelevanceProfileService {
@@ -54,13 +56,7 @@ public class SponsorRelevanceProfileService {
             List<String> aliases = mergedTerms(configuredAliases(profile.getSponsor()), profile.getAliases());
             List<String> terms = mergedTerms(configuredSemanticTerms(profile.getSponsor()), profile.getSemanticTerms());
             if (!aliases.equals(profile.getAliases()) || !terms.equals(profile.getSemanticTerms())) {
-                SponsorRelevanceUpdateRequest refresh = new SponsorRelevanceUpdateRequest();
-                refresh.setStreamer(profile.getStreamer());
-                refresh.setSponsor(profile.getSponsor());
-                refresh.setAliases(profile.getAliases());
-                refresh.setSemanticTerms(profile.getSemanticTerms());
-                refresh.setMinScore(profile.getMinScore());
-                update(refresh);
+                refresh(profile);
             }
         }
         for (StreamSenseProperties.Seed seed :
@@ -93,6 +89,7 @@ public class SponsorRelevanceProfileService {
                 .toList();
     }
 
+    /** Replaces the channel's profile. A request's {@code minScore} is the channel's override; absent, it has none. */
     public SponsorRelevanceProfile update(SponsorRelevanceUpdateRequest request) {
         SponsorRelevanceProfile profile = new SponsorRelevanceProfile();
         profile.setStreamer(normalize(request.getStreamer()));
@@ -100,16 +97,14 @@ public class SponsorRelevanceProfileService {
         profile.setAliases(mergedTerms(configuredAliases(profile.getSponsor()), request.getAliases()));
         profile.setSemanticTerms(
                 mergedTerms(configuredSemanticTerms(profile.getSponsor()), request.getSemanticTerms()));
-        profile.setMinScore(
-                request.getMinScore() != null
-                        ? request.getMinScore()
-                        : properties.getSentiment().getRelevance().getMinScore());
+        profile.setMinScoreOverride(request.getMinScore());
+        profile.setMinScore(scoreInEffect(profile.getSponsor(), request.getMinScore()));
         repository.save(new SponsorRelevanceProfileEntity(
                 profile.getStreamer(),
                 profile.getSponsor(),
                 profile.getAliases(),
                 profile.getSemanticTerms(),
-                profile.getMinScore(),
+                profile.getMinScoreOverride(),
                 System.currentTimeMillis()));
         activeProfiles.put(profile.getStreamer(), profile);
         return profile;
@@ -121,37 +116,70 @@ public class SponsorRelevanceProfileService {
     }
 
     /**
-     * Replaces a catalog entry and brings the profiles that reach it up to date: each such profile
-     * gains the entry's aliases and terms (what it already had stays, so a channel's own additions
-     * survive a catalog edit; a term removed from the catalog is removed from the channel by hand).
+     * Replaces a catalog entry and brings the profiles on it up to date: the ones that reached the
+     * entry before the edit (an edit may drop the very alias a profile spells the sponsor by) and the
+     * ones that reach it after. Each gains the entry's aliases and terms and keeps its own, so a term
+     * removed from the catalog is removed from a channel by hand; each follows the entry's minimum
+     * score unless the channel has its own.
      */
     public SponsorCatalogEntry updateCatalogEntry(SponsorCatalogUpdateRequest request) {
+        String key = normalize(request.getName());
+        Set<String> onIt = new LinkedHashSet<>(streamersReaching(key));
         SponsorCatalogEntry entry = catalog.upsert(request);
-        for (SponsorRelevanceProfile profile : activeProfiles.values()) {
-            if (catalog.find(profile.getSponsor())
-                    .filter(found -> found.name().equals(entry.name()))
-                    .isEmpty()) {
+        onIt.addAll(streamersReaching(key));
+        for (String streamer : onIt) {
+            SponsorRelevanceProfile profile = activeProfiles.get(streamer);
+            if (profile == null) {
                 continue;
             }
-            SponsorRelevanceUpdateRequest refresh = new SponsorRelevanceUpdateRequest();
-            refresh.setStreamer(profile.getStreamer());
-            refresh.setSponsor(profile.getSponsor());
-            refresh.setAliases(profile.getAliases());
-            refresh.setSemanticTerms(profile.getSemanticTerms());
-            refresh.setMinScore(profile.getMinScore());
-            update(refresh);
+            // A profile whose spelling the edit dropped borrows the entry's terms once more, by the entry's name.
+            profile.setAliases(mergedTerms(entry.aliases(), profile.getAliases()));
+            profile.setSemanticTerms(mergedTerms(entry.semanticTerms(), profile.getSemanticTerms()));
+            refresh(profile);
         }
         return entry;
     }
 
-    private static SponsorRelevanceProfile toProfile(SponsorRelevanceProfileEntity stored) {
+    /** The streamers whose profile's sponsor reaches the catalog entry of that key. */
+    private List<String> streamersReaching(String key) {
+        return activeProfiles.values().stream()
+                .filter(profile -> catalog.find(profile.getSponsor())
+                        .filter(found -> normalize(found.name()).equals(key))
+                        .isPresent())
+                .map(SponsorRelevanceProfile::getStreamer)
+                .toList();
+    }
+
+    /** Saves a profile again as it stands, which borrows afresh from the catalog and keeps the channel's own choices. */
+    private void refresh(SponsorRelevanceProfile profile) {
+        SponsorRelevanceUpdateRequest request = new SponsorRelevanceUpdateRequest();
+        request.setStreamer(profile.getStreamer());
+        request.setSponsor(profile.getSponsor());
+        request.setAliases(profile.getAliases());
+        request.setSemanticTerms(profile.getSemanticTerms());
+        request.setMinScore(profile.getMinScoreOverride());
+        update(request);
+    }
+
+    private SponsorRelevanceProfile toProfile(SponsorRelevanceProfileEntity stored) {
         SponsorRelevanceProfile profile = new SponsorRelevanceProfile();
         profile.setStreamer(stored.getStreamer());
         profile.setSponsor(stored.getSponsor());
         profile.setAliases(new ArrayList<>(stored.aliasList()));
         profile.setSemanticTerms(new ArrayList<>(stored.semanticTermList()));
-        profile.setMinScore(stored.getMinScore());
+        profile.setMinScoreOverride(stored.getMinScore());
+        profile.setMinScore(scoreInEffect(stored.getSponsor(), stored.getMinScore()));
         return profile;
+    }
+
+    /** The channel's override, else the score of the catalog entry the sponsor reaches, else the configured default. */
+    private double scoreInEffect(String sponsor, Double override) {
+        if (override != null) {
+            return override;
+        }
+        return catalog.find(sponsor)
+                .map(SponsorCatalogEntry::minScore)
+                .orElseGet(() -> properties.getSentiment().getRelevance().getMinScore());
     }
 
     private List<String> configuredAliases(String sponsor) {

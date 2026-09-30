@@ -14,8 +14,10 @@ export async function getRecentTranscriptSegments(streamer: string, limit: numbe
 
 /**
  * POST /api/sentiment/relevance/sponsors: the sponsor profile relevance scoring uses for a streamer.
- * Aliases and semantic terms are merged with the ones configured for that sponsor in config-repo;
- * `minScore` overrides the configured relevance threshold when given.
+ * Aliases and semantic terms are merged with the ones of the catalog entry the sponsor reaches. Sent,
+ * `minScore` is the channel's own score; left out, the channel follows the catalog entry's score, or
+ * the configured default. Read back, `minScore` is the score in effect and `minScoreOverride` the
+ * channel's own, null when it has none.
  */
 export type SponsorProfile = {
   streamer: string;
@@ -23,6 +25,7 @@ export type SponsorProfile = {
   aliases: string[];
   semanticTerms: string[];
   minScore?: number;
+  minScoreOverride?: number | null;
 };
 
 export function updateSponsorProfile(profile: SponsorProfile): Promise<void> {

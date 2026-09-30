@@ -6,10 +6,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.util.List;
 
-/** One row per sponsor in the catalog, keyed by the lower-cased name. Terms are stored one per line. */
+/**
+ * One row per sponsor in the catalog, keyed by the lower-cased name. Terms are stored one per line.
+ * A removed entry keeps its row with {@code removed} set, which is what stops the configured
+ * sponsors from bringing it back at the next start.
+ */
 @Entity
 @Table(name = "sponsor_catalog")
 public class SponsorCatalogEntity {
+
+    /** What a term list may hold once joined: the width of its column. */
+    public static final int MAX_STORED_TERMS = 4000;
 
     private static final String TERM_SEPARATOR = "\n";
 
@@ -20,14 +27,17 @@ public class SponsorCatalogEntity {
     @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(name = "aliases", nullable = false, length = 4000)
+    @Column(name = "aliases", nullable = false, length = MAX_STORED_TERMS)
     private String aliases = "";
 
-    @Column(name = "semantic_terms", nullable = false, length = 4000)
+    @Column(name = "semantic_terms", nullable = false, length = MAX_STORED_TERMS)
     private String semanticTerms = "";
 
     @Column(name = "min_score")
     private Double minScore;
+
+    @Column(name = "removed", nullable = false)
+    private boolean removed;
 
     @Column(name = "updated_at", nullable = false)
     private long updatedAt;
@@ -47,6 +57,13 @@ public class SponsorCatalogEntity {
         this.semanticTerms = join(semanticTerms);
         this.minScore = minScore;
         this.updatedAt = updatedAt;
+    }
+
+    /** The row a removed entry leaves behind: its key and name, nothing to borrow. */
+    public static SponsorCatalogEntity removed(String sponsorKey, String name, long updatedAt) {
+        SponsorCatalogEntity entity = new SponsorCatalogEntity(sponsorKey, name, List.of(), List.of(), null, updatedAt);
+        entity.removed = true;
+        return entity;
     }
 
     public String getSponsorKey() {
@@ -69,8 +86,17 @@ public class SponsorCatalogEntity {
         return minScore;
     }
 
+    public boolean isRemoved() {
+        return removed;
+    }
+
     public long getUpdatedAt() {
         return updatedAt;
+    }
+
+    /** How long a term list is once joined for storage. */
+    public static int storedLength(List<String> terms) {
+        return join(terms).length();
     }
 
     private static String join(List<String> terms) {

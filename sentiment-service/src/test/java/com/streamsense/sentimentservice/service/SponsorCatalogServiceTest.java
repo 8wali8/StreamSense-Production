@@ -1,7 +1,9 @@
 package com.streamsense.sentimentservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -83,6 +85,72 @@ class SponsorCatalogServiceTest {
         assertThat(service.delete("Red Bull")).isTrue();
         assertThat(service.delete("Red Bull")).isFalse();
         assertThat(service.find("redbull")).isEmpty();
-        verify(repository).deleteById("red bull");
+        // The row stays, marked removed, rather than going away.
+        verify(repository, never()).deleteById(any());
+        verify(repository).save(argThat(SponsorCatalogEntity::isRemoved));
+    }
+
+    @Test
+    void aRemovedEntryIsNotBroughtBackByTheConfiguredSponsorsAndCanBeAddedAgain() {
+        when(repository.findAll()).thenReturn(List.of(SponsorCatalogEntity.removed("red bull", "Red Bull", 1L)));
+        SponsorCatalogService service = service(propertiesWithRedBull());
+
+        assertThat(service.list()).isEmpty();
+        assertThat(service.find("redbull")).isEmpty();
+        verify(repository, never()).save(any());
+
+        SponsorCatalogUpdateRequest again = new SponsorCatalogUpdateRequest();
+        again.setName("Red Bull");
+        again.setAliases(List.of("redbull"));
+        service.upsert(again);
+        assertThat(service.find("redbull")).map(SponsorCatalogEntry::name).contains("Red Bull");
+    }
+
+    @Test
+    void aSpellingBelongsToOneEntryOnly() {
+        SponsorCatalogService service = service(propertiesWithRedBull());
+
+        SponsorCatalogUpdateRequest aliasTaken = new SponsorCatalogUpdateRequest();
+        aliasTaken.setName("Rockstar");
+        aliasTaken.setAliases(List.of("RedBull"));
+        assertThatThrownBy(() -> service.upsert(aliasTaken))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already belongs to Red Bull");
+
+        SponsorCatalogUpdateRequest nameIsAnAlias = new SponsorCatalogUpdateRequest();
+        nameIsAnAlias.setName("redbull");
+        assertThatThrownBy(() -> service.upsert(nameIsAnAlias)).isInstanceOf(IllegalStateException.class);
+
+        SponsorCatalogUpdateRequest aliasIsAName = new SponsorCatalogUpdateRequest();
+        aliasIsAName.setName("Rockstar");
+        aliasIsAName.setAliases(List.of("red bull"));
+        assertThatThrownBy(() -> service.upsert(aliasIsAName)).isInstanceOf(IllegalStateException.class);
+
+        // An entry may keep its own spellings when it is saved again, and nothing refused was stored.
+        SponsorCatalogUpdateRequest same = new SponsorCatalogUpdateRequest();
+        same.setName("Red Bull");
+        same.setAliases(List.of("red bull", "redbull"));
+        assertThat(service.upsert(same).aliases()).containsExactly("red bull", "redbull");
+        assertThat(service.list()).extracting(SponsorCatalogEntry::name).containsExactly("Red Bull");
+    }
+
+    @Test
+    void termsThatDoNotFitTheirColumnOrHoldALineBreakAreBadInput() {
+        SponsorCatalogService service = service(propertiesWithRedBull());
+
+        SponsorCatalogUpdateRequest tooLong = new SponsorCatalogUpdateRequest();
+        tooLong.setName("Prime");
+        tooLong.setSemanticTerms(List.of("x".repeat(2000), "y".repeat(2000)));
+        assertThatThrownBy(() -> service.upsert(tooLong))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("semanticTerms are too long");
+
+        SponsorCatalogUpdateRequest lineBreak = new SponsorCatalogUpdateRequest();
+        lineBreak.setName("Prime");
+        lineBreak.setAliases(List.of("prime\nhydration"));
+        assertThatThrownBy(() -> service.upsert(lineBreak))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("aliases must not contain line breaks");
+        assertThat(service.find("Prime")).isEmpty();
     }
 }

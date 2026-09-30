@@ -204,7 +204,16 @@ export function SponsorCatalog() {
             value={draft.name}
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             placeholder="The sponsor's name"
+            // The name is the entry's key: saving under another name would add a second entry, not rename this one.
+            readOnly={editing !== null}
+            aria-describedby={editing !== null ? "catalog-name-hint" : undefined}
           />
+          {editing !== null && (
+            <span className="field-hint" id="catalog-name-hint">
+              The name is fixed. To rename a sponsor, remove the entry and add it again; other spellings go in the
+              aliases.
+            </span>
+          )}
         </label>
         <label className="field">
           <span className="field-label">Minimum relevance score</span>

@@ -33,7 +33,8 @@ export function SponsorProfileEditor() {
         setSponsor(profile.sponsor);
         setAliases(profile.aliases.join(", "));
         setSemanticTerms(profile.semanticTerms.join(", "));
-        setMinScore(profile.minScore == null ? "" : String(profile.minScore));
+        // Only the channel's own score: showing the one in effect would turn it into an override on the next save.
+        setMinScore(profile.minScoreOverride == null ? "" : String(profile.minScoreOverride));
         setStored(
           `Stored profile: ${profile.sponsor}, ${profile.aliases.length} aliases, ${profile.semanticTerms.length} terms.`,
         );
