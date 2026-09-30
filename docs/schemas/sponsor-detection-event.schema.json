@@ -129,6 +129,36 @@
         "null"
       ],
       "description": "True when the detection came from the ml-engine fallback path (modelVersion 'fallback')"
+    },
+    "outcome": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "DETECTED",
+        "NOT_DETECTED",
+        "NO_LOGO",
+        "UNAVAILABLE",
+        null
+      ],
+      "description": "What happened to the frame: the logo was found (DETECTED), looked for and not found (NOT_DETECTED), not looked for because the deal has no logo (NO_LOGO), or could not be examined (UNAVAILABLE, the fallback path). Absent on older events: UNAVAILABLE when fallback, else DETECTED."
+    },
+    "dealId": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "The deal whose logo was looked for."
+    },
+    "logoId": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "The logo that produced the detection."
     }
   }
 }

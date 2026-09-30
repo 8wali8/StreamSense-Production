@@ -10,7 +10,7 @@
 
 1. `POST /api/video/upload-frame` accepts a small reference-based frame payload, or `video-capture-service` samples a real Twitch frame and stores it as an artifact.
 2. `video-service` publishes `FrameData` to `stream.video.frames`.
-3. `video-service` consumes `stream.video.frames` and calls `ml-engine`.
+3. `video-service` consumes `stream.video.frames`, asks `analytics-service` which deal the channel is in (`GET /api/analytics/streams/{streamer}/current-deal`, cached per channel for `streamsense.services.analytics-service.current-deal-cache-seconds`), and, when that deal has a logo, calls `ml-engine` with the deal's sponsor, ids, and logo refs. A channel without a logo is not sent to `ml-engine` at all.
 4. `video-service` persists the resulting `SponsorDetectionEvent`.
 5. `video-service` publishes the detection to `stream.sponsor.detections`.
 6. `api-gateway` consumes `stream.sponsor.detections` for `onSponsorDetection(streamer)`.
@@ -38,6 +38,21 @@
 
 The production metadata fields are optional so existing synthetic frame uploads continue to work.
 
+## What a frame is examined against
+
+The `/ml/sponsor` request (`docs/schemas/ml-sponsor-request.schema.json`) is the `FrameData` fields plus, when the channel's current deal carries a logo, `sponsor` (the name every detection of the frame is stamped with, so analytics keys it under the deal), `dealId`, `logoId` (the first logo's), and `logoRefs` (the logo images as `s3://` URIs, at most two, oldest upload first). The response (`ml-sponsor-response.schema.json`) is the detection plus `outcome`: `DETECTED` (the logo is at the box) or `NOT_DETECTED` (looked, did not find it: confidence 0, zero box). An engine from before outcomes sends none, which reads as `DETECTED`.
+
+Every sampled frame yields one `SponsorDetectionEvent` whatever happened to it, with `outcome`:
+
+| `outcome` | Meaning | `sponsor` | `modelVersion` |
+|---|---|---|---|
+| `DETECTED` | the logo is in the frame, at the box | the deal's sponsor | the detector's |
+| `NOT_DETECTED` | looked for the logo, did not find it | the deal's sponsor | the detector's |
+| `NO_LOGO` | nothing to look for: no deal, or a deal without a logo; ml-engine was not asked | the deal's sponsor, or `UNKNOWN` without a deal | `no-logo` |
+| `UNAVAILABLE` | could not be examined: ml-engine failed, or the deal could not be looked up | `UNKNOWN` | `fallback` |
+
+`dealId` and `logoId` say what the frame was examined against. An event from before outcomes (null) reads as `UNAVAILABLE` when its model version is `fallback` and `DETECTED` otherwise. analytics-service tallies each frame accordingly: only a `DETECTED` frame can be accepted (on-screen time) or low confidence; `DETECTED` and `NOT_DETECTED` frames are examined; `NO_LOGO` and `UNAVAILABLE` are counted apart, and the session report's `onScreenTracking` is built from those totals (see `sessions.md`). The gateway's timeline builds on-screen segments from `DETECTED` frames only.
+
 ## `SponsorDetectionEvent`
 
 ```json
@@ -60,7 +75,10 @@ The production metadata fields are optional so existing synthetic frame uploads 
   "channelLogin": "austincs",
   "streamSessionId": "austincs-1710000000000",
   "twitchStreamId": null,
-  "videoTimestampMs": 0
+  "videoTimestampMs": 0,
+  "outcome": "DETECTED",
+  "dealId": 3,
+  "logoId": 7
 }
 ```
 
@@ -82,4 +100,4 @@ When sponsor inference degrades, `video-service` still persists and publishes a 
 }
 ```
 
-This keeps degraded behavior visible in GraphQL, the frontend, logs, and metrics instead of silently dropping the frame.
+This keeps degraded behavior visible in GraphQL, the frontend, logs, and metrics instead of silently dropping the frame. The event's `outcome` is `UNAVAILABLE`, and the session report says how long tracking was unavailable rather than showing placeholder numbers. `streamsense_sponsor_outcomes_total{outcome}` on video-service counts every frame by outcome.

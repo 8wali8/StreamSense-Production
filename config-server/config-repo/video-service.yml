@@ -17,6 +17,14 @@ streamsense:
     base-url: http://ml-engine:8000
     connectTimeoutMs: 2000
     readTimeoutMs: 3000
+  services:
+    # The channel's current deal and its logos, asked once a minute per channel; a frame from a channel
+    # without a logo is never sent to ml-engine, and a channel whose deal cannot be looked up is UNAVAILABLE.
+    analytics-service:
+      base-url: http://analytics-service:8085
+      connect-timeout-ms: 2000
+      read-timeout-ms: 3000
+      current-deal-cache-seconds: 60
   history:
     defaultLimit: 20
     maxLimit: 100

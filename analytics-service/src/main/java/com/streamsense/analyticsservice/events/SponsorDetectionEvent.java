@@ -21,6 +21,9 @@ public class SponsorDetectionEvent {
     private Double width;
     private Double height;
     private Boolean fallback;
+    private String outcome;
+    private Long dealId;
+    private Long logoId;
 
     public String getDetectionEventId() {
         return detectionEventId;
@@ -148,6 +151,31 @@ public class SponsorDetectionEvent {
 
     public void setFallback(Boolean fallback) {
         this.fallback = fallback;
+    }
+
+    /** DETECTED, NOT_DETECTED, NO_LOGO, or UNAVAILABLE; null on events from before outcomes. */
+    public String getOutcome() {
+        return outcome;
+    }
+
+    public void setOutcome(String outcome) {
+        this.outcome = outcome;
+    }
+
+    public Long getDealId() {
+        return dealId;
+    }
+
+    public void setDealId(Long dealId) {
+        this.dealId = dealId;
+    }
+
+    public Long getLogoId() {
+        return logoId;
+    }
+
+    public void setLogoId(Long logoId) {
+        this.logoId = logoId;
     }
 
     public Double getX() {

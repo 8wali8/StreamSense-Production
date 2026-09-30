@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatMoney, formatOffset, formatShare, vodUrl } from "./report-format";
+import {
+  mediaValueLabel,
+  onScreenNote,
+  formatDuration,
+  formatMoney,
+  formatOffset,
+  formatShare,
+  vodUrl,
+} from "./report-format";
 import { buildTimeline, ticksFor } from "./timeline";
 
 describe("report formatting", () => {
@@ -68,5 +76,34 @@ describe("timeline layout", () => {
       "4:00:00",
       "5:00:00",
     ]);
+  });
+});
+
+describe("onScreenNote", () => {
+  it("reads the share of the stream when the logo was tracked, and why not otherwise", () => {
+    expect(onScreenNote({ state: "ON", unavailableMs: 0 }, 0.28)).toBe("28% of stream");
+    expect(onScreenNote(null, 0.28)).toBe("28% of stream");
+    expect(onScreenNote({ state: "PARTIAL", unavailableMs: 150_000 }, 0.28)).toBe(
+      "28% of stream · unavailable for 2m 30s",
+    );
+    expect(onScreenNote({ state: "OFF", unavailableMs: 0 }, 0)).toBe("tracking is off, no logo on the deal");
+    expect(onScreenNote({ state: "UNAVAILABLE", unavailableMs: 600_000 }, 0)).toBe("tracking was unavailable");
+    expect(onScreenNote({ state: "NO_FRAMES", unavailableMs: 0 }, null)).toBe("no video captured");
+  });
+});
+
+describe("mediaValueLabel", () => {
+  it("explains a dash before it calls a number an estimate", () => {
+    expect(mediaValueLabel(null, { state: "ON", unavailableMs: 0 }, 100)).toBe("Media value · no sponsor tracked");
+    expect(mediaValueLabel("Red Bull", { state: "OFF", unavailableMs: 0 }, null)).toBe(
+      "Media value · on-screen tracking is off",
+    );
+    expect(mediaValueLabel("Red Bull", { state: "UNAVAILABLE", unavailableMs: 0 }, null)).toBe(
+      "Media value · on-screen tracking was unavailable",
+    );
+    expect(mediaValueLabel("Red Bull", { state: "PARTIAL", unavailableMs: 0 }, null)).toBe(
+      "Media value · needs viewer data",
+    );
+    expect(mediaValueLabel("Red Bull", undefined, 1190)).toBe("Media value · estimate");
   });
 });

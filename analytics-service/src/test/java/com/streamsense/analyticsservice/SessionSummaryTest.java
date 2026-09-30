@@ -97,6 +97,10 @@ class SessionSummaryTest {
 
         assertThat(summary.sponsor()).isEqualTo("Red Bull");
         assertThat(summary.onScreenMs()).isEqualTo(30_000L);
+        // Every frame was examined (events from before outcomes read as detections), so the logo was tracked.
+        assertThat(summary.onScreenTracking().state()).isEqualTo("ON");
+        assertThat(summary.onScreenTracking().examinedFrames()).isEqualTo(4);
+        assertThat(summary.onScreenTracking().unavailableMs()).isZero();
         assertThat(summary.chatMentions()).isEqualTo(2);
         assertThat(summary.voiceMentions()).isEqualTo(1);
         assertThat(summary.mentionSentiment()).isCloseTo(0.333, within(0.001));
@@ -144,6 +148,46 @@ class SessionSummaryTest {
                 .andExpect(jsonPath("$.length()").value(5));
         mockMvc.perform(get("/api/analytics/streams/" + STREAMER + "/summary").param("from", String.valueOf(start)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void aStreamWhoseDealHadNoLogoSaysTrackingIsOffAndPricesNoMediaValue() {
+        long now = System.currentTimeMillis();
+        long start = Math.floorDiv(now - 20 * 60_000L, 60_000L) * 60_000L;
+        sessions.recordHelixLive(new HelixStream("42", "Racer", "Spa", "F1", 1500, start));
+        StreamSession session = sessions.list(STREAMER, null, null, null).get(0);
+        // Three frames that nobody looked at, then two that could not be examined, one voice mention.
+        for (int i = 0; i < 3; i++) {
+            SponsorDetectionEvent frame = detection("nl" + i, start + 60_000L + i * 10_000L, 0.0, 0.0, 0.0);
+            frame.setOutcome("NO_LOGO");
+            aggregation.aggregateSponsorDetection("t", frame);
+        }
+        aggregation.aggregateTranscriptSentiment("v", voice("v9", start + 120_000L, "POSITIVE", 0.6, "Red Bull"));
+
+        SessionSummary off = summaries
+                .summary(session.id(), new SummaryOptions("Red Bull", null, null, null, null))
+                .orElseThrow();
+        assertThat(off.onScreenTracking().state()).isEqualTo("OFF");
+        assertThat(off.onScreenTracking().noLogoFrames()).isEqualTo(3);
+        assertThat(off.onScreenMs()).isZero();
+        assertThat(off.value().logoValue()).isNull();
+        assertThat(off.value().mediaValue()).isNull();
+        // Host reads are still priced: they do not depend on the logo.
+        assertThat(off.value().hostReadValue()).isEqualTo(30.0);
+
+        for (int i = 0; i < 2; i++) {
+            SponsorDetectionEvent frame = detection("un" + i, start + 180_000L + i * 10_000L, 0.0, 0.0, 0.0);
+            frame.setOutcome("UNAVAILABLE");
+            frame.setModelVersion("fallback");
+            aggregation.aggregateSponsorDetection("t", frame);
+        }
+        SessionSummary unavailable = summaries
+                .summary(session.id(), new SummaryOptions("Red Bull", null, null, null, null))
+                .orElseThrow();
+        assertThat(unavailable.onScreenTracking().state()).isEqualTo("UNAVAILABLE");
+        assertThat(unavailable.onScreenTracking().unavailableFrames()).isEqualTo(2);
+        assertThat(unavailable.onScreenTracking().unavailableMs()).isEqualTo(20_000L);
+        assertThat(unavailable.value().mediaValue()).isNull();
     }
 
     private static SponsorDetectionEvent detection(String id, long at, double confidence, double width, double height) {

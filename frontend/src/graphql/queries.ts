@@ -371,6 +371,13 @@ export const SESSION_SUMMARY_QUERY = gql`
         trackedLinkHost
         linkPosts
       }
+      onScreenTracking {
+        state
+        examinedFrames
+        unavailableFrames
+        noLogoFrames
+        unavailableMs
+      }
     }
   }
 `;

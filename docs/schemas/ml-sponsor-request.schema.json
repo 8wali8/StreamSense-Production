@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streamsense.dev/schemas/ml-sponsor-request.schema.json",
+  "title": "MlSponsorRequest",
+  "description": "POST /ml/sponsor: one sampled frame and, when the channel's current deal carries a logo, what to look for in it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["frameId", "streamer", "frameRef", "frameSequence", "capturedAt"],
+  "properties": {
+    "frameId": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "streamer": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "frameRef": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "frameSequence": { "type": "integer", "minimum": 0 },
+    "capturedAt": { "type": "integer", "minimum": 1 },
+    "source": { "type": ["string", "null"], "maxLength": 32 },
+    "channelLogin": { "type": ["string", "null"], "maxLength": 255 },
+    "streamSessionId": { "type": ["string", "null"], "maxLength": 255 },
+    "twitchStreamId": { "type": ["string", "null"], "maxLength": 128 },
+    "videoTimestampMs": { "type": ["integer", "null"], "minimum": 0 },
+    "artifactContentType": { "type": ["string", "null"], "maxLength": 64 },
+    "artifactSizeBytes": { "type": ["integer", "null"], "minimum": 0 },
+    "sponsor": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "The deal's sponsor, the name every detection of this frame is stamped with."
+    },
+    "dealId": { "type": ["integer", "null"], "minimum": 1 },
+    "logoId": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "The first logo's id, recorded on the detection so a report can say which logo produced it."
+    },
+    "logoRefs": {
+      "type": "array",
+      "maxItems": 2,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1024 },
+      "description": "The deal's logo images as s3:// URIs, oldest upload first; empty means nothing to look for."
+    }
+  }
+}

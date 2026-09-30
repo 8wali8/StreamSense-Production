@@ -2,6 +2,8 @@ package com.streamsense.videoservice.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.streamsense.videoservice.dto.MlSponsorRequest;
+import com.streamsense.videoservice.dto.MlSponsorResponse;
 import org.junit.jupiter.api.Test;
 
 /** The frame events this service consumes and the detections it produces conform to docs/schemas. */
@@ -80,6 +82,41 @@ class EventContractTest {
         event.setTwitchStreamId("12345");
         event.setVideoTimestampMs(0L);
         event.setFallback(false);
+        event.setOutcome("DETECTED");
+        event.setDealId(3L);
+        event.setLogoId(7L);
         return event;
+    }
+
+    @Test
+    void everyOutcomeIsInTheSchemaAndAnUnknownOneIsNot() {
+        for (DetectionOutcome outcome : DetectionOutcome.values()) {
+            SponsorDetectionEvent event = detection();
+            event.setOutcome(outcome.name());
+            assertThat(EventSchemas.violations("sponsor-detection-event.schema.json", EventSchemas.toJson(event)))
+                    .isEmpty();
+        }
+        SponsorDetectionEvent event = detection();
+        event.setOutcome("MAYBE");
+        assertThat(EventSchemas.violations("sponsor-detection-event.schema.json", EventSchemas.toJson(event)))
+                .isNotEmpty();
+    }
+
+    @Test
+    void theSponsorRequestAndResponseMatchTheMlEngineSchemas() {
+        MlSponsorRequest request = new MlSponsorRequest(
+                        "frame-1", "streamer-1", "s3://streamsense-frames/a.jpg", 1L, 1710000000000L)
+                .forDeal("Red Bull", 3L, 7L, java.util.List.of("s3://streamsense-logos/deals/3/a.png"));
+        assertThat(EventSchemas.violations("ml-sponsor-request.schema.json", EventSchemas.toJson(request)))
+                .isEmpty();
+
+        MlSponsorResponse response = MlSponsorResponse.empty("Red Bull", "logo-match-v1", "NOT_DETECTED");
+        assertThat(EventSchemas.violations("ml-sponsor-response.schema.json", EventSchemas.toJson(response)))
+                .isEmpty();
+        // The engine's answer for the no-logo stand-in is never sent, but the shape without an outcome is the old
+        // engine's.
+        response.setOutcome(null);
+        assertThat(EventSchemas.violations("ml-sponsor-response.schema.json", EventSchemas.toJson(response)))
+                .isEmpty();
     }
 }

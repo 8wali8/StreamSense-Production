@@ -225,9 +225,18 @@ public class MetricAggregationService {
         }
 
         long bucketStart = bucketStart(event.getCapturedAt());
-        boolean accepted = event.getConfidence() >= properties.getAnalytics().getMinimumSponsorConfidence();
-        boolean fallback =
-                Boolean.TRUE.equals(event.getFallback()) || "fallback".equalsIgnoreCase(event.getModelVersion());
+        String outcome = outcomeOf(event);
+        boolean detected = "DETECTED".equals(outcome);
+        // Only a detection can be credited or be too weak to credit; a frame that was looked at and had no logo
+        // is examined, not low confidence, and a frame nobody looked at is neither.
+        boolean accepted =
+                detected && event.getConfidence() >= properties.getAnalytics().getMinimumSponsorConfidence();
+        SponsorMetricBucketRepository.DetectionTally tally = new SponsorMetricBucketRepository.DetectionTally(
+                accepted,
+                detected && !accepted,
+                "UNAVAILABLE".equals(outcome),
+                detected || "NOT_DETECTED".equals(outcome),
+                "NO_LOGO".equals(outcome));
         sponsorBuckets.incrementSponsor(
                 streamer,
                 clean(event.getChannelLogin()),
@@ -238,8 +247,7 @@ public class MetricAggregationService {
                 bucketSizeSeconds(),
                 event.getSponsor(),
                 event.getConfidence(),
-                accepted,
-                fallback,
+                tally,
                 properties.getAnalytics().getEstimatedSponsorExposureMsPerDetection(),
                 boxArea(event),
                 now);
@@ -320,6 +328,19 @@ public class MetricAggregationService {
         }
         mentions.increment(
                 streamer, sessionKey, bucketStart, bucketSizeSeconds(), matchedSponsor, channel, label, score, now);
+    }
+
+    /** The event's outcome, or what an event from before outcomes implies: unavailable when it is the fallback, else detected. */
+    static String outcomeOf(SponsorDetectionEvent event) {
+        String outcome = event.getOutcome() == null || event.getOutcome().isBlank()
+                ? null
+                : event.getOutcome().trim();
+        if (outcome != null) {
+            return outcome.toUpperCase(java.util.Locale.ROOT);
+        }
+        boolean fallback =
+                Boolean.TRUE.equals(event.getFallback()) || "fallback".equalsIgnoreCase(event.getModelVersion());
+        return fallback ? "UNAVAILABLE" : "DETECTED";
     }
 
     /** Fraction of the frame the detection box covers, 0 when the event carried no box. */

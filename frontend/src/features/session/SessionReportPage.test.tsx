@@ -86,6 +86,31 @@ describe("SessionReportPage", () => {
     expect(screen.queryByText(/Sponsor · @/)).not.toBeInTheDocument();
   });
 
+  it("says when on-screen tracking was off or unavailable instead of pricing nothing as a number", async () => {
+    server.use(
+      graphqlData("SessionSummary", {
+        sessionSummary: sessionSummary({
+          onScreenMs: 0,
+          onScreenShare: 0,
+          value: { ...sessionSummary().value, logoValue: null, mediaValue: null },
+          onScreenTracking: {
+            __typename: "OnScreenTracking",
+            state: "OFF",
+            examinedFrames: 0,
+            unavailableFrames: 0,
+            noLogoFrames: 360,
+            unavailableMs: 0,
+          },
+        }),
+      }),
+      graphqlData("SponsorMoments", { sponsorMoments: sponsorMoments() }),
+    );
+    renderAt("/sessions/7");
+
+    expect(await screen.findByText("On screen · tracking is off, no logo on the deal")).toBeInTheDocument();
+    expect(screen.getByText("Media value · on-screen tracking is off")).toBeInTheDocument();
+  });
+
   it("renders the timeline error without losing the numbers, and a missing session plainly", async () => {
     server.use(
       graphqlData("SessionSummary", {

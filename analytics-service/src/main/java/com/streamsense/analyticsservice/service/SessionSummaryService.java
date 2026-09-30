@@ -1,6 +1,7 @@
 package com.streamsense.analyticsservice.service;
 
 import com.streamsense.analyticsservice.api.DirectResponse;
+import com.streamsense.analyticsservice.api.OnScreenTracking;
 import com.streamsense.analyticsservice.api.SessionSummary;
 import com.streamsense.analyticsservice.api.SessionValue;
 import com.streamsense.analyticsservice.api.StreamMetricsSummary;
@@ -11,6 +12,7 @@ import com.streamsense.analyticsservice.model.CommandTotals;
 import com.streamsense.analyticsservice.model.DealRow;
 import com.streamsense.analyticsservice.model.SponsorBucketExposure;
 import com.streamsense.analyticsservice.model.SponsorMentionTotals;
+import com.streamsense.analyticsservice.model.SponsorOutcomeTotals;
 import com.streamsense.analyticsservice.model.ViewerSample;
 import com.streamsense.analyticsservice.persistence.ChatResponseRepository;
 import com.streamsense.analyticsservice.persistence.DealRepository;
@@ -111,7 +113,13 @@ public class SessionSummaryService {
                 .sum();
 
         List<ViewerSample> samples = sessions.viewerSamples(sessionId);
-        SessionValue value = value(exposure, voiceMentions, samples, session, options);
+        // Whether the frames were examined for a logo at all, over every sponsor: the on-screen numbers mean
+        // nothing for a deal without a logo, or a stream whose frames could not be examined.
+        SponsorOutcomeTotals outcomes = sponsorBuckets.findOutcomeTotals(
+                window.streamer(), null, window.windowStart(), window.windowEnd(), window.bucketSizeSeconds());
+        OnScreenTracking tracking =
+                OnScreenTracking.of(outcomes, properties.getAnalytics().getEstimatedSponsorExposureMsPerDetection());
+        SessionValue value = value(exposure, voiceMentions, samples, session, options, tracking.logoTracked());
         DirectResponse response = response(window, options);
 
         return Optional.of(new SessionSummary(
@@ -134,7 +142,8 @@ public class SessionSummaryService {
                 base.transcriptSentiment(),
                 base.engagement(),
                 value,
-                response));
+                response,
+                tracking));
     }
 
     /** The newest deal on the channel covering the session's start; for the named sponsor when there is one. */
@@ -174,7 +183,8 @@ public class SessionSummaryService {
             long voiceMentions,
             List<ViewerSample> samples,
             StreamSession session,
-            SummaryOptions options) {
+            SummaryOptions options,
+            boolean logoTracked) {
         StreamSenseProperties.Value config = properties.getAnalytics().getValue();
         double cpm =
                 options.cpmPer30sEquivalent() == null ? config.getCpmPer30sEquivalent() : options.cpmPer30sEquivalent();
@@ -186,6 +196,11 @@ public class SessionSummaryService {
                 + ", box area x " + config.getProminenceAreaScale() + ")";
         if (samples.isEmpty() || session.averageViewers() == null) {
             return new SessionValue(null, null, null, null, null, cpm, rate, basis);
+        }
+        if (!logoTracked) {
+            // No frame was examined for the logo: there is no logo value to price and no media value to add it to.
+            double hostReads = voiceMentions * session.averageViewers() / 1000.0d * rate;
+            return new SessionValue(null, round2(hostReads), null, null, null, cpm, rate, basis);
         }
         double weightedViewerMinutes = 0;
         double prominenceSum = 0;

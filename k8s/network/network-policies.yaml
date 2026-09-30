@@ -332,7 +332,7 @@ kind: NetworkPolicy
 metadata:
   name: sentiment-service
   namespace: streamsense
-  # Kafka consumer/producer, Postgres, Redis cache, ml-engine inference
+  # Kafka consumer/producer, Postgres, Redis cache, ml-engine inference, analytics-service (the channel's current deal)
 spec:
   podSelector:
     matchLabels:
@@ -461,6 +461,13 @@ spec:
               app: ml-engine
       ports:
         - port: 8000
+    # which deal the channel is in, and its logos
+    - to:
+        - podSelector:
+            matchLabels:
+              app: analytics-service
+      ports:
+        - port: 8085
     - to:
         - podSelector:
             matchLabels:
@@ -505,6 +512,9 @@ spec:
         - podSelector:
             matchLabels:
               app: prometheus
+        - podSelector:
+            matchLabels:
+              app: video-service
       ports:
         - port: 8085
   egress:

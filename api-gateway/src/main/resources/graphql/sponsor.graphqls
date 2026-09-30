@@ -18,4 +18,9 @@ type SponsorDetectionEvent {
   streamSessionId: String
   twitchStreamId: String
   videoTimestampMs: Float
+  # What happened to the frame: DETECTED, NOT_DETECTED (looked, not found), NO_LOGO (nothing to look for),
+  # or UNAVAILABLE (could not be examined). Null on events from before outcomes.
+  outcome: String
+  dealId: ID
+  logoId: ID
 }

@@ -45,6 +45,9 @@ type SponsorExposureMetric {
   maxConfidence: Float
   fallbackDetectionCount: Float!
   lowConfidenceDetectionCount: Float!
+  # Frames looked at for the logo (found or not), and frames not looked at because the deal had none.
+  examinedDetectionCount: Float!
+  noLogoDetectionCount: Float!
 }
 
 type EngagementMetrics {
@@ -150,6 +153,18 @@ type SessionSummary {
   engagement: EngagementMetrics!
   value: SessionValue!
   response: DirectResponse!
+  # Whether the frames were examined for the sponsor's logo; when they were not, logoValue and mediaValue are null.
+  onScreenTracking: OnScreenTracking
+}
+
+# ON: every frame examined. PARTIAL: some could not be (unavailableMs says how much of the stream).
+# UNAVAILABLE: none could. OFF: the deal had no logo, nothing was looked for. NO_FRAMES: no video captured.
+type OnScreenTracking {
+  state: String!
+  examinedFrames: Int!
+  unavailableFrames: Int!
+  noLogoFrames: Int!
+  unavailableMs: Float!
 }
 
 # A run of consecutive detections of one sponsor. offsetMs is from the session start, for the VOD.

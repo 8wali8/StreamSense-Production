@@ -1,8 +1,10 @@
 package com.streamsense.analyticsservice.controller;
 
+import com.streamsense.analyticsservice.api.Deal;
 import com.streamsense.analyticsservice.api.SessionSummary;
 import com.streamsense.analyticsservice.api.StreamSession;
 import com.streamsense.analyticsservice.api.SummaryOptions;
+import com.streamsense.analyticsservice.service.DealService;
 import com.streamsense.analyticsservice.service.SessionSummaryService;
 import com.streamsense.analyticsservice.service.StreamSessionService;
 import jakarta.validation.constraints.Max;
@@ -24,10 +26,22 @@ public class StreamSessionController {
 
     private final StreamSessionService sessions;
     private final SessionSummaryService summaries;
+    private final DealService deals;
 
-    public StreamSessionController(StreamSessionService sessions, SessionSummaryService summaries) {
+    public StreamSessionController(StreamSessionService sessions, SessionSummaryService summaries, DealService deals) {
         this.sessions = sessions;
         this.summaries = summaries;
+        this.deals = deals;
+    }
+
+    /**
+     * The deal the channel is in right now, with its logos: what video-service examines the channel's frames
+     * against. 404 when the channel has no current deal.
+     */
+    @GetMapping("/streams/{streamer}/current-deal")
+    public ResponseEntity<Deal> currentDeal(@PathVariable("streamer") String streamer) {
+        return deals.current(streamer).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound()
+                .build());
     }
 
     /** Sessions of a streamer overlapping [from, to) in epoch millis, newest first. */

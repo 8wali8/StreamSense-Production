@@ -21,6 +21,11 @@ public class SponsorDetectionEvent {
     private String streamSessionId;
     private String twitchStreamId;
     private Long videoTimestampMs;
+    /** DETECTED, NOT_DETECTED, NO_LOGO, or UNAVAILABLE; null on events from before outcomes (then: detected unless the fallback). */
+    private String outcome;
+
+    private Long dealId;
+    private Long logoId;
 
     public String getDetectionEventId() {
         return detectionEventId;
@@ -172,5 +177,37 @@ public class SponsorDetectionEvent {
 
     public void setVideoTimestampMs(Long videoTimestampMs) {
         this.videoTimestampMs = videoTimestampMs;
+    }
+
+    public String getOutcome() {
+        return outcome;
+    }
+
+    public void setOutcome(String outcome) {
+        this.outcome = outcome;
+    }
+
+    public Long getDealId() {
+        return dealId;
+    }
+
+    public void setDealId(Long dealId) {
+        this.dealId = dealId;
+    }
+
+    public Long getLogoId() {
+        return logoId;
+    }
+
+    public void setLogoId(Long logoId) {
+        this.logoId = logoId;
+    }
+
+    /** True when the logo is in the frame: the DETECTED outcome, or an event from before outcomes that is not the fallback. */
+    public boolean isDetected() {
+        if (outcome != null && !outcome.isBlank()) {
+            return "DETECTED".equalsIgnoreCase(outcome.trim());
+        }
+        return !"fallback".equalsIgnoreCase(modelVersion);
     }
 }

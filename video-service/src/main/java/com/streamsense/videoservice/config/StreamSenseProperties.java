@@ -11,6 +11,7 @@ public class StreamSenseProperties {
     private Cache cache = new Cache();
     private Payload payload = new Payload();
     private Processing processing = new Processing();
+    private Services services = new Services();
 
     public Topics getTopics() {
         return topics;
@@ -58,6 +59,68 @@ public class StreamSenseProperties {
 
     public void setProcessing(Processing processing) {
         this.processing = processing;
+    }
+
+    public Services getServices() {
+        return services;
+    }
+
+    public void setServices(Services services) {
+        this.services = services;
+    }
+
+    /** Other StreamSense services this one calls. No base URL means the call is never made. */
+    public static class Services {
+        private Endpoint analyticsService = new Endpoint();
+
+        /** analytics-service, for the channel's current deal and its logos. */
+        public Endpoint getAnalyticsService() {
+            return analyticsService;
+        }
+
+        public void setAnalyticsService(Endpoint analyticsService) {
+            this.analyticsService = analyticsService;
+        }
+    }
+
+    public static class Endpoint {
+        private String baseUrl;
+        private int connectTimeoutMs = 2000;
+        private int readTimeoutMs = 3000;
+        /** How long one answer about a channel's current deal is kept; a frame arrives every ten seconds. */
+        private int currentDealCacheSeconds = 60;
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public int getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(int connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
+
+        public int getCurrentDealCacheSeconds() {
+            return currentDealCacheSeconds;
+        }
+
+        public void setCurrentDealCacheSeconds(int currentDealCacheSeconds) {
+            this.currentDealCacheSeconds = currentDealCacheSeconds;
+        }
     }
 
     public static class Topics {

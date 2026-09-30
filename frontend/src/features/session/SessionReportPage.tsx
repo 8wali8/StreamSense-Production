@@ -7,6 +7,8 @@ import {
   formatOffset,
   formatShare,
   formatStart,
+  mediaValueLabel,
+  onScreenLabel,
   vodUrl,
   type VodSession,
 } from "./report-format";
@@ -92,7 +94,7 @@ export function SessionReportPage() {
       <div className="report-tiles">
         <div className="rstat">
           <div className="v tone-brand-text">{formatDuration(summary.onScreenMs)}</div>
-          <div className="l">On screen · {formatShare(summary.onScreenShare)} of stream</div>
+          <div className="l">{onScreenLabel(summary.onScreenTracking, summary.onScreenShare)}</div>
         </div>
         <div className="rstat">
           <div className="v">{formatCount(summary.mentions)}</div>
@@ -110,13 +112,7 @@ export function SessionReportPage() {
           <div className="v tone-brand-text">
             {sponsor === null || value.mediaValue == null ? "–" : formatMoney(value.mediaValue)}
           </div>
-          <div className="l">
-            {sponsor === null
-              ? "Media value · no sponsor tracked"
-              : value.mediaValue == null
-                ? "Media value · needs viewer data"
-                : "Media value · estimate"}
-          </div>
+          <div className="l">{mediaValueLabel(sponsor, summary.onScreenTracking, value.mediaValue)}</div>
         </div>
       </div>
 

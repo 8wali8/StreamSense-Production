@@ -12,6 +12,9 @@ SPONSORS = [
     "Logitech",
 ]
 
+OUTCOME_DETECTED = "DETECTED"
+OUTCOME_NOT_DETECTED = "NOT_DETECTED"
+
 
 @dataclass(frozen=True)
 class SponsorDetection:
@@ -22,6 +25,7 @@ class SponsorDetection:
     y: float
     width: float
     height: float
+    outcome: str = OUTCOME_DETECTED
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,10 @@ class SponsorDetectionContext:
     frame_sequence: int
     frame_signature: str | None = None
     proposals: list[RegionProposal] | None = None
+    # The deal's sponsor and logos, when the channel has a deal with one: what a real detector looks for,
+    # and the name every detection of the frame is stamped with.
+    sponsor: str | None = None
+    logo_refs: tuple[str, ...] = ()
 
 
 class SponsorDetector(Protocol):
@@ -39,6 +47,12 @@ class SponsorDetector(Protocol):
 
 
 class DeterministicSponsorDetector:
+    """The placeholder: a box from a hash of the frame, for tests and the demo snapshot. Never production.
+
+    It always answers DETECTED. With a sponsor in the context the detection carries that name, so the
+    analytics downstream keys it under the deal; without one it picks from the fixed list as it always did.
+    """
+
     def detect(self, context: SponsorDetectionContext) -> SponsorDetection:
         proposals = context.proposals or []
         proposal_signature = _proposal_signature(proposals)
@@ -51,7 +65,7 @@ class DeterministicSponsorDetector:
         )
         digest = hashlib.sha256(seed).digest()
 
-        sponsor = SPONSORS[digest[0] % len(SPONSORS)]
+        sponsor = context.sponsor or SPONSORS[digest[0] % len(SPONSORS)]
         confidence = round(0.55 + (digest[1] / 255.0) * 0.44, 3)
         top_proposal = _top_proposal(proposals)
         if top_proposal:
@@ -76,6 +90,20 @@ class DeterministicSponsorDetector:
         )
 
 
+def not_detected(sponsor: str, model_version: str) -> SponsorDetection:
+    """The answer when a detector looked for the logo and did not find it: no confidence, no box."""
+    return SponsorDetection(
+        sponsor=sponsor,
+        confidence=0.0,
+        model_version=model_version,
+        x=0.0,
+        y=0.0,
+        width=0.0,
+        height=0.0,
+        outcome=OUTCOME_NOT_DETECTED,
+    )
+
+
 def detect_sponsor(
     frame_ref: str,
     streamer: str,
@@ -83,6 +111,8 @@ def detect_sponsor(
     frame_signature: str | None = None,
     proposals: list[RegionProposal] | None = None,
     detector: SponsorDetector | None = None,
+    sponsor: str | None = None,
+    logo_refs: tuple[str, ...] = (),
 ) -> SponsorDetection:
     resolved = detector or DeterministicSponsorDetector()
     return resolved.detect(
@@ -92,6 +122,8 @@ def detect_sponsor(
             frame_sequence=frame_sequence,
             frame_signature=frame_signature,
             proposals=proposals,
+            sponsor=sponsor,
+            logo_refs=logo_refs,
         )
     )
 

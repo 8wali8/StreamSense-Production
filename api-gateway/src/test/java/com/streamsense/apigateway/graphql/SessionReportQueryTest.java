@@ -82,7 +82,9 @@ class SessionReportQueryTest {
                                        "weightedLogoViewerMinutes": 36400.0, "averageProminence": 0.71,
                                        "cpmPer30sEquivalent": 12.0, "hostReadRatePer1000": 15.0, "basis": "test"},
                              "response": {"chatCommand": "!redbull", "commandUses": 137, "commandUsers": 91,
-                                          "trackedLinkHost": "redbull.com", "linkPosts": 84}}
+                                          "trackedLinkHost": "redbull.com", "linkPosts": 84},
+                             "onScreenTracking": {"state": "PARTIAL", "examinedFrames": 200, "unavailableFrames": 3,
+                                                  "noLogoFrames": 0, "unavailableMs": 30000}}
                             """
                                     .formatted(SESSION));
                     case "/api/video/detections/range" -> json(
@@ -155,6 +157,7 @@ class SessionReportQueryTest {
                           sessionSummary(sessionId: "7", sponsor: "Red Bull", chatCommand: "!redbull",
                                          trackedLinkHost: "redbull.com", cpmPer30sEquivalent: 12, hostReadRatePer1000: 15) {
                             sponsor onScreenMs mentions value { mediaValue cpmPer30sEquivalent } response { commandUses linkPosts }
+                            onScreenTracking { state unavailableMs }
                             session { id title }
                           }
                         }
@@ -171,7 +174,10 @@ class SessionReportQueryTest {
                 .isEqualTo(137)
                 .path("sessionSummary.session.title")
                 .entity(String.class)
-                .isEqualTo("Monza");
+                .isEqualTo("Monza")
+                .path("sessionSummary.onScreenTracking.state")
+                .entity(String.class)
+                .isEqualTo("PARTIAL");
 
         assertThat(PATHS)
                 .containsExactly("/api/analytics/sessions/7/summary?sponsor=Red%20Bull&chatCommand=!redbull"
