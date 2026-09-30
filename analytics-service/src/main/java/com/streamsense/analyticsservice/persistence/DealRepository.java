@@ -1,6 +1,7 @@
 package com.streamsense.analyticsservice.persistence;
 
 import com.streamsense.analyticsservice.model.DealRow;
+import com.streamsense.analyticsservice.model.SponsorUsage;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -104,6 +105,23 @@ public class DealRepository {
                 String.class,
                 at,
                 at);
+    }
+
+    /** Every sponsor deals name, grouped without regard to case, most recently started first. */
+    public List<SponsorUsage> sponsorUsage() {
+        return jdbcTemplate.query(
+                """
+                select min(sponsor) as sponsor, count(*) as deals, count(distinct streamer) as channels,
+                       max(starts_at) as latest_starts_at
+                  from deals
+                 group by lower(sponsor)
+                 order by latest_starts_at desc, sponsor
+                """,
+                (rs, rowNum) -> new SponsorUsage(
+                        rs.getString("sponsor"),
+                        rs.getLong("deals"),
+                        rs.getLong("channels"),
+                        rs.getLong("latest_starts_at")));
     }
 
     public Optional<DealRow> findByShareToken(String token) {

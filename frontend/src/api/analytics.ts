@@ -41,6 +41,16 @@ export function updateDeal(dealId: string, request: DealUpdateRequest): Promise<
   return apiFetch<Deal>(`/api/analytics/deals/${encodeURIComponent(dealId)}`, { method: "PUT", body: request });
 }
 
+/**
+ * GET /api/analytics/deals/sponsors: every sponsor deals name, grouped without regard to case, most
+ * recently started first. Operators only; what the sponsor catalog compares itself to.
+ */
+export type SponsorUsage = { sponsor: string; deals: number; channels: number; latestStartsAt: number };
+
+export function listSponsorUsage(): Promise<SponsorUsage[]> {
+  return apiFetch<SponsorUsage[]>("/api/analytics/deals/sponsors");
+}
+
 /** DELETE /api/analytics/deals/{id}: operators only, and refused (409) while the deal is shared. */
 export function deleteDeal(dealId: string): Promise<void> {
   return apiSend(`/api/analytics/deals/${encodeURIComponent(dealId)}`, { method: "DELETE" });

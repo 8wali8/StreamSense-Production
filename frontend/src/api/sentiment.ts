@@ -14,8 +14,10 @@ export async function getRecentTranscriptSegments(streamer: string, limit: numbe
 
 /**
  * POST /api/sentiment/relevance/sponsors: the sponsor profile relevance scoring uses for a streamer.
- * Aliases and semantic terms are merged with the ones configured for that sponsor in config-repo;
- * `minScore` overrides the configured relevance threshold when given.
+ * Aliases and semantic terms are merged with the ones of the catalog entry the sponsor reaches. Sent,
+ * `minScore` is the channel's own score; left out, the channel follows the catalog entry's score, or
+ * the configured default. Read back, `minScore` is the score in effect and `minScoreOverride` the
+ * channel's own, null when it has none.
  */
 export type SponsorProfile = {
   streamer: string;
@@ -23,10 +25,40 @@ export type SponsorProfile = {
   aliases: string[];
   semanticTerms: string[];
   minScore?: number;
+  minScoreOverride?: number | null;
 };
 
 export function updateSponsorProfile(profile: SponsorProfile): Promise<void> {
   return apiSend("/api/sentiment/relevance/sponsors", { body: profile });
+}
+
+/**
+ * The sponsor catalog (`/api/sentiment/relevance/catalog`): what is known about a sponsor across every
+ * channel. A deal that names the sponsor by name or by any alias borrows the entry's aliases and terms
+ * into the channel's profile; `minScore` null means the configured default.
+ */
+export type SponsorCatalogEntry = {
+  name: string;
+  aliases: string[];
+  semanticTerms: string[];
+  minScore: number | null;
+  updatedAt: number;
+};
+
+export function listSponsorCatalog(): Promise<SponsorCatalogEntry[]> {
+  return apiFetch<SponsorCatalogEntry[]>("/api/sentiment/relevance/catalog");
+}
+
+/** PUT: replaces or adds the entry of that name (case does not matter) and refreshes the profiles that reach it. */
+export function saveSponsorCatalogEntry(
+  entry: Omit<SponsorCatalogEntry, "updatedAt" | "minScore"> & { minScore?: number },
+): Promise<SponsorCatalogEntry> {
+  return apiFetch<SponsorCatalogEntry>("/api/sentiment/relevance/catalog", { method: "PUT", body: entry });
+}
+
+/** DELETE: removes the entry; channel profiles keep what they borrowed. */
+export function removeSponsorCatalogEntry(name: string): Promise<void> {
+  return apiSend(`/api/sentiment/relevance/catalog/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 /** GET /api/sentiment/relevance/sponsors/{streamer}: the stored profile in effect, or null when the channel has none. */

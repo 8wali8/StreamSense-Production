@@ -1,33 +1,29 @@
 package com.streamsense.sentimentservice.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SponsorRelevanceProfile {
+/** A catalog entry as it should be from now on: the whole entry, keyed by the name (case does not matter). */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class SponsorCatalogUpdateRequest {
 
-    private String streamer;
-    private String sponsor;
+    @NotBlank
+    @Size(max = 255)
+    private String name;
+
     private List<String> aliases = new ArrayList<>();
     private List<String> semanticTerms = new ArrayList<>();
-    /** The score in effect: the channel's override, else the catalog entry's, else the configured default. */
     private Double minScore;
-    /** The score the channel chose for itself, or null when it follows the catalog or the default. */
-    private Double minScoreOverride;
 
-    public String getStreamer() {
-        return streamer;
+    public String getName() {
+        return name;
     }
 
-    public void setStreamer(String streamer) {
-        this.streamer = streamer;
-    }
-
-    public String getSponsor() {
-        return sponsor;
-    }
-
-    public void setSponsor(String sponsor) {
-        this.sponsor = sponsor;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public List<String> getAliases() {
@@ -52,13 +48,5 @@ public class SponsorRelevanceProfile {
 
     public void setMinScore(Double minScore) {
         this.minScore = minScore;
-    }
-
-    public Double getMinScoreOverride() {
-        return minScoreOverride;
-    }
-
-    public void setMinScoreOverride(Double minScoreOverride) {
-        this.minScoreOverride = minScoreOverride;
     }
 }

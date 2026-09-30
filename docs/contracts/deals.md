@@ -29,11 +29,23 @@ dealSummary(id: ID!): DealSummary
 
 ## Sponsor relevance profiles (sentiment-service)
 
-The profile relevance scoring uses per streamer (sponsor, aliases, semantic terms, minimum score) is stored in `sponsor_relevance_profiles` and mirrored in memory. At start-up the stored rows load first; the `streamsense.sentiment.relevance.seeds` in config-repo only fill in streamers with no stored profile, so an operator's or a deal's choice survives a restart.
+The profile relevance scoring uses per streamer (sponsor, aliases, semantic terms, minimum score) is stored in `sponsor_relevance_profiles` and mirrored in memory. At start-up the stored rows load first; the `streamsense.sentiment.relevance.seeds` in config-repo only fill in streamers with no stored profile, so an operator's or a deal's choice survives a restart. A profile keeps the sponsor's name as the deal or the operator spelled it, because the reports match mentions by that name, and borrows the aliases and terms of the catalog entry that name reaches.
 
 - `GET /api/sentiment/relevance/sponsors` every stored profile.
 - `GET /api/sentiment/relevance/sponsors/{streamer}` the profile in effect, 404 when the channel has none.
-- `POST /api/sentiment/relevance/sponsors` replaces the channel's profile (`streamer`, `sponsor`, optional `aliases`, `semanticTerms`, `minScore`; the sponsor's configured aliases and terms are merged in). Unknown fields, including the retired `campaignGoal`, are ignored.
+- `POST /api/sentiment/relevance/sponsors` replaces the channel's profile (`streamer`, `sponsor`, optional `aliases`, `semanticTerms`, `minScore`; the catalog entry's aliases and terms are merged in). Unknown fields, including the retired `campaignGoal`, are ignored.
+
+A profile's minimum score is the channel's own when it has one, else the score of the catalog entry its sponsor reaches, else the configured default. Sent, `minScore` is the channel's own score; left out, the channel has none. Read back, `minScore` is the score in effect and `minScoreOverride` the channel's own (null when it follows the catalog or the default). Only the override is stored.
+
+### The sponsor catalog
+
+What is known about a sponsor across every channel: its canonical `name`, the `aliases` it goes by, the `semanticTerms` that mean it, and its `minScore` (null for the configured default). Stored in `sponsor_catalog`, keyed by the lower-cased name, and mirrored in memory. An entry is reached by its name or by any of its aliases, case aside, so a deal that says "redbull" reaches "Red Bull". A name or an alias belongs to one entry only, so what a spelling reaches never depends on the order entries are held in. The configured `streamsense.sentiment.relevance.sponsors` only fill in names the table has never held: an operator's edit survives a restart, a config change never overwrites it, and a removed entry stays removed (its row is kept, marked `removed`). Operators own the catalog: the gateway refuses a streamer anything but a read on `/api/sentiment/**`.
+
+- `GET /api/sentiment/relevance/catalog` every entry, by name.
+- `PUT /api/sentiment/relevance/catalog` replaces or adds the entry of that `name` (the whole entry; the name is the key, so a rename is a removal and an addition; terms are trimmed and de-duplicated) and brings the channel profiles on it up to date: the ones that reached the entry before the edit and the ones that reach it after. Each gains the entry's aliases and terms and keeps its own, so a term removed from the catalog is removed from a channel by hand, and each follows the entry's minimum score unless the channel has its own. 400 when a term holds a line break or a list is longer than 4,000 characters in all; 409 when the name or an alias already belongs to another entry.
+- `DELETE /api/sentiment/relevance/catalog/{name}` removes the entry (204, 404 when unknown); channel profiles keep what they borrowed. Adding the name again brings it back.
+
+analytics-service answers which sponsors deals name: `GET /api/analytics/deals/sponsors` lists every sponsor grouped without regard to case (`sponsor`, `deals`, `channels`, `latestStartsAt`), most recently started first, operators only. The Operations page's catalog section compares the two and lists the sponsors no entry reaches.
 
 ## Share links
 

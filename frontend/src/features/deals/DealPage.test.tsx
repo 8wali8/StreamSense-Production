@@ -134,10 +134,14 @@ describe("deals", () => {
   it("edits a deal as a whole, ends it today, and lets an operator delete it once unshared", async () => {
     let updated: Record<string, unknown> | null = null;
     let deleted = false;
+    // "End today" is offered while the deal runs, so this deal's dates straddle the clock; the shared
+    // fixture's are fixed, and a fixed end date is a test that fails from that day on.
+    const week = 7 * 24 * 3_600_000;
+    const running = deal({ startsAt: Date.now() - week, endsAt: Date.now() + week });
     server.use(
       ...dealPageHandlers(),
       ...homeHandlers(),
-      graphqlData("DealSummary", { dealSummary: dealSummary() }),
+      graphqlData("DealSummary", { dealSummary: dealSummary({ deal: running }) }),
       restResolver("put", "/api/analytics/deals/3", async ({ request }) => {
         updated = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(deal({ sponsor: updated.sponsor as string }));

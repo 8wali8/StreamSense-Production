@@ -182,6 +182,16 @@ class ChannelScopeTest {
         mockMvc.perform(get("/api/analytics/helix/status").header(LOGIN, "ops").header(ROLE, "operator"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false));
+        // The sponsors every channel's deals name are the operator's business too.
+        mockMvc.perform(get("/api/analytics/deals/sponsors")
+                        .header(LOGIN, "owner")
+                        .header(ROLE, "streamer"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.reason").value("operator_required"));
+        mockMvc.perform(get("/api/analytics/deals/sponsors")
+                        .header(LOGIN, "ops")
+                        .header(ROLE, "operator"))
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/analytics/helix/status")).andExpect(status().isOk());
     }
 }

@@ -15,6 +15,7 @@ import { useStreamer } from "../streamer/streamer-context";
 import { ChannelControl } from "./ChannelControl";
 import { SegmentationPreview } from "./SegmentationPreview";
 import { SentimentPanel } from "./SentimentPanel";
+import { SponsorCatalog } from "./SponsorCatalog";
 import { SponsorPanel } from "./SponsorPanel";
 import { SponsorProfileEditor } from "./SponsorProfileEditor";
 import { StreamMetricsOverview } from "./StreamMetricsOverview";
@@ -69,6 +70,10 @@ export function OpsPage() {
           <SponsorProfileEditor />
         </ErrorBoundary>
       </div>
+
+      <ErrorBoundary label="sponsor catalog">
+        <SponsorCatalog />
+      </ErrorBoundary>
 
       <ErrorBoundary label="metrics overview">
         <StreamMetricsOverview streamer={selectedStreamer} />

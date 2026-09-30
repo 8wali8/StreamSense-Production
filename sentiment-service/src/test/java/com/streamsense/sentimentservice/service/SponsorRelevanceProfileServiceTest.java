@@ -1,12 +1,15 @@
 package com.streamsense.sentimentservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.streamsense.sentimentservice.config.StreamSenseProperties;
+import com.streamsense.sentimentservice.dto.SponsorCatalogUpdateRequest;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceProfile;
 import com.streamsense.sentimentservice.dto.SponsorRelevanceUpdateRequest;
+import com.streamsense.sentimentservice.persistence.SponsorCatalogRepository;
 import com.streamsense.sentimentservice.persistence.SponsorRelevanceProfileEntity;
 import com.streamsense.sentimentservice.persistence.SponsorRelevanceProfileRepository;
 import java.util.List;
@@ -16,6 +19,130 @@ import org.junit.jupiter.api.Test;
 class SponsorRelevanceProfileServiceTest {
 
     private final SponsorRelevanceProfileRepository repository = mock(SponsorRelevanceProfileRepository.class);
+    private final SponsorCatalogRepository catalogRepository = mock(SponsorCatalogRepository.class);
+
+    /** The profile service over a catalog seeded from the same properties, as at start-up. */
+    private SponsorRelevanceProfileService service(StreamSenseProperties properties) {
+        when(catalogRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        SponsorCatalogService catalog = new SponsorCatalogService(properties, catalogRepository);
+        catalog.seedConfiguredSponsors();
+        return new SponsorRelevanceProfileService(properties, repository, catalog);
+    }
+
+    @Test
+    void aSponsorNamedByAliasBorrowsTheCatalogEntrysTerms() {
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
+        SponsorRelevanceUpdateRequest request = new SponsorRelevanceUpdateRequest();
+        request.setStreamer("8wali8");
+        request.setSponsor("redbull");
+
+        SponsorRelevanceProfile profile = service.update(request);
+
+        // The profile keeps the deal's spelling (reports match mentions by it) and gains the entry's terms.
+        assertThat(profile.getSponsor()).isEqualTo("redbull");
+        assertThat(profile.getAliases()).containsExactly("red bull", "redbull");
+        assertThat(profile.getSemanticTerms()).containsExactly("energy drink", "wings");
+    }
+
+    @Test
+    void aStoredProfileWrittenBeforeItsCatalogEntryCatchesUpAtStartUp() {
+        when(repository.findAll())
+                .thenReturn(List.of(
+                        new SponsorRelevanceProfileEntity("8wali8", "redbull", List.of(), List.of("can"), 0.5d, 1L)));
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
+
+        service.seedConfiguredProfiles();
+
+        SponsorRelevanceProfile caughtUp = service.findActive("8wali8").orElseThrow();
+        assertThat(caughtUp.getSponsor()).isEqualTo("redbull");
+        assertThat(caughtUp.getAliases()).containsExactly("red bull", "redbull");
+        assertThat(caughtUp.getSemanticTerms()).containsExactly("energy drink", "wings", "can");
+        assertThat(caughtUp.getMinScore()).isEqualTo(0.5d);
+    }
+
+    @Test
+    void aCatalogEditReachesTheProfilesOnThatSponsorAndKeepsTheirOwnTerms() {
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
+        SponsorRelevanceUpdateRequest pointed = new SponsorRelevanceUpdateRequest();
+        pointed.setStreamer("8wali8");
+        pointed.setSponsor("redbull");
+        pointed.setSemanticTerms(List.of("can"));
+        service.update(pointed);
+        SponsorRelevanceUpdateRequest other = new SponsorRelevanceUpdateRequest();
+        other.setStreamer("ninja");
+        other.setSponsor("Nike");
+        service.update(other);
+
+        SponsorCatalogUpdateRequest edit = new SponsorCatalogUpdateRequest();
+        edit.setName("Red Bull");
+        edit.setAliases(List.of("redbull", "rb"));
+        edit.setSemanticTerms(List.of("f1"));
+        service.updateCatalogEntry(edit);
+
+        SponsorRelevanceProfile refreshed = service.findActive("8wali8").orElseThrow();
+        assertThat(refreshed.getAliases()).containsExactly("redbull", "rb", "red bull");
+        assertThat(refreshed.getSemanticTerms()).containsExactly("f1", "energy drink", "wings", "can");
+        assertThat(service.findActive("ninja").orElseThrow().getSemanticTerms()).isEmpty();
+    }
+
+    @Test
+    void anEditThatDropsTheAliasAProfileIsSpelledByStillReachesThatProfile() {
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
+        SponsorRelevanceUpdateRequest pointed = new SponsorRelevanceUpdateRequest();
+        pointed.setStreamer("8wali8");
+        pointed.setSponsor("redbull");
+        service.update(pointed);
+
+        // "redbull" reached Red Bull before the edit; the edit keeps only "rb".
+        SponsorCatalogUpdateRequest edit = new SponsorCatalogUpdateRequest();
+        edit.setName("Red Bull");
+        edit.setAliases(List.of("rb"));
+        edit.setSemanticTerms(List.of("f1"));
+        service.updateCatalogEntry(edit);
+
+        SponsorRelevanceProfile refreshed = service.findActive("8wali8").orElseThrow();
+        assertThat(refreshed.getAliases()).containsExactly("rb", "red bull", "redbull");
+        assertThat(refreshed.getSemanticTerms()).containsExactly("f1", "energy drink", "wings");
+    }
+
+    @Test
+    void theMinimumScoreIsTheChannelsOwnElseTheCatalogEntrysElseTheDefault() {
+        StreamSenseProperties properties = propertiesWithRedBullSeed();
+        SponsorRelevanceProfileService service = service(properties);
+        double configured = properties.getSentiment().getRelevance().getMinScore();
+        SponsorRelevanceUpdateRequest follows = new SponsorRelevanceUpdateRequest();
+        follows.setStreamer("8wali8");
+        follows.setSponsor("redbull");
+        SponsorRelevanceUpdateRequest chooses = new SponsorRelevanceUpdateRequest();
+        chooses.setStreamer("ninja");
+        chooses.setSponsor("Red Bull");
+        chooses.setMinScore(0.9d);
+        SponsorRelevanceUpdateRequest unknown = new SponsorRelevanceUpdateRequest();
+        unknown.setStreamer("shroud");
+        unknown.setSponsor("Rockstar");
+
+        // No entry score yet: the default, with nothing stored as the channel's own.
+        assertThat(service.update(follows).getMinScore()).isEqualTo(configured);
+        assertThat(service.update(follows).getMinScoreOverride()).isNull();
+        service.update(chooses);
+        service.update(unknown);
+
+        // The entry gains a score: the channel that follows takes it, the one that chose keeps its own, and a
+        // sponsor the catalog does not know stays on the default.
+        SponsorCatalogUpdateRequest edit = new SponsorCatalogUpdateRequest();
+        edit.setName("Red Bull");
+        edit.setAliases(List.of("red bull", "redbull"));
+        edit.setMinScore(0.7d);
+        service.updateCatalogEntry(edit);
+
+        assertThat(service.findActive("8wali8").orElseThrow().getMinScore()).isEqualTo(0.7d);
+        assertThat(service.findActive("8wali8").orElseThrow().getMinScoreOverride())
+                .isNull();
+        assertThat(service.findActive("ninja").orElseThrow().getMinScore()).isEqualTo(0.9d);
+        assertThat(service.findActive("ninja").orElseThrow().getMinScoreOverride())
+                .isEqualTo(0.9d);
+        assertThat(service.findActive("shroud").orElseThrow().getMinScore()).isEqualTo(configured);
+    }
 
     private StreamSenseProperties propertiesWithRedBullSeed() {
         StreamSenseProperties properties = new StreamSenseProperties();
@@ -36,8 +163,7 @@ class SponsorRelevanceProfileServiceTest {
 
     @Test
     void seedConfiguredProfiles_activatesConfiguredStreamerProfile() {
-        SponsorRelevanceProfileService service =
-                new SponsorRelevanceProfileService(propertiesWithRedBullSeed(), repository);
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
 
         service.seedConfiguredProfiles();
 
@@ -57,7 +183,7 @@ class SponsorRelevanceProfileServiceTest {
     void seedConfiguredProfiles_usesSeedMinScoreOverride() {
         StreamSenseProperties properties = propertiesWithRedBullSeed();
         properties.getSentiment().getRelevance().getSeeds().get(0).setMinScore(0.75d);
-        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(properties, repository);
+        SponsorRelevanceProfileService service = service(properties);
 
         service.seedConfiguredProfiles();
 
@@ -75,7 +201,7 @@ class SponsorRelevanceProfileServiceTest {
         incomplete.setStreamer("   ");
         incomplete.setSponsor("Red Bull");
         properties.getSentiment().getRelevance().getSeeds().add(incomplete);
-        SponsorRelevanceProfileService service = new SponsorRelevanceProfileService(properties, repository);
+        SponsorRelevanceProfileService service = service(properties);
 
         service.seedConfiguredProfiles();
 
@@ -88,8 +214,7 @@ class SponsorRelevanceProfileServiceTest {
         when(repository.findAll())
                 .thenReturn(List.of(new SponsorRelevanceProfileEntity(
                         "redbull-testing", "Nike", List.of("nike"), List.of("shoes"), 0.6d, 1L)));
-        SponsorRelevanceProfileService service =
-                new SponsorRelevanceProfileService(propertiesWithRedBullSeed(), repository);
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
 
         service.seedConfiguredProfiles();
 
@@ -102,8 +227,7 @@ class SponsorRelevanceProfileServiceTest {
 
     @Test
     void update_overridesSeededProfileForSameStreamer() {
-        SponsorRelevanceProfileService service =
-                new SponsorRelevanceProfileService(propertiesWithRedBullSeed(), repository);
+        SponsorRelevanceProfileService service = service(propertiesWithRedBullSeed());
         service.seedConfiguredProfiles();
 
         SponsorRelevanceUpdateRequest request = new SponsorRelevanceUpdateRequest();
