@@ -13,7 +13,7 @@ Step 2.2 of the PRD "Stop and speed up past-stream imports": one sequential ffmp
 | Check | Command | Result |
 |---|---|---|
 | video-capture-service | `ruff format`, `ruff check`, `mypy`, `pytest` in `python:3.11.16-slim` with uv | clean; 81 tests |
-| Measurement on the VM | the same recording as the baseline (xqc 2872612045), capture half, polled every 30 s | pending: needs this build on the VM |
+| Measurement on the VM, 2026-09-30 | the same recording as the baseline (xqc 2872612045), capture half, polled every 30 s | an hour of recording in 1,718 s: 2.1 times real time, 28.6 minutes per hour, the same as the baseline; 361 frames, 350 transcript clips, 0 failures. The pacing did not work (ffmpeg was never paused); the table and the fix are in `fix-imports-pass-backlog.md` |
 
 ## What to check by hand
 
@@ -23,4 +23,4 @@ Step 2.2 of the PRD "Stop and speed up past-stream imports": one sequential ffmp
 
 ## Follow-ups
 
-- Step 2.3 (bounded concurrency for transcription) if the measured time is still above the PRD's target; the confirmation before a long import with the measured estimate.
+- Step 2.3 (bounded concurrency for transcription) if the measured time is still above the PRD's target; the confirmation before a long import with the measured estimate. The measurement says it is: see `fix-imports-pass-backlog.md`.
