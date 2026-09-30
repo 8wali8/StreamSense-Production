@@ -223,12 +223,18 @@ class SequentialPass:
             self._resume()
 
     def _produced_frames(self) -> int:
-        count = 0
+        """How many frames ffmpeg has written: one past the highest index on disk.
+
+        The consumer deletes each frame after use, so the files present are the backlog, not the
+        production; counting them would let ffmpeg run ever further ahead as the import goes on.
+        """
+        highest = -1
         with contextlib.suppress(OSError):
             for entry in os.scandir(self.scratch_dir):
                 if entry.name.startswith("f-"):
-                    count += 1
-        return count
+                    with contextlib.suppress(ValueError):
+                        highest = max(highest, int(entry.name[2:].split(".", 1)[0]))
+        return highest + 1
 
     def paused(self) -> bool:
         return self._paused

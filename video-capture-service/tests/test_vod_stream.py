@@ -83,6 +83,46 @@ def test_a_cancel_kills_ffmpeg_and_an_idle_run_times_out(tmp_path):
     quiet.close()
 
 
+def test_frames_the_consumer_deleted_still_count_as_produced(tmp_path):
+    run = SequentialPass("u", tmp_path, 0, 10, 10, True)
+    assert run._produced_frames() == 0
+    # The import has used and removed frames 0 to 39; ffmpeg has written up to 44.
+    for index in range(40, 45):
+        run.frame_path(index).write_bytes(b"frame")
+        run.audio_path(index).write_bytes(b"audio")
+    (tmp_path / "f-unnumbered.jpg").write_bytes(b"stray")
+    assert run._produced_frames() == 45
+
+
+@pytest.mark.skipif(os.name == "nt", reason="pausing a process group needs POSIX signals")
+def test_ffmpeg_is_paused_by_how_far_ahead_it_is_not_by_how_many_files_are_left(tmp_path):
+    run = FakePass(tmp_path / "eaten", frames=4000, delay=0.005, idle_timeout_seconds=10, backlog=6)
+    run.start()
+    cancel = threading.Event()
+    consumed = 300
+    try:
+        # Consume the way the import does, deleting each frame, until far more have been used than
+        # are ever waiting on disk; then let the writer get ahead.
+        for index in range(consumed):
+            frame = run.wait_for(run.frame_path(index), run.frame_path(index + 1), cancel)
+            assert frame is not None
+            frame.unlink()
+        time.sleep(0.3)
+        run.throttle(consumed)
+        assert run.paused() is True
+        held = run._produced_frames()
+        assert held - consumed > 6
+        time.sleep(0.3)
+        assert run._produced_frames() == held
+        # Within half the backlog of the writer: it runs again.
+        run.throttle(held - 3)
+        assert run.paused() is False
+        time.sleep(0.3)
+        assert run._produced_frames() > held
+    finally:
+        run.close()
+
+
 @pytest.mark.skipif(os.name == "nt", reason="pausing a process group needs POSIX signals")
 def test_ffmpeg_is_paused_when_it_runs_ahead_and_resumed_when_the_consumer_catches_up(tmp_path):
     run = FakePass(tmp_path / "ahead", frames=40, delay=0.02, idle_timeout_seconds=10, backlog=6)
